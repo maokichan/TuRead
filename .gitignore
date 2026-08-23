@@ -1,0 +1,21 @@
+# node
+node_modules/
+dist/
+build/
+*.log
+
+# go
+server/bin/
+server/tmp/
+
+# env / secrets
+.env
+.env.local
+
+# editors / os
+.vscode/
+.DS_Store
+Thumbs.db
+
+# claude code local settings
+.claude/settings.local.json

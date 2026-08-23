@@ -1,0 +1,4 @@
+[submodule "kookit"]
+	path = kookit
+	url = https://github.com/koodo-reader/kookit.git
+	shallow = true
