@@ -30,7 +30,28 @@
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## 2. 书籍标定（同一本书 = 同一电子版）
+## 2. 架构选型与术语（六边形 × DDD × Clean，不冲突）
+
+**结论**：以**六边形架构（Ports & Adapters）为结构骨架**，以 **DDD 战术命名为层内词汇**；Clean Architecture 是二者的同心圆图示，经典三层是其简化版。三者描述同一模型的不同侧面：
+
+| 概念 | 六边形（Cockburn） | DDD（Evans） | Clean（Martin） | 本项目 |
+|---|---|---|---|---|
+| 最内层 | 应用核心（core） | 领域层（实体/值对象/领域服务） | Entities | `core/domain` |
+| 业务编排 | （core 内部未细分） | 应用服务（用例） | Use Cases | `core/usecases`（RoomSession / BookService） |
+| 能力接缝 | 端口（driving / driven） | 仓库 / 基础设施接口 | Interface Adapters 的接口侧 | `core/ports`（IRenderService / INetService / ILibraryStore） |
+| 外部实现 | 适配器 | 基础设施 | Interface Adapters / Frameworks | `core/adapters` + 外壳（Electron / React） |
+
+**本项目统一术语（此后不再混用）：**
+
+- **领域层 `core/domain`**：值对象（`BookLocation`、`BookFingerprint`）、实体（`BookRecord`、`Note`）、领域服务（业务规则，如 `verify` 指纹比对）。零依赖，被所有层共享。
+- **应用服务 `core/usecases`**：用例编排，薄、不含业务规则判断（`RoomSession`、`BookService`）。
+- **端口 `core/ports`**：核心定义的接口（六边形的 driven ports / DDD 的仓库接口），如 `IRenderService`、`INetService`、`ILibraryStore`。
+- **适配器 `core/adapters`**：端口的实现（kookit / ws / sqlite）。
+- **外壳（UI）**：六边形的 driving adapter（React + Electron），只调用应用服务与领域类型。
+
+**修正记录**：v0.1 的 `ISyncService` 曾把"端口"与"应用服务"混为一谈，v0.2 已拆分为 `INetService`（端口）+ `IRoomSession`（应用服务）。术语以此表为准。
+
+## 3. 书籍标定（同一本书 = 同一电子版）
 
 **目标**：房间内所有成员读的是同一本书的**同一电子版**。
 
@@ -40,7 +61,7 @@
 - **房间绑定 bookId**；加入房间时客户端上报指纹 → 服务端比对 → 一致放行 / 不一致拒绝或警告。
 - **客户端本地书库**同样记录 hash（导入时计算，crypto-js / Web Crypto / Node crypto）。
 
-## 3. 客户端分层（权威契约见 `docs/CLIENT-CONTRACTS.md` v0.2）
+## 4. 客户端分层（权威契约见 `docs/CLIENT-CONTRACTS.md` v0.2）
 
 **能力服务层（ports）—— 包装外部能力，单一职责，可替换：**
 
@@ -61,7 +82,7 @@
 > 术语澄清：kookit 被包装进 `IRenderService`（**能力服务**），把 kookit 产物翻译成领域类型（`BookLocation`）；
 > **同步功能本体是 `IRoomSession`（用例）**，不是能力服务——它"在服务之上"编排多个能力服务，UI 调用它即可。
 
-## 4. 服务端模块（Go，规划参考 —— 独立项目，本次不开发）
+## 5. 服务端模块（Go，规划参考 —— 独立项目，本次不开发）
 
 > server 不在本次开发范围，以下仅记录规划，避免后续重复设计。
 
@@ -73,7 +94,7 @@
 | `store` | SQLite（modernc.org/sqlite，纯 Go 无 cgo）起步，规模上来再换 Postgres |
 | `api` | REST（房间/书籍管理）+ 实时通道（同步） |
 
-## 5. 平台与 UI（决策记录）
+## 6. 平台与 UI（决策记录）
 
 - **Electron = 桌面三平台**（Win/macOS/Linux），不支持移动端。
 - **React(DOM) ≠ React Native**：移动端渲染层与交互逻辑不同，不是同一套代码（组件逻辑可部分共享）。
@@ -81,7 +102,7 @@
 - **v1 只做 Desktop Shell**；core 接口为未来 Web/Android 壳预留，核心零改动。
 - **多端构建**："构建时 ban 不用的" = 平台入口 + tree-shaking + 构建配置（打包期排除目标平台无关代码）。
 
-## 6. 扩展与"官方插件"（决策记录）
+## 7. 扩展与"官方插件"（决策记录）
 
 - **现状**：服务端口（ports）本身就是插件边界 —— 一个"官方插件" = **实现某个 port 的适配器模块，注册进 `ServiceContainer`**（例如 OCR、翻译、词典等未来能力）。
 - **v1 不引入插件运行时**（manifest / 加载器 / 热插拔 / 沙箱）。原因：使用量小、只做官方插件，动态加载的复杂度不值得。
@@ -89,7 +110,7 @@
 - 结论：扩展能力一律以"编译期内置适配器"承载；契约（`CLIENT-CONTRACTS.md`）保持稳定。
 - 候选扩展服务：`IOcrService`（图片识别 → ISBN/封面文字；适配器可复用 OCR-buddy 的 PP-OCRv5 技术路线，MIT）——草案待契约定稿后并入。
 
-## 7. 待定事项
+## 8. 待定事项
 
 - [ ] 同步协议细节（消息集 / 传输方式）
 - [ ] 房间生命周期（空房间保留？房主权限？）
