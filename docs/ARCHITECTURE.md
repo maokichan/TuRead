@@ -14,14 +14,19 @@
 │  Desktop Shell（Electron + React）          ← v1 目标                          │
 │  Web Shell（浏览器）/ Android Shell（RN + WebView） ← 未来，复用 core           │
 └───────────────────────────────────────────────────────────────────────────────┘
-                                  │ 只依赖服务接口（ports）
-┌──────────────────────────── 核心服务层 core（框架无关 TS） ────────────────────┐
-│  RenderService · BookService · BookIdentityService · SyncService · LibraryStore │
-│  接口定义在 core/ports，实现放在 core/adapters                                   │
+                                  │ 只调用 ↓
+┌──────────────────────────── 应用服务 / 用例层（业务逻辑，框架无关 TS） ─────────┐
+│  IRoomSession（房间会话） · IBookService（书架+导入）                            │
+│  编排多个能力服务；接口在 core/usecases                                          │
+└───────────────────────────────────────────────────────────────────────────────┘
+                                  │ 编排 ↓
+┌──────────────────────────── 能力服务层 ports（包装外部能力） ──────────────────┐
+│  IRenderService(kookit) · INetService(传输) · IBookIdentityService · ILibraryStore │
+│  接口在 core/ports，实现（适配器）在 core/adapters                              │
 └───────────────────────────────────────────────────────────────────────────────┘
                                   │ HTTP / WebSocket / 自定义（协议待定）
-┌──────────────────────────── 服务端 server（Go） ──────────────────────────────┐
-│  room（房间） · book（书籍标定注册表） · sync（事件分发） · store（DB） · api     │
+┌──────────────────────────── 服务端 server（Go，独立项目） ────────────────────┐
+│  handler → 用例（房间操作）→ 领域（房间状态/标定规则）→ 基础设施（存储/传输）    │
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -35,40 +40,26 @@
 - **房间绑定 bookId**；加入房间时客户端上报指纹 → 服务端比对 → 一致放行 / 不一致拒绝或警告。
 - **客户端本地书库**同样记录 hash（导入时计算，crypto-js / Web Crypto / Node crypto）。
 
-## 3. 客户端服务接口（草案）
+## 3. 客户端分层（权威契约见 `docs/CLIENT-CONTRACTS.md` v0.2）
 
-### RenderService（port: IRenderService）— 适配器：kookit
-```
-open(file, config) / close() / renderTo(el)
-next() / prev() / goToPage(n) / goToPercentage(p) / goToPosition(loc)
-getPosition(): BookLocation   // { chapterDocIndex, chapterHref, count, page, percentage }
-getChapter() / getProgress()
-on('location-changed') / on('rendered')
-```
-> 约束：kookit 依赖 DOM（iframe 渲染）→ 外壳必须提供 DOM 环境（Electron / 浏览器 / WebView）。
+**能力服务层（ports）—— 包装外部能力，单一职责，可替换：**
 
-### BookService（port: IBookService）
-```
-importBook(file) / list() / remove(id) / getMetadata(id) / getCover(id)
-```
+| 端口 | 职责 | 适配器 |
+|---|---|---|
+| `IRenderService` | kookit 包装：open/renderTo/翻页/goToPosition/位置事件/笔记 | kookit |
+| `INetService` | 传输：connect/send/on('message')；**不理解业务语义**，只搬运消息信封 | 传输待定（WS 等） |
+| `IBookIdentityService` | 算指纹（部分哈希）/ 提取元数据 / 标定比对 | 自研（crypto） |
+| `ILibraryStore` | 本地书库持久化 | SQLite（better-sqlite3） |
 
-### BookIdentityService（port: IBookIdentityService）
-```
-computeFingerprint(file): { hash, size }          // 部分哈希
-extractMetadata(file): { isbn?, title, author, format }
-verify(roomBook, localBook): match | mismatch
-```
+**应用服务层（用例）—— 业务逻辑，编排能力服务：**
 
-### SyncService（port: ISyncService）— 传输适配器待定（协议未定不影响接口）
-```
-joinRoom(roomId, bookFingerprint) / leaveRoom()
-emitLocation(loc) / onLocation(cb)
-onPresence(users) / onSystemMessage(cb)
-emitNote(note) / onNote(cb)              // 后续迭代
-```
+| 用例 | 职责 | 编排 |
+|---|---|---|
+| `IRoomSession` | 房间会话：加入（标定）→ 监听翻页自动广播 → 成员/位置事件 | net + render + identity |
+| `IBookService` | 书架 + 导入：文件 → 指纹 → 元数据 → 入库 | identity + store（OCR 可选） |
 
-### LibraryStore（port: ILibraryStore）
-本地书库持久化（Electron：better-sqlite3，koodo-reader 同款）。
+> 术语澄清：kookit 被包装进 `IRenderService`（**能力服务**），把 kookit 产物翻译成领域类型（`BookLocation`）；
+> **同步功能本体是 `IRoomSession`（用例）**，不是能力服务——它"在服务之上"编排多个能力服务，UI 调用它即可。
 
 ## 4. 服务端模块（Go，规划参考 —— 独立项目，本次不开发）
 

@@ -1,13 +1,33 @@
-# 客户端服务契约（Client Contracts v0.1）
+# 客户端契约（Client Contracts v0.2）
 
-> 状态：**契约草案**。同步协议未定，本文定义客户端核心服务的 TypeScript 接口（端口），
-> 作为协议未定前的第一份代码级契约。实现（适配器）后填。
-> 范围：**仅 client**（server 为独立项目，其需遵守的契约以 `SyncService` 的事件/数据形状为准，后续另行成文）。
-> 迁移：本节接口将 1:1 落到 `client/src/core/ports/*.ts`，文档与代码以代码为准。
+> 状态：契约草案 v0.2（根据评审重构：区分 **能力服务** 与 **应用服务（用例）** 两层）。
+> 范围：**仅 client**。同步**协议**未定；本文定的是"层与接口"契约。
+> 迁移：将 1:1 落到 `client/src/core/{domain,ports,usecases}/`。
 
 ---
 
-## 1. 共享领域类型
+## 1. 分层模型
+
+```
+UI（React 外壳）
+  │ 只调用 ↓（业务流走用例；简单查询可直接调能力服务）
+应用服务 / 用例层（use cases）   IRoomSession（房间会话） · IBookService（书架+导入）
+  │ 编排 ↓
+能力服务层（ports）              IRenderService · INetService · IBookIdentityService · ILibraryStore
+  │ 实现 ↓
+适配器（adapters）               kookitAdapter · wsAdapter · sqliteAdapter · ocrAdapter
+  │
+领域层（domain，被所有层共享）   BookLocation · BookRecord · BookFingerprint · Note · RoomMember · 业务规则
+```
+
+**依赖规则**
+- 领域层：纯类型与规则，不依赖任何技术 / 服务 / UI。
+- 能力服务：依赖领域类型 + 各自外部能力（kookit、网络、存储…）；彼此不互相依赖。
+- 应用服务（用例）：依赖**能力服务接口**（不依赖其实现）；**一个用例可编排多个能力服务**（如 `RoomSession` = net + render + identity + store）。
+- UI：只依赖应用服务与领域类型。
+- kookit 不是"被直接暴露"——它被包进 `IRenderService`（能力服务），把 kookit 产物翻译成领域类型（`BookLocation`）。
+
+## 2. 领域类型（共享词汇 = 领域层）
 
 ```ts
 /** 阅读位置 —— 房间同步的最小载荷，与 kookit getPosition() 对齐 */
@@ -56,7 +76,7 @@ interface BookRecord {
   lastLocation?: BookLocation;
 }
 
-/** 阅读渲染配置（领域层友好配置，内部翻译为 kookit config） */
+/** 阅读渲染配置（领域层友好配置，适配器内部翻译为 kookit config） */
 interface RenderOptions {
   readerMode: 'single' | 'double' | 'scroll';
   animation: 'sliding' | 'mimical' | 'none';
@@ -82,7 +102,7 @@ interface Chapter {
 
 /** 笔记/划线（v1 可选实现，接口先立；range 为格式相关序列化，与 kookit 对齐） */
 interface Note {
-  key: string;               // 全局唯一
+  key: string;
   bookId: string;
   location: BookLocation;
   range: string;             // 格式相关：EPUB→CFI，PDF→页码+坐标，等
@@ -94,20 +114,21 @@ interface Note {
 }
 ```
 
-## 2. 事件机制（服务通用）
+## 3. 事件机制（所有服务通用）
 
 ```ts
 type Listener = (...args: any[]) => void;
 type Unsubscribe = () => void;
 
-/** 所有服务的事件接口统一采用该形状 */
 interface EventEmitter<Events extends Record<string, Listener>> {
   on<K extends keyof Events>(event: K, listener: Events[K]): Unsubscribe;
   off<K extends keyof Events>(event: K, listener: Events[K]): void;
 }
 ```
 
-## 3. IRenderService —— 渲染（适配器：kookit）
+## 4. 能力服务（ports）
+
+### 4.1 IRenderService —— 渲染（适配器：kookit）
 
 ```ts
 interface RenderServiceEvents {
@@ -135,24 +156,37 @@ interface IRenderService extends EventEmitter<RenderServiceEvents> {
 ```
 
 > 约束：kookit 依赖 DOM（iframe 渲染）→ 外壳必须提供 DOM 环境（Electron / 浏览器 / WebView）。
-> 依赖：`open()` 需要 `BookRecord`（由 BookService 提供）与 `BookIdentityService` 无关；配置翻译在适配器内完成。
 
-## 4. IBookService —— 书籍管理（书架）
+### 4.2 INetService —— 传输能力（**协议待定**，消息集由 server 项目定）
 
 ```ts
-interface IBookService {
-  importBook(file: File | ArrayBuffer, name: string): Promise<BookRecord>;
-  list(): Promise<BookRecord[]>;
-  get(id: string): Promise<BookRecord | null>;
-  remove(id: string): Promise<void>;
-  updateLastLocation(id: string, location: BookLocation): Promise<void>;
+/** 消息信封：传输层只搬运信封，不理解语义 —— 语义由上层用例解释 */
+interface MessageEnvelope {
+  type: string;              // 例：'room.join' | 'room.location' | 'room.presence'
+  payload: unknown;
+}
+
+interface NetServiceEvents {
+  message: (envelope: MessageEnvelope) => void;
+  'connection-changed': (state: 'connected' | 'disconnected' | 'reconnecting') => void;
+}
+
+interface INetService extends EventEmitter<NetServiceEvents> {
+  connect(config: NetConfig): Promise<void>;
+  disconnect(): Promise<void>;
+  send(envelope: MessageEnvelope): Promise<void>;
+}
+
+interface NetConfig {
+  serverUrl: string;         // ws(s):// 或 http(s):// —— 由传输适配器解释
+  nickName: string;
+  transport?: 'websocket';   // 预留多传输
 }
 ```
 
-> 依赖：内部组合 `BookIdentityService`（导入时算指纹/提元数据）与 `LibraryStore`（持久化）。
-> 流程：导入 → 计算指纹 → 提取元数据 → 入库 → 返回 `BookRecord`。
+> 本服务**不假设任何业务语义**：不发"加入房间"命令、不懂"标定"——它只负责连接与收发信封。业务语义在用例层（§5.1）。
 
-## 5. IBookIdentityService —— 书籍标定
+### 4.3 IBookIdentityService —— 书籍标定（指纹/元数据）
 
 ```ts
 interface IBookIdentityService {
@@ -165,10 +199,28 @@ interface IBookIdentityService {
 > 指纹策略：部分哈希（参考 koodo-reader `getBookPartialMd5`：取文件头/分段样本计算 MD5，配合 size 降低碰撞）。
 > 注意：kookit 的 `Book.md5` 字段由调用方计算后传入 —— 本服务即计算方。
 
-## 6. ISyncService —— 房间同步（传输待定）
+### 4.4 ILibraryStore —— 本地持久化
 
 ```ts
-interface SyncServiceEvents {
+interface ILibraryStore {
+  addBook(record: BookRecord): Promise<void>;
+  updateBook(id: string, patch: Partial<BookRecord>): Promise<void>;
+  getBook(id: string): Promise<BookRecord | null>;
+  listBooks(): Promise<BookRecord[]>;
+  removeBook(id: string): Promise<void>;
+  getSetting<T>(key: string, fallback: T): Promise<T>;
+  setSetting(key: string, value: unknown): Promise<void>;
+}
+```
+
+> 实现建议：Electron 下 `better-sqlite3`（koodo-reader 同款）；接口保持存储无关。
+
+## 5. 应用服务（用例层）
+
+### 5.1 IRoomSession —— 房间会话（同步业务逻辑本体）
+
+```ts
+interface RoomSessionEvents {
   'location-updated': (location: BookLocation, from: RoomMember) => void;
   'presence-updated': (members: RoomMember[]) => void;
   'system-message': (msg: SystemMessage) => void;
@@ -176,19 +228,13 @@ interface SyncServiceEvents {
   'book-mismatch': (detail: { local: BookFingerprint; room: BookFingerprint }) => void;
 }
 
-interface ISyncService extends EventEmitter<SyncServiceEvents> {
-  connect(config: SyncConfig): Promise<void>;
-  disconnect(): Promise<void>;
-  joinRoom(roomId: string, book: BookFingerprint): Promise<JoinResult>;
+interface IRoomSession extends EventEmitter<RoomSessionEvents> {
+  /** 加入房间并完成标定：上报本地指纹 → 通过则订阅房间状态 */
+  joinRoom(roomId: string, book: BookRecord): Promise<JoinResult>;
   leaveRoom(): Promise<void>;
-  emitLocation(location: BookLocation): Promise<void>;
-  // 后续：emitNote(note) / emitCursor(...)
-}
-
-interface SyncConfig {
-  serverUrl: string;         // 协议未定：ws(s):// 或 http(s):// 由传输适配器解释
-  nickName: string;
-  transport?: 'websocket';   // 预留多传输
+  /** 手动广播当前位置（通常不需要：翻页由内部监听 render 自动广播） */
+  emitLocation(location?: BookLocation): Promise<void>;
+  getRoomState(): RoomState | null;
 }
 
 interface RoomMember {
@@ -215,50 +261,52 @@ type JoinResult =
   | { ok: false; reason: 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-error' };
 ```
 
-> 关键流程（客户端视角）：
-> 1. `connect(config)` 建立传输（协议未定，先有接口）。
-> 2. `joinRoom(roomId, bookFingerprint)` —— 服务端据此**标定**：比对房间绑定书籍指纹；
->    通过 → `{ ok: true, room }`；不一致 → `book-mismatch` 事件 + `{ ok: false, reason: 'book-mismatch' }`。
-> 3. 翻页 → `emitLocation(location)`（节流）；他人翻页 → `location-updated` 事件。
-> 4. 成员进出 → `presence-updated` / `system-message`。
+**内部编排（举例，说明"用例 = 编排多个能力服务"）：**
+1. `joinRoom()` → 用 `IBookIdentityService.computeFingerprint` 算指纹 → 经 `INetService.send` 发 `room.join` 信封 → 服务端标定。
+2. 标定失败 → 发 `book-mismatch` 事件；成功 → 缓存 `RoomState`，并把 `IRenderService` 的 `location-changed` 监听接上（节流 → `INetService.send` 广播 `room.location`）。
+3. 收到他人位置信封 → 解释为 `location-updated` 事件；`IRoomSession` 不自己翻页，翻页是 UI 的事（可将来加"跟随模式"开关）。
 
-## 7. ILibraryStore —— 本地持久化
+### 5.2 IBookService —— 书架 + 导入（应用服务）
 
 ```ts
-interface ILibraryStore {
-  addBook(record: BookRecord): Promise<void>;
-  updateBook(id: string, patch: Partial<BookRecord>): Promise<void>;
-  getBook(id: string): Promise<BookRecord | null>;
-  listBooks(): Promise<BookRecord[]>;
-  removeBook(id: string): Promise<void>;
-  getSetting<T>(key: string, fallback: T): Promise<T>;
-  setSetting(key: string, value: unknown): Promise<void>;
+interface IBookService {
+  /** 导入：文件 → 指纹 → 元数据 → 入库（内部编排 identity + store；OCR 可选） */
+  importBook(file: File | ArrayBuffer, name: string): Promise<BookRecord>;
+  list(): Promise<BookRecord[]>;
+  get(id: string): Promise<BookRecord | null>;
+  remove(id: string): Promise<void>;
+  updateLastLocation(id: string, location: BookLocation): Promise<void>;
 }
 ```
 
-> 实现建议：Electron 下 `better-sqlite3`（koodo-reader 同款）；接口保持存储无关。
+> `importBook` 是导入**用例**：编排 `IBookIdentityService`（指纹+元数据）与 `ILibraryStore`（持久化）；
+> OCR 提 ISBN 是**可插拔步骤**（候选 `IOcrService`，适配器可复用 PP-OCRv5 技术路线，MIT）。
 
-## 8. 组合与依赖（服务装配）
+## 6. 服务装配（ServiceContainer）
 
 ```ts
 interface ServiceContainer {
+  // 能力服务
   render: IRenderService;
-  books: IBookService;
+  net: INetService;
   identity: IBookIdentityService;
-  sync: ISyncService;
   store: ILibraryStore;
+  // 应用服务（用例）
+  room: IRoomSession;
+  books: IBookService;
 }
 ```
 
 > 规则：
-> - 服务之间通过构造函数注入依赖（如 `BookService(identity, store)`）。
+> - 构造函数注入依赖（如 `RoomSession(net, render, identity, store)`）。
 > - **UI 只依赖 `ServiceContainer`，不直接 import kookit / better-sqlite3 / WebSocket 实现**。
-> - 适配器目录约定：`client/src/core/adapters/{kookit,storage,net}`。
+> - 适配器目录约定：`client/src/core/adapters/{kookit,net,storage}`。
 
-## 9. 待定 / 明确排除
+## 7. 待定 / 明确排除
 
-- [ ] 同步协议消息集与传输（server 项目定，client 适配）
-- [ ] `search()` 返回形状
-- [ ] 笔记同步（v1 是否包含）
-- [ ] 书架导入路径（本地文件 vs 服务器共享书库）
+- [ ] **同步协议消息集与传输细节**：`MessageEnvelope.type` 的具体值、标定流程的请求/响应 —— 由 server 项目定，client 适配（INetService 信封已为此预留）
+- [ ] 笔记 / 划线同步：**明确排除在 v1 假设之外**（Note 类型先立，同步后续加）
+- [ ] 光标在场（他人选中/阅读进度热区）：**明确排除在 v1 假设之外**
 - [ ] 账号体系（游客昵称 vs 注册）→ 影响 `RoomMember.id` 语义
+- [ ] `IRenderService.search()` 返回形状
+- [ ] OCR（ISBN 提取）是否进 v1、`IOcrService` 接口草案
