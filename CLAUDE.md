@@ -1,0 +1,30 @@
+# TuRead 项目地图
+
+> 本文件会被模型会话**自动加载**，保持精简，细节一律指向文档。
+
+## 项目
+
+多人房间共读阅读器：多个用户进同一房间共同阅读同一本书。
+渲染/解析复用 kookit（AGPL-3.0，git submodule）；同步服务器用 Go（**独立项目**）。
+**当前只开发 client。**
+
+## 关键文档（按阅读顺序）
+
+1. `docs/STATUS.md` —— 项目状态与决策记录（会话交接首选，先读这个）
+2. `docs/ARCHITECTURE.md` —— 架构：六边形骨架 + DDD 命名；分层图；插件/平台决策
+3. `docs/CLIENT-CONTRACTS.md` —— 客户端契约 v0.2（domain / usecases / ports / adapters 接口）
+4. `借物表.md` —— 第三方资源与许可证（AGPL 约束，引新依赖先登记）
+5. `D:\PROJECT\NETWORK.md` —— 网络配置（git 代理+openssl 配方、Go GOPROXY、npm 直连）
+
+## 红线（不要违反）
+
+- **kookit 子模块内禁止 `git commit` / `git push`**（其 CLAUDE.md 规则）
+- 依赖方向：UI → usecases → ports ← adapters；**领域层零依赖**
+- UI 不直接 import kookit / better-sqlite3 / WebSocket 实现（只走 ServiceContainer）
+- 引入新依赖先核许可证再登记进借物表
+
+## 当前状态（更新于 2026-08-24 会话休整）
+
+- 契约 v0.2 已提交，用户评审中；架构术语定案待用户确认
+- 下一步：**数据库/持久化设计**（用户有想法）→ client v1 骨架（Electron + React + core 落成 TS）
+- 开发原则（学习期）：v1 允许"丑但诚实"；**解释优先**；检查点——大改前写理由、不知代码放哪层就停下讨论（Rule of Three）
