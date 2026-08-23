@@ -9,10 +9,14 @@
 ```
 TuRead/
 ├── client/   # Electron 客户端（UI 技术栈待定；渲染引擎 kookit）
-├── server/   # Go 同步服务器（房间、成员状态、阅读位置同步）
-├── kookit/   # 渲染引擎（唯一复用的上游代码，koodo-reader/kookit）
+├── server/   # Go 同步服务器（独立项目，规划中，本次不开发）
+├── kookit/   # 渲染引擎（唯一复用的上游代码，koodo-reader/kookit，git submodule）
+├── docs/     # 架构与契约文档（ARCHITECTURE.md / CLIENT-CONTRACTS.md）
 └── README.md
 ```
+
+> 开发范围：**当前只开发 client**；server 为 TuRead 计划中的另一个独立项目。
+> 契约先行：同步协议未定，先以 `docs/CLIENT-CONTRACTS.md` 的接口为代码级契约。
 
 ## 设计参考
 
