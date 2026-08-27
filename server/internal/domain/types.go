@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-// BookLocation 阅读位置 —— 房间同步的最小载荷，与 client 契约 CLIENT-CONTRACTS.md 对齐
+// BookLocation 阅读位置 —— 房间同步的最小载荷，与 client 契约 client/docs/CONTRACTS.md 对齐
 type BookLocation struct {
 	ChapterDocIndex any     `json:"chapterDocIndex"`
 	ChapterHref     string  `json:"chapterHref"`
@@ -43,6 +43,8 @@ type Edition struct {
 	Hash      string
 	Size      int64
 	Source    string
+	URL       string // 下载来源（外部平台 zlib/anna 等，或本机地址）；可选
+	LocalCopy bool   // 本机（server 内容寻址存储）是否已存副本；上传成功后置 1
 	FilePath  string
 	CreatedAt time.Time
 }
@@ -54,6 +56,22 @@ type Member struct {
 	Location *BookLocation
 }
 
+// 用户角色枚举（v0.1.1 只存不 enforce，权限逻辑远期实现）
+const (
+	RoleUser    = "user"    // 正常
+	RoleAdmin   = "admin"   // 管理
+	RoleLimited = "limited" // 限制
+)
+
+// User 用户档案（token = 成员 token = 用户 ID；远期迁用户系统时 token 即用户名）
+type User struct {
+	Token     string
+	Nick      string
+	Bio       string
+	Role      string
+	CreatedAt time.Time
+}
+
 // MessageEnvelope 消息信封 —— transport 只搬运信封，语义由用例层解释
 type MessageEnvelope struct {
 	Type    string `json:"type"`
@@ -62,19 +80,19 @@ type MessageEnvelope struct {
 
 // 消息类型（server 定义，client 适配）
 const (
-	MsgJoin         = "room.join"         // client → server：加入房间
-	MsgJoinAck      = "room.join-ack"     // server → client：加入结果
-	MsgLocation     = "room.location"     // client → server：广播当前位置
-	MsgPresence     = "room.presence"     // server → 房间：成员/位置更新
-	MsgSystem       = "room.system"       // server → client：系统消息
+	MsgJoin         = "room.join"          // client → server：加入房间
+	MsgJoinAck      = "room.join-ack"      // server → client：加入结果
+	MsgLocation     = "room.location"      // client → server：广播当前位置
+	MsgPresence     = "room.presence"      // server → 房间：成员/位置更新
+	MsgSystem       = "room.system"        // server → client：系统消息
 	MsgBookMismatch = "room.book-mismatch" // server → client：书籍不匹配
 )
 
 // JoinAck 加入房间结果
 type JoinAck struct {
-	OK      bool        `json:"ok"`
-	Reason  string      `json:"reason,omitempty"` // book-mismatch | room-not-found | room-full
-	RoomID  string      `json:"roomId,omitempty"`
-	Edition *Edition    `json:"edition,omitempty"` // 无书成员加入时返回 edition 供下载
-	Members []Member    `json:"members,omitempty"`
+	OK      bool     `json:"ok"`
+	Reason  string   `json:"reason,omitempty"` // book-mismatch | room-not-found | room-full
+	RoomID  string   `json:"roomId,omitempty"`
+	Edition *Edition `json:"edition,omitempty"` // 无书成员加入时返回 edition 供下载
+	Members []Member `json:"members,omitempty"`
 }

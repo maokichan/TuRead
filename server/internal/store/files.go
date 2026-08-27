@@ -69,3 +69,12 @@ func (f *FileStore) Save(e domain.Edition, r io.Reader) (bool, error) {
 func (f *FileStore) Open(e domain.Edition) (*os.File, error) {
 	return os.Open(f.Path(e))
 }
+
+// Delete 删除本机副本文件（不存在也视为成功，幂等）
+func (f *FileStore) Delete(e domain.Edition) error {
+	err := os.Remove(f.Path(e))
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove copy: %w", err)
+	}
+	return nil
+}

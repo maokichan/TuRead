@@ -8,15 +8,15 @@
 
 ```
 TuRead/
-├── client/   # Electron 客户端（UI 技术栈待定；渲染引擎 kookit，尚未开发）
-├── server/   # Go 同步服务器（v0.1.0，已实现：房间同步 + 书籍标定 + 电子版分发）
+├── client/   # Electron 客户端（UI 技术栈待定；渲染引擎 kookit，尚未开发；契约见 client/docs/）
+├── server/   # Go 同步服务器（v0.1.0，已实现：房间同步 + 书籍标定 + 电子版分发；文档见 server/docs/）
 ├── kookit/   # 渲染引擎（唯一复用的上游代码，koodo-reader/kookit，git submodule）
-├── docs/     # 架构与契约文档（ARCHITECTURE.md / CLIENT-CONTRACTS.md / STATUS.md）
+├── docs/     # 共同文档（ARCHITECTURE.md 共同架构 / STATUS.md 项目状态）
 └── README.md
 ```
 
 > 开发范围：**client 尚未开发**；server 已作为仓库内的独立 Go 模块实现 v0.1.0（`server/`，后续可拆出独立仓库）。
-> 契约先行：同步协议消息集已由 server 定义（见 `server/internal/transport`），client 契约以 `docs/CLIENT-CONTRACTS.md` 为代码级契约。
+> 契约先行：同步协议消息集已由 server 定义（见 `server/docs/API.md`），client 契约以 `client/docs/CONTRACTS.md` 为代码级契约。
 
 ## 设计参考
 

@@ -24,8 +24,8 @@ type Room struct {
 	CreatedAt time.Time
 
 	mu          sync.RWMutex
-	members     map[string]*domain.Member                       // memberID -> member
-	subscribers map[string]func(domain.MessageEnvelope)         // memberID -> 发信回调（transport 注册）
+	members     map[string]*domain.Member               // memberID -> member
+	subscribers map[string]func(domain.MessageEnvelope) // memberID -> 发信回调（transport 注册）
 }
 
 func newRoom(id string, editionID int64, owner string) *Room {
@@ -113,6 +113,7 @@ func (m *RoomManager) Get(id string) (*Room, error) {
 // Join 加入房间并标定：
 //   - fp 非空：指纹必须与房间绑定 edition 一致，否则 ErrMismatch（严格模式）
 //   - fp 为 nil：无书成员，允许加入（transport 用返回的 room 拿 edition 供下载）
+//
 // edition 为房间绑定的电子版（由 transport 从 store 查好传入，用于指纹比对）。
 // 成功后自动注册成员与订阅；send 为 transport 写 WS 的回调。
 func (m *RoomManager) Join(roomID, memberID, nick string, edition *domain.Edition, fp *domain.Fingerprint, send func(domain.MessageEnvelope)) (*Room, error) {
@@ -155,6 +156,25 @@ func (m *RoomManager) Leave(roomID, memberID string) bool {
 		return true
 	}
 	return false
+}
+
+// Delete 删除房间并返回成员 ID 快照（管理操作；调用方负责踢掉这些成员的连接）
+func (m *RoomManager) Delete(roomID string) ([]string, error) {
+	m.mu.Lock()
+	r, ok := m.rooms[roomID]
+	if !ok {
+		m.mu.Unlock()
+		return nil, ErrNotFound
+	}
+	delete(m.rooms, roomID)
+	m.mu.Unlock()
+	r.mu.RLock()
+	ids := make([]string, 0, len(r.members))
+	for id := range r.members {
+		ids = append(ids, id)
+	}
+	r.mu.RUnlock()
+	return ids, nil
 }
 
 // SetLocation 更新成员位置并广播 presence 给其他人

@@ -1,9 +1,11 @@
-# TuRead 抽象架构（草稿 v0.1）
+# TuRead 抽象架构（共同版 v0.1）
 
-> 状态：需求讨论期草稿 + **server v0.1.0 已落地**。**同步协议已由 server 实现定义**（消息集见 `server/internal/transport`），client 适配。
+> 状态：需求讨论期草稿 + **server v0.1.0 已落地**。**同步协议已由 server 实现定义**（消息集见 `server/docs/API.md`），client 适配。
 > 原则：核心（core）与外壳（shell）分离；端口（接口）先立；传输 / UI / 存储可替换。
 > 术语：本仓库中 "service" = 面向用例封装能力并提供接口的模块（koodo-reader 内部同款叫法：ConfigService / SyncHelper）。
-> **开发范围：server v0.1.0 已实现（仓库内 `server/`）；client 尚未开发。** server 可随时拆为独立仓库（依赖全部内置）。
+> **本文只保留跨端共同内容**；各端专属细节已分家：
+> client → `client/docs/ARCHITECTURE.md`（分层 / 平台 UI / 插件）与 `client/docs/CONTRACTS.md`（契约 v0.2）；
+> server → `server/docs/ARCHITECTURE.md`（模块 / 通讯模型）与 `server/docs/API.md`（接口契约）。
 
 ---
 
@@ -49,7 +51,7 @@
 - **适配器 `core/adapters`**：端口的实现（kookit / ws / sqlite）。
 - **外壳（UI）**：六边形的 driving adapter（React + Electron），只调用应用服务与领域类型。
 
-**修正记录**：v0.1 的 `ISyncService` 曾把"端口"与"应用服务"混为一谈，v0.2 已拆分为 `INetService`（端口）+ `IRoomSession`（应用服务）。术语以此表为准。
+> 术语修正历史（`ISyncService` → `INetService` + `IRoomSession`）见 `client/docs/ARCHITECTURE.md` §4。
 
 ## 3. 书籍标定（Work / Edition 两层模型）
 
@@ -61,62 +63,20 @@
 - **房间绑定 edition**；加入房间时客户端上报指纹 → 服务端比对 → 一致放行 / 不一致拒绝（`book-mismatch`）；无书成员可上报 Work 信息并从 server 下载副本。
 - **客户端本地书库**同样记录指纹（导入时计算，crypto-js / Web Crypto / Node crypto）。
 
-## 4. 客户端分层（权威契约见 `docs/CLIENT-CONTRACTS.md` v0.2）
+## 4. 文档归属（各端内容去哪）
 
-**能力服务层（ports）—— 包装外部能力，单一职责，可替换：**
+| 内容 | 位置 |
+|---|---|
+| 分层总览 / 术语 / 书籍标定 / 跨端待定 | 本文（`docs/ARCHITECTURE.md`） |
+| 客户端分层、平台与 UI、扩展插件 | `client/docs/ARCHITECTURE.md` |
+| 客户端契约（domain / usecases / ports / adapters 接口） | `client/docs/CONTRACTS.md` |
+| 服务端模块、通讯模型（token 双闸） | `server/docs/ARCHITECTURE.md` |
+| REST / WS 接口契约 | `server/docs/API.md` |
+| 项目状态与决策记录 | `docs/STATUS.md` |
+| 第三方资源与许可证 | `借物表.md` |
 
-| 端口 | 职责 | 适配器 |
-|---|---|---|
-| `IRenderService` | kookit 包装：open/renderTo/翻页/goToPosition/位置事件/笔记 | kookit |
-| `INetService` | 传输：connect/send/on('message')；**不理解业务语义**，只搬运消息信封 | 传输待定（WS 等） |
-| `IBookIdentityService` | 算指纹（部分哈希）/ 提取元数据 / 标定比对 | 自研（crypto） |
-| `ILibraryStore` | 本地书库持久化 | SQLite（better-sqlite3） |
+## 5. 跨端待定事项
 
-**应用服务层（用例）—— 业务逻辑，编排能力服务：**
-
-| 用例 | 职责 | 编排 |
-|---|---|---|
-| `IRoomSession` | 房间会话：加入（标定）→ 监听翻页自动广播 → 成员/位置事件 | net + render + identity |
-| `IBookService` | 书架 + 导入：文件 → 指纹 → 元数据 → 入库 | identity + store（OCR 可选） |
-
-> 术语澄清：kookit 被包装进 `IRenderService`（**能力服务**），把 kookit 产物翻译成领域类型（`BookLocation`）；
-> **同步功能本体是 `IRoomSession`（用例）**，不是能力服务——它"在服务之上"编排多个能力服务，UI 调用它即可。
-
-## 5. 服务端模块（Go，v0.1.0 已实现于 `server/`）
-
-> server 已在仓库内实现 v0.1.0（`server/`，独立 Go module，可随时拆为独立仓库）。
-
-| 模块 | 职责 | 实现 |
-|---|---|---|
-| `room` | 房间状态机：成员、绑定 edition、当前位置；**纯内存**（重启即销毁） | `internal/room`（RoomManager） |
-| `book` | 标定注册表：works / editions 查询、注册、比对；指纹校验 | `internal/store`（SQLite）+ `internal/domain`（协议校验） |
-| `sync` | 同步事件分发（房间内广播），WS 消息信封 | `internal/transport`（WS）+ `internal/room`（广播） |
-| `store` | SQLite（`modernc.org/sqlite`，纯 Go 无 cgo）+ 内容寻址文件存储 | `internal/store` |
-| `api` | REST（房间/书籍/上传下载）+ WebSocket（同步） | `internal/transport` |
-
-> v0.1.0 决策：**无账号认证**（昵称+随机后缀）、**server 保存并分发电子版副本**（内容寻址 `data/books/<hash>.<ext>`）、数据目录/端口走环境变量（`TUREAD_DATA_DIR` / `TUREAD_ADDR`），部署形态不影响代码。
-
-## 6. 平台与 UI（决策记录）
-
-- **Electron = 桌面三平台**（Win/macOS/Linux），不支持移动端。
-- **React(DOM) ≠ React Native**：移动端渲染层与交互逻辑不同，不是同一套代码（组件逻辑可部分共享）。
-- **kookit 依赖 DOM** → 任何平台壳都必须提供 DOM/WebView；移动端方案 = RN + WebView + kookit-mobile 构建（koodo-reader 移动版同款做法）。
-- **v1 只做 Desktop Shell**；core 接口为未来 Web/Android 壳预留，核心零改动。
-- **多端构建**："构建时 ban 不用的" = 平台入口 + tree-shaking + 构建配置（打包期排除目标平台无关代码）。
-
-## 7. 扩展与"官方插件"（决策记录）
-
-- **现状**：服务端口（ports）本身就是插件边界 —— 一个"官方插件" = **实现某个 port 的适配器模块，注册进 `ServiceContainer`**（例如 OCR、翻译、词典等未来能力）。
-- **v1 不引入插件运行时**（manifest / 加载器 / 热插拔 / 沙箱）。原因：使用量小、只做官方插件，动态加载的复杂度不值得。
-- **演进路径**：若将来需要第三方插件，ports 模型可直接承接 —— 新增 plugin manifest + 动态加载 + IPC 通道，**端口定义不变**。
-- 结论：扩展能力一律以"编译期内置适配器"承载；契约（`CLIENT-CONTRACTS.md`）保持稳定。
-- 候选扩展服务：`IOcrService`（图片识别 → ISBN/封面文字；适配器可复用 OCR-buddy 的 PP-OCRv5 技术路线，MIT）——草案待契约定稿后并入。
-
-## 8. 待定事项
-
-- [ ] 同步协议细节（消息集 / 传输方式）
-- [ ] 房间生命周期（空房间保留？房主权限？）
-- [ ] 笔记 / 划线同步范围（v1 是否包含）
+- [x] 同步协议消息集 / 传输方式 —— **已由 server v0.1.0 定义**（REST + WS 信封，见 `server/docs/API.md`）
 - [ ] 书籍来源（仅本地导入 vs 服务器共享书库）
-- [ ] 账号体系（游客昵称 vs 注册）
-- [ ] OCR（ISBN 提取）是否进 v1，`IOcrService` 接口草案
+- [ ] 账号体系（游客昵称 vs 注册）—— 影响 `RoomMember.id` 语义

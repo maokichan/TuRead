@@ -1,7 +1,7 @@
 # 客户端契约（Client Contracts v0.2）
 
 > 状态：契约草案 v0.2（根据评审重构：区分 **能力服务** 与 **应用服务（用例）** 两层）。
-> 术语：**六边形架构（端口-适配器）为骨架，DDD 命名为层内词汇**，对照表见 `ARCHITECTURE.md §2`。
+> 术语：**六边形架构（端口-适配器）为骨架，DDD 命名为层内词汇**，对照表见 `../../docs/ARCHITECTURE.md §2`。
 > 范围：**仅 client**。同步**协议**未定；本文定的是"层与接口"契约。
 > 迁移：将 1:1 落到 `client/src/core/{domain,ports,usecases}/`。
 
@@ -305,7 +305,7 @@ interface ServiceContainer {
 
 ## 7. 待定 / 明确排除
 
-- [ ] **同步协议消息集与传输细节**：`MessageEnvelope.type` 的具体值、标定流程的请求/响应 —— 由 server 项目定，client 适配（INetService 信封已为此预留）
+- [ ] **同步协议消息集与传输细节**：`MessageEnvelope.type` 的具体值、标定流程的请求/响应 —— 由 server 项目定（已定，见 `../../server/docs/API.md`），client 适配（INetService 信封已为此预留）
 - [ ] 笔记 / 划线同步：**明确排除在 v1 假设之外**（Note 类型先立，同步后续加）
 - [ ] 光标在场（他人选中/阅读进度热区）：**明确排除在 v1 假设之外**
 - [ ] 账号体系（游客昵称 vs 注册）→ 影响 `RoomMember.id` 语义
