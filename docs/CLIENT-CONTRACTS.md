@@ -44,8 +44,8 @@ interface BookLocation {
 
 /** 书籍指纹 —— 标定"同一本书的同一电子版" */
 interface BookFingerprint {
-  algorithm: 'md5-partial-v1'; // 预留算法演进（如 v2 换 sha256）
-  hash: string;                // 部分哈希值（hex）
+  algorithm: 'md5-sample3-v1'; // server 已定（2026-08-27）：头/中/尾三点采样（头64KB+中点64KB+尾64KB 拼接哈希）；预留演进（v2 换 sha256）
+  hash: string;                // 采样拼接后哈希值（hex）
   size: number;                // 文件字节数
 }
 
@@ -197,7 +197,7 @@ interface IBookIdentityService {
 }
 ```
 
-> 指纹策略：部分哈希（参考 koodo-reader `getBookPartialMd5`：取文件头/分段样本计算 MD5，配合 size 降低碰撞）。
+> 指纹策略：**头/中/尾三点采样**（取头 64KB、中点 64KB、尾 64KB 拼接后计算哈希，配合 size 降低碰撞），算法 `md5-sample3-v1`（server 侧已按此注册，client 计算必须一致）。
 > 注意：kookit 的 `Book.md5` 字段由调用方计算后传入 —— 本服务即计算方。
 
 ### 4.4 ILibraryStore —— 本地持久化

@@ -1,9 +1,9 @@
 # TuRead 抽象架构（草稿 v0.1）
 
-> 状态：需求讨论期草稿。**同步协议尚未确定**，本阶段只定模块边界与接口（契约），实现后填。
+> 状态：需求讨论期草稿 + **server v0.1.0 已落地**。**同步协议已由 server 实现定义**（消息集见 `server/internal/transport`），client 适配。
 > 原则：核心（core）与外壳（shell）分离；端口（接口）先立；传输 / UI / 存储可替换。
 > 术语：本仓库中 "service" = 面向用例封装能力并提供接口的模块（koodo-reader 内部同款叫法：ConfigService / SyncHelper）。
-> **开发范围：本次开发只做 client**。server 是 TuRead 计划中的**另一个独立项目**（后续单独启动），本文第 4 节仅作规划参考。
+> **开发范围：server v0.1.0 已实现（仓库内 `server/`）；client 尚未开发。** server 可随时拆为独立仓库（依赖全部内置）。
 
 ---
 
@@ -51,15 +51,15 @@
 
 **修正记录**：v0.1 的 `ISyncService` 曾把"端口"与"应用服务"混为一谈，v0.2 已拆分为 `INetService`（端口）+ `IRoomSession`（应用服务）。术语以此表为准。
 
-## 3. 书籍标定（同一本书 = 同一电子版）
+## 3. 书籍标定（Work / Edition 两层模型）
 
-**目标**：房间内所有成员读的是同一本书的**同一电子版**。
+**目标**：房间内所有成员读的是同一本书的**同一电子版**（严格模式，房间绑定 Edition）。
 
-- **指纹（主）**：文件哈希 + 文件大小。大文件用**部分哈希**策略（参考 koodo-reader 的 `getBookPartialMd5`），kookit 的 `Book` 模型自带 `md5` 字段但**计算是调用方职责**。
-- **元数据（次）**：ISBN / 标题 / 作者。epub、fb2 等有结构化元数据；pdf、txt 不一定有 → 作为二级匹配，不做强约束。
-- **服务端 book 注册表**：`{ bookId, hash, size, isbn?, title, author, cover, createdAt }`。
-- **房间绑定 bookId**；加入房间时客户端上报指纹 → 服务端比对 → 一致放行 / 不一致拒绝或警告。
-- **客户端本地书库**同样记录 hash（导入时计算，crypto-js / Web Crypto / Node crypto）。
+- **Work（同一本书）**：识别协议 + 识别编码唯一确定。协议枚举：`isbn`（校验位）/ `asin` / `doi` / `open-library` / `content-hash-v1`（非标出版物兜底 = 标题+作者归一化哈希）。
+- **Edition（同一电子文件）**：扩展名 + 指纹唯一确定。指纹 = **头/中/尾三点采样**（头 64KB + 中点 64KB + 尾 64KB 拼接哈希，算法 `md5-sample3-v1`）+ 文件大小；参考 koodo-reader 的 `getBookPartialMd5`，kookit 的 `Book` 模型自带 `md5` 字段但**计算是调用方职责**。
+- **服务端注册表（SQLite）**：`works`（work 元数据 + 协议 + 编码）→ `editions`（指纹 + source + 分发副本路径）。
+- **房间绑定 edition**；加入房间时客户端上报指纹 → 服务端比对 → 一致放行 / 不一致拒绝（`book-mismatch`）；无书成员可上报 Work 信息并从 server 下载副本。
+- **客户端本地书库**同样记录指纹（导入时计算，crypto-js / Web Crypto / Node crypto）。
 
 ## 4. 客户端分层（权威契约见 `docs/CLIENT-CONTRACTS.md` v0.2）
 
@@ -82,17 +82,19 @@
 > 术语澄清：kookit 被包装进 `IRenderService`（**能力服务**），把 kookit 产物翻译成领域类型（`BookLocation`）；
 > **同步功能本体是 `IRoomSession`（用例）**，不是能力服务——它"在服务之上"编排多个能力服务，UI 调用它即可。
 
-## 5. 服务端模块（Go，规划参考 —— 独立项目，本次不开发）
+## 5. 服务端模块（Go，v0.1.0 已实现于 `server/`）
 
-> server 不在本次开发范围，以下仅记录规划，避免后续重复设计。
+> server 已在仓库内实现 v0.1.0（`server/`，独立 Go module，可随时拆为独立仓库）。
 
-| 模块 | 职责 |
-|---|---|
-| `room` | 房间状态机：成员、绑定书籍（bookId）、当前阅读位置；内存 + 持久化 |
-| `book` | 书籍标定注册表：hash/isbn 查询、注册、比对 |
-| `sync` | 同步事件分发（房间内广播）；传输层可换（WS / HTTP+SSE） |
-| `store` | SQLite（modernc.org/sqlite，纯 Go 无 cgo）起步，规模上来再换 Postgres |
-| `api` | REST（房间/书籍管理）+ 实时通道（同步） |
+| 模块 | 职责 | 实现 |
+|---|---|---|
+| `room` | 房间状态机：成员、绑定 edition、当前位置；**纯内存**（重启即销毁） | `internal/room`（RoomManager） |
+| `book` | 标定注册表：works / editions 查询、注册、比对；指纹校验 | `internal/store`（SQLite）+ `internal/domain`（协议校验） |
+| `sync` | 同步事件分发（房间内广播），WS 消息信封 | `internal/transport`（WS）+ `internal/room`（广播） |
+| `store` | SQLite（`modernc.org/sqlite`，纯 Go 无 cgo）+ 内容寻址文件存储 | `internal/store` |
+| `api` | REST（房间/书籍/上传下载）+ WebSocket（同步） | `internal/transport` |
+
+> v0.1.0 决策：**无账号认证**（昵称+随机后缀）、**server 保存并分发电子版副本**（内容寻址 `data/books/<hash>.<ext>`）、数据目录/端口走环境变量（`TUREAD_DATA_DIR` / `TUREAD_ADDR`），部署形态不影响代码。
 
 ## 6. 平台与 UI（决策记录）
 
