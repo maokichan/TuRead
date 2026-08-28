@@ -1,8 +1,8 @@
 # 客户端契约（Client Contracts v0.2）
 
-> 状态：契约草案 v0.2（根据评审重构：区分 **能力服务** 与 **应用服务（用例）** 两层）。
-> 术语：**六边形架构（端口-适配器）为骨架，DDD 命名为层内词汇**，对照表见 `../../docs/ARCHITECTURE.md §2`。
-> 范围：**仅 client**。同步**协议**未定；本文定的是"层与接口"契约。
+> 状态：契约 v0.2（区分 **能力服务** 与 **应用服务（用例）** 两层）。
+> 术语：**六边形架构（端口-适配器）为骨架，DDD 命名为层内词汇**，对照表见 `ARCHITECTURE.md` §1。
+> 范围：**仅 client** 的层与接口契约；同步协议（信封/消息集/转发规范）由 server 定义，见 `../../server/docs/API.md`。
 > 迁移：将 1:1 落到 `client/src/core/{domain,ports,usecases}/`。
 
 ---
@@ -170,6 +170,9 @@ interface IRenderService extends EventEmitter<RenderServiceEvents> {
 
 ### 4.2 INetService —— 传输能力（**协议待定**，消息集由 server 项目定）
 
+> 成员 token（v0.1.6 起）由 **server 签发**：客户端带二级令牌调 `POST /auth/token` 获取（同一 IP 7 天内复用同一 token），
+> 之后所有 REST / WS 请求带 `Authorization: Bearer <token>` + `X-Turead-Access: <二级令牌>` 两个头。
+
 ```ts
 /** 消息信封：传输层只搬运信封，不理解语义 —— 语义由上层用例解释 */
 interface MessageEnvelope {
@@ -318,9 +321,9 @@ interface ServiceContainer {
 
 ## 7. 待定 / 明确排除
 
-- [ ] **同步协议消息集与传输细节**：`MessageEnvelope.type` 的具体值、标定流程的请求/响应 —— 由 server 项目定（已定，见 `../../server/docs/API.md`），client 适配（INetService 信封已为此预留）
+- [x] **同步协议消息集与传输细节** —— **已定**（server 定义：信封 / 消息集 / 转发规范见 `../../server/docs/API.md`），client 适配（INetService 信封已为此预留）
 - [ ] 笔记 / 划线同步：**明确排除在 v1 假设之外**（Note 类型先立，同步后续加）
 - [ ] 光标在场（他人选中/阅读进度热区）：**明确排除在 v1 假设之外**
-- [ ] 账号体系（游客昵称 vs 注册）→ 影响 `RoomMember.id` 语义
+- [ ] 账号体系（游客昵称 vs 注册）→ 影响 `RoomMember.id` 语义（见根 `TODO.md`）
 - [ ] `IRenderService.search()` 返回形状
-- [ ] OCR（ISBN 提取）是否进 v1、`IOcrService` 接口草案
+- [ ] OCR（ISBN 提取）是否进 v1、`IOcrService` 接口草案（见根 `TODO.md`）

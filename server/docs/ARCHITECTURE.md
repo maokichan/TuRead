@@ -1,21 +1,34 @@
-# server 架构（模块 / 通讯模型）
+# server 架构（模块 / 通讯模型 / 数据模型）
 
-> 归属：**server 专属**文档。共同架构与术语见 `../../docs/ARCHITECTURE.md`；
-> REST / WS 接口契约见 `API.md`；运行说明见 `../README.md`。
+> 归属：**server 专属**。跨端共同内容（书籍标定 / 仓库布局）见 `../../docs/ARCHITECTURE.md`；
+> REST / WS 接口契约与转发规范见 `API.md`；配置与运维见 `OPS.md`；待办见 `../../TODO.md`。
 
-## 1. 服务端模块（Go，v0.1.0 已实现于 `server/`）
+## 1. 服务端模块与数据模型（Go，v0.1.6）
 
-> server 已在仓库内实现 v0.1.0（`server/`，独立 Go module，可随时拆为独立仓库）。
+> `server/` 为**独立 Go module**（依赖全部内置，不依赖 client），可随时拆为独立仓库。
+
+```
+cmd/server           入口：装配 config / store / room / transport，监听端口
+internal/config      TOML 配置加载 + 环境覆盖 + 校验 + 文件监听热重载
+internal/domain      领域：BookLocation / Work / Edition / RoomRecord / ChatMessage / 消息信封 / token 生成
+internal/store       SQLite（works / editions / users / rooms / messages）+ 内容寻址文件存储
+internal/room        内存 RoomManager（成员/位置/订阅/广播；房间定义落库，运行时状态不落库）
+internal/transport   REST + WebSocket（信封收发 / 认证 / 管理）
+```
 
 | 模块 | 职责 | 实现 |
 |---|---|---|
-| `room` | 房间状态机：成员、绑定 edition、当前位置；**纯内存**（重启即销毁）；空房间 TTL 倒计时（默认 12h）超时惰性清理；发现（大厅/按书找房）基于内存房间表 | `internal/room`（RoomManager） |
+| `config` | TOML 配置文件 + 环境变量覆盖 + 热重载（策略类字段） | `internal/config` |
+| `room` | 房间状态机：成员、绑定 edition、当前位置；**运行时状态纯内存**，房间定义落库；空房间 TTL 惰性清理；发现（大厅/按书找房） | `internal/room`（RoomManager） |
 | `book` | 标定注册表：works / editions 查询、注册、比对；指纹校验 | `internal/store`（SQLite）+ `internal/domain`（协议校验） |
 | `sync` | 同步事件分发（房间内广播），WS 消息信封 | `internal/transport`（WS）+ `internal/room`（广播） |
-| `store` | SQLite（`modernc.org/sqlite`，纯 Go 无 cgo，works / editions / **users**）+ 内容寻址文件存储 | `internal/store` |
-| `api` | REST（房间/书籍/上传下载）+ WebSocket（同步） | `internal/transport` |
+| `store` | SQLite（`modernc.org/sqlite`，纯 Go 无 cgo：works / editions / users / rooms / messages）+ 内容寻址文件存储 | `internal/store` |
+| `api` | REST（token 签发 / 房间 / 书籍 / 上传下载 / 聊天历史）+ WebSocket（同步） | `internal/transport` |
 
-> v0.1.0 决策：**无账号认证**（昵称+随机后缀）、**server 保存并分发电子版副本**（内容寻址 `data/books/<hash>.<ext>`）、数据目录/端口走环境变量（`TUREAD_DATA_DIR` / `TUREAD_ADDR`），部署形态不影响代码。
+**数据模型**：
+- **持久化（SQLite）**：`works`（作品 = 同一本书，协议+编码唯一）｜`editions`（电子版 = 同一电子文件，扩展名+指纹唯一，含下载来源 `url`、本机副本标志 `local_copy`）｜`users`（用户档案：token=成员 ID/nick/bio/role/ip/token_issued_at）｜`rooms`（房间定义：id/edition_id/owner_token）｜`messages`（聊天消息，追加日志，随房间删除级联清理）
+- **内存态**：房间成员 / 位置 / WS 连接（不落库）；空房间 TTL 倒计时（默认 12h，可热改），超时惰性清理（含删持久化记录与聊天），重新有人加入取消
+- schema 管理：`internal/store/schema.sql`（`go:embed` 嵌入二进制；老库缺列自动 `ALTER` 补列）
 
 ## 2. 通讯模型（token 双闸，v0.1.1 已实现第 2/3 层）
 
@@ -24,8 +37,8 @@
 四层定位，各管各的：
 
 1. **服务器地址（IP/端口 或 域名）**：客户端配置 `server 地址`；REST 用 `http(s)://<addr>`，WS 用 `ws(s)://<addr>/ws`。**已定：客户端直接配置服务器 IP**；部署细节（公网 / 端口映射 / 是否 HTTPS）与服务器负责人讨论（运维话题，不阻塞开发），见 §3。
-2. **准入门禁（服务器级共享 token）**：`TUREAD_ACCESS_TOKEN` 环境变量，部署者设**一把共享钥匙**（未设置 = 该层不启用）；所有 REST 请求与 WS 握手带 `X-Turead-Access` 头；middleware 常量时间比较校验，失败 401 / 拒绝升级。目的：**挡公网扫描与陌生人**。—— **v0.1.1 已实现**
-3. **成员身份 token（客户端级，匿名访客）= 成员 ID**：客户端**自生成 7 位大小写字母+数字**（`^[A-Za-z0-9]{7}$`），`Authorization: Bearer <token>` 携带；middleware 格式校验（不合法 401）；WS 连接以 token 为 `memberID`（重连找回、跨平台同一身份）；**同 token 新连接踢旧连接**；昵称 ≤12 字；**role**（`user`/`admin`/`limited`）建档时按 `TUREAD_ADMIN_TOKENS` 判定，管理接口（副本/房间清理）enforce `admin`；远期可迁移为用户系统登录凭证。—— **v0.1.1 已实现**
+2. **准入门禁（服务器级共享 token）**：配置 `access_token`（TOML 文件或 `TUREAD_ACCESS_TOKEN` 环境变量），部署者设**一把共享钥匙**（未设置 = 该层不启用）；所有 REST 请求与 WS 握手带 `X-Turead-Access` 头；middleware 常量时间比较校验，失败 401 / 拒绝升级。目的：**挡公网扫描与陌生人**。—— **v0.1.1 已实现（v0.1.5 起可热改）**
+3. **成员身份 token（客户端级，匿名访客）= 成员 ID**：**服务端按 IP 签发**（v0.1.6 起，`POST /auth/token`，仅需第 2 层）：同一 IP 7 天内申请过 → 复用并续期；超过 7 天未申请 → 换发新 token。`Authorization: Bearer <token>` 携带（7 位大小写字母+数字）；middleware 格式校验（不合法 401）；WS 连接以 token 为 `memberID`（重连找回、跨平台同一身份）；**同 token 新连接踢旧连接**；昵称 ≤12 字；**role**（`user`/`admin`/`limited`）建档时按 `admin_tokens` 判定，管理接口（副本/房间清理）enforce `admin`；远期可迁移为用户系统登录凭证（token 即用户名）。⚠️ 已知限制：NAT/共享 IP 下同公网 IP 多客户端共享同一 token（会互相顶线），v1 接受，远期用客户端 nonce 区分。
 4. **房间号（会话钥匙）**：`POST /rooms` 生成 8 位 hex 房间号；加入走 `/ws?room=<id>&nick=<name>`，定位房间绑定的 edition，完成标定/下载/位置同步。—— v0.1.0 已实现
 
 > - token 放 header 而非 query：query 会进访问日志/浏览器历史，等于把钥匙到处写。
@@ -33,12 +46,9 @@
 > - /healthz 豁免双闸（探活不带 token）。
 > - 主流 App（如抖音）参考：标准 HTTPS（HTTP/2/3）传输 + 私有应用层（Protobuf）+ 认证/风控/WAF 多层防御；现阶段只需 token 双闸，TLS/风控/WAF 上正式公网部署再考虑。
 
-## 3. 待定事项（server）
+## 3. 待定事项
 
-- [ ] **服务器地址部署细节**（公网 IP / 端口映射 / 是否 HTTPS）—— 地址本身已定为"客户端直接配置 IP"；部署细节与服务器负责人讨论（运维话题，不阻塞开发）
-- [x] 房间生命周期：**空房间 TTL 定案**（默认 12h，`TUREAD_ROOM_TTL` 可配；空房间进入倒计时，超时清理，重新有人加入取消）—— v0.1.4 已实现；**房主权限（删除/转让）仍挂起**
-- [x] 房间发现：`GET /rooms`（大厅）+ `?edition=`（按书找房）—— v0.1.4 已实现；v1 房间默认公开可见（无密码），隐私开关远期
-- [ ] 用户系统（剩余）：昵称 / bio 编辑接口、`limited` 角色语义、token 加密码列（加盐哈希）演进为登录系统（`admin` 已 enforce：管理接口副本/房间清理）
+待办统一在根 `../../TODO.md`（server 一节：房主权限、用户系统剩余、部署形态、cmd/smoke、服务器地址部署细节）。已定案：空房间 TTL（v0.1.4）、房间发现（v0.1.4）、聊天室与持久化（v0.1.5）、服务端签发 token（v0.1.6）。
 
 ## 4. 传输与运行基本功（2026-08-27 已实现）
 
@@ -68,7 +78,7 @@
 
 **结论：不增加分层/抽象，维持当前包结构；只做文件级整理。**
 
-- 现有分层已正确：`cmd → transport → room → store → domain`，依赖方向单向，domain 零依赖——已是六边形/分层的骨架
+- 现有分层已正确：`cmd → transport → room → store → domain`，依赖方向单向，domain 零依赖——**server 是简单分层，不是六边形**（六边形是 client 的选型，见 `../../client/docs/ARCHITECTURE.md`）
 - 核心业务（房间转发）简单且不会再膨胀；复杂度集中在横切关注点（认证 / 背压 / 管理 / 并发安全），已各归其位
 - 过早抽象是负债（YAGNI / Rule of Three）：当前每个抽象只有 1 个实现（SQLite / WebSocket / REST），没有第二个实现方，抽 interface 没有对象
 - **文件级划分**（transport 包）：`server.go`（装配+路由）/ `rest.go`（业务 REST）/ `ws.go`（WS+背压）/ `admin.go`（管理接口）/ `auth.go`（双闸）/ `utils.go`

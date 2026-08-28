@@ -36,19 +36,20 @@ type Work struct {
 	CreatedAt   time.Time
 }
 
-// Edition 电子版（同一电子文件）—— 扩展名 + 指纹唯一确定
+// Edition 电子版（同一电子文件）—— 扩展名 + 指纹唯一确定。
+// json 字段与 API 契约对齐（camelCase）；CreatedAt 为 RFC3339 字符串。
 type Edition struct {
-	ID        int64
-	WorkID    int64
-	Ext       string
-	HashAlgo  string
-	Hash      string
-	Size      int64
-	Source    string
-	URL       string // 下载来源（外部平台 zlib/anna 等，或本机地址）；可选
-	LocalCopy bool   // 本机（server 内容寻址存储）是否已存副本；上传成功后置 1
-	FilePath  string
-	CreatedAt time.Time
+	ID        int64     `json:"id"`
+	WorkID    int64     `json:"workId"`
+	Ext       string    `json:"ext"`
+	HashAlgo  string    `json:"hashAlgo"`
+	Hash      string    `json:"hash"`
+	Size      int64     `json:"size"`
+	Source    string    `json:"source,omitempty"`
+	URL       string    `json:"url,omitempty"` // 下载来源（外部平台 zlib/anna 等，或本机地址）；可选
+	LocalCopy bool      `json:"localCopy"`     // 本机（server 内容寻址存储）是否已存副本；上传成功后置 1
+	FilePath  string    `json:"filePath"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 // Member 房间成员（内存态，不落库；json 与 client 契约 RoomMember 对齐：id / nickName / location）

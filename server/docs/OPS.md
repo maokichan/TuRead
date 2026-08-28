@@ -39,6 +39,18 @@ log_level = "info"        # 预留：日志级别（日志系统未做分级，�
 
 > **环境变量覆盖**（和配置文件二选一，env 优先）：`TUREAD_ADDR` / `TUREAD_DATA_DIR` / `TUREAD_ACCESS_TOKEN` / `TUREAD_ADMIN_TOKENS`（逗号分隔）/ `TUREAD_ROOM_TTL` / `TUREAD_MAX_UPLOAD_MB` / `TUREAD_CONFIG`。
 
+## 2.1 客户端如何拿到成员 token
+
+成员 token **由服务器签发**（客户端不用自己造）：客户端带二级令牌调签发接口即可，**同一 IP 7 天内重复申请会拿到同一个 token**（复用，不需要也不该反复换）：
+
+```bash
+# 客户端首次连接前调用一次，保存返回的 token
+curl -X POST http://<IP>:8080/auth/token -H "X-Turead-Access: <access_token>"
+# → {"token":"wv5WHOO","issued":true}
+```
+
+之后所有 REST / WS 请求都带 `Authorization: Bearer <token>`。管理员直接用配置 `admin_tokens` 里的 token，无需走签发。
+
 ## 3. 端口与地址
 
 - 客户端连服务器：**直接把服务器 IP 给客户端**，客户端里填 `http://<IP>:8080`（REST）与 `ws://<IP>:8080/ws`（同步）
@@ -63,7 +75,7 @@ data/
 |---|---|---|
 | `curl /healthz` 连不上 / 超时 | 端口没开 / 进程没起 / 防火墙拦 | 看进程在不在（`ps`）；`netstat -anp | grep 8080`；放行端口 |
 | `healthz` 返回 `503 degraded` | SQLite 打不开（磁盘满/权限/文件损坏） | 看日志报错；`df -h` 查磁盘；检查 data 目录权限 |
-| 客户端提示 401 | ① `access_token` 没对上 ② 成员 token 不是 7 位字母数字 | ① 检查两边配置的钥匙一致（改文件自动生效）② 客户端自生成 token 格式 |
+| 客户端提示 401 | ① `access_token` 没对上 ② 成员 token 缺失/非法（token 由服务器签发，见 §2.1；同一 IP 7 天内申请会复用同一 token，换 IP/7 天后会拿到新 token） | ① 检查两边配置的钥匙一致（改文件自动生效）② 客户端先调 `POST /auth/token` 拿 token 再带 `Authorization` 头 |
 | 客户端能连但进不了房间 / 房间不存在 | 房间空置超过 `room_ttl` 被清理了 | 房间号过期，重新建房间；或调大 `room_ttl` |
 | 上传文件提示 413 | 超过 `max_upload_mb` 上限 | 调大或置 0（不限），2 秒生效 |
 | 重启后成员全掉线 | 正常现象：在线状态不落库 | 客户端重连即可，房间号仍有效（TTL 内） |

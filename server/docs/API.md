@@ -1,4 +1,4 @@
-# server API 契约（REST + WebSocket，v0.1.5）
+# server API 契约（REST + WebSocket，v0.1.6）
 
 > 权威实现：`internal/transport/server.go`；信封与载荷类型：`internal/domain/types.go`。
 > 客户端侧适配入口：`client/docs/CONTRACTS.md` 的 `INetService`（信封搬运，不理解语义）与 `IRoomSession`（业务语义）。
@@ -6,7 +6,7 @@
 
 ## 基础约定
 
-- **无账号认证（v0.1.1 已升级为 token 双闸，见下）**：成员身份 = 成员 token；WS 连接断开即失效。**房间定义与聊天消息落库**（v0.1.5 起）；成员/位置/订阅仍纯内存
+- **无账号认证（token 双闸，见下）**：成员身份 = 成员 token（**服务端签发**）；WS 连接断开即失效。**房间定义与聊天消息落库**（v0.1.5 起）；成员/位置/订阅仍纯内存
 - **电子版指纹**：`md5-sample3-v1`（头 64KB + 中点 64KB + 尾 64KB 三点采样拼接后哈希）+ 文件大小（`Fingerprint{algorithm, hash, size}`）。
 - **文件分发走内容寻址**：`<dataDir>/books/<hash>.<ext>`，文件名即指纹，同一电子版天然去重。
 - **edition.url（下载来源）**：`editions.url` 存"这本书可以从哪下"——外部平台（zlib / Anna's Archive 等）链接，或本机地址；可选，创建房间时由客户端提供。**本机下载地址不落库**：`local_copy = 1` 时下载即派生的 `GET /books/{editionID}/file`，绝对地址由客户端用其配置的 server 地址拼接。
@@ -22,27 +22,39 @@
 
 > 说明：副本是否已上传与 edition 注册是两件事——edition 可先注册，文件后上传（未上传时本机下载返回 404，`local_copy` 仍为 0）。
 
-## 认证（token 双闸，v0.1.1）
+## 认证（token 双闸，v0.1.1；成员 token 服务端签发 v0.1.6）
 
-除 `/healthz` 外，**所有 REST 请求与 WS 握手**必须同时通过两层校验，否则 `401` 直接关闭（先于任何业务）：
+除 `/healthz` 与 `POST /auth/token`（签发接口，仅需第 2 层）外，**所有 REST 请求与 WS 握手**必须同时通过两层校验，否则 `401` 直接关闭（先于任何业务）：
 
 | 层 | 头 | 值 | 校验 |
 |---|---|---|---|
-| 第 2 层 准入门禁 | `X-Turead-Access` | 服务器级共享钥匙（`TUREAD_ACCESS_TOKEN`，所有人同一把；未配置 = 该层不启用） | 常量时间比较，不匹配 401 |
-| 第 3 层 成员身份 | `Authorization: Bearer <token>` | 成员 token = 成员 ID：**7 位大小写字母+数字**（`^[A-Za-z0-9]{7}$`，客户端自生成） | 格式校验，缺失/非法 401 |
+| 第 2 层 准入门禁 | `X-Turead-Access` | 服务器级共享钥匙（配置 `access_token`，所有人同一把；未配置 = 该层不启用） | 常量时间比较，不匹配 401 |
+| 第 3 层 成员身份 | `Authorization: Bearer <token>` | 成员 token = 成员 ID：**7 位大小写字母+数字**（`^[A-Za-z0-9]{7}$`，**服务端签发**） | 格式校验，缺失/非法 401 |
 
 - WS 握手同样带这两个头（桌面客户端可自定义 header）；同一成员 token 的新连接会**踢掉旧连接**（"单设备登录"）
-- 成员 token 即成员 ID：重连找回身份、跨平台同一身份；远期可迁移为用户系统登录凭证
+- 成员 token 即成员 ID：重连找回身份、跨平台同一身份；远期可迁移为用户系统登录凭证（token 即用户名）
 - `/healthz` 完全豁免（探活不带 token）
 - **权限**：管理接口（副本删除 / 房间删除）要求 `role = admin`——判定 = 配置的 `admin_tokens` 列表命中 或 `users.role == admin`；非 admin → `403`
 - **热重载（v0.1.5）**：`access_token` / `admin_tokens` 修改配置文件后自动生效（2s 内）；**已连接 WS 不受影响**（连接时已鉴权），新连接按新配置校验
+- **NAT 限制（已知接受）**：同一公网 IP 下的多客户端共享同一签发 token（触发同 token 踢旧），v1 接受；远期客户端 nonce 区分
+
+### POST /auth/token —— 签发（或复用）成员 token
+
+> 服务端签发模型（v0.1.6）：客户端**不再自生成** token，而是带二级令牌向本接口申请。
+> 规则：**同一 IP 7 天内申请过 → 复用既有 token 并续期（活跃身份不因窗口过期）；超过 7 天未申请 → 换发新 token**。
+
+- 请求：仅带 `X-Turead-Access`（无成员 token；本接口豁免第 3 层）
+- `200`：`{ "token": "7位大小写字母数字", "issued": true|false }`（issued=true 为新签发，false 为复用）
+- `401`：二级令牌缺失/不匹配
+- 签发即建档（users 表：ip / token_issued_at；nick 空，首次进房补齐）；token 生成碰撞自动重试
+- 管理员 token 由配置 `admin_tokens` 直接预置（无需经本接口）
 
 ## 用户（users）
 
-- **用户 ID = 成员 token**（7 位大小写字母数字，客户端自生成；无独立自增 id）
-- **自动建档**：首次 `WS join` 时 `INSERT OR IGNORE`（幂等，不覆盖已存在档案）；`nick` 取 join 昵称（**≤12 字**，超长拒绝连接）；`role` 按是否在 `TUREAD_ADMIN_TOKENS` 判定（admin/user）
-- 字段：`token`(PK) / `nick` / `bio`（描述，≤120 字，写接口时校验）/ `role` / `created_at`
-- `role` 枚举：`user`（正常）/ `admin`（管理）/ `limited`（限制）—— v0.1.1 已 enforce admin（管理接口）；`limited` 语义远期实现
+- **用户 ID = 成员 token**（7 位大小写字母数字，**服务端签发**；无独立自增 id）
+- **建档**：`POST /auth/token` 签发时创建（nick 空、role=user）；首次 `WS join` 时补 nick（≤12 字，超长拒绝连接）；建房时房主建档
+- 字段：`token`(PK) / `nick` / `bio`（描述，≤120 字，写接口时校验）/ `role` / `ip`（签发来源 IP）/ `token_issued_at`（最后签发/续期，unix 秒）/ `created_at`
+- `role` 枚举：`user`（正常）/ `admin`（管理）/ `limited`（限制）—— admin 已 enforce（管理接口）；`limited` 语义远期实现
 - 远期迁移：token 即用户名，可加密码列（加盐哈希）演进为登录用户系统
 
 ## REST
@@ -117,7 +129,7 @@
 
 ### GET /books/{editionID} —— 电子版信息（无书成员标定用）
 
-- `200`：Edition 完整字段（`id` / `workId` / `ext` / `hashAlgo` / `hash` / `size` / `source` / `url` / `localCopy` / `filePath` / `createdAt`）
+- `200`：Edition 完整字段（`id` / `workId` / `ext` / `hashAlgo` / `hash` / `size` / `source?` / `url?` / `localCopy` / `filePath` / `createdAt`，RFC3339 时间）
 - `404`：edition 不存在
 
 ### POST /books/{editionID}/file —— 上传副本（分发源，幂等）
@@ -242,4 +254,5 @@ server 落库成功后广播 `room.message`：
 
 ## 已知不一致（已解决）
 
-- ~~`domain.Member` 无 json tag~~ —— **v0.1.5 已对齐**：成员字段为 `id` / `nickName` / `location`（omitempty），与 client 契约 `RoomMember` 一致
+- ~~`domain.Member` 无 json tag~~ —— **v0.1.5 已对齐**：成员字段 `id` / `nickName` / `location`（omitempty），与 client 契约 `RoomMember` 一致
+- ~~`domain.Edition` 无 json tag~~ —— **v0.1.6 已对齐**：camelCase（`id`/`workId`/...；`createdAt` 为 RFC3339）
