@@ -32,6 +32,13 @@ go build -o turead-server ./cmd/server
 
 架构、契约、运维等全部文档的阅读顺序见 [MAP.md](MAP.md)；未完成事项见 [TODO.md](TODO.md)。
 
+## 关于源项目与仓库
+
+TuRead 的原型是 [V2tin19/TuRead](https://github.com/V2tin19/TuRead)（早期基于 Express/socket.io 的共享阅读原型，已弃用）。
+本仓库是其重新实现（渲染基于 kookit、同步服务器用 Go），与原型的代码与提交历史无继承关系。
+
+因管理原因，本项目取消了原有的 fork，重新开设了独立新仓库（2026-08-29）。
+
 ## 许可证
 
 TuRead 以 **AGPL-3.0** 开源（因核心依赖 kookit 为 AGPL-3.0）；第三方资源清单见 `借物表.md`。
