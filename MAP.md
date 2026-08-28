@@ -15,10 +15,11 @@
 3. `client/docs/CONTRACTS.md` —— 客户端契约 v0.2（domain / usecases / ports / adapters 接口）
 4. `client/docs/ARCHITECTURE.md` —— client 架构（分层 / 平台与 UI / 插件）
 5. `server/docs/ARCHITECTURE.md` —— server 架构（模块 / 通讯模型 token 双闸）
-6. `server/docs/API.md` —— REST / WS 接口契约
-7. `server/README.md` —— 同步服务器 v0.1.0 运行说明（数据模型 + 接口索引）
-8. `借物表.md` —— 第三方资源与许可证（AGPL 约束，引新依赖先登记）
-9. `D:\PROJECT\NETWORK.md` —— 网络配置（git 代理+openssl 配方、Go GOPROXY、npm 直连）
+6. `server/docs/API.md` —— REST / WS 接口契约（含「同步协议与转发规范」权威转发语义）
+7. `server/docs/OPS.md` —— **运维手册**（配置 / 热重载 / 故障排查，运维同学先看这个）
+8. `server/README.md` —— 同步服务器 v0.1.5 运行说明（数据模型 + 接口索引）
+9. `借物表.md` —— 第三方资源与许可证（AGPL 约束，引新依赖先登记）
+10. `D:\PROJECT\NETWORK.md` —— 网络配置（git 代理+openssl 配方、Go GOPROXY、npm 直连）
 
 ## 红线（不要违反）
 

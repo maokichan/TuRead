@@ -34,8 +34,8 @@ func newTestServerAdmin(t *testing.T, access string, admins []string) (*Server, 
 	}
 	t.Cleanup(func() { st.Close() })
 	fs, _ := store.NewFileStore(dir)
-	rm := room.NewManager(20)
-	s := NewServer(st, fs, rm, access, admins)
+	rm := room.NewManager(20, time.Hour) // 测试用宽裕 TTL，避免测试期间空房间被清理
+	s := NewServer(st, fs, rm, Policy{AccessToken: access, AdminTokens: admins})
 	ts := httptest.NewServer(s.Routes())
 	t.Cleanup(ts.Close)
 	return s, ts.URL

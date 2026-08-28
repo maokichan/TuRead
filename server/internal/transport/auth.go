@@ -51,14 +51,19 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		// 第 2 层：服务器级共享钥匙（未配置 = 不启用；配置了必须匹配，常量时间比较防时序侧信道）
-		if s.accessToken != "" {
+		p := s.policySnapshot()
+		if p.AccessToken != "" {
 			got := r.Header.Get(accessHeader)
-			if subtle.ConstantTimeCompare([]byte(got), []byte(s.accessToken)) != 1 {
+			if subtle.ConstantTimeCompare([]byte(got), []byte(p.AccessToken)) != 1 {
 				writeErr(w, http.StatusUnauthorized, "missing or invalid access token")
 				return
 			}
 		}
-		// 第 3 层：成员身份 token（格式校验）
+		// 第 3 层：成员身份 token（格式校验）—— /auth/token 豁免（该接口 = "带二级令牌、成员 token 为空"的签发入口）
+		if r.URL.Path == "/auth/token" {
+			next.ServeHTTP(w, r)
+			return
+		}
 		tok := bearerToken(r.Header.Get("Authorization"))
 		if !validMemberToken(tok) {
 			writeErr(w, http.StatusUnauthorized, "missing or invalid member token")

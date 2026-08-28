@@ -1,8 +1,6 @@
 package domain
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"strings"
 )
 
@@ -12,7 +10,10 @@ const (
 	ProtocolASIN        = "asin"
 	ProtocolDOI         = "doi"
 	ProtocolOpenLibrary = "open-library"
-	ProtocolContentHash = "content-hash-v1" // 非标出版物兜底：标题+作者归一化哈希
+	// content-hash-v1：无外部标识符（ISBN/ASIN/DOI/OL）书籍的兜底身份。
+	// 语义（2026-08-27 重定义）：edition 内容指纹 —— 由客户端校准算法计算（同一扫描版/同一文件内容 → 同 code，
+	// 标题/文件名不同不影响；扫描版不同就是不同 edition，位置无法对齐即不同身份）。server 只存不重算（不透明字符串）。
+	ProtocolContentHash = "content-hash-v1"
 )
 
 var knownProtocols = map[string]bool{
@@ -55,12 +56,8 @@ func NormalizeCode(protocol, code string) (string, bool) {
 	return "", false
 }
 
-// ContentHashCode 非标出版物：标题+作者归一化后哈希作为识别编码
-func ContentHashCode(title, author string) string {
-	normalized := strings.ToLower(strings.TrimSpace(title)) + "\x00" + strings.ToLower(strings.TrimSpace(author))
-	sum := sha256.Sum256([]byte(normalized))
-	return hex.EncodeToString(sum[:])
-}
+// ContentHashCode 已移除（2026-08-27）：原为"标题+作者归一化哈希"的参考实现。
+// content-hash-v1 现定义为 edition 内容指纹，由客户端校准算法计算（见 ProtocolContentHash 注释），server 不再提供参考实现。
 
 func stripNonAlnum(s string) string {
 	var b strings.Builder

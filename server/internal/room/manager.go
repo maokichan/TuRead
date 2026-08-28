@@ -16,24 +16,26 @@ var (
 	ErrFull     = errors.New("room full")
 )
 
-// Room 内存房间（不落库：成员/位置/订阅全是瞬态）
+// Room 内存房间（运行时状态不落库：成员/位置/订阅全是瞬态；房间定义落库，重启恢复）
 type Room struct {
-	ID        string
-	EditionID int64
-	Owner     string
-	CreatedAt time.Time
+	ID          string
+	EditionID   int64
+	OwnerToken  string // 房主成员 token（v0.1.6 起；房主身份可验证）
+	CreatedAt   time.Time
 
 	mu          sync.RWMutex
 	members     map[string]*domain.Member               // memberID -> member
 	subscribers map[string]func(domain.MessageEnvelope) // memberID -> 发信回调（transport 注册）
+	emptyAt     *time.Time                              // 房间变空时刻（nil = 非空）；空房间超过 TTL 被清理
 }
 
-func newRoom(id string, editionID int64, owner string) *Room {
+func newRoom(id string, editionID int64, ownerToken string, now time.Time) *Room {
 	return &Room{
 		ID:          id,
 		EditionID:   editionID,
-		Owner:       owner,
-		CreatedAt:   time.Now(),
+		OwnerToken:  ownerToken,
+		CreatedAt:   now,
+		emptyAt:     &now, // 新房间为空，TTL 从创建时刻起算
 		members:     map[string]*domain.Member{},
 		subscribers: map[string]func(domain.MessageEnvelope){},
 	}
@@ -69,14 +71,48 @@ func (r *Room) Broadcast(except string, env domain.MessageEnvelope) {
 }
 
 // RoomManager 内存房间管理器（用例层：房间生命周期）
+// 决策（2026-08-27/29）：房间定义落库（rooms 表，v0.1.5 起）但**运行时状态（成员/位置/订阅）纯内存**；
+// 空房间进入 TTL 倒计时（默认 12h，可配/可热改），超时在 Get/List 时惰性清理（reap 并回调 onExpired 同步删 DB）；
+// 有成员的房间一直存活；重新有人加入取消倒计时；admin DELETE /rooms 强制删除（transport 同步清 DB）。
 type RoomManager struct {
 	mu         sync.RWMutex
 	rooms      map[string]*Room
 	maxMembers int
+	ttl        time.Duration
+	now        func() time.Time      // 时钟（默认 time.Now；测试可注入）
+	onExpired  func(roomID string)   // 房间因 TTL 过期被清理时的回调（transport 用它同步删 DB 记录）
 }
 
-func NewManager(maxMembers int) *RoomManager {
-	return &RoomManager{rooms: map[string]*Room{}, maxMembers: maxMembers}
+func NewManager(maxMembers int, ttl time.Duration) *RoomManager {
+	return &RoomManager{
+		rooms:      map[string]*Room{},
+		maxMembers: maxMembers,
+		ttl:        ttl,
+		now:        time.Now,
+	}
+}
+
+// SetTTL 热重载：更新空房间 TTL（策略类配置）
+func (m *RoomManager) SetTTL(ttl time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.ttl = ttl
+}
+
+// SetOnExpired 注册 TTL 过期清理回调（transport 用于同步删除持久化房间记录）
+func (m *RoomManager) SetOnExpired(fn func(roomID string)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.onExpired = fn
+}
+
+// Restore 启动恢复：从持久化房间定义重建内存房间（空房间，TTL 自恢复时刻起算）
+func (m *RoomManager) Restore(rec domain.RoomRecord) {
+	r := newRoom(rec.ID, rec.EditionID, rec.OwnerToken, m.now())
+	r.CreatedAt = rec.CreatedAt
+	m.mu.Lock()
+	m.rooms[rec.ID] = r
+	m.mu.Unlock()
 }
 
 func newID() (string, error) {
@@ -87,13 +123,13 @@ func newID() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// Create 创建房间并绑定电子版
-func (m *RoomManager) Create(editionID int64, owner string) (*Room, error) {
+// Create 创建房间并绑定电子版；ownerToken 为房主成员 token（来自请求认证上下文）
+func (m *RoomManager) Create(editionID int64, ownerToken string) (*Room, error) {
 	id, err := newID()
 	if err != nil {
 		return nil, err
 	}
-	r := newRoom(id, editionID, owner)
+	r := newRoom(id, editionID, ownerToken, m.now())
 	m.mu.Lock()
 	m.rooms[id] = r
 	m.mu.Unlock()
@@ -101,6 +137,7 @@ func (m *RoomManager) Create(editionID int64, owner string) (*Room, error) {
 }
 
 func (m *RoomManager) Get(id string) (*Room, error) {
+	m.reap()
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	r, ok := m.rooms[id]
@@ -134,11 +171,13 @@ func (m *RoomManager) Join(roomID, memberID, nick string, edition *domain.Editio
 	if send != nil {
 		r.subscribers[memberID] = send
 	}
+	r.emptyAt = nil // 有人加入：取消空房间 TTL 倒计时
 	r.mu.Unlock()
 	return r, nil
 }
 
-// Leave 离开：移除成员与订阅；房间空了返回 true（可销毁）
+// Leave 离开：移除成员与订阅；房间变空时记录 emptyAt 启动 TTL 倒计时（不再立即销毁）。
+// 返回是否"刚变空"。
 func (m *RoomManager) Leave(roomID, memberID string) bool {
 	r, err := m.Get(roomID)
 	if err != nil {
@@ -148,14 +187,59 @@ func (m *RoomManager) Leave(roomID, memberID string) bool {
 	delete(r.members, memberID)
 	delete(r.subscribers, memberID)
 	empty := len(r.members) == 0
-	r.mu.Unlock()
 	if empty {
-		m.mu.Lock()
-		delete(m.rooms, roomID)
-		m.mu.Unlock()
-		return true
+		t := m.now()
+		r.emptyAt = &t
+	} else {
+		r.emptyAt = nil
 	}
-	return false
+	r.mu.Unlock()
+	return empty
+}
+
+// reap 惰性清理超过 TTL 的空房间（Get / List 时调用），并回调 onExpired 供 transport 同步删 DB
+func (m *RoomManager) reap() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	now := m.now()
+	for id, r := range m.rooms {
+		r.mu.RLock()
+		expired := r.emptyAt != nil && now.Sub(*r.emptyAt) > m.ttl
+		r.mu.RUnlock()
+		if expired {
+			delete(m.rooms, id)
+			if m.onExpired != nil {
+				m.onExpired(id)
+			}
+		}
+	}
+}
+
+// RoomInfo 房间概要（发现 / 大厅用）
+type RoomInfo struct {
+	ID          string
+	EditionID   int64
+	OwnerToken  string
+	MemberCount int
+	CreatedAt   time.Time
+}
+
+// List 返回全部存活房间概要（先清理过期空房间）
+func (m *RoomManager) List() []RoomInfo {
+	m.reap()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]RoomInfo, 0, len(m.rooms))
+	for id, r := range m.rooms {
+		out = append(out, RoomInfo{
+			ID:          id,
+			EditionID:   r.EditionID,
+			OwnerToken:  r.OwnerToken,
+			MemberCount: r.MemberCount(),
+			CreatedAt:   r.CreatedAt,
+		})
+	}
+	return out
 }
 
 // Delete 删除房间并返回成员 ID 快照（管理操作；调用方负责踢掉这些成员的连接）

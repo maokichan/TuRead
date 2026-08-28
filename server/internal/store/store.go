@@ -30,6 +30,9 @@ var columnMigrations = []struct {
 }{
 	{"editions", "url", "ALTER TABLE editions ADD COLUMN url TEXT"},
 	{"editions", "local_copy", "ALTER TABLE editions ADD COLUMN local_copy INTEGER NOT NULL DEFAULT 0"},
+	{"users", "ip", "ALTER TABLE users ADD COLUMN ip TEXT NOT NULL DEFAULT ''"},
+	{"users", "token_issued_at", "ALTER TABLE users ADD COLUMN token_issued_at INTEGER NOT NULL DEFAULT 0"},
+	{"rooms", "owner_token", "ALTER TABLE rooms ADD COLUMN owner_token TEXT NOT NULL DEFAULT ''"}, // v0.1.6 旧库 rooms.owner 列保留无害
 }
 
 // Open 打开（或创建）数据目录下的 SQLite，并执行 schema 迁移
@@ -113,10 +116,10 @@ func migrateColumns(db *sql.DB) error {
 // RegisterWork 注册作品；已存在（protocol, code 冲突）时返回既有 ID，created=false
 func (s *Store) RegisterWork(w domain.Work) (id int64, created bool, err error) {
 	res, err := s.db.Exec(
-		`INSERT INTO works(title, protocol, code, author, publisher, language, cover, description, created_at)
-		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO works(title, protocol, code, language, cover, description, created_at)
+		 VALUES(?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(protocol, code) DO NOTHING`,
-		w.Title, w.Protocol, w.Code, w.Author, w.Publisher, w.Language, w.Cover, w.Description, time.Now().Unix(),
+		w.Title, w.Protocol, w.Code, w.Language, w.Cover, w.Description, time.Now().Unix(),
 	)
 	if err != nil {
 		return 0, false, fmt.Errorf("insert work: %w", err)
@@ -184,22 +187,31 @@ func (s *Store) ClearLocalCopy(id int64) error {
 	return nil
 }
 
-// RegisterUser 用户建档：token = 用户 ID；已存在时返回 created=false（幂等，不覆盖既有档案）。
-// 首次进房间（WS join）时调用；nick 为 join 时的昵称（档案默认值）；role 由调用方判定（admin/user）。
+// RegisterUser 用户建档：token = 用户 ID；已存在时返回 created=false。
+// 首次进房间（WS join）时调用；nick 为 join 时的昵称。
+// 幂等语义（v0.1.6）：token 可能已被签发建档（nick=''），此时冲突只补空 nick，不覆盖既有档案/role。
 func (s *Store) RegisterUser(token, nick, role string) (created bool, err error) {
-	res, err := s.db.Exec(
-		`INSERT INTO users(token, nick, bio, role, created_at) VALUES(?, ?, '', ?, ?)
-		 ON CONFLICT(token) DO NOTHING`,
+	// 已存在：只补空 nick
+	var exists int
+	err = s.db.QueryRow(`SELECT 1 FROM users WHERE token = ?`, token).Scan(&exists)
+	if err == nil {
+		if _, err := s.db.Exec(`UPDATE users SET nick = ? WHERE token = ? AND nick = ''`, nick, token); err != nil {
+			return false, fmt.Errorf("update user nick: %w", err)
+		}
+		return false, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return false, fmt.Errorf("query user: %w", err)
+	}
+	// 新建
+	_, err = s.db.Exec(
+		`INSERT INTO users(token, nick, bio, role, ip, token_issued_at, created_at) VALUES(?, ?, '', ?, '', 0, ?)`,
 		token, nick, role, time.Now().Unix(),
 	)
 	if err != nil {
 		return false, fmt.Errorf("insert user: %w", err)
 	}
-	created, err = inserted(res)
-	if err != nil {
-		return false, err
-	}
-	return created, nil
+	return true, nil
 }
 
 // GetUser 按 token 查用户档案
@@ -219,19 +231,88 @@ func (s *Store) GetUser(token string) (*domain.User, error) {
 	return u, nil
 }
 
+// FindTokenByIP 按 IP 找未过期的已签发 token（token_issued_at >= since）；无则返回空串。
+// v0.1.6 服务端签发模型：同一 IP 7 天内申请过 → 复用既有 token。
+func (s *Store) FindTokenByIP(ip string, since int64) (string, error) {
+	var token string
+	err := s.db.QueryRow(
+		`SELECT token FROM users WHERE ip = ? AND token_issued_at >= ? ORDER BY token_issued_at DESC LIMIT 1`,
+		ip, since,
+	).Scan(&token)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("find token by ip: %w", err)
+	}
+	return token, nil
+}
+
+// TouchToken 续期：更新该 token 的签发时间（复用路径；保证活跃 IP 的 token 不因 7 天窗口过期）
+func (s *Store) TouchToken(token string, at int64) error {
+	_, err := s.db.Exec(`UPDATE users SET token_issued_at = ? WHERE token = ?`, at, token)
+	if err != nil {
+		return fmt.Errorf("touch token: %w", err)
+	}
+	return nil
+}
+
+// IssueToken 为 IP 签发新 token：该 IP 已有签发记录则原地换发（保留 nick/role），否则新建档案。
+// 返回 inserted=false 表示 token 恰好与既有用户碰撞（调用方换一个重试）。
+func (s *Store) IssueToken(ip, token string, at int64) (bool, error) {
+	res, err := s.db.Exec(
+		`UPDATE users SET token = ?, token_issued_at = ? WHERE ip = ? AND token != ''`,
+		token, at, ip,
+	)
+	if err != nil {
+		return false, fmt.Errorf("rotate token: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return true, nil
+	}
+	res, err = s.db.Exec(
+		`INSERT INTO users(token, nick, bio, role, ip, token_issued_at, created_at) VALUES(?, '', '', 'user', ?, ?, ?)
+		 ON CONFLICT(token) DO NOTHING`,
+		token, ip, at, at,
+	)
+	if err != nil {
+		return false, fmt.Errorf("issue token: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
+}
+
 // FindWork 按协议+编码查作品
 func (s *Store) FindWork(protocol, code string) (*domain.Work, error) {
 	w := &domain.Work{}
 	var createdAt int64
 	err := s.db.QueryRow(
-		`SELECT id, title, protocol, code, author, publisher, language, cover, description, created_at
+		`SELECT id, title, protocol, code, language, cover, description, created_at
 		 FROM works WHERE protocol = ? AND code = ?`, protocol, code,
-	).Scan(&w.ID, &w.Title, &w.Protocol, &w.Code, &w.Author, &w.Publisher, &w.Language, &w.Cover, &w.Description, &createdAt)
+	).Scan(&w.ID, &w.Title, &w.Protocol, &w.Code, &w.Language, &w.Cover, &w.Description, &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query work: %w", err)
+	}
+	w.CreatedAt = time.Unix(createdAt, 0)
+	return w, nil
+}
+
+// GetWork 按 id 查作品（大厅展示书名用）
+func (s *Store) GetWork(id int64) (*domain.Work, error) {
+	w := &domain.Work{}
+	var createdAt int64
+	err := s.db.QueryRow(
+		`SELECT id, title, protocol, code, language, cover, description, created_at
+		 FROM works WHERE id = ?`, id,
+	).Scan(&w.ID, &w.Title, &w.Protocol, &w.Code, &w.Language, &w.Cover, &w.Description, &createdAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("query work by id: %w", err)
 	}
 	w.CreatedAt = time.Unix(createdAt, 0)
 	return w, nil
@@ -272,4 +353,88 @@ func (s *Store) GetEdition(id int64) (*domain.Edition, error) {
 	}
 	e.CreatedAt = time.Unix(createdAt, 0)
 	return e, nil
+}
+
+// ---------- rooms / messages（v0.1.5：房间定义与聊天消息落库） ----------
+
+// RegisterRoom 房间定义落库（创建房间时调用；幂等：重复 id 忽略）
+func (s *Store) RegisterRoom(rec domain.RoomRecord) error {
+	_, err := s.db.Exec(
+		`INSERT INTO rooms(id, edition_id, owner_token, created_at) VALUES(?, ?, ?, ?)
+		 ON CONFLICT(id) DO NOTHING`,
+		rec.ID, rec.EditionID, rec.OwnerToken, rec.CreatedAt.Unix(),
+	)
+	if err != nil {
+		return fmt.Errorf("insert room: %w", err)
+	}
+	return nil
+}
+
+// ListRooms 列出全部房间定义（server 启动时恢复内存房间用）
+func (s *Store) ListRooms() ([]domain.RoomRecord, error) {
+	rows, err := s.db.Query(`SELECT id, edition_id, owner_token, created_at FROM rooms`)
+	if err != nil {
+		return nil, fmt.Errorf("list rooms: %w", err)
+	}
+	defer rows.Close()
+	out := []domain.RoomRecord{} // 空列表输出 []（而非 null）
+	for rows.Next() {
+		var rec domain.RoomRecord
+		var createdAt int64
+		if err := rows.Scan(&rec.ID, &rec.EditionID, &rec.OwnerToken, &createdAt); err != nil {
+			return nil, fmt.Errorf("scan room: %w", err)
+		}
+		rec.CreatedAt = time.Unix(createdAt, 0)
+		out = append(out, rec)
+	}
+	return out, rows.Err()
+}
+
+// DeleteRoom 删除房间定义及聊天消息（显式两步删，不依赖外键 pragma；幂等）
+func (s *Store) DeleteRoom(id string) error {
+	if _, err := s.db.Exec(`DELETE FROM messages WHERE room_id = ?`, id); err != nil {
+		return fmt.Errorf("delete messages: %w", err)
+	}
+	if _, err := s.db.Exec(`DELETE FROM rooms WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("delete room: %w", err)
+	}
+	return nil
+}
+
+// InsertMessage 追加聊天消息（追加日志模型），返回消息 id 与 created_at（unix 秒，单一时间来源）
+func (s *Store) InsertMessage(roomID, member, nick, text string) (id, createdAt int64, err error) {
+	createdAt = time.Now().Unix()
+	res, err := s.db.Exec(
+		`INSERT INTO messages(room_id, member, nick, text, created_at) VALUES(?, ?, ?, ?, ?)`,
+		roomID, member, nick, text, createdAt,
+	)
+	if err != nil {
+		return 0, 0, fmt.Errorf("insert message: %w", err)
+	}
+	id, err = res.LastInsertId()
+	if err != nil {
+		return 0, 0, fmt.Errorf("last insert id: %w", err)
+	}
+	return id, createdAt, nil
+}
+
+// ListMessages 按 id 升序拉取聊天历史；after = 只取 id > after（0 = 从头）；limit 限制条数
+func (s *Store) ListMessages(roomID string, after int64, limit int) ([]domain.ChatMessage, error) {
+	rows, err := s.db.Query(
+		`SELECT id, room_id, member, nick, text, created_at FROM messages
+		 WHERE room_id = ? AND id > ? ORDER BY id ASC LIMIT ?`, roomID, after, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list messages: %w", err)
+	}
+	defer rows.Close()
+	out := []domain.ChatMessage{} // 空列表输出 []（而非 null），客户端解析友好
+	for rows.Next() {
+		var m domain.ChatMessage
+		if err := rows.Scan(&m.ID, &m.RoomID, &m.Member, &m.Nick, &m.Text, &m.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan message: %w", err)
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
 }

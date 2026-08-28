@@ -8,10 +8,12 @@ import (
 
 // ---------- REST：管理操作（admin only） ----------
 
-// isAdmin 判定 token 是否为管理员：TUREAD_ADMIN_TOKENS 列表命中 或 users.role == admin
+// isAdmin 判定 token 是否为管理员：策略中的管理员 token 列表命中 或 users.role == admin
 func (s *Server) isAdmin(token string) bool {
-	if s.admin[token] {
-		return true
+	for _, t := range s.policySnapshot().AdminTokens {
+		if t == token {
+			return true
+		}
 	}
 	u, err := s.store.GetUser(token)
 	if err != nil || u == nil {
@@ -56,14 +58,19 @@ func (s *Server) handleDeleteEditionFile(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusOK)
 }
 
-// DELETE /rooms/{roomID} —— 删除房间并踢出全部成员连接（admin only）
+// DELETE /rooms/{roomID} —— 删除房间并踢出全部成员连接（admin only）；同步删除持久化房间记录与聊天消息
 func (s *Server) handleDeleteRoom(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAdmin(w, r) {
 		return
 	}
-	ids, err := s.rooms.Delete(r.PathValue("roomID"))
+	roomID := r.PathValue("roomID")
+	ids, err := s.rooms.Delete(roomID)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if err := s.store.DeleteRoom(roomID); err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	for _, id := range ids {

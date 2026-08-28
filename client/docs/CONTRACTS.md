@@ -113,6 +113,16 @@ interface Note {
   createdAt: number;
   updatedAt: number;
 }
+
+/** 聊天消息（v0.1.5 起 server 支持；追加日志模型，历史经 REST 拉取） */
+interface ChatMessage {
+  id: number;                // server 分配（追加序号）
+  roomId: string;
+  member: string;            // 发送者成员 token
+  nick: string;              // 发送时昵称快照
+  text: string;
+  createdAt: number;         // unix 秒
+}
 ```
 
 ## 3. 事件机制（所有服务通用）
@@ -224,6 +234,7 @@ interface ILibraryStore {
 interface RoomSessionEvents {
   'location-updated': (location: BookLocation, from: RoomMember) => void;
   'presence-updated': (members: RoomMember[]) => void;
+  'chat-message': (msg: ChatMessage) => void;       // v0.1.5：聊天广播（含自己发的 = server 回执）
   'system-message': (msg: SystemMessage) => void;
   'connection-changed': (state: 'connected' | 'disconnected' | 'reconnecting') => void;
   'book-mismatch': (detail: { local: BookFingerprint; room: BookFingerprint }) => void;
@@ -235,6 +246,8 @@ interface IRoomSession extends EventEmitter<RoomSessionEvents> {
   leaveRoom(): Promise<void>;
   /** 手动广播当前位置（通常不需要：翻页由内部监听 render 自动广播） */
   emitLocation(location?: BookLocation): Promise<void>;
+  /** 发送聊天消息：server 落库后广播 room.message 回执（含发送者）；历史经 REST GET /rooms/{id}/messages 拉取 */
+  sendChat(text: string): Promise<void>;
   getRoomState(): RoomState | null;
 }
 

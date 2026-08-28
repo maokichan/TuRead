@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -35,6 +36,10 @@ type joinPayload struct {
 
 type locationPayload struct {
 	Location *domain.BookLocation `json:"location"`
+}
+
+type chatPayload struct {
+	Text string `json:"text"`
 }
 
 // wsClient 一个 WS 连接：独立写队列 + 写 goroutine（广播背压）。
@@ -164,10 +169,16 @@ func (c *wsClient) loop() {
 			c.handleJoin(env.Payload)
 		case domain.MsgLocation:
 			c.handleLocation(env.Payload)
+		case domain.MsgChat:
+			c.handleChat(env.Payload)
 		}
 	}
 	if c.memberID != "" {
 		c.server.rooms.Leave(c.roomID, c.memberID)
+		// 转发规范（v0.1.5）：离开/断线必须广播 presence，其余成员列表不残留离线成员
+		if r, err := c.server.rooms.Get(c.roomID); err == nil {
+			r.Broadcast("", domain.MessageEnvelope{Type: domain.MsgPresence, Payload: r.Members()})
+		}
 	}
 }
 
@@ -219,4 +230,29 @@ func (c *wsClient) handleLocation(payload json.RawMessage) {
 		return
 	}
 	c.server.rooms.SetLocation(c.roomID, c.memberID, p.Location)
+}
+
+// handleChat 聊天：落库（追加日志）后向房间广播 room.message（含发送者，server 权威回执）。
+// 转发机制复用房间广播（send 队列/背压/信封），v1 只同步位置与聊天，笔记/光标等明确排除。
+func (c *wsClient) handleChat(payload json.RawMessage) {
+	var p chatPayload
+	if err := json.Unmarshal(payload, &p); err != nil || strings.TrimSpace(p.Text) == "" {
+		return
+	}
+	msgID, createdAt, err := c.server.store.InsertMessage(c.roomID, c.memberID, c.nick, p.Text)
+	if err != nil {
+		log.Printf("insert chat message: %v", err)
+		return
+	}
+	msg := domain.ChatMessage{
+		ID:        msgID,
+		RoomID:    c.roomID,
+		Member:    c.memberID,
+		Nick:      c.nick,
+		Text:      p.Text,
+		CreatedAt: createdAt,
+	}
+	if r, err := c.server.rooms.Get(c.roomID); err == nil {
+		r.Broadcast("", domain.MessageEnvelope{Type: domain.MsgChatMessage, Payload: msg})
+	}
 }

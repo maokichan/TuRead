@@ -3,6 +3,7 @@ module turead/server
 go 1.26.5
 
 require (
+	github.com/BurntSushi/toml v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	modernc.org/sqlite v1.57.0
 )

@@ -19,3 +19,6 @@ Thumbs.db
 
 # claude code local settings
 .claude/settings.local.json
+
+# local fork/contribution notes (not for repo)
+FORK-NOTES.md

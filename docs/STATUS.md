@@ -11,9 +11,9 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 
 ## 2. 仓库与提交（`D:\PROJECT\TuRead`）
 
-- git 仓库：本地 `main`，`origin = https://github.com/maokichan/TuRead.git`（**未推送**，推回 fork 的时机由用户定）
-- 提交历史：`aff370c` 基线骨架 → `cf58376` 契约 v0.1 → `3a72d3d` 借物表+插件决策 → `ffb4712` 契约 v0.2 → `4000db5` 术语定案 → `8a8b46a` 会话交接 → 本次（server v0.1.0）
-- 结构：`client/`（空骨架，待搭）｜`server/`（v0.1.0，Go module）｜`kookit/`（submodule，HEAD `6e18465`）｜`docs/`｜`借物表.md`
+- git 仓库：本地 `main`，`origin = https://github.com/maokichan/TuRead.git`（**已推送 2026-08-27，HEAD `7774da6`**）
+- 提交历史：`aff370c` 基线骨架 → `cf58376` 契约 v0.1 → `3a72d3d` 借物表+插件决策 → `ffb4712` 契约 v0.2 → `4000db5` 术语定案 → `8a8b46a` 会话交接 → `6e355a3` server v0.1.0 → `e98fd99` 文档 → `7774da6` **server v0.1.2**
+- 结构：`client/`（空骨架，待搭）｜`server/`（v0.1.2，Go module）｜`kookit/`（submodule，HEAD `6e18465`）｜`docs/`｜`借物表.md`
 - 网络配方：见 `D:\PROJECT\NETWORK.md`（git 需 `-c http.proxy=http://127.0.0.1:7897 -c http.sslBackend=openssl`；Go 需 `GOPROXY=https://goproxy.cn,direct`；npm registry 直连）
 
 ## 3. 已定决策
@@ -24,7 +24,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | 架构选型 | **六边形（端口-适配器）为骨架 + DDD 命名为层内词汇**，二者不冲突（ARCHITECTURE.md §2） |
 | server 分层 | `cmd/server` 入口 → `internal/transport`(REST+WS) → `internal/room`(用例,内存) → `internal/store`(SQLite+文件) → `internal/domain`(领域) |
 | 客户端契约 v0.2 | 能力服务：`IRenderService` / `INetService` / `IBookIdentityService` / `ILibraryStore`；应用服务：`IRoomSession` / `IBookService` |
-| 书籍标定 | **两层模型**：Work（同一本书 = 识别协议+编码：isbn/asin/doi/open-library/content-hash-v1）+ Edition（同一电子版 = 扩展名+指纹+size）；server 只持久化 works/editions，**房间/成员/位置纯内存** |
+| 书籍标定 | **两层模型**：Work（同一本书 = 识别协议+编码：isbn/asin/doi/open-library/content-hash-v1；**不设 author/publisher 字段**）+ Edition（同一电子版 = 扩展名+指纹+size）；server 只持久化 works/editions，**房间/成员/位置纯内存**；指纹由客户端校准算法计算（含 OCR 提 ISBN），创建房间时客户端同时上传副本与 edition 信息 |
 | 版本指纹 | **头/中/尾三点采样**（头64KB+中点64KB+尾64KB 拼接哈希），算法 `md5-sample3-v1`（client 侧 `IBookIdentityService` 待同步） |
 | 认证 | **token 双闸（v0.1.1 已实现）**：第 2 层服务器级共享钥匙 `TUREAD_ACCESS_TOKEN`（`X-Turead-Access` 头，未配置不启用）+ 第 3 层成员 token = 成员 ID（`Authorization: Bearer <7位大小写字母数字>`，客户端自生成）；除 /healthz 外全部校验，缺一 401 直接关；同 token 新连接踢旧连接；仍无账号/密码（远期成员 token 可迁移为用户系统凭证） |
 | 副本分发 | **server 保存并分发电子版副本**：内容寻址存储 `data/books/<hash>.<ext>`（按 hash 去重）；无书成员加入时可下载 |
@@ -33,12 +33,16 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | schema 管理 | `internal/store/schema.sql` + `go:embed` 嵌入二进制（单文件部署不变）；老库缺列自动 `ALTER` 补列（`PRAGMA table_info` 检查） |
 | 用户档案 | `users` 表：`token`=成员 ID（PK）/ `nick`（≤12 字）/ `bio`（≤120 字）/ `role`（`user`|`admin`|`limited`）/ `created_at`；首次 WS join 自动建档（`INSERT OR IGNORE` 幂等）；`role` 建档时按 `TUREAD_ADMIN_TOKENS` 判定；远期 token 即用户名可加密码列 |
 | 管理接口 | `DELETE /books/{id}/file`（删副本：文件+`local_copy=0`）与 `DELETE /rooms/{id}`（删房间踢人）—— **admin only**（`TUREAD_ADMIN_TOKENS` env 或 `users.role=admin`），非 admin 403；`admin` 角色已 enforce |
-| 房间同步 | WS 消息信封：`room.join` / `room.join-ack` / `room.location` / `room.presence`（server 定义，client 适配） |
+| 房间同步 | WS 消息信封：`room.join` / `room.join-ack` / `room.location` / `room.presence` / `room.chat` / `room.message`（server 定义，client 适配；转发语义权威见 `server/docs/API.md`「同步协议与转发规范」） |
+| 房间生命周期与发现 | **房间定义落库（rooms 表，v0.1.5 起）**，运行时状态（成员/位置/订阅）纯内存；空房间 TTL 倒计时（默认 12h，`room_ttl` 可热改），超时惰性清理（Get/List 时 reap + 回调删 DB 记录与聊天），重新有人加入取消；有成员房间一直存活；admin `DELETE /rooms` 强制删除；发现 = `GET /rooms`（大厅）+ `?edition=`（按书找房），v1 房间默认公开可见（roomId 即加入钥匙，无密码）—— v0.1.4/v0.1.5 |
+| 聊天室 | **v1 进（2026-08-29 定案）**：`room.chat`（C→S）→ 落库 `messages` 表（追加日志模型）→ 广播 `room.message`（含发送者 = 权威回执）；历史 `GET /rooms/{id}/messages`（`?after=` 增量 / `?limit=`）；消息随房间删除级联清理。**存储模型定案：server 存**（不采用 owner 本地方案：双写一致性负担 + 可用性黑洞 + server 本就可信存储者；若在意隐私远期做端到端加密）—— v0.1.5 |
+| 配置 | **TOML 文件（`turead.toml`，示例 `turead.toml.example`）+ 环境变量覆盖（TUREAD_* 优先）+ 文件监听热重载（策略类：access_token/admin_tokens/room_ttl/max_upload_mb 2s 生效；启动类 addr/data_dir 需重启）**；运维手册 `server/docs/OPS.md`—— v0.1.5 |
 | kookit 能力 | 支持漫画 cbz/cbr/cbt/cb7（ComicRender）；扫描 PDF 内置 OCR（tesseract/paddle）；`Book.md5` 由调用方计算 |
 | OCR 候选 | OCR-buddy（MIT）技术路线 `ppu-paddle-ocr` + `onnxruntime-web`（PP-OCRv5，纯本地）可在 Electron 渲染进程复用；`IOcrService` 草案未入契约 |
 | 插件 | v1 **不做插件运行时**；官方插件 = 实现某 port 注册进 `ServiceContainer`（`client/docs/ARCHITECTURE.md` §3） |
 | 许可 | kookit AGPL-3.0 → TuRead 以 **AGPL-3.0** 开源；所有第三方资源登记于 `借物表.md` |
 | 开发原则 | **不暂停项目**；v1 用三层直觉 + 两个接缝（kookit 包一层、同步/传输分离）；**Rule of Three**；检查点：大改前写一行理由、不知道代码放哪层就停下讨论；解释优先 |
+| 仓库形态 | **暂不分仓库**（单仓库 monorepo）：server 是独立 Go module（依赖全部内置，不依赖 client），随时可零成本拆出。理由：契约先行需跨端原子提交（改协议 = 同 commit 改 CONTRACTS.md + API.md）；规模小无独立 CI/团队需求；拆分成本 = 两仓库两次提交 + 版本对齐。**触发条件**（出现其一再拆）：server 需独立发布节奏/被其他项目复用｜需独立 CI/流水线｜仓库访问权限分离需求 |
 
 ## 4. 待办 / 待确认（下次开始）
 
@@ -48,9 +52,15 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 - [x] 成员身份 token（= 成员 ID）：客户端自生成 7 位大小写字母数字；同 token 踢旧连接 —— v0.1.1 已实现
 - [x] 用户档案入库（`users` 表：token=nick/bio/role/created_at，首次 join 自动建档）—— v0.1.1 已实现
 - [x] 管理接口 + `role=admin` enforce：`DELETE /books/{id}/file`（删副本）、`DELETE /rooms/{id}`（删房间踢人），`TUREAD_ADMIN_TOKENS` env 判定 —— v0.1.1 已实现
-- [ ] 用户系统（剩余）：昵称/bio 编辑接口、`limited` 角色语义、token 加密码列（加盐哈希）登录
-- [ ] **讨论服务器地址暴露方式**（公网 IP / 域名 / 端口映射 / 是否 HTTPS）—— 2026-08-27 挂起
+- [ ] 用户系统（剩余）：昵称/bio 编辑接口、`limited` 角色语义、token 加密码列（加盐哈希）登录 —— **搁置**（2026-08-27 用户决定先不考虑）
+- [x] server 上传大小限制（防滥用；`max_upload_mb` 配置可热改，超限 413）—— v0.1.5 已实现
+- [x] 配置系统：TOML 文件 + 环境覆盖 + 文件监听热重载（策略类）+ 运维手册 `server/docs/OPS.md` —— v0.1.5 已实现
+- [x] 聊天室：`room.chat`/`room.message` + `messages` 表落库 + 历史接口 + 房间定义落库（rooms 表）—— v0.1.5 已实现
+- [x] 转发规范定稿（server/docs/API.md「同步协议与转发规范」）+ 离开广播补丁 + Member json 对齐 client 契约 —— v0.1.5 已实现
+- [x] E2E 冒烟固化 —— 2026-08-29 落地为**常驻集成测试** `server/internal/transport/e2e_test.go`（建房间 / 双成员 join / 位置广播转发 / 洪泛不丢 / 断线清理 / 同 token 踢旧，随 `go test ./...` 回归）；`cmd/smoke`（对真实部署实例做通电检查）留待部署形态确定后再补（与部署话题绑定）
+- [ ] **服务器地址：已定 = 客户端直接配置服务器 IP**（REST `http(s)://<ip>:<port>` / WS `ws(s)://<ip>:<port>/ws`）；部署细节（公网 IP / 端口映射 / 是否 HTTPS）与服务器负责人讨论，属运维话题、不阻塞开发 —— 2026-08-27 更新
 - [ ] client v1 骨架：Electron + React + `core/{domain,usecases,ports,adapters}` 落成真实 TS
+- [ ] client 管理界面：admin 操作（删房间 / 删副本）在客户端完成 —— 协议已支持（REST + admin token，server 侧 v0.1.1 已就绪），UI 属 client 里程碑（2026-08-29 用户确认期待在客户端完成）
 - [ ] 契约 v0.2 用户评审反馈；`BookFingerprint.algorithm` 需同步为 `md5-sample3-v1`
 - [ ] UI 技术栈最终确认（React 倾向，未定死）
 - [ ] OCR（ISBN 提取）是否进 v1
@@ -116,10 +126,50 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 - **文件级整理**：`transport/server.go`（530 行）拆分为 `server.go`（装配+路由）/ `rest.go` / `ws.go` / `admin.go` / `auth.go` / `utils.go`——纯重组零行为变化，测试全过
 - **"何时该抽象"触发条件已写入** `server/docs/ARCHITECTURE.md` §5（第二传输/第二存储/第二调用方/文件过大）
 
+### 2026-08-27（续七）v0.1.2 推送 + 剩余方向 + 仓库形态决策
+
+- **已推送**：`7774da6`（server v0.1.2）推至 `origin`（maokichan/TuRead）
+- **剩余方向已记入 §4 待办**：上传大小限制；E2E 冒烟固化（`server/cmd/smoke` 或常驻集成测试）；用户系统剩余（已有）
+- **仓库形态定案（暂不分仓库）**：单仓库 monorepo；server 为独立 Go module（依赖内置、不依赖 client），零成本可拆；理由 = 契约先行需跨端原子提交 + 规模小 + 拆分成本（两仓两提交+版本对齐）现阶段不值；**触发条件**（独立发布节奏/独立 CI/权限分离）已写入根 `docs/ARCHITECTURE.md` §5
+
+### 2026-08-27（续八）数据库设计修正：Work 去 author/publisher + content-hash-v1 重定义
+
+- **决策：Work 不设 author / publisher**——一本书可能多位作者，单作者字段是错误建模；多作者需 `work_author` 联结表 + 倒查表 + 核对机制，会让远期功能复杂，现阶段不做；ISBN 等外部标识符已提供可查询性（作者/出版商可经 ISBN 外部解析）。`language` / `cover` / `description` **保留**（当前未填充，预留书架展示）
+- **content-hash-v1 重定义**（原"标题+作者归一化哈希"作废）：**无外部标识符书籍的兜底身份 = edition 内容指纹**，由**客户端校准算法计算**（同一扫描版/同一文件内容 → 同 code，标题/文件名不同不影响；扫描版不同 = 不同 edition，位置无法对齐）。server 只存不重算（不透明字符串）；原 `ContentHashCode` 参考实现已移除
+- **Edition 信息由客户端计算并上传**：客户端用校准算法（+ OCR，扫描书提 ISBN）算指纹，创建房间时**同时上传副本与 edition 信息**；server 只登记与比对，从不自己计算指纹
+- **实施**：`schema.sql` v3（works 去 author/publisher 列，旧开发库多余列无害可忽略）；`domain/types.go` Work 去两字段；`identity.go` 去 ContentHashCode + 协议注释更新；`store.go` INSERT/SELECT 去两列；`rest.go` 请求体去 author；API.md / ARCHITECTURE.md 同步；`go build` + `go test ./...` 全绿；版本 `0.1.2` → `0.1.3`
+
+### 2026-08-27（续九）房间设计定案：纯内存 + 空房间 TTL + 发现接口（v0.1.4）
+
+- **决策：房间保持纯内存，不新增 rooms 表**（重启即销毁，接受）；空房间生命周期从"空即销毁"改为 **TTL 倒计时**：默认 **12h**（`TUREAD_ROOM_TTL` 环境变量可配），房间变空记 `emptyAt`，超过 TTL 在 Get/List 时惰性清理（`reap`）；重新有人加入取消倒计时；有成员的房间一直存活；admin `DELETE /rooms` 强制删除保留
+- **决策：发现机制 v1 全做**（基于内存房间表，无需持久化）：`GET /rooms`（公开大厅：roomId/editionId/书名/ext/memberCount/createdAt）+ `GET /rooms?edition=<id>`（按书找房）+ roomId 直达（`WS /ws?room=` 不变）；v1 房间默认公开可见、无密码，隐私开关远期
+- **实现**：`room/manager.go`（Room.emptyAt + TTL reap + List/RoomInfo；`NewManager(maxMembers, ttl)` 签名变更，`now` 时钟可注入供测试）；`store.GetWork`（大厅书名展示）；`rest.go` `handleListRooms`；`server.go` 路由 `GET /rooms`；`main.go` `TUREAD_ROOM_TTL` 解析；新增单测 `room/manager_test.go`（TTL 语义 5 例 + 标定回归）与 `transport/roomlist_test.go`（鉴权/列表/筛选/非法参数）；`go build` + `go test -count=1 ./...` 全绿；版本 `0.1.3` → `0.1.4`
+
+### 2026-08-29（续十）v0.1.5：配置系统 + 聊天室 + 持久化 + 转发规范 + 冒烟固化
+
+- **冒烟固化定案（综合多面考虑）**：落地为**常驻集成测试** `transport/e2e_test.go`（自动进 `go test ./...`、httptest 随机端口、真实 TCP+WS）；`cmd/smoke`（对真实部署实例通电检查）留待部署形态确定后补（与部署话题绑定）。E2E 覆盖：建房间/双 join/位置广播/洪泛不丢/断线清理+离开广播/同 token 踢旧
+- **服务器地址定案**：**客户端直接配置服务器 IP**（REST `http(s)://<ip>:<port>` / WS `ws(s)://<ip>:<port>/ws`）；部署细节（公网/端口映射/HTTPS）与服务器负责人讨论 = 运维话题，不阻塞开发（STATUS §4 / server ARCHITECTURE §2/§3 已更新）
+- **用户系统剩余搁置**（2026-08-29 用户决定先不考虑）
+- **配置系统（v0.1.5）**：**TOML 文件**（`turead.toml`，示例 `turead.toml.example`，`TUREAD_CONFIG` 指定路径）+ 环境变量覆盖（TUREAD_* 优先）+ **文件监听热重载**（2s 轮询，仅策略类：access_token / admin_tokens / room_ttl / max_upload_mb；addr / data_dir 启动类需重启）；已连接 WS 不受令牌热改影响；新依赖 `BurntSushi/toml` v1.6.0（MIT，已登记借物表）；**运维手册 `server/docs/OPS.md`**（配置说明 + 常见故障排查表 + 管理接口用法）
+- **上传大小限制**：`max_upload_mb`（0 = 不限，可热改）；`handleUploadFile` 用 ContentLength 预检 + `http.MaxBytesReader` 兜底 chunked，超限 413
+- **聊天室进 v1 + server 存（定案）**：信封模型零改动扩展——`room.chat`（C→S）→ 落库 `messages` 表（追加日志模型）→ 广播 `room.message`（含发送者 = 权威回执）；历史 `GET /rooms/{id}/messages`（`?after=` 增量 / `?limit=`，默认 50 上限 500）；**不采用 owner 本地存储方案**（双写一致性负担 + owner 离线可用性黑洞 + server 本就可信存储者；隐私远期走端到端加密）；**房间定义落库（rooms 表，推翻续九"纯内存"）**——聊天要历史，房间就得在；TTL 过期/admin 删除 → 房间与消息一起清理；重启时从 DB 恢复房间（空房间，TTL 重新起算）
+- **转发规范定稿**（`server/docs/API.md`「同步协议与转发规范」）：状态转发而非操作转发（交互无关，可在客户端交互定案前钉死）；消息集/方向/转发规则表；presence 全量快照、除发送者外、加入即全量同步、**离开必须广播（补丁）**、背压、节流属 client 职责；v1 边界 = 位置 + 聊天，笔记/光标/操作事件流明确排除
+- **Member json 对齐**：`domain.Member` 加 tag（`id` / `nickName` / `location`），API.md「已知不一致」清零
+- **实现**：`internal/config`（新包）；`schema.sql` v4（rooms + messages）；`store.go`（RegisterRoom/ListRooms/DeleteRoom/InsertMessage/ListMessages）；`room/manager.go`（SetTTL/SetOnExpired/Restore）；`transport`（Policy 热改、聊天、离开广播、历史接口、上传限制、建房/删房落库）；`main.go`（配置加载 + 热重载 + 启动恢复房间）；新增测试：config 5 例、store rooms/messages 1 例、transport chat+历史+上传限制 2 例、E2E 更新；`go vet` + `go test -count=1 ./...` 全绿；版本 `0.1.4` → `0.1.5`
+
+### 2026-08-29（续十一）v0.1.6：房主身份 token 化 + 成员 token 改服务端签发
+
+- **决策：rooms.owner 由昵称快照改为 owner_token**（用户指出 owner 未关联用户 token 的缺口）——房主身份 = 成员 token（来自请求认证上下文），房主权限（远期）可验证；展示昵称建房时建档（RegisterUser，幂等）并经 users 表解析（大厅 `ownerNick`）
+- **决策：成员 token 改为服务端签发**（推翻 v0.1.1"客户端自生成"）：`POST /auth/token`（仅需第 2 层二级令牌，成员 token 层豁免）——**同一 IP 7 天内申请过 → 复用并续期（活跃身份不因窗口过期）；超过 7 天未申请 → 换发新 token**。users 表加 `ip` / `token_issued_at`；签发即建档（nick 空，join 时补）；token 生成在 `domain.NewMemberToken`（crypto/rand，碰撞重试）
+- **明确接受限制（NAT/共享 IP）**：同一公网 IP 多客户端共享同一 token，会触发"同 token 踢旧"互相顶线——v1 接受（匿名访客模型），远期用客户端 nonce 区分同 IP 多设备；移动网络 IP 漂移也会在 7 天无活动后换发（身份断，匿名模型可接受）
+- **数字 id 结论**：token 不翻译成纯数字 id（token 即用户 ID，无第二消费方，YAGNI）
+- **实施**：`schema.sql` v5（rooms.owner_token；users.ip + token_issued_at + 迁移补列）；`domain/token.go`（NewMemberToken）+ RoomRecord/Room.OwnerToken；`store.go`（RegisterRoom/ListRooms 换列、RegisterUser 补空 nick、FindTokenByIP/TouchToken/IssueToken）；`transport/token.go`（handleIssueToken + clientIP）+ auth 中间件 /auth/token 豁免第 3 层；建房时建档 + 大厅 ownerNick；版本 `0.1.5` → `0.1.6`；新增测试 store/token_test.go（签发/复用/换发/过期/碰撞）+ transport/token_test.go（接口/复用/授权/owner_token）；`go vet` + `go test -count=1 ./...` 全绿
+- **⚠️ 文档待同步（下次文档重整时处理）**：API.md 认证章节仍写"客户端自生成"、README 环境变量与 users 表说明、CONTRACTS.md 相关描述、OPS.md 增加"如何给客户端发 token"一节
+
 ## 6. 环境 / 沙箱事实
 
 - 本地代理 `127.0.0.1:7897`（Clash Verge rev，verge-mihomo）；npm registry 直连；GitHub 直连被墙（走代理 + OpenSSL 后端）；curl.exe 不可用（仅 schannel）
 - go 命令在沙箱下报 telemetry 写失败（`C:\Users\1\AppData\Roaming\go\telemetry`，噪音，不影响执行）；已 `go env -w GOPROXY=https://goproxy.cn,direct`
 - 沙箱下 `go build` 需把 `GOCACHE` 指到工作区（默认缓存目录 `C:\Users\1\AppData\Local\go-build` 被沙箱拦）；`GOOS=linux GOARCH=amd64` 交叉编译已验证
-- 冒烟/测试路径：`go test ./internal/transport/`（背压单元测试常驻）；完整 E2E 冒烟用一次性临时程序（跑完即删，下次可直接重建）
+- 冒烟/测试路径：`go test ./...`（常驻：单测 + E2E 集成测试 `transport/e2e_test.go`、聊天 `chat_test.go`、TTL `room/manager_test.go` 等）；`cmd/smoke`（对真实部署实例通电检查）待部署形态确定后补
 - kookit 子模块的 `CLAUDE.md` 规则：**禁止在其仓库内 git commit / push**

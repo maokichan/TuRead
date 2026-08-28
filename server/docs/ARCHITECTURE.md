@@ -9,7 +9,7 @@
 
 | 模块 | 职责 | 实现 |
 |---|---|---|
-| `room` | 房间状态机：成员、绑定 edition、当前位置；**纯内存**（重启即销毁） | `internal/room`（RoomManager） |
+| `room` | 房间状态机：成员、绑定 edition、当前位置；**纯内存**（重启即销毁）；空房间 TTL 倒计时（默认 12h）超时惰性清理；发现（大厅/按书找房）基于内存房间表 | `internal/room`（RoomManager） |
 | `book` | 标定注册表：works / editions 查询、注册、比对；指纹校验 | `internal/store`（SQLite）+ `internal/domain`（协议校验） |
 | `sync` | 同步事件分发（房间内广播），WS 消息信封 | `internal/transport`（WS）+ `internal/room`（广播） |
 | `store` | SQLite（`modernc.org/sqlite`，纯 Go 无 cgo，works / editions / **users**）+ 内容寻址文件存储 | `internal/store` |
@@ -23,7 +23,7 @@
 
 四层定位，各管各的：
 
-1. **服务器地址（IP/端口 或 域名）**：客户端配置 `server 地址`；REST 用 `http(s)://<addr>`，WS 用 `ws(s)://<addr>/ws`。**暴露方式待讨论**（公网 IP / 域名 / 端口映射 / 是否 HTTPS），见 §3。
+1. **服务器地址（IP/端口 或 域名）**：客户端配置 `server 地址`；REST 用 `http(s)://<addr>`，WS 用 `ws(s)://<addr>/ws`。**已定：客户端直接配置服务器 IP**；部署细节（公网 / 端口映射 / 是否 HTTPS）与服务器负责人讨论（运维话题，不阻塞开发），见 §3。
 2. **准入门禁（服务器级共享 token）**：`TUREAD_ACCESS_TOKEN` 环境变量，部署者设**一把共享钥匙**（未设置 = 该层不启用）；所有 REST 请求与 WS 握手带 `X-Turead-Access` 头；middleware 常量时间比较校验，失败 401 / 拒绝升级。目的：**挡公网扫描与陌生人**。—— **v0.1.1 已实现**
 3. **成员身份 token（客户端级，匿名访客）= 成员 ID**：客户端**自生成 7 位大小写字母+数字**（`^[A-Za-z0-9]{7}$`），`Authorization: Bearer <token>` 携带；middleware 格式校验（不合法 401）；WS 连接以 token 为 `memberID`（重连找回、跨平台同一身份）；**同 token 新连接踢旧连接**；昵称 ≤12 字；**role**（`user`/`admin`/`limited`）建档时按 `TUREAD_ADMIN_TOKENS` 判定，管理接口（副本/房间清理）enforce `admin`；远期可迁移为用户系统登录凭证。—— **v0.1.1 已实现**
 4. **房间号（会话钥匙）**：`POST /rooms` 生成 8 位 hex 房间号；加入走 `/ws?room=<id>&nick=<name>`，定位房间绑定的 edition，完成标定/下载/位置同步。—— v0.1.0 已实现
@@ -35,8 +35,9 @@
 
 ## 3. 待定事项（server）
 
-- [ ] **服务器地址暴露方式**（公网 IP / 域名 / 端口映射 / 是否 HTTPS）
-- [ ] 房间生命周期（空房间保留？房主权限？）
+- [ ] **服务器地址部署细节**（公网 IP / 端口映射 / 是否 HTTPS）—— 地址本身已定为"客户端直接配置 IP"；部署细节与服务器负责人讨论（运维话题，不阻塞开发）
+- [x] 房间生命周期：**空房间 TTL 定案**（默认 12h，`TUREAD_ROOM_TTL` 可配；空房间进入倒计时，超时清理，重新有人加入取消）—— v0.1.4 已实现；**房主权限（删除/转让）仍挂起**
+- [x] 房间发现：`GET /rooms`（大厅）+ `?edition=`（按书找房）—— v0.1.4 已实现；v1 房间默认公开可见（无密码），隐私开关远期
 - [ ] 用户系统（剩余）：昵称 / bio 编辑接口、`limited` 角色语义、token 加密码列（加盐哈希）演进为登录系统（`admin` 已 enforce：管理接口副本/房间清理）
 
 ## 4. 传输与运行基本功（2026-08-27 已实现）
