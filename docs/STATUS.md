@@ -12,7 +12,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 
 ## 2. 仓库与提交（`D:\PROJECT\TuRead`）
 
-- git 仓库：本地 `main`，`origin = https://github.com/maokichan/TuRead.git`（HEAD `41bd2d0f`，v0.1.6；未推送）
+- git 仓库：本地 `main`，`origin = https://github.com/maokichan/TuRead.git`（**已推送 2026-08-29，HEAD `f9dea3f3`**；2026-08-29 因管理原因取消原 fork（V2tin19/TuRead），重建为**独立仓库**，README 有说明）
 - 结构：`client/`（仅 docs，待开发）｜`server/`（v0.1.6，独立 Go module）｜`kookit/`（submodule，HEAD `6e18465`）｜`docs/`｜`TODO.md`｜`借物表.md`
 - 网络配方：见 `D:\PROJECT\NETWORK.md`（git 需 `-c http.proxy=http://127.0.0.1:7897 -c http.sslBackend=openssl`；Go 需 `GOPROXY=https://goproxy.cn,direct`；npm registry 直连）
 
