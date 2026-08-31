@@ -3,7 +3,7 @@
 > 归属：**server 专属**。跨端共同内容（书籍标定 / 仓库布局）见 `../../docs/ARCHITECTURE.md`；
 > REST / WS 接口契约与转发规范见 `API.md`；配置与运维见 `OPS.md`；待办见 `../../TODO.md`。
 
-## 1. 服务端模块与数据模型（Go，v0.1.6）
+## 1. 服务端模块与数据模型（Go，v0.2.0）
 
 > `server/` 为**独立 Go module**（依赖全部内置，不依赖 client），可随时拆为独立仓库。
 
@@ -48,7 +48,7 @@ internal/transport   REST + WebSocket（信封收发 / 认证 / 管理）
 
 ## 3. 待定事项
 
-待办统一在根 `../../TODO.md`（server 一节：房主权限、用户系统剩余、部署形态、cmd/smoke、服务器地址部署细节）。已定案：空房间 TTL（v0.1.4）、房间发现（v0.1.4）、聊天室与持久化（v0.1.5）、服务端签发 token（v0.1.6）。
+待办统一在根 `../../TODO.md`（server 一节：房主转让、用户系统剩余、部署形态、cmd/smoke、服务器地址部署细节）。已定案：空房间 TTL（v0.1.4）、房间发现（v0.1.4）、聊天室与持久化（v0.1.5）、服务端签发 token（v0.1.6）、房主删房（v0.2.0）。
 
 ## 4. 传输与运行基本功（2026-08-27 已实现）
 
@@ -73,6 +73,36 @@ internal/transport   REST + WebSocket（信封收发 / 认证 / 管理）
 `cmd/server/main.go`：`signal.NotifyContext(SIGINT/SIGTERM)` → `http.Server.Shutdown(10s)`（停收新连接、等在途 REST 请求）→ 关 SQLite → 退出。
 
 > 注：`Shutdown` 不等 hijacked 连接（WebSocket）——当前接受，关停时 WS 被直接断开。
+
+### 4.4 HTTP 服务模型与请求追踪（协程视角，2026-08-31 补）
+
+> 帮助建立"一个请求进来后发生了什么"的心智模型。goroutine = Go 运行时管理的用户态轻量线程（几 KB 栈，可同时成千上万）；per-request 协程由标准库自动开，代码里看不到。
+
+**进程内协程一览**：
+
+| 协程 | 谁开的 | 干什么 | 数量 |
+|---|---|---|---|
+| main | 入口（`cmd/server/main.go`） | 装配 + 阻塞 `<-ctx.Done()` 等信号（**进程活着的关键**） | 1 |
+| accept 循环 | `go func(){ srv.ListenAndServe() }()` | 等连接（= C++ 的 accept 循环） | 1 |
+| per-connection | **net/http 自动开**（看不到） | 读请求 → 调 `Handler.ServeHTTP` → 跑完这条请求 | 每连接 1 |
+| per-WS-writer | `go c.writer()`（`ws.go`） | WS 出站写 goroutine（+ ping 保活） | 每个 WS 连接 1 |
+| 配置监听 | `config.Watch`（`config.go`） | 轮询配置文件热重载 | 1 |
+
+**请求追踪入口 = `transport.Server.Routes()`**（`server.go`）：
+
+```
+网卡 → 内核 TCP → accept 循环（协程#2）→ per-connection 协程#3
+→ 解析出 method+path+headers → 调 Handler.ServeHTTP(w, r)
+→ Handler = authMiddleware(mux)（Routes 的返回值）
+    ① authMiddleware（auth.go）：/healthz 豁免 → 第2层 access_token（常量时间比较）→ /auth/token 豁免第3层
+       → 第3层 Bearer 成员 token（格式校验）→ 通过则注入 ctx
+    ② mux.ServeHTTP：按 "METHOD /path" 匹配注册表（server.go 的 Routes）→ 命中对应 handler
+       （支持路径通配符 {roomID}，handler 用 r.PathValue 取；未匹配 → mux 自动 404）
+```
+
+- **REST = 每请求一条独立执行流**：从 Handler 入口沿 authMiddleware → mux → 单一 handler 走到底；无状态，身份靠 header 里的 token。
+- **WS = 一条常驻双向流**：握手 `GET /ws` 走过同样链路后，`handleWS`（`ws.go`）upgrade 劫持连接；per-connection 协程变为 `c.loop()` 读循环，另开 `c.writer()` 写 goroutine —— **一读一写两条常驻**，之后房间内所有事件（位置/聊天）在这两条流上循环收发。
+- **连接状态如何维持**：进程存活靠 main 阻塞；连接存活靠 TCP 长连接 + 心跳（54s ping / 60s pongWait，超时判死 kick）；成员/订阅/位置是内存态（room 包，重启即失）。REST 无连接状态，WS 有（见 §1 内存态）。
 
 ## 5. 分层与抽象决策（2026-08-27 定案）
 

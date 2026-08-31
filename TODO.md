@@ -6,7 +6,7 @@
 
 ## server
 
-- [ ] **房主权限**：房主删除/转让房间（`rooms.owner_token` 已备好，v0.1.6；规则待定：房主 vs admin 的权限边界）
+- [ ] **房主权限（转让，删房已 v0.2.0 完成）**：转让房间 `owner_token` 给房内另一成员（协议待设计：`POST /rooms/{id}/transfer` 或类似）
 - [ ] **用户系统（剩余）**：昵称/bio 编辑接口、`limited` 角色语义、token 加密码列（加盐哈希）登录 —— **搁置**（2026-08-29 决定先不考虑）
 - [ ] **部署形态**（VPS/Docker）——不影响代码，仅配置
 - [ ] **cmd/smoke**：对真实部署实例做通电检查的命令 —— 待部署形态确定后补（常驻 E2E 集成测试已有）
@@ -14,13 +14,15 @@
 
 ## client
 
-- [ ] **client v1 骨架**：Electron + React + `core/{domain,usecases,ports,adapters}` 落成真实 TS（契约见 `client/docs/CONTRACTS.md` v0.2）
+- [x] **client v1 骨架**：Electron + React + `core/{domain,usecases,ports,adapters}` 落成真实 TS（契约见 `client/docs/CONTRACTS.md` v0.2.1）—— **v0.1.0 已完成（2026-08-31）**：全层结构 + 最小可运行窗口；net/identity 适配器做实（WS+REST、md5-sample3-v1 指纹），storage 用主进程 JSON 文件，render 为 kookit 桩
+- [ ] **kookit 渲染集成**：`core/adapters/render/kookitRenderAdapter` 从桩换成真实实现（kookit 构建产物导入 + 外壳内 iframe 挂载 + kookit config 翻译 + BookLocation 换算）—— client v0.1.1
 - [ ] **client 管理界面**：admin 操作（删房间 / 删副本）在客户端完成 —— 协议已支持（REST + admin token），UI 属 client 里程碑
-- [ ] **契约 v0.2 用户评审反馈**
-- [ ] **UI 技术栈最终确认**（React 倾向，未定死）
+- [ ] **契约 v0.2 用户评审反馈**（v0.2.1 已补 REST 缺口，见 CONTRACTS §8）
+- [x] **UI 技术栈最终确认**（2026-08-31 定案：electron-vite + React + TS；本地书库 = JSON 文件起步）
 - [ ] **OCR（ISBN 提取）是否进 v1**（`IOcrService` 草案；技术路线 PP-OCRv5 纯本地）
 
 ## 跨端
 
 - [ ] **书籍来源**：仅本地导入 vs 服务器共享书库
 - [ ] **账号体系**：游客昵称 vs 注册 —— 影响 `RoomMember.id` 语义；服务端签发 token（v0.1.6）已为其铺路（token 即用户名）
+- [ ] **语音通话（远期挂起，2026-08-31 定案）**：房间内实时语音 —— **SFU 中继**（服务器只转发音频包，不碰编解码），与现有同步的星型拓扑同构（全员连服务器、服务器中转）；**编解码在客户端**；**不加密**（朋友局，接受明文 UDP 边界）；同步仍走 WS:8080，媒体另起 UDP/RTP 通道（控制面/媒体面分离）。技术路线：pion/webrtc（或裸 RTP + 自定义 framing），client v1 落地后再评估

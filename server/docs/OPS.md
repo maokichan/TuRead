@@ -82,15 +82,16 @@ data/
 | 日志一直刷某错误 | 视内容而定 | 带日志找开发；常见：`delete expired room` 说明 TTL 清理正常 |
 | 想踢掉某个房间/副本 | 用管理员 token 调管理接口 | 见 §6 |
 
-## 6. 管理接口（需要管理员 token）
+## 6. 管理接口（需要管理员 token；删房间另允许房主）
 
 ```bash
-# 删除某房间（踢出全部成员 + 删聊天记录）
+# 删除某房间（踢出全部成员 + 删聊天记录）；v0.2.0 起房主也能删自己的房间（用房主自己的成员 token），
+# admin 可删任何房间
 curl -X DELETE http://<IP>:8080/rooms/<roomId> \
      -H "X-Turead-Access: <access_token>" \
-     -H "Authorization: Bearer <管理员token>"
+     -H "Authorization: Bearer <管理员token 或 房主自己的成员token>"
 
-# 删除某电子版的本机副本
+# 删除某电子版的本机副本（仍 admin only）
 curl -X DELETE http://<IP>:8080/books/<editionId>/file \
      -H "X-Turead-Access: <access_token>" \
      -H "Authorization: Bearer <管理员token>"

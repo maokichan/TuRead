@@ -17,7 +17,7 @@ import (
 	"turead/server/internal/transport"
 )
 
-const version = "0.1.6"
+const version = "0.2.0"
 
 func main() {
 	// 配置：默认值 → TOML 文件（TUREAD_CONFIG 或 ./turead.toml）→ 环境变量覆盖（TUREAD_*）

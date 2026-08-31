@@ -1,0 +1,8 @@
+# TuRead server 本地测试配置（client v0.1.0 链路测试用，勿提交到公网）
+addr = ":8080"
+data_dir = "./data"
+access_token = ""
+admin_tokens = ["Abc1234"]
+room_ttl = "12h"
+max_upload_mb = 0
+log_level = "info"

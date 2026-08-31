@@ -1,6 +1,6 @@
-# server API 契约（REST + WebSocket，v0.1.6）
+# server API 契约（REST + WebSocket，v0.2.0）
 
-> 权威实现：`internal/transport/server.go`；信封与载荷类型：`internal/domain/types.go`。
+> **本文自含全部 JSON 形状**（见「数据形状参考」），客户端实现只需本文件，**无需读 Go 源码**；Go 实现（`internal/transport/*`）仅为参考。
 > 客户端侧适配入口：`client/docs/CONTRACTS.md` 的 `INetService`（信封搬运，不理解语义）与 `IRoomSession`（业务语义）。
 > 配置与运维：见 `OPS.md`。**同步协议与转发规范**（转发语义权威）见下文「同步协议与转发规范」。
 
@@ -12,6 +12,64 @@
 - **edition.url（下载来源）**：`editions.url` 存"这本书可以从哪下"——外部平台（zlib / Anna's Archive 等）链接，或本机地址；可选，创建房间时由客户端提供。**本机下载地址不落库**：`local_copy = 1` 时下载即派生的 `GET /books/{editionID}/file`，绝对地址由客户端用其配置的 server 地址拼接。
 - **edition.local_copy（本机副本状态）**：`0` = 本机（server 内容寻址存储）无副本，`1` = 已存副本（`POST /books/{editionID}/file` 上传成功后 server 自动置 1）。与 `url` **正交**：外部源 + 本机有副本可同时成立，也可只有其一。
 - **配置**：TOML 配置文件（`turead.toml`，`TUREAD_CONFIG` 指定路径）+ 环境变量覆盖（`TUREAD_*`），见 `OPS.md`；策略类字段（access_token / admin_tokens / room_ttl / max_upload_mb）支持**热重载**。
+
+## 数据形状参考（Wire Shapes —— 客户端类型的唯一依据）
+
+> 以下即 server 实际发送/接收的精确 JSON 字段；客户端类型定义以此为准。两处 `createdAt` 语义不同，特别注意：**Edition.createdAt = RFC3339 字符串；RoomInfo / ChatMessage.createdAt = unix 秒**。
+
+**统一错误响应**（所有非 2xx）：
+
+```json
+{ "error": "人类可读的错误信息" }
+```
+
+**消息信封**（WS：type + payload）：
+
+```json
+{ "type": "room.join | room.join-ack | room.location | room.presence | room.chat | room.message | room.system | room.book-mismatch", "payload": { } }
+```
+
+**BookLocation**（位置载荷；`chapterDocIndex` 可为 number 或 string）：
+
+```json
+{ "chapterDocIndex": 0, "chapterHref": "chapter1.xhtml", "count": 0, "page": 3, "percentage": 0.42, "text": "所在段落文本", "chapterTitle": "第一章" }
+```
+
+**Fingerprint**（电子版指纹）：
+
+```json
+{ "algorithm": "md5-sample3-v1", "hash": "hex64", "size": 12345 }
+```
+
+**Edition**（电子版完整字段；`source`/`url` 可选）：
+
+```json
+{ "id": 1, "workId": 1, "ext": "epub", "hashAlgo": "md5-sample3-v1", "hash": "hex64", "size": 12345, "source": "自购", "url": "https://example.com/book.epub", "localCopy": true, "filePath": "books/hex64.epub", "createdAt": "2026-08-31T00:00:00+08:00" }
+```
+
+**Member**（房间成员，presence / join-ack 内；`location` 缺省 = 尚无位置）：
+
+```json
+{ "id": "Ab3xY9q", "nickName": "alice", "location": { ...BookLocation } }
+```
+
+**ChatMessage**：
+
+```json
+{ "id": 1, "roomId": "8位hex", "member": "Ab3xY9q", "nick": "alice", "text": "大家好", "createdAt": 1756300000 }
+```
+
+**RoomInfo**（GET /rooms 列表项）：
+
+```json
+{ "roomId": "8位hex", "editionId": 1, "title": "书名", "ext": "epub", "ownerNick": "alice", "memberCount": 0, "createdAt": 1756300000 }
+```
+
+**JoinAck**（room.join-ack 的 payload；`reason` 仅失败时有；`edition`/`members` 成功时有）：
+
+```json
+{ "ok": true, "roomId": "8位hex", "edition": { ...Edition }, "members": [ { ...Member } ] }
+```
 
 ## 副本存储与分发流程
 
@@ -34,7 +92,7 @@
 - WS 握手同样带这两个头（桌面客户端可自定义 header）；同一成员 token 的新连接会**踢掉旧连接**（"单设备登录"）
 - 成员 token 即成员 ID：重连找回身份、跨平台同一身份；远期可迁移为用户系统登录凭证（token 即用户名）
 - `/healthz` 完全豁免（探活不带 token）
-- **权限**：管理接口（副本删除 / 房间删除）要求 `role = admin`——判定 = 配置的 `admin_tokens` 列表命中 或 `users.role == admin`；非 admin → `403`
+- **权限**：副本删除要求 `role = admin`（判定 = 配置的 `admin_tokens` 列表命中 或 `users.role == admin`，非 admin → `403`）；房间删除 v0.2.0 起**房主或 admin**（房主只能删自己的房间，见 `DELETE /rooms/{roomID}`）
 - **热重载（v0.1.5）**：`access_token` / `admin_tokens` 修改配置文件后自动生效（2s 内）；**已连接 WS 不受影响**（连接时已鉴权），新连接按新配置校验
 - **NAT 限制（已知接受）**：同一公网 IP 下的多客户端共享同一签发 token（触发同 token 踢旧），v1 接受；远期客户端 nonce 区分
 
@@ -110,6 +168,7 @@
       "editionId": 1,
       "title": "书名（work.title，可能缺）",
       "ext": "epub",
+      "ownerNick": "房主昵称（users.nick，可能缺）",
       "memberCount": 0,
       "createdAt": 1756300000
     }
@@ -149,10 +208,11 @@
 - 删除内容寻址文件 + 置 `local_copy = 0`（幂等；文件不存在也算成功）
 - `200` 成功｜`403` 非 admin｜`404` edition 不存在
 
-### DELETE /rooms/{roomID} —— 删除房间并踢出全部成员（admin only）
+### DELETE /rooms/{roomID} —— 删除房间并踢出全部成员（房主或 admin）
 
+- **权限（v0.2.0）**：房主（资源级，只能删自己的房间，判定 `rooms.owner_token == 请求者成员 token`）或 admin（全局级，可删任何房间）；两者都不满足 → `403`
 - 从内存房间表移除房间，断开房间内所有成员的 WS 连接，并删除持久化房间记录与聊天消息
-- `200` 成功｜`403` 非 admin｜`404` 房间不存在
+- `200` 成功｜`403` 非房主且非 admin｜`404` 房间不存在
 
 ## 同步协议与转发规范（转发语义权威，v0.1.5）
 
@@ -209,8 +269,8 @@
   "ok": true,
   "reason": "book-mismatch | room-not-found | room-full | bad payload（仅失败时）",
   "roomId": "...",
-  "edition": { "...Edition 字段..." },
-  "members": [ { "id": "...", "nickName": "...", "location": { "...BookLocation 字段..." } } ]
+  "edition": { ...Edition 字段（形状见「数据形状参考」） },
+  "members": [ { "id": "...", "nickName": "...", "location": { ...BookLocation（形状见「数据形状参考」） } } ]
 }
 ```
 
@@ -239,7 +299,7 @@ server 落库成功后广播 `room.message`：
 
 空文本（全空白）不落库不广播。
 
-### 消息类型清单（`internal/domain/types.go` 的 `Msg*` 常量）
+### 消息类型清单（type 枚举，客户端适配依据）
 
 | type | 方向 | 状态 |
 |---|---|---|

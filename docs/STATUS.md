@@ -2,18 +2,18 @@
 
 > 目的：让下一次会话 / 模型以最低成本恢复上下文。
 > 阅读顺序：本文件 → `MAP.md`（自动加载）→ `TODO.md` → 各端架构文档（见 MAP）。
-> 更新：2026-08-29（server v0.1.6）
+> 更新：2026-08-31（server v0.2.0；client v0.1.0 骨架）
 
 ## 1. 一句话
 
 TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共同阅读同一本书。
 渲染/解析复用 [kookit](https://github.com/koodo-reader/kookit)（AGPL-3.0，git submodule）；
-同步服务器用 Go，**v0.1.6 已实现**（仓库内 `server/`）；**client 尚未开发**。
+同步服务器用 Go，**v0.2.0 已实现**（仓库内 `server/`）；**client 尚未开发**。
 
 ## 2. 仓库与提交（`D:\PROJECT\TuRead`）
 
 - git 仓库：本地 `main`，`origin = https://github.com/maokichan/TuRead.git`（**已推送 2026-08-29，HEAD `f9dea3f3`**；2026-08-29 因管理原因取消原 fork（V2tin19/TuRead），重建为**独立仓库**，README 有说明）
-- 结构：`client/`（仅 docs，待开发）｜`server/`（v0.1.6，独立 Go module）｜`kookit/`（submodule，HEAD `6e18465`）｜`docs/`｜`TODO.md`｜`借物表.md`
+- 结构：`client/`（仅 docs，待开发）｜`server/`（v0.2.0，独立 Go module）｜`kookit/`（submodule，HEAD `6e18465`）｜`docs/`｜`TODO.md`｜`借物表.md`
 - 网络配方：见 `D:\PROJECT\NETWORK.md`（git 需 `-c http.proxy=http://127.0.0.1:7897 -c http.sslBackend=openssl`；Go 需 `GOPROXY=https://goproxy.cn,direct`；npm registry 直连）
 
 ## 3. 已定决策（要点；细节见权威文档）
@@ -35,8 +35,17 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 
 ## 4. 版本历史
 
+### client
+
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| v0.1.0 | 2026-08-31 | **骨架**：electron-vite + React + TS；`core/{domain,ports,usecases,adapters}` 落成真实 TS（CONTRACTS v0.2.1）；`ServiceContainer` 装配；最小可运行窗口（书架/服务器/房间/日志）。适配器：net=主进程 ws+REST（token 双闸、自动签 token、断线重连）+ IPC 桥，identity=md5-sample3-v1 指纹（spark-md5，头/中/尾三点采样），storage=主进程 JSON 文件（userData/library.json），render=kookit 桩。**契约 v0.2.1**：INetService 补 `request()`/`getMemberId()`，NetConfig 补 accessToken/memberToken，IRoomSession 补 createRoom/uploadBookCopy/listRooms（REST 缺口，只增不改）。技术栈定案：electron-vite + React（未定死 → 已定）；Electron 33.4.11（复用 TagHit 本地二进制，避开 GitHub 下载）。类型检查 + build + 冒烟全绿 |
+
+### server
+
+| 版本 | 日期 | 内容 |
+|---|---|---|
+| v0.2.0 | 2026-08-31 | 房主删房（`DELETE /rooms/{id}` 开放给房主：资源级 vs admin 全局级；`rooms.owner_token` 判定）+ 测试组织（E2E 集成测试独立到 `server/test/e2e/` 黑盒包，白盒单测留源码旁）+ HTTP 服务模型文档（ARCHITECTURE §4.4） |
 | v0.1.0 | 2026-08-27 | 房间同步（REST + WS）+ 书籍标定（Work/Edition）+ 电子版分发；schema v2 |
 | v0.1.1 | 2026-08-27 | token 双闸认证（二级令牌 + 成员 token）+ users 档案 + 管理接口（admin） |
 | v0.1.2 | 2026-08-27 | 传输基本功（背压 / healthz / 优雅关停）+ 文件级整理；已推送 |
@@ -49,5 +58,5 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 
 - 本地代理 `127.0.0.1:7897`（Clash Verge rev）；npm registry 直连；GitHub 直连被墙（走代理 + OpenSSL 后端）；curl.exe 不可用（仅 schannel）
 - go 命令在沙箱下报 telemetry 写失败（噪音，不影响执行）；`GOPROXY=https://goproxy.cn,direct`；`go build` 需把 `GOCACHE` 指到工作区
-- 测试路径：`go test ./...`（常驻单测 + E2E 集成测试）；真实部署冒烟用 `cmd/smoke`（待部署形态确定后补）
+- 测试路径：`go test ./...`（白盒单测留在源码旁 `internal/*`；E2E 集成测试独立在 `server/test/e2e/`，黑盒走公开 HTTP/WS）；真实部署冒烟用 `cmd/smoke`（待部署形态确定后补）
 - kookit 子模块的 `CLAUDE.md` 规则：**禁止在其仓库内 git commit / push**

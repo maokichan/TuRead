@@ -139,6 +139,34 @@ func TestDeleteRoomKicksMembers(t *testing.T) {
 	}
 }
 
+// 房主权限（v0.2.0）：房主可删自己的房间（资源级）；非房主非 admin 403；admin 可删任何房间（全局级）
+func TestRoomDeletionPermissions(t *testing.T) {
+	_, u := newTestServerAdmin(t, testAccess, []string{adminToken})
+
+	// 房主 testToken 建房间
+	roomID, _ := createRoomCustom(t, u, testToken, "deadbeef", 100)
+
+	// 非房主非 admin 删 → 403（token 格式合法、已过双闸，但权限不足）
+	if got := doReq(t, "DELETE", u+"/rooms/"+roomID, "", authHdr("Bbbb222")); got != 403 {
+		t.Fatalf("non-owner non-admin delete should 403, got %d", got)
+	}
+
+	// 房主删自己的房间 → 200
+	if got := doReq(t, "DELETE", u+"/rooms/"+roomID, "", authHdr(testToken)); got != 200 {
+		t.Fatalf("owner delete should 200, got %d", got)
+	}
+	// 删除后房间不存在 → 404（admin 也找不到）
+	if got := doReq(t, "DELETE", u+"/rooms/"+roomID, "", authHdr(adminToken)); got != 404 {
+		t.Fatalf("deleted room should 404, got %d", got)
+	}
+
+	// admin 可删任意房间（另一房主的房间）
+	roomID2, _ := createRoomCustom(t, u, testToken, "c0ffee", 200)
+	if got := doReq(t, "DELETE", u+"/rooms/"+roomID2, "", authHdr(adminToken)); got != 200 {
+		t.Fatalf("admin delete any room should 200, got %d", got)
+	}
+}
+
 // 昵称限制：≤12 字可入房；>12 字连接被关
 func TestNickLengthLimit(t *testing.T) {
 	_, u := newTestServerAdmin(t, testAccess, []string{adminToken})

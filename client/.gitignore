@@ -1,0 +1,6 @@
+# electron-vite output
+out/
+dist/
+
+# local dev data
+*.json.tmp

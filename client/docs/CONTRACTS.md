@@ -123,6 +123,17 @@ interface ChatMessage {
   text: string;
   createdAt: number;         // unix 秒
 }
+
+/** 房间列表项（v0.2.1：GET /rooms 返回，见 server/docs/API.md RoomInfo） */
+interface RoomInfo {
+  roomId: string;            // 8 位 hex
+  editionId: number;
+  title: string;             // work.title，可能缺
+  ext: string;               // 小写扩展名
+  ownerNick: string;         // 房主昵称，可能缺
+  memberCount: number;
+  createdAt: number;         // unix 秒
+}
 ```
 
 ## 3. 事件机制（所有服务通用）
@@ -168,7 +179,7 @@ interface IRenderService extends EventEmitter<RenderServiceEvents> {
 
 > 约束：kookit 依赖 DOM（iframe 渲染）→ 外壳必须提供 DOM 环境（Electron / 浏览器 / WebView）。
 
-### 4.2 INetService —— 传输能力（**协议待定**，消息集由 server 项目定）
+### 4.2 INetService —— 传输能力（协议已定：见 `server/docs/API.md`）
 
 > 成员 token（v0.1.6 起）由 **server 签发**：客户端带二级令牌调 `POST /auth/token` 获取（同一 IP 7 天内复用同一 token），
 > 之后所有 REST / WS 请求带 `Authorization: Bearer <token>` + `X-Turead-Access: <二级令牌>` 两个头。
@@ -189,10 +200,28 @@ interface INetService extends EventEmitter<NetServiceEvents> {
   connect(config: NetConfig): Promise<void>;
   disconnect(): Promise<void>;
   send(envelope: MessageEnvelope): Promise<void>;
+  getMemberId(): Promise<string | null>;        // v0.2.1：当前成员 token（服务端签发；未连接/未取得为 null）
+  request<T>(options: HttpRequestOptions): Promise<HttpResult<T>>;  // v0.2.1：REST 传输（自带 token 双闸头）
+}
+
+interface HttpRequestOptions {                  // v0.2.1
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  path: string;                                 // 以 / 开头的路径（如 /rooms、/auth/token）
+  body?: unknown;                               // 自动序列化为 JSON 并带 Content-Type: application/json
+  rawBody?: boolean;                            // body 为原始二进制（ArrayBuffer，文件上传用）
+  responseType?: 'json' | 'text' | 'arraybuffer'; // 文件下载用 arraybuffer
+}
+
+interface HttpResult<T = unknown> {             // v0.2.1
+  status: number;
+  ok: boolean;
+  data: T;
 }
 
 interface NetConfig {
-  serverUrl: string;         // ws(s):// 或 http(s):// —— 由传输适配器解释
+  serverUrl: string;         // http(s)://host:port（REST 基址；WS 由此派生 ws(s)://host:port/ws）—— v0.2.1 修订：统一为 http(s) 基址
+  accessToken: string;       // v0.2.1：第 2 层准入门禁（X-Turead-Access）
+  memberToken?: string;      // v0.2.1：成员 token（服务端签发 POST /auth/token；缺省 = 适配器自动申请/复用）
   nickName: string;
   transport?: 'websocket';   // 预留多传输
 }
@@ -252,6 +281,13 @@ interface IRoomSession extends EventEmitter<RoomSessionEvents> {
   /** 发送聊天消息：server 落库后广播 room.message 回执（含发送者）；历史经 REST GET /rooms/{id}/messages 拉取 */
   sendChat(text: string): Promise<void>;
   getRoomState(): RoomState | null;
+  getMyMemberId(): string | null;                                     // v0.2.1
+  /** v0.2.1：创建房间并注册 work/edition（POST /rooms；协议固定 content-hash-v1） */
+  createRoom(book: BookRecord, owner: string): Promise<{ roomId: string; editionId: number }>;
+  /** v0.2.1：上传电子版副本（POST /books/{editionID}/file，幂等去重，分发源） */
+  uploadBookCopy(editionId: number, buffer: ArrayBuffer): Promise<void>;
+  /** v0.2.1：房间发现（GET /rooms，可按 edition 找房） */
+  listRooms(editionId?: number): Promise<RoomInfo[]>;
 }
 
 interface RoomMember {
@@ -327,3 +363,9 @@ interface ServiceContainer {
 - [ ] 账号体系（游客昵称 vs 注册）→ 影响 `RoomMember.id` 语义（见根 `TODO.md`）
 - [ ] `IRenderService.search()` 返回形状
 - [ ] OCR（ISBN 提取）是否进 v1、`IOcrService` 接口草案（见根 `TODO.md`）
+
+## 8. 修订记录
+
+| 版本 | 日期 | 变更 |
+|---|---|---|
+| v0.2.1 | 2026-08-31 | 契约先行补 REST 传输缺口（client v1 骨架落地时）：`INetService` 增加 `request()`（REST，自带 token 双闸头）与 `getMemberId()`；`NetConfig` 增加 `accessToken` / `memberToken`（token 双闸，见 `server/docs/API.md` 认证），`serverUrl` 统一为 http(s) 基址；`IRoomSession` 增加 `createRoom` / `uploadBookCopy` / `listRooms`（对应 REST：POST /rooms、POST /books/{id}/file、GET /rooms）；领域层增加 `RoomInfo`（GET /rooms 列表项，wire 形状见 `server/docs/API.md`）。变更方向：只增不改，端口仍"只搬运不解语义" |

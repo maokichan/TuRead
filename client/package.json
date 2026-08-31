@@ -1,0 +1,32 @@
+{
+  "name": "turead-client",
+  "version": "0.1.0",
+  "description": "TuRead 客户端：多人房间共读阅读器",
+  "main": "./out/main/index.js",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "spark-md5": "^3.0.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.14",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@types/spark-md5": "^3.0.5",
+    "@types/ws": "^8.5.14",
+    "@vitejs/plugin-react": "^4.5.0",
+    "electron": "^33.4.11",
+    "electron-vite": "^3.1.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}
