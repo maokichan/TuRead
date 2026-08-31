@@ -1,0 +1,375 @@
+<!doctype html>
+<!--
+  kookit 单体测试界面（隔离环境）：
+  - 本页【无 Content-Security-Policy】—— 用来区分「kookit 单体问题」还是「我们 App 的 CSP 拦 blob:」。
+  - 直接 import vendor 单文件（client/src/vendor/kookit.esm.js），按 kookit 文档用法：
+    BookHelper.getRendition(buffer, config, namespace) → rendition.renderTo(#page-area) → on('rendered'/'page-changed')。
+  - 运行：node serve.mjs，浏览器打开打印的地址；或 npx electron electron.mjs --url "…?auto=<相对 client/ 的书路径>"
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>kookit 单体测试（无 CSP）</title>
+    <style>
+      :root {
+        --bg: #101218;
+        --panel: #171b25;
+        --border: #2a3142;
+        --text: #e6e9f0;
+        --muted: #8a94a8;
+        --accent: #5b8cff;
+        --green: #4ec07c;
+        --red: #e06c6c;
+        --amber: #e0b45c;
+        --mono: 'Cascadia Code', Consolas, monospace;
+      }
+      * { box-sizing: border-box; }
+      html, body, #root { height: 100%; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-size: 14px;
+      }
+      .app {
+        display: grid;
+        grid-template-rows: auto auto 1fr 190px;
+        height: 100vh;
+        gap: 10px;
+        padding: 14px 16px;
+      }
+      .top {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      h1 { font-size: 16px; margin: 0; }
+      .tag {
+        font-size: 11px;
+        padding: 3px 9px;
+        border-radius: 20px;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        background: var(--panel);
+      }
+      .tag.warn { color: var(--amber); border-color: rgba(224, 180, 92, 0.4); }
+      .tag.ok { color: var(--green); border-color: rgba(78, 192, 124, 0.4); }
+      .bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+      }
+      button, input[type='file'] {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 6px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        font-family: inherit;
+      }
+      button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+      button:disabled { opacity: 0.4; cursor: not-allowed; }
+      button.primary { background: linear-gradient(135deg, var(--accent), #7f5bff); border-color: transparent; color: #fff; }
+      .cols {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        gap: 10px;
+        min-height: 0;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-height: 0;
+      }
+      .kv { display: flex; gap: 8px; font-size: 13px; }
+      .kv .k { color: var(--muted); min-width: 92px; flex-shrink: 0; }
+      .kv .v { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+      .reader-stage {
+        flex: 1;
+        background: #fff;
+        color: #1c1c1c;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        min-height: 0;
+      }
+      .reader-stage iframe { width: 100%; height: 100%; border: none; }
+      .log {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 12px;
+        overflow-y: auto;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        line-height: 1.5;
+        color: #9fb0c8;
+        white-space: pre-wrap;
+        margin: 0;
+      }
+      .log .err { color: var(--red); }
+      .log .warn { color: var(--amber); }
+      .log .ok { color: var(--green); }
+      .log .title {
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        font-size: 11px;
+        margin-bottom: 6px;
+      }
+      .muted { color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="top">
+        <h1>kookit 单体测试</h1>
+        <span class="tag ok">本页无 CSP（blob: 已放行）</span>
+        <span class="tag warn">PDF 依赖外部 window.pdfjsLib（未内联）</span>
+      </div>
+
+      <div class="bar">
+        <input type="file" id="file" accept=".epub,.mobi,.azw3,.azw,.pdf,.txt,.md,.fb2,.html,.htm,.docx,.cbz" />
+        <button id="open" class="primary">打开并渲染</button>
+        <button id="prev">上一页</button>
+        <button id="next">下一页</button>
+        <button id="self">自检</button>
+        <span class="muted" id="status">未打开</span>
+      </div>
+
+      <div class="cols">
+        <div class="panel">
+          <div class="kv"><span class="k">文件</span><span class="v" id="k-file">—</span></div>
+          <div class="kv"><span class="k">格式</span><span class="v" id="k-format">—</span></div>
+          <div class="kv"><span class="k">章节数</span><span class="v" id="k-chapter">—</span></div>
+          <div class="kv"><span class="k">位置</span><span class="v" id="k-position">—</span></div>
+          <div class="kv"><span class="k">进度</span><span class="v" id="k-progress">—</span></div>
+          <div class="kv"><span class="k">正文长度</span><span class="v" id="k-text">—</span></div>
+          <div class="kv"><span class="k">iframe 标题</span><span class="v" id="k-title">—</span></div>
+          <div class="kv"><span class="k">scrollHeight</span><span class="v" id="k-scroll">—</span></div>
+        </div>
+        <div class="reader-stage" id="page-area"></div>
+      </div>
+
+      <pre class="log" id="log"></pre>
+    </div>
+
+    <script type="module">
+      import * as Kookit from '../../src/vendor/kookit.esm.js'
+
+      const stage = document.getElementById('page-area')
+      const logEl = document.getElementById('log')
+      const $ = (id) => document.getElementById(id)
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+      let rendition = null
+      let currentName = ''
+      let currentFormat = ''
+
+      // 控制台错误透传到页面日志（自检/排障时可见 blob 拦截等）
+      const logLine = (cls, text) => {
+        const d = document.createElement('div')
+        if (cls) d.className = cls
+        d.textContent = text
+        logEl.appendChild(d)
+        logEl.scrollTop = logEl.scrollHeight
+      }
+      window.addEventListener('error', (e) => logLine('err', `[page-error] ${e.message}`))
+      window.addEventListener('unhandledrejection', (e) =>
+        logLine('err', `[unhandledrejection] ${e.reason}`)
+      )
+      const origErr = console.error
+      const origWarn = console.warn
+      console.error = (...a) => { origErr(...a); logLine('err', `[console.error] ${a.join(' ')}`) }
+      console.warn = (...a) => { origWarn(...a); logLine('warn', `[console.warn] ${a.join(' ')}`) }
+
+      const KOOKIT_NAMESPACE = {
+        CacheRender: Kookit.CacheRender,
+        EpubRender: Kookit.EpubRender,
+        MobiRender: Kookit.MobiRender,
+        PdfRender: Kookit.PdfRender,
+        PdfTextRender: Kookit.PdfTextRender,
+        TxtRender: Kookit.TxtRender,
+        ComicRender: Kookit.ComicRender,
+        Fb2Render: Kookit.Fb2Render,
+        DocxRender: Kookit.DocxRender,
+        MdRender: Kookit.MdRender,
+        HtmlRender: Kookit.HtmlRender
+      }
+
+      const EXT_FORMAT = {
+        epub: 'EPUB', pdf: 'PDF', mobi: 'MOBI', azw3: 'AZW3', azw: 'AZW',
+        txt: 'TXT', md: 'MD', fb2: 'FB2', docx: 'DOCX', html: 'HTML',
+        htm: 'HTML', xhtml: 'HTML', xml: 'XML', cbz: 'CBZ', cbr: 'CBR'
+      }
+      const extToFormat = (name) => {
+        const ext = name.split('.').pop()?.toLowerCase() ?? ''
+        return EXT_FORMAT[ext] ?? 'TXT'
+      }
+
+      const buildConfig = (format) => ({
+        format,
+        readerMode: 'scroll',
+        charset: '',
+        animation: 'none',
+        convertChinese: 'no',
+        parserRegex: '',
+        isDarkMode: 'no',
+        isMobile: 'no',
+        password: '',
+        isConvertPDF: 'no',
+        backgroundColor: '',
+        isScannedPDF: 'no',
+        ocrEngine: ''
+      })
+
+      const readIframeInfo = () => {
+        const iframe = stage.querySelector('iframe')
+        if (!iframe) return { text: -1, title: '', scroll: -1, html: -1 }
+        const doc = iframe.contentDocument
+        return {
+          text: doc?.body?.innerText?.length ?? -1,
+          title: doc?.title ?? '',
+          scroll: doc?.body?.scrollHeight ?? -1,
+          html: doc?.body?.innerHTML?.length ?? -1
+        }
+      }
+
+      const updateInfo = () => {
+        if (!rendition) return
+        const pos = rendition.getPosition()
+        const prog = rendition.getProgress() || {}
+        const { text, title, scroll } = readIframeInfo()
+        $('k-chapter').textContent = String(rendition.getChapter().length)
+        $('k-position').textContent =
+          `第${pos.page}页 / ${pos.percentage}% / ${pos.count} / ${pos.chapterTitle ?? ''}`
+        $('k-progress').textContent = `${prog.currentPage ?? 0} / ${prog.totalPage ?? 0}`
+        $('k-text').textContent = String(text)
+        $('k-title').textContent = title || '（空）'
+        $('k-scroll').textContent = String(scroll)
+      }
+
+      const openBuffer = async (buffer, name, format) => {
+        if (rendition) {
+          try { rendition.removeContent() } catch (e) { logLine('warn', `removeContent: ${e.message}`) }
+        }
+        stage.innerHTML = ''
+        rendition = null
+        currentName = name
+        currentFormat = format
+        $('k-file').textContent = name
+        $('k-format').textContent = format
+        $('status').textContent = `正在打开 ${name}…`
+        logLine('', `打开：${name}（${format}，${(buffer.byteLength / 1024).toFixed(0)} KB）`)
+
+        const t0 = performance.now()
+        rendition = Kookit.BookHelper.getRendition(buffer, buildConfig(format), KOOKIT_NAMESPACE)
+        if (!rendition) throw new Error(`不支持的格式：${format}`)
+
+        let renderedFired = false
+        rendition.on('rendered', () => {
+          renderedFired = true
+          logLine('', `[event rendered] innerText=${readIframeInfo().text}`)
+          updateInfo()
+        })
+        rendition.on('page-changed', () => updateInfo())
+        rendition.on('scroll-text', () => updateInfo())
+
+        await rendition.renderTo(stage)
+        logLine('', `[step renderTo] iframe=${stage.querySelectorAll('iframe').length} innerText=${readIframeInfo().text}`)
+        await rendition.record()
+        logLine('', `[step record] innerText=${readIframeInfo().text} html=${readIframeInfo().html}`)
+        await sleep(300)
+        updateInfo()
+        $('status').textContent = `已打开（${((performance.now() - t0) / 1000).toFixed(1)}s）`
+        logLine('', `renderTo 完成，用时 ${((performance.now() - t0) / 1000).toFixed(1)}s，renderedFired=${renderedFired}`)
+        return rendition
+      }
+
+      const selfTest = async (label) => {
+        if (!rendition) {
+          console.log('[TUREAD-TEST-FAIL] 尚未打开书籍')
+          return
+        }
+        const { text, scroll } = readIframeInfo()
+        const ch = rendition.getChapter().length
+        const pos1 = rendition.getPosition()
+        let pos2 = ''
+        let nextOk = false
+        try {
+          await rendition.goToChapterIndex(0)
+          await sleep(600)
+          const after = readIframeInfo()
+          logLine('', `[step goToChapterIndex(0)] innerText=${after.text} html=${after.html} scroll=${after.scroll}`)
+          console.log(`[TUREAD-TEST-STEP] goToChapterIndex(0) innerText=${after.text} scroll=${after.scroll}`)
+          await rendition.next()
+          await sleep(600)
+          const p = rendition.getPosition()
+          pos2 = `第${p.page}页/${p.percentage}%`
+          nextOk = true
+        } catch (e) {
+          pos2 = `翻页失败：${e.message}`
+        }
+        const after0 = readIframeInfo()
+        const ok = after0.text > 0 && after0.scroll > 0
+        const line =
+          `[self-test] ${label} 章节=${ch} 正文长度=${after0.text} scrollHeight=${after0.scroll} ` +
+          `位置=第${pos1.page}页/${pos1.percentage}% 翻页→${pos2}`
+        logLine(ok ? 'ok' : 'err', line)
+        if (ok) console.log('[TUREAD-TEST-OK]' + line)
+        else console.log('[TUREAD-TEST-FAIL]' + line)
+      }
+
+      $('open').addEventListener('click', () => void $('file').click())
+      $('file').addEventListener('change', async (e) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        try {
+          const buf = await file.arrayBuffer()
+          await openBuffer(buf, file.name, extToFormat(file.name))
+        } catch (err) {
+          $('status').textContent = `打开失败：${err.message}`
+          console.log('[TUREAD-TEST-FAIL] 打开失败：' + err.message)
+        }
+      })
+      $('prev').addEventListener('click', async () => { try { await rendition?.prev() } catch (e) { logLine('err', e.message) } })
+      $('next').addEventListener('click', async () => { try { await rendition?.next() } catch (e) { logLine('err', e.message) } })
+      $('self').addEventListener('click', () => void selfTest(currentName))
+
+      // 自动模式：?auto=<相对 client/ 的路径>&name=<显示名>&format=<格式>
+      const params = new URLSearchParams(location.search)
+      const auto = params.get('auto')
+      if (auto) {
+        const name = params.get('name') || auto.split('/').pop() || auto
+        const fmt = params.get('format') || extToFormat(name)
+        const autoUrl = auto.startsWith('/') ? auto : `/${auto}`
+        void (async () => {
+          try {
+            const res = await fetch(autoUrl)
+            if (!res.ok) throw new Error(`fetch ${auto} → ${res.status}`)
+            const buf = await res.arrayBuffer()
+            await openBuffer(buf, name, fmt)
+            await selfTest(name)
+          } catch (e) {
+            console.log('[TUREAD-TEST-FAIL] auto 打开失败：' + e.message)
+          }
+        })()
+      }
+    </script>
+  </body>
+</html>

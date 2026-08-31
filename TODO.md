@@ -15,7 +15,9 @@
 ## client
 
 - [x] **client v1 骨架**：Electron + React + `core/{domain,usecases,ports,adapters}` 落成真实 TS（契约见 `client/docs/CONTRACTS.md` v0.2.1）—— **v0.1.0 已完成（2026-08-31）**：全层结构 + 最小可运行窗口；net/identity 适配器做实（WS+REST、md5-sample3-v1 指纹），storage 用主进程 JSON 文件，render 为 kookit 桩
-- [ ] **kookit 渲染集成（v0.1.1 实装中）**：适配器已从桩换真实（vendor 单文件 ESM + readFile 注入 + `#page-area` 契约已修 + 阅读视图 + dev 无头验证）；**当前阻塞 = CSP 拦 `blob:`**：`client/src/renderer/index.html` 的 `default-src 'self'` 未放行 `blob:` → kookit 章节内容/图片/样式加载失败：正文渲染空、`next()` `Failed to fetch`、PDF 超时；EPUB/MOBI/AZW3 仅章节列表解析 OK（98/13/7 章）。**修复**：CSP 补 `blob:`（connect-src / img-src / style-src）→ 重跑 4 格式无头验证（`TUREAD_DEV_BOOK`）→ 再验真机交互（翻页/进度/定位回跳）
+- [ ] **kookit 渲染集成（v0.1.1 实装中）**：适配器已从桩换真实（vendor 单文件 ESM + readFile 注入 + `#page-area` 契约已修 + 阅读视图 + dev 无头验证）。**隔离测试已定位真因（2026-08-31，见 `client/docs/KOOKIT.md` + `client/tools/kookit-harness/`）**：无 CSP 测试页验证 **EPUB/MOBI/AZW3 渲染 OK**；正文空根因 = 适配器 `renderTo` 后只调 `record()`、**缺一次导航调用**（kookit `renderTo` 不渲染正文，须 `goToChapterIndex(0)`/`goToPosition`）；CSP 拦 `blob:` 为次因；PDF 超时 = 未内联 `window.pdfjsLib`（外部全局）。**修复**：① 适配器补初始导航（无历史位置时 `goToChapterIndex(0)`）② CSP 放行 `blob:`（connect/img/style/frame-src）③ 重跑 4 格式无头验证（`TUREAD_DEV_BOOK` + `kookit-harness`）④ 再验真机交互（翻页/进度/定位回跳）⑤ App 阅读视图容器 `overflow-y:auto`（scroll 模式滚动在宿主元素，见 KOOKIT §5.10）
+- [ ] **UI 组件化（2026-08-31 排期）**：当前 UI 是"丑但诚实"的单文件 `App.tsx` + `styles.css`；拆分为组件（书架/服务器连接/房间会话/聊天/阅读器/日志栏）+ 样式模块化（CSS 变量/模块化 or 引入轻量方案）—— 排在渲染链路稳定后
+- [ ] **PDF 支持决策**：mono 单文件未内联 `window.pdfjsLib`/`/lib/pdfjs/`（另需 fabric/PDFLib/ort 等），要支持 PDF 需单独注入 pdfjs —— 是否进 v1 待评估
 - [ ] **client 管理界面**：admin 操作（删房间 / 删副本）在客户端完成 —— 协议已支持（REST + admin token），UI 属 client 里程碑
 - [ ] **契约 v0.2 用户评审反馈**（v0.2.1 已补 REST 缺口，见 CONTRACTS §8）
 - [x] **UI 技术栈最终确认**（2026-08-31 定案：electron-vite + React + TS；本地书库 = JSON 文件起步）
