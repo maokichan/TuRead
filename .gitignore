@@ -12,10 +12,11 @@ server/tmp/
 .env
 .env.local
 
+# client test books (真实样书不入库)
+client/test_docs/
+
 # editors / os
 .vscode/
 .DS_Store
 Thumbs.db
 
-# claude code local settings
-.claude/settings.local.json

@@ -25,6 +25,21 @@ function createWindow(): void {
 
   win.on('ready-to-show', () => win.show())
 
+  if (devBook) {
+    // dev-only 无头验证：渲染进程打印 TUREAD-TEST-* 标记后自动退出
+    const timeout = setTimeout(() => {
+      console.error('[TUREAD-TEST-FAIL] 超时未完成')
+      app.exit(2)
+    }, 120000)
+    win.webContents.on('console-message', (_e, _level, message) => {
+      if (message.startsWith('[TUREAD-TEST-')) {
+        console.log(message)
+        clearTimeout(timeout)
+        app.exit(message.startsWith('[TUREAD-TEST-OK') ? 0 : 1)
+      }
+    })
+  }
+
   win.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url)
     return { action: 'deny' }

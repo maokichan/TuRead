@@ -6,7 +6,7 @@
 
 多人房间共读阅读器：多个用户进同一房间共同阅读同一本书。
 渲染/解析复用 kookit（AGPL-3.0，git submodule）；同步服务器用 Go。
-**server v0.2.0 已实现；client 尚未开发。**
+**server v0.2.0 已实现；client v0.1.1 kookit 渲染集成实装中（CSP blob: 阻塞，见下）。**
 
 ## 关键文档（按阅读顺序）
 
@@ -32,6 +32,7 @@
 
 - **server v0.2.0 已实现并测试全绿**：书籍标定（Work/Edition）+ 房间（TTL/发现/聊天/持久化）+ token 双闸（二级令牌 + 服务端按 IP 签发成员 token）+ 配置系统（TOML + 热重载）+ 上传限制 + 转发规范 + **房主删房权限（v0.2.0）** + E2E 集成测试（独立 `server/test/e2e/`）；待办见 `TODO.md`
 - **client v0.1.0 骨架已完成（2026-08-31）**：electron-vite + React + `core/{domain,usecases,ports,adapters}` 落成真实 TS（CONTRACTS v0.2.1）；net/identity 适配器做实、storage 为 JSON 文件、render 为 kookit 桩；最小可运行窗口；类型检查 + build + 冒烟全绿
+- **client v0.1.1 kookit 渲染集成（实装中，2026-08-31）**：render 适配器从桩换真实（vendor 单文件 ESM 内联全依赖 + 容器注入 readFile + 对话框导入 + 阅读视图 + dev 无头验证 `TUREAD_DEV_BOOK`）；修了 kookit 硬编码 `#page-area` 契约（否则 `renderTo` 永不 resolve）。**当前阻塞 = CSP 拦 `blob:`**：`client/src/renderer/index.html` 的 `default-src 'self'` 未放行 `blob:` → kookit 章节内容/图片/样式走 blob URL 全被拦：正文渲染空、`next()` `Failed to fetch`、PDF 超时；EPUB/MOBI/AZW3 仅章节列表解析 OK（98/13/7 章）。修复方向：CSP 放行 `blob:` → 重跑 4 格式验证
 - 契约 v0.2.1 定稿（补 REST 缺口，只增不改）；架构术语已定案
-- 下一步：client v0.1.1 —— **kookit 渲染集成**（render 适配器从桩换真实），见 `TODO.md`
+- 下一步：新 session 修 CSP `blob:` 后重跑 4 格式无头验证（真书在 `client/test_docs/`，已 gitignore），再验真机交互
 - 开发原则：v1 允许"丑但诚实"；**解释优先**；检查点——大改前写理由、不知代码放哪层就停下讨论（Rule of Three）

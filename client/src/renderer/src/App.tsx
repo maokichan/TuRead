@@ -154,15 +154,38 @@ export default function App(): React.JSX.Element {
     const devBook = window.turead.devBook
     if (!devBook || didAutoOpen.current) return
     didAutoOpen.current = true
+    const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
     void (async () => {
       try {
         const book = await importBookFromPath(devBook)
         await openReader(book)
-        const pos = container.render.getPosition()
-        const chapters = container.render.getChapter().length
-        pushLog(`[dev] 渲染成功：章节数=${chapters} 位置=第${pos.page}页/${pos.percentage} chapterDocIndex=${pos.chapterDocIndex}`)
+        await wait(1500)
+        const stage = readerRef.current
+        const iframe = stage?.querySelector('iframe')
+        const innerLen = iframe?.contentDocument?.body?.innerText?.length ?? -1
+        const scrollH = stage?.scrollHeight ?? -1
+        const pos1 = container.render.getPosition()
+        const ch = container.render.getChapter().length
+        let pos2: string
+        try {
+          await container.render.next()
+          await wait(600)
+          const p = container.render.getPosition()
+          pos2 = `第${p.page}页/${p.percentage}`
+        } catch (err) {
+          pos2 = `翻页失败(${(err as Error).message})`
+        }
+        const ok = innerLen > 0 && scrollH > 0
+        const line =
+          `[dev] ${ok ? '渲染OK' : '渲染可疑'} 格式=${book.format} 章节数=${ch} ` +
+          `正文长度=${innerLen} 可滚动=${scrollH} 位置=第${pos1.page}页/${pos1.percentage} 翻页→${pos2}`
+        pushLog(line)
+        console.log(ok ? '[TUREAD-TEST-OK]' + line : '[TUREAD-TEST-FAIL]' + line)
       } catch (err) {
-        pushLog(`[dev] 渲染失败：${(err as Error).message}`)
+        const e = err as Error
+        const line = `[dev] 渲染失败：${e.message}`
+        pushLog(line)
+        console.error('[TUREAD-TEST-FAIL]' + line)
       }
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -436,7 +459,7 @@ export default function App(): React.JSX.Element {
                 )}
               </div>
             </div>
-            <div className="reader-stage" ref={readerRef} />
+            <div className="reader-stage" id="page-area" ref={readerRef} />
           </section>
         )}
       </main>

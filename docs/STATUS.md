@@ -2,7 +2,7 @@
 
 > 目的：让下一次会话 / 模型以最低成本恢复上下文。
 > 阅读顺序：本文件 → `MAP.md`（自动加载）→ `TODO.md` → 各端架构文档（见 MAP）。
-> 更新：2026-08-31（server v0.2.0；client v0.1.0 骨架）
+> 更新：2026-08-31（server v0.2.0；client v0.1.1 kookit 渲染实装中）
 
 ## 1. 一句话
 
@@ -39,6 +39,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| v0.1.1 | 2026-08-31 | **kookit 渲染集成（实装中）**：render 适配器从桩换真实实现——vendor 单文件 ESM（全依赖内联 `client/src/vendor/kookit.esm.js`，定制构建 `kookit/rollup.turead.config.mjs` 不受 kookit 版本控制）；容器注入 `readFile`；导入改主进程对话框（`dialog:pick-book` + `fs:read-file`）拿真实路径；阅读视图（打开→renderTo→翻页→进度）；dev 无头验证 `TUREAD_DEV_BOOK=<path>`（启动即导入打开 + 渲染自检 + `TUREAD-TEST-*` 标记自动退出）。**关键契约：kookit `getDocument()` 硬编码查 `#page-area`**（不认传入元素）→ reader-stage 必须带该 id，否则 `renderTo` 永不 resolve（已修）。**已知问题（待新 session 修）**：CSP `default-src 'self'`（`client/src/renderer/index.html`）拦截 `blob:` → kookit 章节内容/图片/样式加载失败：正文渲染空（iframe innerText=0）、`next()`/翻页 `Failed to fetch`、PDF（37MB）解析超时；EPUB/MOBI/AZW3 章节列表解析 OK（98/13/7 章）。修复方向：CSP 放行 `blob:`（connect-src / img-src / style-src）后重跑 4 格式验证 |
 | v0.1.0 | 2026-08-31 | **骨架**：electron-vite + React + TS；`core/{domain,ports,usecases,adapters}` 落成真实 TS（CONTRACTS v0.2.1）；`ServiceContainer` 装配；最小可运行窗口（书架/服务器/房间/日志）。适配器：net=主进程 ws+REST（token 双闸、自动签 token、断线重连）+ IPC 桥，identity=md5-sample3-v1 指纹（spark-md5，头/中/尾三点采样），storage=主进程 JSON 文件（userData/library.json），render=kookit 桩。**契约 v0.2.1**：INetService 补 `request()`/`getMemberId()`，NetConfig 补 accessToken/memberToken，IRoomSession 补 createRoom/uploadBookCopy/listRooms（REST 缺口，只增不改）。技术栈定案：electron-vite + React（未定死 → 已定）；Electron 33.4.11（复用 TagHit 本地二进制，避开 GitHub 下载）。类型检查 + build + 冒烟全绿 |
 
 ### server
