@@ -41,6 +41,7 @@ export interface KookitRendition {
   goToPage(page: number): Promise<void>
   goToPercentage(percentage: number): Promise<void>
   goToPosition(bookLocationStr: string): Promise<void>
+  goToChapterIndex(index: number): Promise<void>
   goToChapterDocIndex(index: number): Promise<void>
   record(): Promise<void>
   removeContent(): void
@@ -66,6 +67,9 @@ export interface KookitNamespace {
   MdRender: new (buffer: ArrayBuffer, config: any) => KookitRendition
   HtmlRender: new (buffer: ArrayBuffer, config: any) => KookitRendition
 }
+
+/** 渲染类的统一形态（KookitNamespace 的 value 类型，供适配器 buildNamespace 使用） */
+export type KookitRenderClass = new (buffer: ArrayBuffer, config: any) => KookitRendition
 
 export const BookHelper: {
   getRendition(result: ArrayBuffer, config: KookitConfig, Kookit: KookitNamespace): KookitRendition

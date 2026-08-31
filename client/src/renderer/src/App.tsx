@@ -5,6 +5,9 @@ import { IPC } from '@shared/ipc'
 
 const container: ServiceContainer = createContainer(window.turead)
 
+/** dev 无头自检的防重入标记（模块级，StrictMode remount 不重置，见 useEffect 注释） */
+let devAutoOpened = false
+
 function extToFormat(name: string): BookRecord['format'] {
   const ext = name.split('.').pop()?.toLowerCase() ?? ''
   const map: Record<string, BookRecord['format']> = {
@@ -149,27 +152,47 @@ export default function App(): React.JSX.Element {
   )
 
   // dev-only：TUREAD_DEV_BOOK 指定书时启动即导入并打开（无头验证渲染链路）
-  const didAutoOpen = useRef(false)
+  // 注意：用模块级变量而非 useRef —— React.StrictMode 在 dev 会 mount→unmount→remount，
+  // useRef 在 remount 时重置，导致两个并发 openReader 竞争（后开的 close 掉先开的 → 正文空）
   useEffect(() => {
     const devBook = window.turead.devBook
-    if (!devBook || didAutoOpen.current) return
-    didAutoOpen.current = true
+    if (!devBook || devAutoOpened) return
+    devAutoOpened = true
     const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
     void (async () => {
       try {
         const book = await importBookFromPath(devBook)
         await openReader(book)
-        await wait(1500)
+        await wait(2500)
         const stage = readerRef.current
+        const pageAreaById = document.getElementById('page-area')
         const iframe = stage?.querySelector('iframe')
-        const innerLen = iframe?.contentDocument?.body?.innerText?.length ?? -1
+        const doc = iframe?.contentDocument
+        const pageAreaSame = pageAreaById === stage
+        // PDF：渲染产物是嵌套 iframe（每页一个 pdf-iframe-N）+ 内部 canvas，顶层 iframe 无 innerText
+        let innerLen = -1
+        let htmlLen = -1
+        let subInfo = ''
+        if (book.format === 'PDF') {
+          const subIframes = doc?.querySelectorAll('iframe[data-pdf-page], iframe[id^="pdf-iframe-"]') ?? []
+          const canvases = doc?.querySelectorAll('canvas') ?? []
+          const subCount = subIframes.length
+          const firstSub = subIframes[0] as HTMLIFrameElement | undefined
+          const subDoc = firstSub?.contentDocument
+          innerLen = subDoc?.querySelectorAll('canvas').length ?? 0
+          subInfo = `子iframe=${subCount} canvas=${innerLen} subHtml=${subDoc?.body?.innerHTML?.length ?? -1}`
+        } else {
+          innerLen = doc?.body?.innerText?.length ?? -1
+          htmlLen = doc?.body?.innerHTML?.length ?? -1
+          subInfo = `bodyHtml=${htmlLen} docOk=${doc ? 'yes' : 'no'} iframes=${doc?.querySelectorAll('iframe').length ?? -1} pageAreaSame=${pageAreaSame ? 'yes' : 'no'} stageIframes=${stage?.querySelectorAll('iframe').length ?? -1}`
+        }
         const scrollH = stage?.scrollHeight ?? -1
         const pos1 = container.render.getPosition()
         const ch = container.render.getChapter().length
         let pos2: string
         try {
           await container.render.next()
-          await wait(600)
+          await wait(800)
           const p = container.render.getPosition()
           pos2 = `第${p.page}页/${p.percentage}`
         } catch (err) {
@@ -178,7 +201,7 @@ export default function App(): React.JSX.Element {
         const ok = innerLen > 0 && scrollH > 0
         const line =
           `[dev] ${ok ? '渲染OK' : '渲染可疑'} 格式=${book.format} 章节数=${ch} ` +
-          `正文长度=${innerLen} 可滚动=${scrollH} 位置=第${pos1.page}页/${pos1.percentage} 翻页→${pos2}`
+          `正文长度=${innerLen} 可滚动=${scrollH} ${subInfo} 位置=第${pos1.page}页/${pos1.percentage} 翻页→${pos2}`
         pushLog(line)
         console.log(ok ? '[TUREAD-TEST-OK]' + line : '[TUREAD-TEST-FAIL]' + line)
       } catch (err) {

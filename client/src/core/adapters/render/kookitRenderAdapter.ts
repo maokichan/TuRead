@@ -3,27 +3,54 @@
  * 用法：BookHelper.getRendition(buffer, config, Kookit) → rendition.renderTo(el) → on('rendered'/'page-changed')。
  * 位置：kookit getPosition() 返回 tempLocation（chapterDocIndex/chapterHref/count/page/percentage/text/chapterTitle），
  *       与领域 BookLocation 对齐，本适配器负责换算（count/page/percentage 统一为 number）。
+ *
+ * PDF 注入口（KOOKIT.md §8.1）：kookit 在模块顶层 `const pdfjsLib = window.pdfjsLib` 捕获全局，
+ * 因此 vendor 必须【动态加载】且先 `ensurePdfjs()`（import('pdfjs-dist') 求值时自动挂
+ * globalThis.pdfjsLib）再 `import('@vendor/kookit.esm')` —— 不能静态 import vendor。
  */
-import * as Kookit from '@vendor/kookit.esm'
-import type { KookitConfig, KookitPosition, KookitRendition, KookitNamespace } from '@vendor/kookit.esm'
+import type {
+  KookitConfig,
+  KookitPosition,
+  KookitRendition,
+  KookitNamespace,
+  KookitRenderClass
+} from '@vendor/kookit.esm'
 import { TypedEmitter } from '@core/ports/emitter'
 import type { IRenderService, RenderServiceEvents } from '@core/ports/render'
 import type { BookLocation, BookRecord, Chapter, Note, RenderOptions } from '@core/domain/types'
+import { ensurePdfjs } from './pdfjsSetup'
 
 export type ReadBookFile = (path: string) => Promise<ArrayBuffer>
 
-const KOOKIT_NAMESPACE: KookitNamespace = {
-  CacheRender: Kookit.CacheRender as any,
-  EpubRender: Kookit.EpubRender as any,
-  MobiRender: Kookit.MobiRender as any,
-  PdfRender: Kookit.PdfRender as any,
-  PdfTextRender: Kookit.PdfTextRender as any,
-  TxtRender: Kookit.TxtRender as any,
-  ComicRender: Kookit.ComicRender as any,
-  Fb2Render: Kookit.Fb2Render as any,
-  DocxRender: Kookit.DocxRender as any,
-  MdRender: Kookit.MdRender as any,
-  HtmlRender: Kookit.HtmlRender as any
+type KookitModule = typeof import('@vendor/kookit.esm')
+
+/** vendor 懒加载（只加载一次）；先注入 pdfjs 再 import vendor（顺序不可反，见文件头注释） */
+let kookitPromise: Promise<KookitModule> | null = null
+function loadKookit(): Promise<KookitModule> {
+  if (!kookitPromise) {
+    kookitPromise = (async () => {
+      await ensurePdfjs()
+      return await import('@vendor/kookit.esm')
+    })()
+  }
+  return kookitPromise
+}
+
+function buildNamespace(Kookit: KookitModule): KookitNamespace {
+  const cls = (c: unknown) => c as KookitRenderClass
+  return {
+    CacheRender: cls(Kookit.CacheRender),
+    EpubRender: cls(Kookit.EpubRender),
+    MobiRender: cls(Kookit.MobiRender),
+    PdfRender: cls(Kookit.PdfRender),
+    PdfTextRender: cls(Kookit.PdfTextRender),
+    TxtRender: cls(Kookit.TxtRender),
+    ComicRender: cls(Kookit.ComicRender),
+    Fb2Render: cls(Kookit.Fb2Render),
+    DocxRender: cls(Kookit.DocxRender),
+    MdRender: cls(Kookit.MdRender),
+    HtmlRender: cls(Kookit.HtmlRender)
+  }
 }
 
 export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> implements IRenderService {
@@ -39,9 +66,9 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
 
   async open(record: BookRecord, options?: RenderOptions): Promise<void> {
     await this.close()
-    const buffer = await this.readFile(record.filePath)
+    const [Kookit, buffer] = await Promise.all([loadKookit(), this.readFile(record.filePath)])
     const config = this.toKookitConfig(record.format, options)
-    const rendition = Kookit.BookHelper.getRendition(buffer, config, KOOKIT_NAMESPACE)
+    const rendition = Kookit.BookHelper.getRendition(buffer, config, buildNamespace(Kookit))
     this.record = record
     this.rendition = rendition
     rendition.on('rendered', (chapterDocIndex: number) => {
@@ -69,11 +96,16 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     this.element = element
     element.innerHTML = ''
     await this.rendition.renderTo(element)
-    // 首次定位：有历史位置就回到那里，否则取初始位置
+    // 首次定位：有历史位置就回到那里，否则渲染初始章节。
+    // ⚠ kookit 契约（KOOKIT.md §2/§8）：renderTo 只建 iframe + 布局，【不渲染正文】，
+    //   必须再补一次导航调用（goToChapterIndex(0) / goToPosition）才真正渲染章节；
+    //   record() 只算位置不渲染，用它会导致正文空白（v0.1.1 遗留根因）。
+    //   harness 验证的成功序列是 renderTo → record() → goToChapterIndex(0)，这里保持同序。
+    await this.rendition.record()
     if (this.record?.lastLocation) {
       await this.rendition.goToPosition(JSON.stringify(this.record.lastLocation))
     } else {
-      await this.rendition.record()
+      await this.rendition.goToChapterIndex(0)
     }
   }
 

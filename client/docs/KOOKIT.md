@@ -1,4 +1,4 @@
-﻿# kookit 逆向文档（渲染引擎黑盒使用指南）
+# kookit 逆向文档（渲染引擎黑盒使用指南）
 
 > 归属：**client 专属**。本文基于 `kookit/` 子模块源码逆向整理，**从源码判断 kookit 在做什么、该怎么用**，
 > 便于当前开发与日后升级。版本基线：kookit HEAD `6e18465`（2026-08-23）。
@@ -145,19 +145,80 @@ GeneralRender (GeneralRender.ts, ~1715 行，事件基类 EventEmitter)
 | RPC / 7z-wasm（漫画 CBR/CB7） | ❌ 外部 | `window.RPC` / `window.SevenZip` + wasm（ComicRender.ts:68,239） |
 
 **对 TuRead 的含义**：EPUB/MOBI/AZW3/FB2/TXT/MD/DOCX/HTML 走内联依赖，单文件即用；
-**PDF 若要支持，需单独引入 pdfjs 并注入 `window.pdfjsLib`（+ 正确 serving `/lib/pdfjs/`）**——单独立项。
+**PDF 必须支持（2026-09-01 决定，非待评估）**：单独引入 pdfjs-dist 并注入 `window.pdfjsLib`
+（+ 正确 serving `/lib/pdfjs/` 静态资源），见 §8.1。
 
 ## 8. 我们当前的使用（KookitRenderAdapter）与修复建议
 
-现状 `client/src/core/adapters/render/kookitRenderAdapter.ts`：
+现状 `client/src/core/adapters/render/kookitRenderAdapter.ts`（公开接口清单见 `RENDER_INTERFACE.md`）：
 - `open()` 读文件 → `getRendition` → 挂事件 ✅
 - `renderTo()` 里 `await rendition.renderTo(el)` 后，**无 lastLocation 时只 `record()`** ❌
-  → 正文空。**修复**：无历史位置时改调 `await rendition.goToChapterIndex(0)`（或 `goToPosition({chapterDocIndex:0,…})`）；
+  → 正文空。**修复（2026-09-01 已落地）**：无历史位置时改调 `await rendition.goToChapterIndex(0)`；
   有历史位置时 `goToPosition(JSON.stringify(lastLocation))` 保留。
+- **vendor 动态加载（2026-09-01 落地，PDF 前置）**：kookit 在模块顶层 `const pdfjsLib = window.pdfjsLib`
+  捕获全局 → adapter 改为 `open()` 时先 `ensurePdfjs()`（`import('pdfjs-dist')` 求值自动挂
+  `globalThis.pdfjsLib`）再 `import('@vendor/kookit.esm')`，**不能静态 import vendor**（否则 pdfjsLib 捕获为 undefined）。
 - 容器 `reader-stage` 已带 `id="page-area"` ✅（v0.1.1 修过）。
-- CSP（`client/src/renderer/index.html`）需补 `blob:` 放行（connect-src / img-src / style-src / frame-src）——
-  虽然正文空的主因不是它，但章节内图片/CSS 仍走 blob，不放开会缺图缺样式。
-- PDF：当前必超时（无 pdfjsLib）——决策是否进 v1，若进则先做 pdfjs 注入（见 §7）。
+- CSP（`client/src/renderer/index.html`）**已补 `blob:` + `worker-src`（2026-09-01 落地）**：
+  connect-src / img-src / style-src / frame-src / font-src 全部含 `blob:`，worker-src 含 `self blob:`（PDF worker）——
+  章节内图片/CSS/字体走 blob URL，不放开会缺图缺样式。
+- App 阅读容器 `.reader-stage` **已改 `overflow-y: auto`（2026-09-01 落地）**：
+  scroll 模式滚动在宿主元素（§5.10），`overflow: hidden` 会裁切正文无法滚动。
+- **PDF：已支持（2026-09-01 实装）**：pdfjs-dist@4.8.69 注入 + `/lib/pdfjs/` 静态资源，无头验证渲染 OK，见 §8.1。
+- **⚠️ 已知问题（2026-09-01，定位中）**：**App 集成侧 EPUB 正文仍空** —— harness（无 CSP 独立页）
+  同调用序渲染正常（1111 字），App 内 `renderTo → record() → goToChapterIndex(0)` 后 iframe 内
+  `bodyHtml=764`（布局壳）但正文空、无报错。已排除：初始导航顺序（record 前/后无关）、
+  StrictMode 双调用（改用模块级防重入 `devAutoOpened`）。当前怀疑 `getDocument()` 硬编码
+  `#page-area` 在 App 里定位的元素与渲染目标不一致（探针 `pageAreaSame` 对比已写好待跑）。
+  影响范围：EPUB 正文渲染链路在 App 内未闭环；PDF 渲染已 OK（§8.1）。
+
+## 8.1 PDF 支持方案（2026-09-01 定案，实施中）
+
+**背景**：kookit 的 PDF 渲染依赖**外部全局** `window.pdfjsLib`（pdf.js）+
+`/lib/pdfjs/` 静态资源；单文件 ESM 未内联（rollup 不打包 window 全局依赖）。
+kookit 仓库本身不携带 pdfjs 资产，由宿主注入。
+
+**API 兼容结论（实测 pdfjs-dist 4.8.69，匹配 kookit 用法）**：
+- `new pdfjsLib.PDFDataRangeTransport(size, [])` + `getDocument({range, cMapUrl, standardFontDataUrl, isEvalSupported:false, password})` ✅
+- `new pdfjsLib.TextLayer({ textContentSource, container, viewport })` + `render()` ✅
+- `new pdfjsLib.AnnotationLayer({ div, page, viewport })` + `render({...})` ✅
+- `page.streamTextContent()` ✅
+- `cmaps/`（169 个文件）+ `standard_fonts/`（16 个）随包提供 ✅
+- **注意：`text_layer_builder.css` / `annotation_layer_builder.css` 不在 npm 包内** ——
+  kookit 每页 iframe 内 `fetchText(pdfjsPath("text_layer_builder.css"))` 注入（pdf.js:47-50,281-282），
+  缺失会致该页 iframe 构建失败 → **需自备这 2 个 css**（来自 pdf.js viewer `web/` 目录，对应版本）。
+  pdfjs-dist v4.x 是匹配 kookit 代码的版本线（v5+ 移除 `PDFDataRangeTransport` 等 API，勿升）。
+
+**注入清单（实施步骤）**：
+1. `client` 依赖加 `pdfjs-dist@^4.8.69`；渲染进程注入 `window.pdfjsLib = await import('pdfjs-dist')`（open PDF 前）。
+2. `/lib/pdfjs/` 静态资源 = cmaps/ + standard_fonts/ + text_layer_builder.css + annotation_layer_builder.css，
+   dev（vite publicDir）与 build（electron-vite 静态）两处 serving；Electron 下 `pdfjsPath` 前缀 `.`（`isElectron()`）。
+3. CSP 放行 pdfjs 所需：`worker-src 'self' blob:`（worker）、`script-src 'self'` 内联已放行。
+4. **定位路线（重要）**：PDF 不文本化即可页码定位 —— `chapterDocIndex` = 页码（每页一个 section，
+   `book.sections = Array.from({length: pdf.numPages})`），`getProgress()` = 页码/总页数；
+   笔记高亮走 `showPDFHighlight` 的页码+视口坐标，均不依赖 OCR 文本（2026-09-01 源码核实）。
+5. **扫描版 PDF**：`isScannedPDF=yes` 时走 `PdfTextRender`，OCR 引擎为**插槽式**（§8.2）；
+   TuRead 用 `external-engine` 插槽接本地 OCR（`config.externalWorker = { recognize }`），
+   无需改 kookit 源码。OCR 引擎实现（如 PP-OCRv5）**单独立项**，本轮只定接口。
+
+## 8.2 OCR 文本化的多端一致性问题（2026-09-01 记录，方法待讨论）
+
+**问题**：扫描版 PDF 经 OCR 文本化后，**文本内容两端不一致**：
+
+| 定位层 | 是否跨端一致 | 说明 |
+|---|---|---|
+| 页码（chapterDocIndex） | ✅ 一致 | 每页一章，页码由 pdf.js 确定，与 OCR 无关 |
+| count（滚动块序号） | ⚠️ 依赖文本 | 由 OCR 产出的 DOM 结构决定，引擎不同则可能错位 |
+| text（前 200 字兜底） | ❌ 不一致 | 错字/空格/段落切分随引擎、模型、版本变化 |
+| 笔记 range | ❌ 不一致 | 字符偏移/坐标建立在各自渲染结果上，跨引擎对不上 |
+
+**影响**：同步回跳（text/count 兜底）与笔记跨端回显在"两端 OCR 引擎不同"时失效。
+
+**待讨论方向（先记，不现在定）**：
+- PDF 定位以**页码为主键**（天然稳定），text/count 兜底仅在同 OCR 引擎族内有效；
+- 笔记同步在 PDF 场景优先走坐标（页码+视口坐标），不依赖文本；
+- 或约定统一 OCR 引擎/模型版本（成本高，影响"本地 OCR 自由选择"）；
+- OCR 结果按 BookFingerprint 持久化（本地书库），换引擎则缓存失效重建（§4 持久化同构）。
 
 ## 9. 独立测试工具
 
@@ -186,7 +247,9 @@ GeneralRender (GeneralRender.ts, ~1715 行，事件基类 EventEmitter)
 
 ## 11. 结论
 
-- kookit 单体在"依照其真实用法"（renderTo + 导航调用）下，**EPUB/MOBI/AZW3 可用**。
-- 我们 App 正文为空的**根因是用法错误（缺初始导航）**，CSP 是次因；两处都要修。
-- PDF 需要额外注入 pdfjs，单文件不背这个锅，单独立项评估。
-- 本文档随 kookit 升级需维护，敏感点集中在 §2/§5/§7/§10。
+- kookit 单体在"依照其真实用法"（renderTo + 导航调用）下，**EPUB/MOBI/AZW3/TXT/MD/DOCX/HTML/FB2 可用**。
+- 我们 App 正文为空的**根因是用法错误（缺初始导航）**，CSP 是次因；两处都已修（2026-09-01）。
+- **PDF 必须支持（决定）**：注入 pdfjs-dist@4.x + serving `/lib/pdfjs/`（含 2 个 css），
+  页码定位不依赖 OCR；扫描版走 external-engine 插槽接本地 OCR（单独立项）。见 §8.1。
+- **OCR 多端一致性**是已记录问题（§8.2），同步/笔记在 PDF 场景的定位策略待讨论。
+- 本文档随 kookit 升级需维护，敏感点集中在 §2/§5/§7/§8/§10。

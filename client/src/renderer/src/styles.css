@@ -544,7 +544,10 @@ button.primary:hover:not(:disabled) {
 .reader-stage {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  /* kookit scroll 模式的滚动发生在宿主元素上（iframe 被拉到正文高度，
+     见 client/docs/KOOKIT.md §5.10）→ 宿主必须可纵向滚动，否则正文裁切无法滚动 */
+  overflow-y: auto;
+  overflow-x: hidden;
   background: #ffffff;
   color: #1c1c1c;
   border: 1px solid var(--border);
