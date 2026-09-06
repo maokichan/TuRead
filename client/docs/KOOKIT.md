@@ -223,14 +223,29 @@ kookit 仓库本身不携带 pdfjs 资产，由宿主注入。
 ## 9. 独立测试工具
 
 `client/tools/kookit-harness/`（隔离 CSP 干扰验证单体）：
-- `index.html`：**无 CSP** 的测试页，直接 `import ../../src/vendor/kookit.esm.js`，
-  文件选择 → `getRendition` → `renderTo(#page-area)` → `goToChapterIndex(0)` → 自检（章节数/正文长度/翻页）。
-- `serve.mjs`：零依赖静态服务器（root=client/），`node serve.mjs` 后浏览器打开打印的地址。
-- `electron.mjs`：无头自检入口，`npx electron electron.mjs --url "…?auto=test_docs/xxx.epub"`，
-  捕获 `[TUREAD-TEST-OK/FAIL]` 标记退出（0/1/2）。
-- 无头验证结果（2026-08-31）：EPUB 98 章正文 1111 ✅、MOBI 13 章（首章 814 字，next 后落到短分节）✅、AZW3 7 章（首章为封面短内容）✅、PDF 超时（缺 pdfjsLib）。
-- **测试页刻意简化**：硬编码 `scroll` 模式 + `.reader-stage { overflow: hidden }` → 页内不可滑动、未暴露
-  readerMode 切换。属测试页限制（§5.10），**不是 kookit 缺陷**；App 侧需自行提供可滚动容器 + 模式切换 UI。
+- `index.html`：**无 CSP** 的测试页，先动态 `import /node_modules/pdfjs-dist/build/pdf.min.mjs`（注入
+  `window.pdfjsLib`，kookit 在模块顶层捕获该全局，**顺序不可反**）再 `import ../../src/vendor/kookit.esm.js`；
+  文件选择 / `?auto=` → `getRendition` → `renderTo(#page-area)` → `goToChapterIndex(0)` → 自检
+  （章节列表/正文长度/正文样本/翻页快照断言）。支持 `&probe=<js表达式>`：openBuffer 完成后在页面
+  上下文执行任意诊断代码（可访问 `rendition`），结果以 `[TUREAD-TEST-PROBE]` 打印——单体排障首选。
+- `serve.mjs`：零依赖静态服务器（root=client/），`node serve.mjs` 后浏览器打开打印的地址；
+  已映射 `/lib/pdfjs/` → `src/renderer/public/lib/pdfjs/`（kookit `libs/pdf.js` 的 `pdfjsPath` 硬编码该前缀）。
+- `electron.mjs`：无头自检入口，`--url` 支持 `--url=…` 与 `--url …` 两种形式（2026-09-06 修复：
+  原先只解析等号连写形式，空格传参时 query 丢失 → auto 不启动 → 120s 超时假象）；
+  也可用 `TUREAD_HARNESS_URL` 环境变量。捕获 `[TUREAD-TEST-OK/FAIL/PROBE]` 标记退出（0/1/2）；
+  `--verbose` 透传页面 console + 主进程侧探测页面状态（console-message 偶发不可靠时的备用观测路径）。
+- 无头自检结果（2026-09-06，自检含"翻页位置必须变化"断言）：**EPUB / MOBI / AZW3 全绿**；
+  PDF 已打通 pdfjs 注入 + 静态资源 serving（19 页容器创建、无报错），但 canvas 未被渲染
+  （`renderPdfPage → handleRenderPDFChapter → section.load()/render()` 链路待定位），且自检断言
+  需按 PDF 语义特判（内容在 canvas 里，innerText 恒为 0，应查 canvas 数量 + 页位置）。
+- **宿主可滚动是硬要求（§5.10）**：测试页 `.reader-stage` 已改 `overflow-y: auto`（原 `overflow: hidden`
+  会让 next() 的"到底判断"恒真 + scrollBy 无效）。属 harness 修复（2026-09-06），App 侧同要求。
+- **翻页后位置时序（重要，App 侧同样适用）**：kookit 文字类渲染**不监听宿主 scroll 事件**，
+  `next()` 是 smooth 滚动刚开始就 `record()` → 算出的是滚动前旧位置。消费方需等滚动停稳后
+  **补一次 `record()`** 才能拿到真实落点（PDF 例外：PdfRender 自带 scroll 监听）。
+- **MOBI"首章只剩标题"是书本自身结构，非 bug**（2026-09-06 probe 全书 dump 确认）：
+  该书每章标题独占一节（~300B 纯 `<h2>`），正文在后续分节；kookit 解析/渲染/推进均正确。
+  自检遇到 next() 后正文 <100 字时会自动扫描前 4 章输出各章正文量辅助判断。
 
 ## 10. 升级指南（kookit 升级时）
 

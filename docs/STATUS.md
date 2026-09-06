@@ -2,7 +2,7 @@
 
 > 目的：让下一次会话 / 模型以最低成本恢复上下文。
 > 阅读顺序：本文件 → `MAP.md`（自动加载）→ `TODO.md` → 各端架构文档（见 MAP）。
-> 更新：2026-09-01（server v0.2.0；client v0.1.2 kookit 遗留修复落地 + PDF 注入实装 + 封装接口清单定型）
+> 更新：2026-09-06（kookit 单体 harness 自检强化：EPUB/MOBI/AZW3 全绿含翻页断言；PDF canvas 渲染待定位）
 
 ## 1. 一句话
 
@@ -13,7 +13,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 ## 2. 仓库与提交（`D:\PROJECT\TuRead`）
 
 - git 仓库：本地 `main`，`origin = https://github.com/maokichan/TuRead.git`（**已推送 2026-08-29，HEAD `f9dea3f3`**；2026-08-29 因管理原因取消原 fork（V2tin19/TuRead），重建为**独立仓库**，README 有说明）
-- 结构：`client/`（仅 docs，待开发）｜`server/`（v0.2.0，独立 Go module）｜`kookit/`（submodule，HEAD `6e18465`）｜`docs/`｜`TODO.md`｜`借物表.md`
+- 结构：`client/`（Electron 客户端，v0.1.x 开发中）｜`server/`（v0.2.0，独立 Go module）｜`kookit/`（submodule，HEAD `6e18465`）｜`docs/`｜`TODO.md`｜`借物表.md`
 - 网络配方：见 `D:\PROJECT\NETWORK.md`（git 需 `-c http.proxy=http://127.0.0.1:7897 -c http.sslBackend=openssl`；Go 需 `GOPROXY=https://goproxy.cn,direct`；npm registry 直连）
 
 ## 3. 已定决策（要点；细节见权威文档）
@@ -39,6 +39,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| —（工具链） | 2026-09-06 | **kookit 单体 harness 自检强化**（详见 KOOKIT.md §9）：① 修 `electron.mjs --url` 解析 bug（只认 `--url=` 连写，空格传参丢 query → auto 不启动 → 此前记录的"超时"是调用假象，非 kookit 问题）② 测试页宿主改 `overflow-y: auto`（§5.10：scroll 模式翻页在宿主上滚动）③ **翻页位置时序结论：kookit 文字类渲染不监听宿主 scroll，`next()` smooth 滚动刚开始就 `record()` 算旧位置——消费方须滚动停稳后补一次 `record()`**（PDF 例外，自带 scroll 监听；App 侧滚动同步同适用）④ 自检断言强化：翻页前后章节索引/count/percentage/scrollTop 快照任一变化才 OK + 正文样本输出 ⑤ 新增调试机制：`--verbose`、`&probe=<js>`（页面内执行诊断，可访问 rendition）、主进程 page-state 探测 ⑥ PDF：harness 侧 pdfjs 注入链路打通（先 import pdfjs-dist 再 import vendor + serve.mjs 映射 `/lib/pdfjs/`），19 页容器创建无报错但 **canvas 未渲染**（`renderPdfPage→handleRenderPDFChapter→section.load()/render()` 链路待定位），自检断言需按 PDF 语义特判（innerText 恒 0，查 canvas 数 + 页位置）。**结果：EPUB/MOBI/AZW3 全绿（含翻页断言）**；另确认 MOBI《疯狂的投资》首章"只剩标题"是书本自身结构（每章标题独占一节），非 bug |
 | v0.1.2 | 2026-09-01 | **kookit 遗留修复 + PDF 支持 + 封装接口定型**：① 适配器 `renderTo` 补初始导航（无历史位置时 `goToChapterIndex(0)`，正文空根因修复）② CSP 放行 `blob:` + `worker-src` ③ 阅读容器 `overflow-y:auto` ④ **PDF 支持实装**：pdfjs-dist@4.8.69 注入（adapter 改动态加载 vendor，先 `ensurePdfjs` 再 import）+ `/lib/pdfjs/` 静态资源（cmaps/standard_fonts/官方 css/worker，pdf.js v4.8.69 tag 按 NETWORK.md git 配方拉取）；无头验证 PDF 渲染 OK（19 页/canvas/subHtml）⑤ 封装公开接口清单定型 `client/docs/RENDER_INTERFACE.md`（方法/事件/笔记链路/external-engine 插槽/格式矩阵）⑥ 记录 OCR 文本化多端一致性问题（KOOKIT.md §8.2）⑦ **已知问题**：App 集成侧 EPUB 正文仍空（harness 正常，怀疑 `#page-area` 定位不一致，探针待跑）；PDF 真机翻页待验 |
 | v0.1.1 | 2026-08-31 | **kookit 渲染集成（实装中）**：render 适配器从桩换真实实现——vendor 单文件 ESM（全依赖内联 `client/src/vendor/kookit.esm.js`，定制构建 `kookit/rollup.turead.config.mjs` 不受 kookit 版本控制）；容器注入 `readFile`；导入改主进程对话框（`dialog:pick-book` + `fs:read-file`）拿真实路径；阅读视图（打开→renderTo→翻页→进度）；dev 无头验证 `TUREAD_DEV_BOOK=<path>`（启动即导入打开 + 渲染自检 + `TUREAD-TEST-*` 标记自动退出）。**关键契约：kookit `getDocument()` 硬编码查 `#page-area`**（不认传入元素）→ reader-stage 必须带该 id，否则 `renderTo` 永不 resolve（已修）。**隔离测试已定位真因（见 `client/docs/KOOKIT.md` + `client/tools/kookit-harness/`）**：无 CSP 独立测试页 + 无头验证 → **EPUB/MOBI/AZW3 渲染 OK**（98/13/7 章，正文/滚动正常）；**正文空根因 = 适配器 `renderTo` 后只调 `record()`、缺一次导航调用**（kookit `renderTo` 只建 iframe 不渲染正文，须 `goToChapterIndex(0)`/`goToPosition`）；CSP 拦 `blob:` 为次因（影响 iframe 内图/CSS）；**PDF 超时 = mono 单文件未内联 `window.pdfjsLib`**（外部全局 + `/lib/pdfjs/` 静态资源，另依赖 fabric/PDFLib/ort 等）非 CSP。修复方向：适配器补初始导航 + CSP 放行 `blob:` 后重跑 4 格式 + 真机交互 |
 | v0.1.0 | 2026-08-31 | **骨架**：electron-vite + React + TS；`core/{domain,ports,usecases,adapters}` 落成真实 TS（CONTRACTS v0.2.1）；`ServiceContainer` 装配；最小可运行窗口（书架/服务器/房间/日志）。适配器：net=主进程 ws+REST（token 双闸、自动签 token、断线重连）+ IPC 桥，identity=md5-sample3-v1 指纹（spark-md5，头/中/尾三点采样），storage=主进程 JSON 文件（userData/library.json），render=kookit 桩。**契约 v0.2.1**：INetService 补 `request()`/`getMemberId()`，NetConfig 补 accessToken/memberToken，IRoomSession 补 createRoom/uploadBookCopy/listRooms（REST 缺口，只增不改）。技术栈定案：electron-vite + React（未定死 → 已定）；Electron 33.4.11（复用 TagHit 本地二进制，避开 GitHub 下载）。类型检查 + build + 冒烟全绿 |

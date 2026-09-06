@@ -42,6 +42,11 @@ const server = http.createServer((req, res) => {
     return
   }
   if (urlPath === '/') urlPath = '/tools/kookit-harness/'
+  // kookit 的 PDF 渲染固定从 /lib/pdfjs/ 取静态资源（libs/pdf.js: pdfjsPath），
+  // harness 下映射到 App 的 public 静态资源目录
+  if (urlPath.startsWith('/lib/pdfjs/')) {
+    urlPath = '/src/renderer/public' + urlPath
+  }
   let filePath = join(ROOT, normalize(urlPath).replace(/^[/\\]+/, ''))
   if (!existsSync(filePath) || statSync(filePath).isDirectory()) {
     const idx = join(filePath, 'index.html')

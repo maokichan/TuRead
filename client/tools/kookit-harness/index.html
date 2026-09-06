@@ -105,7 +105,8 @@
         color: #1c1c1c;
         border: 1px solid var(--border);
         border-radius: 10px;
-        overflow: hidden;
+        /* scroll 模式 kookit 对宿主元素 scrollTo/scrollBy（KOOKIT §5.10），必须可滚动 */
+        overflow-y: auto;
         min-height: 0;
       }
       .reader-stage iframe { width: 100%; height: 100%; border: none; }
@@ -169,8 +170,29 @@
       <pre class="log" id="log"></pre>
     </div>
 
+    <script>
+      window.__classicRan = true
+      console.log('[TUREAD-TEST-STEP] classic script ran')
+      window.addEventListener('DOMContentLoaded', () =>
+        console.log('[TUREAD-TEST-STEP] DOMContentLoaded')
+      )
+    </script>
     <script type="module">
-      import * as Kookit from '../../src/vendor/kookit.esm.js'
+      window.__moduleRan = true
+      // PDF 支持：kookit 在模块顶层捕获 window.pdfjsLib（vendor 单文件不内联 pdfjs），
+      // 必须先注入 pdfjs（import 求值时自动挂 globalThis.pdfjsLib）再 import vendor，顺序不可反
+      let Kookit
+      try {
+        await import('/node_modules/pdfjs-dist/build/pdf.min.mjs')
+        const pdfjs = window.pdfjsLib
+        if (pdfjs?.GlobalWorkerOptions) {
+          pdfjs.GlobalWorkerOptions.workerSrc = '/lib/pdfjs/pdf.worker.mjs'
+        }
+        Kookit = await import('../../src/vendor/kookit.esm.js')
+        console.log('[TUREAD-TEST-STEP] vendor import resolved (pdfjs injected first)')
+      } catch (e) {
+        console.log('[TUREAD-TEST-FAIL] vendor/pdfjs import failed: ' + e.message)
+      }
 
       const stage = document.getElementById('page-area')
       const logEl = document.getElementById('log')
@@ -240,13 +262,14 @@
 
       const readIframeInfo = () => {
         const iframe = stage.querySelector('iframe')
-        if (!iframe) return { text: -1, title: '', scroll: -1, html: -1 }
+        if (!iframe) return { text: -1, title: '', scroll: -1, html: -1, sample: '' }
         const doc = iframe.contentDocument
         return {
           text: doc?.body?.innerText?.length ?? -1,
           title: doc?.title ?? '',
           scroll: doc?.body?.scrollHeight ?? -1,
-          html: doc?.body?.innerHTML?.length ?? -1
+          html: doc?.body?.innerHTML?.length ?? -1,
+          sample: (doc?.body?.innerText ?? '').replace(/\s+/g, ' ').slice(0, 60)
         }
       }
 
@@ -278,6 +301,7 @@
         logLine('', `打开：${name}（${format}，${(buffer.byteLength / 1024).toFixed(0)} KB）`)
 
         const t0 = performance.now()
+        console.log(`[TUREAD-TEST-STEP] openBuffer start ${name} (${format})`)
         rendition = Kookit.BookHelper.getRendition(buffer, buildConfig(format), KOOKIT_NAMESPACE)
         if (!rendition) throw new Error(`不支持的格式：${format}`)
 
@@ -291,8 +315,11 @@
         rendition.on('scroll-text', () => updateInfo())
 
         await rendition.renderTo(stage)
+        window.__rendition = rendition
+        console.log(`[TUREAD-TEST-STEP] renderTo resolved iframe=${stage.querySelectorAll('iframe').length}`)
         logLine('', `[step renderTo] iframe=${stage.querySelectorAll('iframe').length} innerText=${readIframeInfo().text}`)
         await rendition.record()
+        console.log(`[TUREAD-TEST-STEP] record resolved`)
         logLine('', `[step record] innerText=${readIframeInfo().text} html=${readIframeInfo().html}`)
         await sleep(300)
         updateInfo()
@@ -301,35 +328,101 @@
         return rendition
       }
 
+      // 等宿主元素滚动停稳（smooth scrollBy 动画结束；连续 3 次采样不变即视为稳定，上限 3s）
+      const waitForScrollSettle = async (host) => {
+        let prev = host.scrollTop
+        let stable = 0
+        const start = performance.now()
+        while (stable < 3 && performance.now() - start < 3000) {
+          await sleep(100)
+          if (host.scrollTop === prev) stable++
+          else { stable = 0; prev = host.scrollTop }
+        }
+      }
+
+      // 等待 iframe 内容稳定（正文块异步追加；连续 2 次采样不变即视为稳定，上限 8s）
+      const waitStable = async () => {
+        let prev = readIframeInfo()
+        let stable = 0
+        const start = performance.now()
+        while (stable < 2 && performance.now() - start < 8000) {
+          await sleep(400)
+          const cur = readIframeInfo()
+          if (cur.text === prev.text && cur.html === prev.html) stable++
+          else { stable = 0; prev = cur }
+        }
+        return prev
+      }
+
       const selfTest = async (label) => {
         if (!rendition) {
           console.log('[TUREAD-TEST-FAIL] 尚未打开书籍')
           return
         }
-        const { text, scroll } = readIframeInfo()
         const ch = rendition.getChapter().length
-        const pos1 = rendition.getPosition()
-        let pos2 = ''
-        let nextOk = false
         try {
           await rendition.goToChapterIndex(0)
-          await sleep(600)
+          await waitStable()
           const after = readIframeInfo()
           logLine('', `[step goToChapterIndex(0)] innerText=${after.text} html=${after.html} scroll=${after.scroll}`)
           console.log(`[TUREAD-TEST-STEP] goToChapterIndex(0) innerText=${after.text} scroll=${after.scroll}`)
-          await rendition.next()
-          await sleep(600)
+        } catch (e) {
+          console.log('[TUREAD-TEST-FAIL] goToChapterIndex(0) 失败：' + e.message)
+          return
+        }
+        // 翻页快照：章节索引 / count / percentage / 宿主 scrollTop 任一变化即算翻页生效
+        const snap = () => {
           const p = rendition.getPosition()
-          pos2 = `第${p.page}页/${p.percentage}%`
+          return {
+            idx: String(p.chapterDocIndex),
+            count: String(p.count),
+            pct: String(p.percentage),
+            st: stage.scrollTop
+          }
+        }
+        const same = (a, b) =>
+          a.idx === b.idx && a.count === b.count && a.pct === b.pct && a.st === b.st
+        const snap1 = snap()
+        let pos2 = ''
+        let moved = false
+        let nextOk = false
+        try {
+          await rendition.next()
+          await waitStable()
+          // kookit 文字类渲染不监听宿主 scroll，next() 的 smooth 滚动刚开始就 record 了；
+          // 等滚动停稳后补一次 record，位置才是真实落点（App 侧滚动同步同理）
+          await waitForScrollSettle(stage)
+          await rendition.record()
+          const snap2 = snap()
+          pos2 = `第${snap2.idx}章/${snap2.pct}%/count=${snap2.count}`
+          moved = !same(snap1, snap2)
           nextOk = true
+          // 对照诊断：翻页后正文过短时，扫描前 4 章各章正文量（判断解析/边界问题）
+          const probeInfo = readIframeInfo()
+          if (probeInfo.text < 100) {
+            for (let i = 0; i < Math.min(4, rendition.getChapter().length); i++) {
+              try {
+                await rendition.goToChapterIndex(i)
+                await waitStable()
+              } catch (e) { /* 忽略单章失败继续扫 */ }
+              const ci = readIframeInfo()
+              logLine('', `[scan chapter ${i}] innerText=${ci.text} scroll=${ci.scroll} 样本="${ci.sample}"`)
+              console.log(`[TUREAD-TEST-STEP] scan chapter ${i} innerText=${ci.text} sample="${ci.sample}"`)
+            }
+          }
         } catch (e) {
           pos2 = `翻页失败：${e.message}`
         }
         const after0 = readIframeInfo()
-        const ok = after0.text > 0 && after0.scroll > 0
+        const posNow = rendition.getPosition()
+        const ok = after0.text > 0 && after0.scroll > 0 && nextOk && moved
+        const chNames = rendition.getChapter().slice(0, 6).map((c) => c.label).join(' | ')
         const line =
-          `[self-test] ${label} 章节=${ch} 正文长度=${after0.text} scrollHeight=${after0.scroll} ` +
-          `位置=第${pos1.page}页/${pos1.percentage}% 翻页→${pos2}`
+          `[self-test] ${label} 章节=${ch} [${chNames}] 当前章="${posNow.chapterTitle ?? ''}" ` +
+          `正文长度=${after0.text} scrollHeight=${after0.scroll} ` +
+          `样本="${after0.sample}" ` +
+          `翻页前=第${snap1.idx}章/${snap1.pct}%/count=${snap1.count}/st=${snap1.st} ` +
+          `翻页→${pos2}${moved ? '' : '（位置未变化！）'}`
         logLine(ok ? 'ok' : 'err', line)
         if (ok) console.log('[TUREAD-TEST-OK]' + line)
         else console.log('[TUREAD-TEST-FAIL]' + line)
@@ -351,9 +444,11 @@
       $('next').addEventListener('click', async () => { try { await rendition?.next() } catch (e) { logLine('err', e.message) } })
       $('self').addEventListener('click', () => void selfTest(currentName))
 
-      // 自动模式：?auto=<相对 client/ 的路径>&name=<显示名>&format=<格式>
+      // 自动模式：?auto=<相对 client/ 的路径>&name=<显示名>&format=<格式>&probe=<js 表达式>
+      // probe：openBuffer 完成后在页面上下文执行表达式，结果 console.log 出来（可访问 window.__rendition）
       const params = new URLSearchParams(location.search)
       const auto = params.get('auto')
+      const probeExpr = params.get('probe')
       if (auto) {
         const name = params.get('name') || auto.split('/').pop() || auto
         const fmt = params.get('format') || extToFormat(name)
@@ -364,7 +459,13 @@
             if (!res.ok) throw new Error(`fetch ${auto} → ${res.status}`)
             const buf = await res.arrayBuffer()
             await openBuffer(buf, name, fmt)
-            await selfTest(name)
+            if (probeExpr) {
+              const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+              const result = await new AsyncFunction('rendition', `return (${probeExpr})`)(rendition)
+              console.log('[TUREAD-TEST-PROBE] ' + JSON.stringify(result))
+            } else {
+              await selfTest(name)
+            }
           } catch (e) {
             console.log('[TUREAD-TEST-FAIL] auto 打开失败：' + e.message)
           }
