@@ -16,6 +16,7 @@ import type {
   KookitRenderClass
 } from '@vendor/kookit.esm'
 import { TypedEmitter } from '@core/ports/emitter'
+import { normalizeLocation } from '@core/domain/location'
 import type { IRenderService, RenderServiceEvents } from '@core/ports/render'
 import type { BookLocation, BookRecord, Chapter, Note, RenderOptions } from '@core/domain/types'
 import { ensurePdfjs } from './pdfjsSetup'
@@ -196,7 +197,8 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   }
 
   private toBookLocation(p: KookitPosition): BookLocation {
-    return {
+    // 统一经定位标准归一（kookit 内部是 string，域层一律 number；语义权威见 domain/location.ts）
+    return normalizeLocation({
       chapterDocIndex: p.chapterDocIndex,
       chapterHref: p.chapterHref ?? '',
       count: Number(p.count ?? 0),
@@ -204,7 +206,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
       percentage: Number(p.percentage ?? 0),
       text: p.text ?? '',
       chapterTitle: p.chapterTitle
-    }
+    })
   }
 
   private emitLocationChanged(): void {

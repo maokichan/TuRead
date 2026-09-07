@@ -28,6 +28,8 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | 配置 | TOML 文件 + 环境变量覆盖 + 文件监听热重载（策略类 2s 生效；启动类需重启） | `server/docs/OPS.md` |
 | 传输基本功 | 广播背压（每连接队列 32 + 写 goroutine）+ `/healthz` + 优雅关停（10s） | `server/docs/ARCHITECTURE.md` §4 |
 | 副本分发 | server 保存并分发电子版副本（内容寻址 `data/books/<hash>.<ext>`）；edition 信息由客户端计算并随副本一起上传 | `server/docs/API.md` 副本流程 |
+| 客户端样式 | **Tailwind CSS 采纳（2026-09-07 定案）**：随「UI 组件化」里程碑引入，替换手写 `styles.css` + CSS 变量；MIT 已核与 AGPL 兼容（借物表已登记）；v4.x 线，`@tailwindcss/vite` 接入 electron-vite | 借物表「已采用」；TODO「UI 组件化」 |
+| 定位标准 | BookLocation 字段三级角色（key/hint/display）+ 标准原语（normalize/same/compare/anchorStrength）收拢进 `core/domain/location.ts`；**任何组件不得自行比较/解释位置字段**（笔记/同步回跳/进度/恢复共用） | `client/docs/CONTRACTS.md` §2.1 |
 | 插件 | v1 不做插件运行时；ports 即插件边界（官方插件 = 适配器注册进 ServiceContainer） | `client/docs/ARCHITECTURE.md` §4 |
 | 许可 | kookit AGPL-3.0 → TuRead 以 **AGPL-3.0** 开源；新依赖先核许可证再登记借物表 | `借物表.md` |
 | 仓库形态 | **单仓库 monorepo**（server 独立 Go module 可零成本拆出）；触发条件：独立发布节奏 / 独立 CI / 权限分离 | `docs/ARCHITECTURE.md` §2 |

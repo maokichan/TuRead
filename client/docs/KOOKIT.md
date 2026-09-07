@@ -138,6 +138,8 @@ GeneralRender (GeneralRender.ts, ~1715 行，事件基类 EventEmitter)
   + `percentage` 合并。
 - 对齐：我们的领域 `BookLocation` 只取 chapterDocIndex/count/page/percentage/text/chapterTitle，
   适配器已做 string→number 归一（`kookitRenderAdapter.ts` toBookLocation）。
+  **字段语义与比较规则以定位标准为权威：`client/docs/CONTRACTS.md` §2.1 +
+  `client/src/core/domain/location.ts`（本节只描述 kookit 侧行为，消费方不要基于本节自行造比较逻辑）。**
 
 ## 7. 依赖清单与"单文件不是全自包含"明细
 

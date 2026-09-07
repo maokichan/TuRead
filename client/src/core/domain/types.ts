@@ -4,17 +4,22 @@
  * 共享词汇 = 领域层，被所有层共享。
  */
 
-/** 阅读位置 —— 房间同步的最小载荷，与 kookit getPosition() 对齐 */
+/**
+ * 阅读位置 —— 房间同步的最小载荷，与 kookit getPosition() 对齐。
+ * ⚠ 字段语义与比较规则以 §2.1 定位标准为权威（client/docs/CONTRACTS.md + ./location.ts）：
+ *   任何组件不得自行比较/解释字段，一律走 domain/location.ts 原语。
+ */
 export interface BookLocation {
-  chapterDocIndex: number | string
+  /** 章节（kookit 分节）序号；PDF 下等于页码 */
+  chapterDocIndex: number
   chapterHref: string
-  /** scroll 模式下的滚动偏移 */
+  /** 可见滚动块序号（scroll 模式的"第几屏"）——文字类主键的组成部分 */
   count: number
-  /** 单页模式下的页内位置 */
+  /** 分页模式（single/double）的页码；scroll 模式为 0 */
   page: number
-  /** 全局进度 0 ~ 1 */
+  /** 全局进度 0 ~ 1（display 角色：仅展示/粗粒度，不作精确锚定） */
   percentage: number
-  /** 所在段落文本（跨端/跨版本定位兜底） */
+  /** 可见块前 200 字（跨端/跨版本重定位兜底） */
   text: string
   chapterTitle?: string
 }

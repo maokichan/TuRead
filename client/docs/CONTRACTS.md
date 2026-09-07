@@ -31,14 +31,19 @@ UI（React 外壳）
 ## 2. 领域类型（共享词汇 = 领域层）
 
 ```ts
-/** 阅读位置 —— 房间同步的最小载荷，与 kookit getPosition() 对齐 */
+/**
+ * 阅读位置 —— 房间同步的最小载荷，与 kookit getPosition() 对齐。
+ * ⚠ 字段语义与比较规则以 §2.1 定位标准为权威：任何组件不得自行比较/解释字段，
+ *   一律走 core/domain/location.ts 原语（normalizeLocation / locationKey / sameLocation /
+ *   compareLocation / anchorStrength / describeLocation / isZeroLocation）。
+ */
 interface BookLocation {
-  chapterDocIndex: number | string;
+  chapterDocIndex: number;  // 章节（kookit 分节）序号；PDF 下等于页码
   chapterHref: string;
-  count: number;            // scroll 模式下的滚动偏移
-  page: number;             // 单页模式下的页内位置
-  percentage: number;       // 全局进度 0 ~ 1
-  text: string;             // 所在段落文本（跨端/跨版本定位兜底）
+  count: number;            // 可见滚动块序号（scroll 模式的"第几屏"）——文字类主键组成部分
+  page: number;             // 分页模式（single/double）的页码；scroll 模式为 0
+  percentage: number;       // 全局进度 0~1（display 角色：仅展示/粗粒度，不作精确锚定）
+  text: string;             // 可见块前 200 字（跨端/跨版本重定位兜底）
   chapterTitle?: string;
 }
 
@@ -135,6 +140,43 @@ interface RoomInfo {
   createdAt: number;         // unix 秒
 }
 ```
+
+### 2.1 定位标准（BookLocation 语义权威，2026-09-07 立）
+
+**为什么**：位置不只笔记需要 —— 房间同步回跳、进度条、`lastLocation` 恢复、将来的 TTS /
+跳转引用 / 测试断言都要比较、归一、排序位置。此前 `count`/`page` 的注释语义是错的
+（写了"滚动偏移/页内位置"），且 `chapterDocIndex` 混入 kookit 的 string 形态 ——
+若各组件自行解释字段，腐化不可避免。故收拢为**一处权威**：
+
+**实现**：`core/domain/location.ts`（纯函数，零依赖）。**消费规则**：任何组件
+（笔记 / 同步回跳 / 进度 / 恢复 / 断言）不得自行比较或解释 `BookLocation` 字段，
+一律走该模块原语：
+
+| 原语 | 用途 |
+|---|---|
+| `normalizeLocation(raw)` | 归一（容错 string 数值 / 缺字段 / 越界；历史 library.json 数据兼容）。位置进入域层（适配器产出、持久化读回、网络载荷）后先过这里 |
+| `locationKey(loc, format)` | 主键规范化键。**格式相关**：PDF → `page`（每页一个 section，不依赖 OCR，跨端天然稳定，见 KOOKIT §8.1/§8.2）；文字类 → `chapterDocIndex + count`（可见滚动块序号） |
+| `sameLocation(a, b, format)` | 同一位置判定（主键相等；调用方保证同书同版本） |
+| `compareLocation(a, b, format)` | 同书内排序（PDF 按 page；文字类按 chapterDocIndex→count）；不可比返回 null |
+| `anchorStrength(loc, format)` | 锚点强度：strong（主键齐备，可精确回跳）/ weak（只有粗粒度）/ none（零位置）——笔记与恢复选路用；精确回显仍以 `Note.range`（引擎序列化）为准，location 是其粗锚点 |
+| `isZeroLocation(loc)` | 零位置（未渲染）判定 |
+| `describeLocation(loc, format)` | 日志/调试可读形式 |
+
+**字段三级角色**（语义，不新增字段）：
+
+| 角色 | 字段 | 规则 |
+|---|---|---|
+| key（主键） | PDF：`page`；文字类：`chapterDocIndex + count` | 精确回跳第一依据 |
+| hint（兜底） | `text`（可见块前 200 字）、`chapterHref`、`chapterTitle` | 主键因版本/结构差异失效时的重定位线索（见 KOOKIT §8.2 多端一致性） |
+| display（展示） | `percentage`、`chapterTitle` | 仅 UI 展示与粗粒度同步，**不得**作精确锚定 |
+
+**已知时序约束**（消费方必须遵守，实测记录见 KOOKIT §9）：kookit 文字类渲染不监听宿主
+scroll，`next()` 的 smooth 滚动刚开始就 `record()` —— **滚动/翻页停稳后须补一次
+`record()` 再取位置**，否则拿到的是旧位置（PDF 例外，自带 scroll 监听）。
+
+**修订说明**：本节为 v0.2.2 修订 —— `chapterDocIndex` 从 `number | string` 收窄为
+`number`（string 形态是 kookit 适配细节，域层不收；遗留 string 数据由
+`normalizeLocation` 在边界容错），并修正 `count`/`page` 的错误注释。
 
 ## 3. 事件机制（所有服务通用）
 
@@ -368,4 +410,5 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.2.2 | 2026-09-07 | **定位标准立约（§2.1）**：`BookLocation` 字段三级角色（key/hint/display）+ 标准原语收拢进 `core/domain/location.ts`；`chapterDocIndex` 收窄为 `number`（kookit string 形态止步适配层，遗留数据由 `normalizeLocation` 边界容错）；修正 `count`/`page` 错误注释。配套领域新增 `location.ts`（纯函数，零依赖） |
 | v0.2.1 | 2026-08-31 | 契约先行补 REST 传输缺口（client v1 骨架落地时）：`INetService` 增加 `request()`（REST，自带 token 双闸头）与 `getMemberId()`；`NetConfig` 增加 `accessToken` / `memberToken`（token 双闸，见 `server/docs/API.md` 认证），`serverUrl` 统一为 http(s) 基址；`IRoomSession` 增加 `createRoom` / `uploadBookCopy` / `listRooms`（对应 REST：POST /rooms、POST /books/{id}/file、GET /rooms）；领域层增加 `RoomInfo`（GET /rooms 列表项，wire 形状见 `server/docs/API.md`）。变更方向：只增不改，端口仍"只搬运不解语义" |

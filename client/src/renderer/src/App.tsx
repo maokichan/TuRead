@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createContainer, type ServiceContainer } from '@core/container'
-import type { BookRecord, ChatMessage, ConnectionState, RoomInfo } from '@core/domain/types'
+import { sameLocation } from '@core/domain/location'
+import type { BookLocation, BookRecord, ChatMessage, ConnectionState, RoomInfo } from '@core/domain/types'
 import { IPC } from '@shared/ipc'
 
 const container: ServiceContainer = createContainer(window.turead)
@@ -180,8 +181,8 @@ export default function App(): React.JSX.Element {
             docScrollH: doc?.body?.scrollHeight ?? -1
           }
         }
-        const locKey = (p: { chapterDocIndex: unknown; percentage: unknown; page: unknown }): string =>
-          `${p.chapterDocIndex}/${p.page}/${p.percentage}`
+        const changed = (p1: BookLocation, p2: BookLocation): boolean =>
+          !sameLocation(p1, p2, book.format)
         // 等宿主滚动停稳再取位置（next() 是 smooth 滚动 + record 算旧位置；
         // 无头隐藏窗口下 Chromium 还会推迟 smooth scroll 动画 ~2s，固定短等待会取到旧值）
         const waitScrollSettle = async (): Promise<void> => {
@@ -220,7 +221,7 @@ export default function App(): React.JSX.Element {
           // PDF 每页高约 2.5 个视口，一次 next()（滚动 clientHeight-50）未必跨页，
           // handleRecord 只在页号变化时更新 → 断言看位置或 scrollTop 任一变化
           const st2 = s.stage?.scrollTop ?? 0
-          posChanged = locKey(p1) !== locKey(container.render.getPosition()) || st1 !== st2
+          posChanged = changed(p1, container.render.getPosition()) || st1 !== st2
         } else {
           const s1 = readDocState()
           innerLen = s1.innerLen
@@ -236,7 +237,7 @@ export default function App(): React.JSX.Element {
             await wait(3000)
             await waitScrollSettle()
             const loc = container.render.getPosition()
-            posChanged = posChanged || locKey(loc) !== locKey(prev)
+            posChanged = posChanged || changed(loc, prev)
             prev = loc
             const s = readDocState()
             innerLen = Math.max(innerLen, s.innerLen)
@@ -249,7 +250,7 @@ export default function App(): React.JSX.Element {
             await container.render.next()
             await wait(3000)
             await waitScrollSettle()
-            posChanged = locKey(p1) !== locKey(container.render.getPosition())
+            posChanged = changed(p1, container.render.getPosition())
           }
         }
         const s2 = readDocState()
