@@ -53,9 +53,9 @@
 | 端口 | 职责 | 适配器 |
 |---|---|---|
 | `IRenderService` | kookit 包装：open/renderTo/翻页/goToPosition/位置事件/笔记 | kookit |
-| `INetService` | 传输：connect/send/on('message')；**不理解业务语义**，只搬运消息信封 | 传输待定（WS 等） |
-| `IBookIdentityService` | 算指纹（部分哈希）/ 提取元数据 / 标定比对 | 自研（crypto） |
-| `ILibraryStore` | 本地书库持久化 | SQLite（better-sqlite3） |
+| `INetService` | 传输：connect/send/on('message')；**不理解业务语义**，只搬运消息信封 | 主进程 WS + REST（`adapters/net/ipcNetAdapter` → `main/net/wsNetAdapter`） |
+| `IBookIdentityService` | 算指纹（部分哈希）/ 提取元数据 / 标定比对 | 自研（spark-md5，crypto） |
+| `ILibraryStore` | 本地书库持久化 | 主进程 JSON 文件（userData/library.json）；演进 → better-sqlite3 |
 
 **应用服务层（用例）—— 业务逻辑，编排能力服务：**
 

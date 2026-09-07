@@ -1,39 +1,40 @@
 # 项目状态与决策记录（会话交接）
 
-> 目的：让下一次会话 / 模型以最低成本恢复上下文。
+> 目的：让下一次会话/模型以最低成本恢复上下文。
 > 阅读顺序：本文件 → `MAP.md`（自动加载）→ `TODO.md` → 各端架构文档（见 MAP）。
-> 更新：2026-09-07（EPUB"正文空"销案=测量假象；修宿主 CSS 压扁 iframe + PDF scroll iframe 不拉高两真 bug；App 无头自检四格式全绿）
+> 更新：2026-09-07（client v0.1.3：定位标准立约 + 渲染链路闭环 + 文档收紧）
+> 原则：本文件只记**当前事实与决策**；过程叙事在 git log 与各专项文档，不在此复述。
 
 ## 1. 一句话
 
 TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共同阅读同一本书。
 渲染/解析复用 [kookit](https://github.com/koodo-reader/kookit)（AGPL-3.0，git submodule）；
-同步服务器用 Go，**v0.2.0 已实现**（仓库内 `server/`）；**client v0.1.2（kookit 遗留修复 + PDF 支持实装）**。
+同步服务器用 Go，**v0.2.0 已实现**（仓库内 `server/`）；**client v0.1.3**。
 
 ## 2. 仓库与提交（`D:\PROJECT\TuRead`）
 
-- git 仓库：本地 `main`，`origin = https://github.com/maokichan/TuRead.git`（**已推送 2026-08-29，HEAD `f9dea3f3`**；2026-08-29 因管理原因取消原 fork（V2tin19/TuRead），重建为**独立仓库**，README 有说明）
-- 结构：`client/`（Electron 客户端，v0.1.x 开发中）｜`server/`（v0.2.0，独立 Go module）｜`kookit/`（submodule，HEAD `6e18465`）｜`docs/`｜`TODO.md`｜`借物表.md`
-- 网络配方：见 `D:\PROJECT\NETWORK.md`（git 需 `-c http.proxy=http://127.0.0.1:7897 -c http.sslBackend=openssl`；Go 需 `GOPROXY=https://goproxy.cn,direct`；npm registry 直连）
+- git 仓库：本地 `main`，`origin = https://github.com/maokichan/TuRead.git`（独立仓库，非 fork）
+- 结构：`client/`（Electron 客户端）｜`server/`（独立 Go module）｜`kookit/`（submodule，HEAD `6e18465`）｜`docs/`｜`TODO.md`｜`借物表.md`
+- 网络配方：见 `D:\PROJECT\NETWORK.md`（git 需代理 + OpenSSL；Go `GOPROXY=goproxy.cn`；npm 直连）
 
 ## 3. 已定决策（要点；细节见权威文档）
 
 | 决策 | 要点 | 权威位置 |
 |---|---|---|
 | 架构选型 | client = 六边形（端口-适配器）+ DDD 命名；**server = 简单分层**（cmd→transport→room→store→domain，非六边形） | `client/docs/ARCHITECTURE.md` §1；`server/docs/ARCHITECTURE.md` §5 |
-| 书籍标定 | Work/Edition 两层模型；**Work 不设 author/publisher**（多作者远期复杂不做，ISBN 提供可查询性）；content-hash-v1 = **edition 内容指纹**（客户端校准算法计算）；指纹 `md5-sample3-v1` 三点采样 | `docs/ARCHITECTURE.md` §1 |
-| 认证 | **token 双闸**：第 2 层二级令牌（配置 `access_token`）+ 第 3 层成员 token = 成员 ID（**服务端按 IP 签发**，`POST /auth/token`，7 天复用窗口）；无账号/密码 | `server/docs/ARCHITECTURE.md` §2；`server/docs/API.md` 认证 |
-| 房间 | 定义落库（rooms 表）+ 运行时状态（成员/位置/订阅）纯内存；空房间 TTL（默认 12h，可热改）；发现 = `GET /rooms`（大厅）+ `?edition=`（按书找房）；v1 房间默认公开可见 | `server/docs/API.md`（转发规范 + REST） |
-| 聊天室 | v1 进；`room.chat`/`room.message` + messages 表（追加日志，server 存）；历史 `GET /rooms/{id}/messages`；随房间删除级联清理 | `server/docs/API.md`（转发规范） |
-| 配置 | TOML 文件 + 环境变量覆盖 + 文件监听热重载（策略类 2s 生效；启动类需重启） | `server/docs/OPS.md` |
-| 传输基本功 | 广播背压（每连接队列 32 + 写 goroutine）+ `/healthz` + 优雅关停（10s） | `server/docs/ARCHITECTURE.md` §4 |
-| 副本分发 | server 保存并分发电子版副本（内容寻址 `data/books/<hash>.<ext>`）；edition 信息由客户端计算并随副本一起上传 | `server/docs/API.md` 副本流程 |
-| 客户端样式 | **Tailwind CSS 采纳（2026-09-07 定案）**：随「UI 组件化」里程碑引入，替换手写 `styles.css` + CSS 变量；MIT 已核与 AGPL 兼容（借物表已登记）；v4.x 线，`@tailwindcss/vite` 接入 electron-vite | 借物表「已采用」；TODO「UI 组件化」 |
-| 定位标准 | BookLocation 字段三级角色（key/hint/display）+ 标准原语（normalize/same/compare/anchorStrength）收拢进 `core/domain/location.ts`；**任何组件不得自行比较/解释位置字段**（笔记/同步回跳/进度/恢复共用） | `client/docs/CONTRACTS.md` §2.1 |
+| 定位标准 | BookLocation 字段三级角色（key/hint/display）+ 标准原语收拢进 `core/domain/location.ts`；**任何组件不得自行比较/解释位置字段**（笔记/同步回跳/进度/恢复共用） | `client/docs/CONTRACTS.md` §2.1 |
+| 书籍标定 | Work/Edition 两层模型；Work 不设 author/publisher；content-hash-v1 = edition 内容指纹；指纹 `md5-sample3-v1` 三点采样 | `docs/ARCHITECTURE.md` §1 |
+| 认证 | **token 双闸**：二级令牌 + 成员 token（服务端按 IP 签发，7 天复用窗口）；无账号/密码 | `server/docs/ARCHITECTURE.md` §2；`server/docs/API.md` |
+| 房间 | 定义落库 + 运行时纯内存；空房间 TTL 12h（可热改）；发现 = `GET /rooms`；v1 默认公开可见 | `server/docs/API.md` |
+| 聊天室 | `room.chat`/`room.message` + messages 表（追加日志）；随房间删除级联清理 | `server/docs/API.md` |
+| 同步边界 | 状态转发而非操作转发（只同步 BookLocation 与聊天）；笔记/划线/光标在场 v1 明确排除（信封预留扩展） | `server/docs/API.md` 转发规范 |
+| 配置 | TOML + 环境变量覆盖 + 热重载（策略类 2s 生效） | `server/docs/OPS.md` |
+| 副本分发 | server 保存并分发电子版副本（内容寻址）；edition 信息由客户端计算随副本上传 | `server/docs/API.md` |
+| 客户端样式 | **Tailwind CSS 采纳（2026-09-07）**：随「UI 组件化」引入，替换手写 styles.css；MIT 已核 | 借物表；TODO |
 | 插件 | v1 不做插件运行时；ports 即插件边界（官方插件 = 适配器注册进 ServiceContainer） | `client/docs/ARCHITECTURE.md` §4 |
 | 许可 | kookit AGPL-3.0 → TuRead 以 **AGPL-3.0** 开源；新依赖先核许可证再登记借物表 | `借物表.md` |
-| 仓库形态 | **单仓库 monorepo**（server 独立 Go module 可零成本拆出）；触发条件：独立发布节奏 / 独立 CI / 权限分离 | `docs/ARCHITECTURE.md` §2 |
-| 开发原则 | v1 允许"丑但诚实"；**解释优先**；检查点——大改前写理由、不知代码放哪层就停下讨论（Rule of Three） | — |
+| 仓库形态 | 单仓库 monorepo（server 可零成本拆出） | `docs/ARCHITECTURE.md` §2 |
+| 开发原则 | v1 允许"丑但诚实"；**解释优先**；大改前写理由（Rule of Three） | — |
 
 ## 4. 版本历史
 
@@ -41,28 +42,21 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
-| —（定位+修复） | 2026-09-07 | **App 集成侧 EPUB"正文空"销案（测量假象）+ 两个真 bug 修复**（详见 KOOKIT.md §5.10/§5.11/§8/§9）：① 探针实锤 `pageAreaSame=yes`，iframe 内 764 字符 bodyHtml 是纯图片扉页（该书第 0 章只有一张图，blob URL 正常），harness 与 App percentage 逐位一致、行为无差异——挂两天的"已知问题"结案；教训：innerText 断言须感知纯图片章 ② **真 bug A**：宿主 CSS `.reader-stage iframe { height:100% }` 覆盖 kookit 拉高的 iframe height 属性 → 正文裁一屏、scroll 模式全坏（App+harness 同病），删除后 iframe 正确拉到 2143px、翻页断言从"跳章"升级为"章内滚动"（st 16→388、count 0→9）③ **真 bug B**：PDF scroll 模式 kookit 的 handleIframeHeight 只服务文字类、外层 iframe 无人拉高 → 宿主永不可滚；适配器 renderTo 按 `doc.body.scrollHeight+300` 补齐，441 页 PDF 宿主可滚 401k px、翻页断言过（"章节数=19"是书签数，页数=441）④ **无头环境坑**：隐藏窗口（show:false）把 smooth scroll 推迟 ~2s 才执行，停稳检测无法区分「未开始/已结束」会立刻判稳退出 → 断言前先 3s 最小等待再停稳检测（harness/App 同款）⑤ App dev 自检重写：图片页感知（向前扫描找文字章）+ 翻页断言（位置或 scrollTop 任一变化）+ PDF 特判（查 canvas 数）⑥ 主进程 dev 模式转发渲染进程 error/warning console。**结果：App 无头自检四格式全绿（EPUB/MOBI/AZW3/PDF）+ harness EPUB/MOBI/AZW3 全绿**；typecheck 绿 |
-| —（工具链） | 2026-09-06 | **kookit 单体 harness 自检强化**（详见 KOOKIT.md §9）：① 修 `electron.mjs --url` 解析 bug（只认 `--url=` 连写，空格传参丢 query → auto 不启动 → 此前记录的"超时"是调用假象，非 kookit 问题）② 测试页宿主改 `overflow-y: auto`（§5.10：scroll 模式翻页在宿主上滚动）③ **翻页位置时序结论：kookit 文字类渲染不监听宿主 scroll，`next()` smooth 滚动刚开始就 `record()` 算旧位置——消费方须滚动停稳后补一次 `record()`**（PDF 例外，自带 scroll 监听；App 侧滚动同步同适用）④ 自检断言强化：翻页前后章节索引/count/percentage/scrollTop 快照任一变化才 OK + 正文样本输出 ⑤ 新增调试机制：`--verbose`、`&probe=<js>`（页面内执行诊断，可访问 rendition）、主进程 page-state 探测 ⑥ PDF：harness 侧 pdfjs 注入链路打通（先 import pdfjs-dist 再 import vendor + serve.mjs 映射 `/lib/pdfjs/`），19 页容器创建无报错但 **canvas 未渲染**（`renderPdfPage→handleRenderPDFChapter→section.load()/render()` 链路待定位），自检断言需按 PDF 语义特判（innerText 恒 0，查 canvas 数 + 页位置）。**结果：EPUB/MOBI/AZW3 全绿（含翻页断言）**；另确认 MOBI《疯狂的投资》首章"只剩标题"是书本自身结构（每章标题独占一节），非 bug |
-| v0.1.2 | 2026-09-01 | **kookit 遗留修复 + PDF 支持 + 封装接口定型**：① 适配器 `renderTo` 补初始导航（无历史位置时 `goToChapterIndex(0)`，正文空根因修复）② CSP 放行 `blob:` + `worker-src` ③ 阅读容器 `overflow-y:auto` ④ **PDF 支持实装**：pdfjs-dist@4.8.69 注入（adapter 改动态加载 vendor，先 `ensurePdfjs` 再 import）+ `/lib/pdfjs/` 静态资源（cmaps/standard_fonts/官方 css/worker，pdf.js v4.8.69 tag 按 NETWORK.md git 配方拉取）；无头验证 PDF 渲染 OK（19 页/canvas/subHtml）⑤ 封装公开接口清单定型 `client/docs/RENDER_INTERFACE.md`（方法/事件/笔记链路/external-engine 插槽/格式矩阵）⑥ 记录 OCR 文本化多端一致性问题（KOOKIT.md §8.2）⑦ **已知问题**：App 集成侧 EPUB 正文仍空（harness 正常，怀疑 `#page-area` 定位不一致，探针待跑）；PDF 真机翻页待验 |
-| v0.1.1 | 2026-08-31 | **kookit 渲染集成（实装中）**：render 适配器从桩换真实实现——vendor 单文件 ESM（全依赖内联 `client/src/vendor/kookit.esm.js`，定制构建 `kookit/rollup.turead.config.mjs` 不受 kookit 版本控制）；容器注入 `readFile`；导入改主进程对话框（`dialog:pick-book` + `fs:read-file`）拿真实路径；阅读视图（打开→renderTo→翻页→进度）；dev 无头验证 `TUREAD_DEV_BOOK=<path>`（启动即导入打开 + 渲染自检 + `TUREAD-TEST-*` 标记自动退出）。**关键契约：kookit `getDocument()` 硬编码查 `#page-area`**（不认传入元素）→ reader-stage 必须带该 id，否则 `renderTo` 永不 resolve（已修）。**隔离测试已定位真因（见 `client/docs/KOOKIT.md` + `client/tools/kookit-harness/`）**：无 CSP 独立测试页 + 无头验证 → **EPUB/MOBI/AZW3 渲染 OK**（98/13/7 章，正文/滚动正常）；**正文空根因 = 适配器 `renderTo` 后只调 `record()`、缺一次导航调用**（kookit `renderTo` 只建 iframe 不渲染正文，须 `goToChapterIndex(0)`/`goToPosition`）；CSP 拦 `blob:` 为次因（影响 iframe 内图/CSS）；**PDF 超时 = mono 单文件未内联 `window.pdfjsLib`**（外部全局 + `/lib/pdfjs/` 静态资源，另依赖 fabric/PDFLib/ort 等）非 CSP。修复方向：适配器补初始导航 + CSP 放行 `blob:` 后重跑 4 格式 + 真机交互 |
-| v0.1.0 | 2026-08-31 | **骨架**：electron-vite + React + TS；`core/{domain,ports,usecases,adapters}` 落成真实 TS（CONTRACTS v0.2.1）；`ServiceContainer` 装配；最小可运行窗口（书架/服务器/房间/日志）。适配器：net=主进程 ws+REST（token 双闸、自动签 token、断线重连）+ IPC 桥，identity=md5-sample3-v1 指纹（spark-md5，头/中/尾三点采样），storage=主进程 JSON 文件（userData/library.json），render=kookit 桩。**契约 v0.2.1**：INetService 补 `request()`/`getMemberId()`，NetConfig 补 accessToken/memberToken，IRoomSession 补 createRoom/uploadBookCopy/listRooms（REST 缺口，只增不改）。技术栈定案：electron-vite + React（未定死 → 已定）；Electron 33.4.11（复用 TagHit 本地二进制，避开 GitHub 下载）。类型检查 + build + 冒烟全绿 |
+| v0.1.3 | 2026-09-07 | **定位标准立约**（CONTRACTS §2.1 + `domain/location.ts`：key/hint/display 三级角色 + normalize/same/compare/anchorStrength 原语；chapterDocIndex 收窄为 number）+ **渲染链路闭环**（EPUB"正文空"销案=测量假象；修宿主 CSS 压扁 iframe、PDF scroll iframe 不拉高两真 bug；App 无头自检 EPUB/MOBI/AZW3/PDF 全绿）+ **Tailwind 采纳定案** + 文档全面收紧 |
+| v0.1.2 | 2026-09-01 | kookit 遗留修复（初始导航/CSP blob:/overflow）+ PDF 支持实装（pdfjs 注入 + /lib/pdfjs/ 静态资源）+ 封装接口定型（RENDER_INTERFACE.md） |
+| v0.1.1 | 2026-08-31 | render 适配器实装（vendor 单文件 ESM + readFile 注入 + 阅读视图 + 无头验证）；harness 隔离测试定位"缺初始导航"根因 |
+| v0.1.0 | 2026-08-31 | 骨架：electron-vite + React + `core/{domain,ports,usecases,adapters}`（CONTRACTS v0.2.1）；net/identity/storage 适配器做实；最小可运行窗口 |
 
 ### server
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
-| v0.2.0 | 2026-08-31 | 房主删房（`DELETE /rooms/{id}` 开放给房主：资源级 vs admin 全局级；`rooms.owner_token` 判定）+ 测试组织（E2E 集成测试独立到 `server/test/e2e/` 黑盒包，白盒单测留源码旁）+ HTTP 服务模型文档（ARCHITECTURE §4.4） |
-| v0.1.0 | 2026-08-27 | 房间同步（REST + WS）+ 书籍标定（Work/Edition）+ 电子版分发；schema v2 |
-| v0.1.1 | 2026-08-27 | token 双闸认证（二级令牌 + 成员 token）+ users 档案 + 管理接口（admin） |
-| v0.1.2 | 2026-08-27 | 传输基本功（背压 / healthz / 优雅关停）+ 文件级整理；已推送 |
-| v0.1.3 | 2026-08-27 | Work 去 author/publisher；content-hash-v1 重定义为 edition 内容指纹（schema v3） |
-| v0.1.4 | 2026-08-27 | 空房间 TTL（12h）+ 房间发现（GET /rooms / ?edition=） |
-| v0.1.5 | 2026-08-29 | TOML 配置 + 热重载 + 上传限制 + 聊天室（rooms/messages 落库，schema v4）+ 转发规范定稿 + 离开广播补丁 + E2E 冒烟固化 + OPS 运维手册 |
-| v0.1.6 | 2026-08-29 | rooms.owner_token（房主身份 token 化）+ 成员 token 改**服务端按 IP 签发**（schema v5）；数字 id 不引入 |
+| v0.2.0 | 2026-08-31 | 房主删房 + 测试组织（E2E 独立 `server/test/e2e/` 黑盒）+ HTTP 服务模型文档 |
+| v0.1.0–v0.1.6 | 2026-08-27~29 | 房间同步 + Work/Edition 标定（schema v3）+ token 双闸 + 传输基本功（背压/healthz/优雅关停）+ 空房间 TTL + 房间发现 + TOML 配置/热重载 + 聊天室（schema v4）+ 转发规范定稿 + owner_token / 按 IP 签发成员 token（schema v5）+ OPS 手册 |
 
 ## 5. 环境 / 沙箱事实
 
-- 本地代理 `127.0.0.1:7897`（Clash Verge rev）；npm registry 直连；GitHub 直连被墙（走代理 + OpenSSL 后端）；curl.exe 不可用（仅 schannel）
-- go 命令在沙箱下报 telemetry 写失败（噪音，不影响执行）；`GOPROXY=https://goproxy.cn,direct`；`go build` 需把 `GOCACHE` 指到工作区
-- 测试路径：`go test ./...`（白盒单测留在源码旁 `internal/*`；E2E 集成测试独立在 `server/test/e2e/`，黑盒走公开 HTTP/WS）；真实部署冒烟用 `cmd/smoke`（待部署形态确定后补）
+- 本地代理 `127.0.0.1:7897`（Clash Verge rev）；npm registry 直连；GitHub 直连被墙（走代理 + OpenSSL）；curl.exe 不可用
+- go 沙箱下 telemetry 报错是噪音；`GOPROXY=https://goproxy.cn,direct`；`go build` 把 GOCACHE 指到工作区
+- 测试：`go test ./...`（白盒在源码旁）+ `server/test/e2e/`（黑盒走 HTTP/WS）
 - kookit 子模块的 `CLAUDE.md` 规则：**禁止在其仓库内 git commit / push**

@@ -13,7 +13,7 @@
 1. `docs/STATUS.md` —— 项目状态与决策记录（会话交接首选，先读这个）
 2. `TODO.md` —— **待办清单**（server / client / 跨端 所有未完成事项）
 3. `docs/ARCHITECTURE.md` —— 共同架构：书籍标定（Work/Edition）+ 仓库布局
-4. `client/docs/CONTRACTS.md` —— 客户端契约 v0.2（domain / usecases / ports / adapters 接口）
+4. `client/docs/CONTRACTS.md` —— 客户端契约 v0.2.2（领域类型 / **定位标准 §2.1** / usecases / ports / adapters 接口）
 5. `client/docs/ARCHITECTURE.md` —— client 架构（六边形选型 / 术语 / 平台与 UI / 插件）
 6. `client/docs/KOOKIT.md` —— **kookit 逆向文档**（渲染生命周期 / 硬编码契约 / 外部依赖 / 升级指南）
 7. `server/docs/ARCHITECTURE.md` —— server 架构（模块 / 通讯模型 token 双闸 / 数据模型）
@@ -31,10 +31,9 @@
 
 ## 当前状态（更新于 2026-09-07）
 
-- **server v0.2.0 已实现并测试全绿**：书籍标定（Work/Edition）+ 房间（TTL/发现/聊天/持久化）+ token 双闸（二级令牌 + 服务端按 IP 签发成员 token）+ 配置系统（TOML + 热重载）+ 上传限制 + 转发规范 + **房主删房权限（v0.2.0）** + E2E 集成测试（独立 `server/test/e2e/`）；待办见 `TODO.md`
-- **client v0.1.0 骨架已完成（2026-08-31）**：electron-vite + React + `core/{domain,usecases,ports,adapters}` 落成真实 TS（CONTRACTS v0.2.1）；net/identity 适配器做实、storage 为 JSON 文件、render 为 kookit 桩；最小可运行窗口；类型检查 + build + 冒烟全绿
-- **client v0.1.2 kookit 渲染集成（2026-09-01）**：render 适配器实装（vendor 单文件 ESM + 初始导航修复 + CSP `blob:` + PDF pdfjs 注入）；封装接口定型见 `client/docs/RENDER_INTERFACE.md`
-- **渲染链路闭环（2026-09-07）**：EPUB"正文空"已知问题**销案**（测量假象——第 0 章纯图片扉页，harness/App 行为逐位一致）；顺手修了两个真 bug：宿主 CSS 不得对 iframe 设 `height:100%`（压扁 kookit 拉高的 iframe → scroll 模式全坏）、PDF scroll 模式适配器补拉高外层 iframe（kookit 只对文字类拉）。**App 无头自检四格式全绿（EPUB/MOBI/AZW3/PDF）**；无头环境 smooth scroll 推迟 ~2s 的坑已记录（KOOKIT §9）
-- 契约 v0.2.1 定稿（补 REST 缺口，只增不改）；架构术语已定案
-- 下一步：UI 组件化（渲染链路已稳定）→ PDF 真人可见窗口交互抽查 → OCR 立项讨论
+- **server v0.2.0 已实现并测试全绿**：书籍标定（Work/Edition）+ 房间（TTL/发现/聊天/持久化）+ token 双闸 + 配置系统（TOML + 热重载）+ 上传限制 + 转发规范 + 房主删房 + E2E 集成测试；待办见 `TODO.md`
+- **client v0.1.3（2026-09-07）**：渲染链路闭环——**App 无头自检 EPUB/MOBI/AZW3/PDF 四格式全绿**；定位标准立约（`CONTRACTS.md` §2.1 + `core/domain/location.ts`：任何组件不得自行比较/解释位置字段）；历史"EPUB 正文空"已销案（测量假象）；宿主容器两硬规则已固化（overflow-y:auto + iframe 不得 height:100%，KOOKIT §5.8/§5.9）
+- **样式方案已定案**：Tailwind CSS，随 UI 组件化里程碑引入（借物表已登记）
+- 契约 v0.2.2（定位标准修订）；文档已全面收紧（只记当前事实，过程叙事归 git）
+- 下一步：**UI 组件化**（Tailwind 落地）→ vitest → 笔记实现；RoomSession 有一个 P1 bug（leaveRoom 误解绑，见 TODO）
 - 开发原则：v1 允许"丑但诚实"；**解释优先**；检查点——大改前写理由、不知代码放哪层就停下讨论（Rule of Three）

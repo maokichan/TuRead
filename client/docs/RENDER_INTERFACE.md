@@ -122,7 +122,7 @@ config.externalWorker = {
 
 ---
 
-## 7. 格式支持矩阵（2026-09-01 实测）
+## 7. 格式支持矩阵（2026-09-07 App 无头复测：EPUB/MOBI/AZW3/PDF 全过）
 
 | 格式 | 渲染 | 定位 | 笔记 | 说明 |
 |---|---|---|---|---|
@@ -137,14 +137,11 @@ config.externalWorker = {
 
 ---
 
-## 8. 已知问题（2026-09-07 更新）
+## 8. 遗留事项（2026-09-07）
 
-- **✅ 已销案：App 集成侧 EPUB"正文空"是测量假象（2026-09-07）**：第 0 章是纯图片扉页（innerText=0 属正常），
-  `pageAreaSame=yes` 排除定位问题，harness 与 App 行为逐位一致。详见 `KOOKIT.md` §8。
-  定位中另修复两个真 bug：① 宿主 CSS 不得设 iframe `height:100%`（会覆盖 kookit 拉高的 height 属性，
-  scroll 模式全坏）② PDF scroll 模式 kookit 不拉高外层 iframe，适配器 `renderTo` 已按
-  `doc.body.scrollHeight+300` 补齐。App 无头自检四格式全绿（EPUB/MOBI/AZW3/PDF）。
-- PDF 真人可见窗口下的交互（翻页/进度）抽查仍待做（无头自检已含翻页断言且通过）。
+- 历史问题"App 侧 EPUB 正文空"已销案（测量假象：纯图片扉页）；定位中修复的宿主 CSS /
+  PDF iframe 高度两坑已固化为本文件 §2、§9 与 `KOOKIT.md` §5.8/§5.9 的容器规则。
+- 待办：PDF 可见窗口交互抽查；harness 侧 PDF canvas 渲染定位（低优先级）——见 `TODO.md`。
 
 ---
 
