@@ -116,8 +116,16 @@ GeneralRender (GeneralRender.ts, ~1715 行，事件基类 EventEmitter)
     `doc.body.scrollHeight + 300`（layoutUtil.ts:99-103），翻页用 `this.element.scrollTo/scrollBy`
     （GeneralRender.next()）→ **宿主容器必须 `overflow-y: auto/scroll`**（否则正文裁切、无法滚动——
     我们的 harness 测试页 stage 是 `overflow:hidden`，故不可滑，属测试页简化非 kookit 缺陷）。
+    **且宿主 CSS 不得设 `.reader-stage iframe { height: 100% }`**：CSS 会覆盖 kookit 设置的
+    iframe `height` 属性（presentational hint 弱于任何作者样式）→ iframe 被压回一屏高，
+    宿主 scrollHeight == clientHeight → `next()` 的"到底判断"恒真退化为跳章、正文裁一屏
+    （2026-09-07 定位，App 与 harness 同病同修）。
     single/double 分页模式 iframe 固定视口高度、内容走 `doc.body.scrollLeft` 列滚动（宿主无需 overflow）。
     **readerMode / 触摸 / 滑动手势 = UI 集成层职责**，由 App 阅读视图决定，kookit 核心只负责解析+渲染进 iframe。
+11. **PDF scroll 模式 kookit 不拉高外层 iframe**：`handleIframeHeight` 只被文字类 `handleRenderChapter`
+    调用；PdfRender.renderTo 只创建固定 paddingTop 的页面容器（在 iframe 内部 body，懒渲染 canvas），
+    **没有任何代码设置外层 iframe 高度** → 宿主永远不可滚。TuRead 在适配器 `renderTo` 里按
+    `doc.body.scrollHeight + 300` 补齐（2026-09-07，`kookitRenderAdapter.ts`）。
 
 ## 6. 位置 / 进度语义
 
@@ -165,12 +173,20 @@ GeneralRender (GeneralRender.ts, ~1715 行，事件基类 EventEmitter)
 - App 阅读容器 `.reader-stage` **已改 `overflow-y: auto`（2026-09-01 落地）**：
   scroll 模式滚动在宿主元素（§5.10），`overflow: hidden` 会裁切正文无法滚动。
 - **PDF：已支持（2026-09-01 实装）**：pdfjs-dist@4.8.69 注入 + `/lib/pdfjs/` 静态资源，无头验证渲染 OK，见 §8.1。
-- **⚠️ 已知问题（2026-09-01，定位中）**：**App 集成侧 EPUB 正文仍空** —— harness（无 CSP 独立页）
-  同调用序渲染正常（1111 字），App 内 `renderTo → record() → goToChapterIndex(0)` 后 iframe 内
-  `bodyHtml=764`（布局壳）但正文空、无报错。已排除：初始导航顺序（record 前/后无关）、
-  StrictMode 双调用（改用模块级防重入 `devAutoOpened`）。当前怀疑 `getDocument()` 硬编码
-  `#page-area` 在 App 里定位的元素与渲染目标不一致（探针 `pageAreaSame` 对比已写好待跑）。
-  影响范围：EPUB 正文渲染链路在 App 内未闭环；PDF 渲染已 OK（§8.1）。
+- **✅ 已销案（2026-09-07）：App 集成侧 EPUB"正文空"是测量假象** —— 探针实锤：`pageAreaSame=yes`
+  （`#page-area` 定位无任何不一致）；iframe 内 `bodyHtml=764` 实为**纯图片扉页**（`<img src="blob:…">`，
+  CSP `img-src blob:` 放行正常），innerText=0 是因为该书（《高级运动营养学》）第 0 章只有一张图。
+  harness 与 App 在同一导航点的 percentage 逐位一致（0.0011012698966113741 → 翻页 0.0015295415230713529），
+  **两侧行为完全无差异**；harness 此前报"1111 字"是自检推进到文字章（版权页）后才量的。
+  教训：innerText 断言必须感知"纯图片章"，App dev 自检已加图片页感知 + 向前扫描（`App.tsx`）。
+  定位过程中另发现并修复两个真 bug：① 宿主 CSS `height:100%` 压扁 iframe（§5.10）② PDF scroll 模式
+  外层 iframe 无人拉高（§5.11、适配器已补）。App 无头自检四格式全绿（2026-09-07）。
+- **翻页后位置时序（重要，App 侧同样适用）**：kookit 文字类渲染**不监听宿主 scroll 事件**，
+  `next()` 是 smooth 滚动刚开始就 `record()` → 算出的是滚动前旧位置。消费方需等滚动停稳后
+  **补一次 `record()`** 才能拿到真实落点（PDF 例外：PdfRender 自带 scroll 监听）。
+  另：**无头隐藏窗口（show:false）会把 smooth scroll 推迟 ~2s 才执行**，且"停稳检测"
+  （轮询 scrollTop 连续 N 次不变）无法区分「滚动未开始」与「已结束」——会立刻判稳退出。
+  自检断言须**先给 3s 最小等待**让被推迟的滚动落地，再做停稳检测（harness/App 同款实现）。
 
 ## 8.1 PDF 支持方案（2026-09-01 定案，实施中）
 
@@ -240,6 +256,12 @@ kookit 仓库本身不携带 pdfjs 资产，由宿主注入。
   需按 PDF 语义特判（内容在 canvas 里，innerText 恒为 0，应查 canvas 数量 + 页位置）。
 - **宿主可滚动是硬要求（§5.10）**：测试页 `.reader-stage` 已改 `overflow-y: auto`（原 `overflow: hidden`
   会让 next() 的"到底判断"恒真 + scrollBy 无效）。属 harness 修复（2026-09-06），App 侧同要求。
+  **且测试页 iframe 不得设 `height: 100%`**（2026-09-07 修复：CSS 覆盖 kookit 的 height 属性 →
+  iframe 压回一屏、scroll 模式全坏；修复后 iframe 被拉到 2143px、宿主真滚动、翻页断言从"跳章"升级为"章内滚动"）。
+- **自检流程（2026-09-07 强化）**：① goToChapterIndex(0) 后若正文 <100 字，先推进到第一篇文字章节
+  （纯图片扉页属正常书本结构，翻页断言须在文字章上做）② next() 后先 `sleep(3000)`（隐藏窗口推迟
+  smooth scroll ~2s，停稳检测无法区分「未开始」与「已结束」）再 waitForScrollSettle（上限 12s）
+  + 补 `record()`，然后快照对比（章节索引/count/percentage/宿主 scrollTop 任一变化即过）。
 - **翻页后位置时序（重要，App 侧同样适用）**：kookit 文字类渲染**不监听宿主 scroll 事件**，
   `next()` 是 smooth 滚动刚开始就 `record()` → 算出的是滚动前旧位置。消费方需等滚动停稳后
   **补一次 `record()`** 才能拿到真实落点（PDF 例外：PdfRender 自带 scroll 监听）。

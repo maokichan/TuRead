@@ -109,7 +109,10 @@
         overflow-y: auto;
         min-height: 0;
       }
-      .reader-stage iframe { width: 100%; height: 100%; border: none; }
+      /* 不要设 iframe height:100% —— kookit 会把 iframe 的 height 属性拉到正文高度
+         （handleIframeHeight，scroll 模式 = doc.body.scrollHeight+300），
+         CSS height:100% 覆盖属性会导致正文裁成一屏、宿主永远无法滚动（2026-09-07 定位） */
+      .reader-stage iframe { width: 100%; border: none; }
       .log {
         background: var(--panel);
         border: 1px solid var(--border);
@@ -328,12 +331,14 @@
         return rendition
       }
 
-      // 等宿主元素滚动停稳（smooth scrollBy 动画结束；连续 3 次采样不变即视为稳定，上限 3s）
+      // 等宿主元素滚动停稳（smooth scrollBy 动画结束；连续 3 次采样不变即视为稳定，上限 12s）
+      // ⚠ 上限不能太小：无头模式窗口 show:false，Chromium 会把 smooth scroll 动画推迟 ~2s 才执行
+      //   （2026-09-07 实测：next() resolve 后 st 停在旧值约 1.8s 才跳到新值）
       const waitForScrollSettle = async (host) => {
         let prev = host.scrollTop
         let stable = 0
         const start = performance.now()
-        while (stable < 3 && performance.now() - start < 3000) {
+        while (stable < 3 && performance.now() - start < 12000) {
           await sleep(100)
           if (host.scrollTop === prev) stable++
           else { stable = 0; prev = host.scrollTop }
@@ -366,6 +371,19 @@
           const after = readIframeInfo()
           logLine('', `[step goToChapterIndex(0)] innerText=${after.text} html=${after.html} scroll=${after.scroll}`)
           console.log(`[TUREAD-TEST-STEP] goToChapterIndex(0) innerText=${after.text} scroll=${after.scroll}`)
+          // 首章可能是纯图片扉页（innerText=0 属正常，如《高级运动营养学》第 0 章）：
+          // 翻页断言须在文字章节上做，先推进到第一篇有正文的章节
+          if (after.text < 100) {
+            const total = rendition.getChapter().length
+            for (let i = 1; i < Math.min(5, total); i++) {
+              await rendition.goToChapterIndex(i)
+              await waitStable()
+              const ci = readIframeInfo()
+              logLine('', `[step scan to text chapter ${i}] innerText=${ci.text}`)
+              console.log(`[TUREAD-TEST-STEP] scan to text chapter ${i} innerText=${ci.text}`)
+              if (ci.text >= 100) break
+            }
+          }
         } catch (e) {
           console.log('[TUREAD-TEST-FAIL] goToChapterIndex(0) 失败：' + e.message)
           return
@@ -388,13 +406,17 @@
         let nextOk = false
         try {
           await rendition.next()
+          console.log(`[TUREAD-TEST-STEP] next() resolved st=${stage.scrollTop}/${stage.scrollHeight} ch=${stage.clientHeight}`)
           await waitStable()
           // kookit 文字类渲染不监听宿主 scroll，next() 的 smooth 滚动刚开始就 record 了；
-          // 等滚动停稳后补一次 record，位置才是真实落点（App 侧滚动同步同理）
+          // 等滚动停稳后补一次 record，位置才是真实落点（App 侧滚动同步同理）。
+          // ⚠ 无头隐藏窗口会把 smooth scroll 推迟 ~2s 才执行，而停稳检测无法区分
+          //   「滚动未开始」与「已结束」（会立刻判稳退出）→ 先给 3s 最小等待让滚动落地
+          await sleep(3000)
           await waitForScrollSettle(stage)
           await rendition.record()
           const snap2 = snap()
-          pos2 = `第${snap2.idx}章/${snap2.pct}%/count=${snap2.count}`
+          pos2 = `第${snap2.idx}章/${snap2.pct}%/count=${snap2.count}/st=${snap2.st}`
           moved = !same(snap1, snap2)
           nextOk = true
           // 对照诊断：翻页后正文过短时，扫描前 4 章各章正文量（判断解析/边界问题）

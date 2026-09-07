@@ -554,9 +554,11 @@ button.primary:hover:not(:disabled) {
   border-radius: 12px;
 }
 
+/* ⚠ 不要设 iframe height:100% —— kookit 会把 iframe 的 height 属性拉到正文高度
+   （handleIframeHeight，scroll 模式 = doc.body.scrollHeight+300），宿主元素据此滚动；
+   CSS height:100% 会覆盖该属性 → 正文裁成一屏、宿主永远无法滚动（2026-09-07 定位） */
 .reader-stage iframe {
   width: 100%;
-  height: 100%;
   border: none;
 }
 

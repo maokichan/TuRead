@@ -164,44 +164,101 @@ export default function App(): React.JSX.Element {
         const book = await importBookFromPath(devBook)
         await openReader(book)
         await wait(2500)
-        const stage = readerRef.current
-        const pageAreaById = document.getElementById('page-area')
-        const iframe = stage?.querySelector('iframe')
-        const doc = iframe?.contentDocument
-        const pageAreaSame = pageAreaById === stage
+        // 读取当前渲染状态（iframe 内 doc 的正文/图片/宿主滚动）
+        const readDocState = () => {
+          const stage = readerRef.current
+          const doc = stage?.querySelector('iframe')?.contentDocument
+          const iframeEl = stage?.querySelector('iframe')
+          return {
+            stage,
+            doc,
+            innerLen: doc?.body?.innerText?.length ?? -1,
+            htmlLen: doc?.body?.innerHTML?.length ?? -1,
+            imgCount: doc?.body?.querySelectorAll('img').length ?? 0,
+            scrollH: stage?.scrollHeight ?? -1,
+            iframeH: iframeEl?.getBoundingClientRect().height ?? -1,
+            docScrollH: doc?.body?.scrollHeight ?? -1
+          }
+        }
+        const locKey = (p: { chapterDocIndex: unknown; percentage: unknown; page: unknown }): string =>
+          `${p.chapterDocIndex}/${p.page}/${p.percentage}`
+        // 等宿主滚动停稳再取位置（next() 是 smooth 滚动 + record 算旧位置；
+        // 无头隐藏窗口下 Chromium 还会推迟 smooth scroll 动画 ~2s，固定短等待会取到旧值）
+        const waitScrollSettle = async (): Promise<void> => {
+          const stage = readerRef.current
+          if (!stage) return
+          let prev = stage.scrollTop
+          let stable = 0
+          const start = performance.now()
+          while (stable < 3 && performance.now() - start < 12000) {
+            await wait(150)
+            if (stage.scrollTop === prev) stable++
+            else {
+              stable = 0
+              prev = stage.scrollTop
+            }
+          }
+        }
         // PDF：渲染产物是嵌套 iframe（每页一个 pdf-iframe-N）+ 内部 canvas，顶层 iframe 无 innerText
         let innerLen = -1
-        let htmlLen = -1
         let subInfo = ''
+        let posChanged = false
         if (book.format === 'PDF') {
-          const subIframes = doc?.querySelectorAll('iframe[data-pdf-page], iframe[id^="pdf-iframe-"]') ?? []
-          const canvases = doc?.querySelectorAll('canvas') ?? []
-          const subCount = subIframes.length
+          const s = readDocState()
+          const subIframes = s.doc?.querySelectorAll('iframe[data-pdf-page], iframe[id^="pdf-iframe-"]') ?? []
           const firstSub = subIframes[0] as HTMLIFrameElement | undefined
-          const subDoc = firstSub?.contentDocument
-          innerLen = subDoc?.querySelectorAll('canvas').length ?? 0
-          subInfo = `子iframe=${subCount} canvas=${innerLen} subHtml=${subDoc?.body?.innerHTML?.length ?? -1}`
+          const canvasCount = firstSub?.contentDocument?.querySelectorAll('canvas').length ?? 0
+          innerLen = canvasCount
+          subInfo = `子iframe=${subIframes.length} canvas=${canvasCount} subHtml=${firstSub?.contentDocument?.body?.innerHTML?.length ?? -1}`
+          const p1 = container.render.getPosition()
+          const st1 = s.stage?.scrollTop ?? 0
+          await container.render.next()
+          // 最小等待：无头隐藏窗口会把 smooth scroll 推迟 ~2s 才执行，且停稳检测
+          // 区分不了「未开始」与「已结束」（见 tools/kookit-harness/index.html 同注）
+          await wait(3000)
+          await waitScrollSettle()
+          // PDF 每页高约 2.5 个视口，一次 next()（滚动 clientHeight-50）未必跨页，
+          // handleRecord 只在页号变化时更新 → 断言看位置或 scrollTop 任一变化
+          const st2 = s.stage?.scrollTop ?? 0
+          posChanged = locKey(p1) !== locKey(container.render.getPosition()) || st1 !== st2
         } else {
-          innerLen = doc?.body?.innerText?.length ?? -1
-          htmlLen = doc?.body?.innerHTML?.length ?? -1
-          subInfo = `bodyHtml=${htmlLen} docOk=${doc ? 'yes' : 'no'} iframes=${doc?.querySelectorAll('iframe').length ?? -1} pageAreaSame=${pageAreaSame ? 'yes' : 'no'} stageIframes=${stage?.querySelectorAll('iframe').length ?? -1}`
+          const s1 = readDocState()
+          innerLen = s1.innerLen
+          subInfo =
+            `bodyHtml=${s1.htmlLen} img=${s1.imgCount} docOk=${s1.doc ? 'yes' : 'no'} ` +
+            `pageAreaSame=${document.getElementById('page-area') === s1.stage ? 'yes' : 'no'} stageIframes=${s1.stage?.querySelectorAll('iframe').length ?? -1} iframeH=${s1.iframeH} docScrollH=${s1.docScrollH}`
+          // 图片页感知：首章常是纯图片扉页（innerText=0 属正常，2026-09-07 销案结论），
+          // 文字为空时向前翻最多 4 章找正文，同时覆盖"翻页位置必须变化"断言
+          const scans: string[] = []
+          let prev = container.render.getPosition()
+          for (let i = 0; i < 4 && innerLen <= 100; i++) {
+            await container.render.next()
+            await wait(3000)
+            await waitScrollSettle()
+            const loc = container.render.getPosition()
+            posChanged = posChanged || locKey(loc) !== locKey(prev)
+            prev = loc
+            const s = readDocState()
+            innerLen = Math.max(innerLen, s.innerLen)
+            scans.push(`翻${i + 1}:章${loc.chapterDocIndex}/文${s.innerLen}/图${s.imgCount}`)
+          }
+          if (scans.length > 0) subInfo += ` 扫描[${scans.join(' ')}]`
+          if (!posChanged && innerLen > 100) {
+            // 未扫描（首章即有正文）时单独验翻页
+            const p1 = container.render.getPosition()
+            await container.render.next()
+            await wait(3000)
+            await waitScrollSettle()
+            posChanged = locKey(p1) !== locKey(container.render.getPosition())
+          }
         }
-        const scrollH = stage?.scrollHeight ?? -1
+        const s2 = readDocState()
+        const ok = innerLen > 0 && s2.scrollH > 0 && posChanged
         const pos1 = container.render.getPosition()
         const ch = container.render.getChapter().length
-        let pos2: string
-        try {
-          await container.render.next()
-          await wait(800)
-          const p = container.render.getPosition()
-          pos2 = `第${p.page}页/${p.percentage}`
-        } catch (err) {
-          pos2 = `翻页失败(${(err as Error).message})`
-        }
-        const ok = innerLen > 0 && scrollH > 0
         const line =
           `[dev] ${ok ? '渲染OK' : '渲染可疑'} 格式=${book.format} 章节数=${ch} ` +
-          `正文长度=${innerLen} 可滚动=${scrollH} ${subInfo} 位置=第${pos1.page}页/${pos1.percentage} 翻页→${pos2}`
+          `正文长度=${innerLen} 可滚动=${s2.scrollH} iframeH=${s2.iframeH} docScrollH=${s2.docScrollH} ${subInfo} 位置=第${pos1.page}页/${pos1.percentage}`
         pushLog(line)
         console.log(ok ? '[TUREAD-TEST-OK]' + line : '[TUREAD-TEST-FAIL]' + line)
       } catch (err) {

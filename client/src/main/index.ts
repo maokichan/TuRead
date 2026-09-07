@@ -31,11 +31,14 @@ function createWindow(): void {
       console.error('[TUREAD-TEST-FAIL] 超时未完成')
       app.exit(2)
     }, 120000)
-    win.webContents.on('console-message', (_e, _level, message) => {
+    win.webContents.on('console-message', (_e, level, message) => {
       if (message.startsWith('[TUREAD-TEST-')) {
         console.log(message)
         clearTimeout(timeout)
         app.exit(message.startsWith('[TUREAD-TEST-OK') ? 0 : 1)
+      } else if (level >= 2 && !message.startsWith('[dev]')) {
+        // dev-only 诊断：转发渲染进程的 error/warning（CSP 拦截、JS 异常等）
+        console.log(`[renderer:${level === 3 ? 'error' : 'warn'}] ${message}`)
       }
     })
   }

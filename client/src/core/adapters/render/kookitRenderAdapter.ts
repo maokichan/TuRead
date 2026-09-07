@@ -96,6 +96,17 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     this.element = element
     element.innerHTML = ''
     await this.rendition.renderTo(element)
+    // PDF scroll 模式：kookit 的 handleIframeHeight（把 iframe 拉到正文高度）只被文字类渲染调用，
+    // PDF 的页面容器全在外层 iframe 里（每页一个固定 paddingTop 的 div，懒渲染 canvas），
+    // 无人拉高 iframe → 宿主（scroll 模式的滚动发生地，KOOKIT.md §5.10）永远不可滚。
+    // 这里按容器总高补齐（与 handleIframeHeight 的 +300 余量同款）。
+    if (this.record?.format === 'PDF') {
+      const iframe = element.querySelector('iframe')
+      const doc = iframe?.contentDocument
+      if (iframe && doc?.body) {
+        iframe.height = `${doc.body.scrollHeight + 300}px`
+      }
+    }
     // 首次定位：有历史位置就回到那里，否则渲染初始章节。
     // ⚠ kookit 契约（KOOKIT.md §2/§8）：renderTo 只建 iframe + 布局，【不渲染正文】，
     //   必须再补一次导航调用（goToChapterIndex(0) / goToPosition）才真正渲染章节；

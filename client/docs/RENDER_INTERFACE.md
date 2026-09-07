@@ -137,21 +137,22 @@ config.externalWorker = {
 
 ---
 
-## 8. 已知问题（2026-09-01）
+## 8. 已知问题（2026-09-07 更新）
 
-- **App 集成侧 EPUB 正文仍空（定位中）**：harness（无 CSP 独立页）同调用序渲染正常（1111 字），
-  App 内 `renderTo → record() → goToChapterIndex(0)` 后 iframe 内 `bodyHtml=764`（布局壳）但正文空、无报错。
-  已排除：初始导航顺序、StrictMode 双调用（改模块级防重入）。当前怀疑 `getDocument()` 硬编码
-  `#page-area` 在 App 里定位的元素与渲染目标不一致（探针 `pageAreaSame` 待跑）。
-  影响：EPUB 正文渲染链路在 App 内未闭环；PDF 已 OK（本文件 §7）。
-- PDF `next()` 无头验证翻页后位置仍第0页（异步 canvas 渲染时序，真机交互待验）。
+- **✅ 已销案：App 集成侧 EPUB"正文空"是测量假象（2026-09-07）**：第 0 章是纯图片扉页（innerText=0 属正常），
+  `pageAreaSame=yes` 排除定位问题，harness 与 App 行为逐位一致。详见 `KOOKIT.md` §8。
+  定位中另修复两个真 bug：① 宿主 CSS 不得设 iframe `height:100%`（会覆盖 kookit 拉高的 height 属性，
+  scroll 模式全坏）② PDF scroll 模式 kookit 不拉高外层 iframe，适配器 `renderTo` 已按
+  `doc.body.scrollHeight+300` 补齐。App 无头自检四格式全绿（EPUB/MOBI/AZW3/PDF）。
+- PDF 真人可见窗口下的交互（翻页/进度）抽查仍待做（无头自检已含翻页断言且通过）。
 
 ---
 
 ## 9. 消费指引（UI 重设计时）
 
 1. UI 只 import：`ServiceContainer.render`（或直接 `KookitRenderAdapter`）+ 领域类型。
-2. 打开：`render.open(book)` → `<div id="page-area">`（**必须此 id** + `overflow-y:auto`）→ `render.renderTo(el)`。
+2. 打开：`render.open(book)` → `<div id="page-area">`（**必须此 id** + `overflow-y:auto`；
+   **不要**对其 iframe 设 `height:100%`，见 `KOOKIT.md` §5.10）→ `render.renderTo(el)`。
 3. 进度/同步：订阅 `location-changed`（节流后广播）；进度条用 `getProgress()`。
 4. 笔记：监听 iframe 内选区 → 生成 range → `createNote` → 落库；重开 `renderHighlighters`。
 5. CSP（index.html）需含：`blob:`（connect/img/style/frame/font）+ `worker-src 'self' blob:`（PDF worker）。
