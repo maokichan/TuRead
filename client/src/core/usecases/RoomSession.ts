@@ -11,7 +11,9 @@ import type { INetService } from '@core/ports/net'
 import type { IRenderService } from '@core/ports/render'
 import type { IBookIdentityService } from '@core/ports/identity'
 import { TypedEmitter } from '@core/ports/emitter'
+import { normalizeLocation, sameLocation } from '@core/domain/location'
 import type {
+  BookFormat,
   BookLocation,
   BookRecord,
   ChatMessage,
@@ -79,7 +81,14 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
   private state: RoomState | null = null
   private myId: string | null = null
 
-  private unsubs: Array<() => void> = []
+  /** 已加入房间绑定的书籍格式（presence diff 判定位置变化需按格式选 key） */
+  private joinedFormat: BookFormat | null = null
+  /** 各成员的最近一次位置基线（server 用 presence 全量快照推位置 → 本侧 diff 才 emit location-updated） */
+  private memberLocs = new Map<string, BookLocation>()
+
+  /** 生命周期订阅：构造期（net）常驻，随实例销毁；joinRoom 期（render）随 leaveRoom 解绑 */
+  private netUnsubs: Array<() => void> = []
+  private joinUnsubs: Array<() => void> = []
   private pendingJoin: ((ack: JoinAck) => void) | null = null
   private lastSentAt = 0
   private pendingEmit: BookLocation | null = null
@@ -90,7 +99,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     this.net = net
     this.render = render
     this.identity = identity
-    this.unsubs.push(
+    this.netUnsubs.push(
       net.on('message', (env) => this.handleEnvelope(env)),
       net.on('connection-changed', (s) => this.emit('connection-changed', s))
     )
@@ -99,6 +108,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
   async joinRoom(roomId: string, book: BookRecord): Promise<JoinResult> {
     if (this.state) await this.leaveRoom()
     this.myId = await this.net.getMemberId()
+    this.joinedFormat = book.format
     const ackPromise = new Promise<JoinAck>((resolve) => {
       this.pendingJoin = resolve
     })
@@ -108,6 +118,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
 
     if (!ack.ok) {
       this.state = null
+      this.joinedFormat = null
       if (ack.reason === 'book-mismatch' && ack.edition) {
         const room: BookRecord['fingerprint'] = {
           algorithm: 'md5-sample3-v1',
@@ -126,19 +137,24 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
       members,
       currentLocation: book.lastLocation ?? null
     }
+    // join-ack 已带全量成员位置 → 作为 presence diff 的基线
+    this.seedMemberLocs(members)
 
-    this.unsubs.push(this.render.on('location-changed', (loc) => this.onRenderLocation(loc)))
+    this.joinUnsubs.push(this.render.on('location-changed', (loc) => this.onRenderLocation(loc)))
     this.emit('presence-updated', members)
     return { ok: true, room: this.state }
   }
 
   async leaveRoom(): Promise<void> {
-    this.unsubs.forEach((u) => u())
-    this.unsubs = []
+    // 只解绑 joinRoom 期订阅（render location-changed）；net 订阅属构造期生命周期，随实例存活
+    this.joinUnsubs.forEach((u) => u())
+    this.joinUnsubs = []
     if (this.emitTimer) clearTimeout(this.emitTimer)
     this.emitTimer = null
     this.state = null
     this.myId = null
+    this.joinedFormat = null
+    this.memberLocs.clear()
   }
 
   async emitLocation(location?: BookLocation): Promise<void> {
@@ -203,7 +219,41 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
   }
 
   private decorateMe(m: RoomMember): RoomMember {
-    return this.myId ? { ...m, isMe: m.id === this.myId } : m
+    // 网络载荷（join-ack / presence）进入域层先归一位置；无位置成员保持缺省
+    const normalized = m.location ? { ...m, location: normalizeLocation(m.location) } : m
+    return this.myId ? { ...normalized, isMe: normalized.id === this.myId } : normalized
+  }
+
+  /** join-ack members 作为 presence diff 基线：记录各成员归一化位置 */
+  private seedMemberLocs(members: RoomMember[]): void {
+    this.memberLocs.clear()
+    for (const m of members) {
+      if (m.location) this.memberLocs.set(m.id, normalizeLocation(m.location))
+    }
+  }
+
+  /**
+   * 远端位置派生（v0.2.4 修复"location-updated 死端口"）：
+   * server 不单独下发 room.location 信封，而是广播 room.presence 全量快照（含每人位置）。
+   * 本侧以 join-ack 为基线、逐次 presence 快照 diff：某成员位置变化才 emit location-updated。
+   * 位置一律先归一、比较走 sameLocation（定位系统纪律：不自行解释字段）。
+   */
+  private deriveRemoteLocations(members: RoomMember[]): void {
+    if (!this.joinedFormat) return
+    for (const m of members) {
+      if (m.isMe || !m.location) continue
+      const loc = normalizeLocation(m.location)
+      const prev = this.memberLocs.get(m.id)
+      if (!prev || !sameLocation(prev, loc, this.joinedFormat)) {
+        this.memberLocs.set(m.id, loc)
+        this.emit('location-updated', loc, m)
+      }
+    }
+    // presence 是全量快照：不在其中的旧成员已离开 → 清出基线
+    const live = new Set(members.map((m) => m.id))
+    for (const id of this.memberLocs.keys()) {
+      if (!live.has(id)) this.memberLocs.delete(id)
+    }
   }
 
   private handleEnvelope(env: MessageEnvelope): void {
@@ -222,6 +272,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
         )
         if (this.state) this.state = { ...this.state, members }
         this.emit('presence-updated', members)
+        this.deriveRemoteLocations(members)
         break
       }
       case 'room.message': {

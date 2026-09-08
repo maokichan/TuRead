@@ -367,7 +367,8 @@ type JoinResult =
 **内部编排（举例，说明"用例 = 编排多个能力服务"）：**
 1. `joinRoom()` → 用 `IBookIdentityService.computeFingerprint` 算指纹 → 经 `INetService.send` 发 `room.join` 信封 → 服务端标定。
 2. 标定失败 → 发 `book-mismatch` 事件；成功 → 缓存 `RoomState`，并把 `IRenderService` 的 `location-changed` 监听接上（节流 → `INetService.send` 广播 `room.location`）。
-3. 收到他人位置信封 → 解释为 `location-updated` 事件；`IRoomSession` 不自己翻页，翻页是 UI 的事（可将来加"跟随模式"开关）。
+3. **远端位置派生（v0.2.4）**：server 不单独下发 `room.location` 信封，而是广播 **`room.presence` 全量成员快照**（含每人位置，见 `server/docs/API.md` 转发规则）→ `RoomSession` 以 join-ack members 为基线、逐次 presence diff，**成员位置变化才 `emit location-updated`**（位置先归一、比较走 `sameLocation`）；`IRoomSession` 不自己翻页，翻页是 UI 的事（可将来加"跟随模式"开关）。
+4. **订阅生命周期（v0.2.4）**：`net` 订阅属构造期随实例存活；`joinRoom` 期只挂 `render.location-changed`（`joinUnsubs`），`leaveRoom` 只解绑 join 期订阅 → 离开后可重新 join（修 v0.1.3 遗留 P1 误解绑）。
 
 ### 5.2 IBookService —— 书架 + 导入（应用服务）
 
@@ -418,6 +419,7 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.2.4 | 2026-09-08 | **远端位置派生修约**：`location-updated` 事件由 `room.presence` 全量快照 diff 派生（此前声明但从不触发 = 死端口）；网络载荷位置进域层先归一、比较走 `sameLocation`；订阅生命周期分构造期(net)/join 期(render)，`leaveRoom` 只解绑 join 期 → 修 leaveRoom 误解绑 P1（v0.1.3 遗留） |
 | v0.2.3 | 2026-09-08 | **目录跳转（本地阅读 MVP）**：领域 `Chapter` 增加 `chapterDocIndex`（目录项起始渲染节号，= BookLocation.chapterDocIndex 同标尺，PDF=页码）；`IRenderService` 增加 `goToChapter(chapterDocIndex)`（目录跳转原语） |
 | v0.2.2 | 2026-09-07 | **定位系统立约（§2.1）**：`BookLocation` 字段三级角色（key/hint/display）+ 标准原语收拢进 `core/domain/location.ts`；`chapterDocIndex` 收窄为 `number`（kookit string 形态止步适配层，遗留数据由 `normalizeLocation` 边界容错）；修正 `count`/`page` 错误注释。配套领域新增 `location.ts`（纯函数，零依赖） |
 | v0.2.1 | 2026-08-31 | 契约先行补 REST 传输缺口（client v1 骨架落地时）：`INetService` 增加 `request()`（REST，自带 token 双闸头）与 `getMemberId()`；`NetConfig` 增加 `accessToken` / `memberToken`（token 双闸，见 `server/docs/API.md` 认证），`serverUrl` 统一为 http(s) 基址；`IRoomSession` 增加 `createRoom` / `uploadBookCopy` / `listRooms`（对应 REST：POST /rooms、POST /books/{id}/file、GET /rooms）；领域层增加 `RoomInfo`（GET /rooms 列表项，wire 形状见 `server/docs/API.md`）。变更方向：只增不改，端口仍"只搬运不解语义" |
