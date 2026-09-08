@@ -137,6 +137,11 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     await this.rendition?.goToPercentage(percentage)
   }
 
+  /** 目录跳转：透传 kookit goToChapterDocIndex（按渲染节号直达章节起点；PDF=页码） */
+  async goToChapter(chapterDocIndex: number): Promise<void> {
+    await this.rendition?.goToChapterDocIndex(chapterDocIndex)
+  }
+
   async goToPosition(location: BookLocation): Promise<void> {
     await this.rendition?.goToPosition(JSON.stringify(location))
   }
@@ -156,9 +161,23 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
 
   getChapter(): Chapter[] {
     if (!this.rendition) return []
-    return this.rendition
-      .getChapter()
-      .map((c) => ({ label: c.label, href: c.href, subitems: c.subitems }))
+    const map = (list: Array<{ label: string; href: string; index?: number; subitems?: unknown[] }>): Chapter[] =>
+      list.map((c) => {
+        const item = c as {
+          label: string
+          href: string
+          index?: number
+          subitems?: Array<{ label: string; href: string; index?: number; subitems?: unknown[] }>
+        }
+        return {
+          label: item.label,
+          href: item.href,
+          // 目录项起始渲染节号透传（kookit Chapter.index = chapterDocIndex；PDF 下为页码）
+          chapterDocIndex: typeof item.index === 'number' ? item.index : undefined,
+          subitems: item.subitems ? map(item.subitems) : undefined
+        }
+      })
+    return map(this.rendition.getChapter())
   }
 
   async search(keyword: string): Promise<unknown> {

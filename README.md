@@ -4,13 +4,13 @@
 
 - **渲染**：基于 [kookit](https://github.com/koodo-reader/kookit)（Koodo Reader 的核心渲染引擎，AGPL-3.0，git submodule）
 - **服务端**：Go 同步服务器（房间 / 书籍标定 / 电子版分发 / 位置广播 / 聊天），**v0.2.0 已实现**
-- **客户端**：Electron 桌面应用，**尚未开发**（契约与架构已定稿）
+- **客户端**：Electron 桌面应用，**v0.1.4（本地阅读 MVP 进行中）**——渲染四格式全绿 + 书架增删 + 目录跳转（契约与架构见 client/docs/）
 
 ## 仓库结构
 
 ```
 TuRead/
-├── client/    # Electron 客户端（未开发；契约与架构见 client/docs/）
+├── client/    # Electron 客户端（v0.1.4 本地阅读 MVP 进行中；契约与架构见 client/docs/）
 ├── server/    # Go 同步服务器（v0.2.0；独立 Go module，文档见 server/docs/）
 ├── kookit/    # 渲染引擎（唯一复用的上游代码，git submodule）
 ├── docs/      # 共同文档（书籍标定 / 仓库布局）

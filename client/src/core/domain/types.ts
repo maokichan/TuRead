@@ -95,10 +95,12 @@ export interface RenderOptions {
   ocrEngine?: 'tesseract' | 'paddle' | 'official-ai-ocr' | 'external-engine'
 }
 
-/** 目录（TOC） */
+/** 目录（TOC）。chapterDocIndex 缺省 = 该目录项无可直达渲染节（如仅作分组标题） */
 export interface Chapter {
   label: string
   href: string
+  /** 目录项起始渲染节号（= BookLocation.chapterDocIndex 同标尺；PDF 下为页码）；供 goToChapter 跳转 */
+  chapterDocIndex?: number
   subitems?: Chapter[]
 }
 

@@ -28,12 +28,16 @@
 构造 → open(record, options?) → renderTo(element) → [next/prev/goTo*] × n → close()
 ```
 
+- **宿主容器**（术语锚点 · 全项目唯一叫法）：阅读视图中承载 kookit 渲染 iframe 的滚动容器，
+  本项目实现 = 带 `id="page-area"` 的元素（`#page-area` / CSS 类 `.reader-stage`）。
+  宿主容器规则（自身 `overflow-y:auto`、其内 iframe 不得 `height:100%`）见 `KOOKIT.md` 坑 §5.8；
+  「宿主页面」另指承载 kookit 的应用页面（CSP / 全局注入，见 KOOKIT 坑 §5.3/§5.5）。
 - `open`：读文件 → `getRendition` → 挂事件。**可重复调用**（内部先 `close`）。
-- `renderTo(element)`：渲染到容器。**必须带 `id="page-area"`**（kookit 硬编码契约，KOOKIT.md §5.1）。
+- `renderTo(element)`：渲染到宿主容器。**宿主容器必须带 `id="page-area"`**（kookit 硬编码契约，KOOKIT.md §5.1）。
   - 首次定位：无 `lastLocation` → `goToChapterIndex(0)`（渲染初始章节，**必须的导航调用**，否则正文空）；
     有历史位置 → `goToPosition(JSON.stringify(lastLocation))`。
   - 事件序列：`rendered`（内容加载完成）→ 期间多次 `location-changed`。
-- `close`：`removeContent()` + 清空容器。之后可重新 `open`。
+- `close`：`removeContent()` + 清空宿主容器。之后可重新 `open`。
 
 ---
 
@@ -43,14 +47,15 @@
 |---|---|---|---|
 | `open` | `(record: BookRecord, options?: RenderOptions) => Promise<void>` | 读文件 + 构建 rendition | PDF 时内部已注入 pdfjs（动态加载，无需调用方关心） |
 | `close` | `() => Promise<void>` | 释放渲染内容 | 幂等 |
-| `renderTo` | `(element: HTMLElement) => Promise<void>` | 渲染 + 初始定位 | 容器须 `id="page-area"`；须在 `open` 后 |
-| `next` / `prev` | `() => Promise<void>` | 翻页/滚动前进后退 | scroll 模式滚动宿主元素（`#page-area` 须 `overflow-y:auto`） |
+| `renderTo` | `(element: HTMLElement) => Promise<void>` | 渲染 + 初始定位 | 宿主容器须 `id="page-area"`；须在 `open` 后 |
+| `next` / `prev` | `() => Promise<void>` | 翻页/滚动前进后退 | scroll 模式滚动宿主容器（`#page-area` 须 `overflow-y:auto`） |
 | `goToPage` | `(page: number) => Promise<void>` | 跳到指定页 | 分页模式；scroll 模式语义弱 |
 | `goToPercentage` | `(percentage: number) => Promise<void>` | 跳全局进度 0~1 | 跨格式通用 |
+| `goToChapter` | `(chapterDocIndex: number) => Promise<void>` | 目录跳转（章节起点；PDF=页码） | v0.2.3；参数取 `getChapter().chapterDocIndex`；无目录/越界 no-op |
 | `goToPosition` | `(location: BookLocation) => Promise<void>` | 回跳位置（同步用） | 序列化为 kookit `bookLocationStr` |
 | `getPosition` | `() => BookLocation` | 当前定位 | 同步；**主定位源**（同步/持久化用它） |
 | `getProgress` | `() => { totalPage; currentPage }` | 页码进度 | PDF：页码/总页数；EPUB scroll：滚动估算 |
-| `getChapter` | `() => Chapter[]` | 目录（TOC） | 含 `label/href/subitems` |
+| `getChapter` | `() => Chapter[]` | 目录（TOC） | v0.2.3：含 `label/href/chapterDocIndex/subitems`（chapterDocIndex 为目录项起始渲染节号） |
 | `search` | `(keyword: string) => Promise<unknown>` | 引擎内搜索 | 返回形状待定（CONTRACTS §7） |
 | `createNote` | `(note: Note) => Promise<void>` | 创建/回显一条笔记 | `note.range` 由调用方提供（引擎选区产物，见 §5） |
 | `removeNote` | `(key: string) => Promise<void>` | 删除笔记 | 按当前 chapterDocIndex 定位 |
@@ -139,8 +144,8 @@ config.externalWorker = {
 
 ## 8. 遗留事项（2026-09-07）
 
-- 历史问题"App 侧 EPUB 正文空"已销案（测量假象：纯图片扉页）；定位中修复的宿主 CSS /
-  PDF iframe 高度两坑已固化为本文件 §2、§9 与 `KOOKIT.md` §5.8/§5.9 的容器规则。
+- 历史问题"App 侧 EPUB 正文空"已销案（测量假象：纯图片扉页）；定位中修复的宿主容器 CSS /
+  PDF iframe 高度两坑已固化为本文件 §2、§9 与 `KOOKIT.md` §5.8/§5.9 的宿主容器规则。
 - 待办：PDF 可见窗口交互抽查；harness 侧 PDF canvas 渲染定位（低优先级）——见 `TODO.md`。
 
 ---
@@ -148,8 +153,8 @@ config.externalWorker = {
 ## 9. 消费指引（UI 重设计时）
 
 1. UI 只 import：`ServiceContainer.render`（或直接 `KookitRenderAdapter`）+ 领域类型。
-2. 打开：`render.open(book)` → `<div id="page-area">`（**必须此 id** + `overflow-y:auto`；
-   **不要**对其 iframe 设 `height:100%`，见 `KOOKIT.md` §5.10）→ `render.renderTo(el)`。
+2. 打开：`render.open(book)` → 宿主容器 `<div id="page-area">`（**必须此 id**；宿主容器自身 `overflow-y:auto`，
+   **不要**对其内 iframe 设 `height:100%`，见 `KOOKIT.md` §5.8）→ `render.renderTo(el)`。
 3. 进度/同步：订阅 `location-changed`（节流后广播）；进度条用 `getProgress()`。
 4. 笔记：监听 iframe 内选区 → 生成 range → `createNote` → 落库；重开 `renderHighlighters`。
 5. CSP（index.html）需含：`blob:`（connect/img/style/frame/font）+ `worker-src 'self' blob:`（PDF worker）。

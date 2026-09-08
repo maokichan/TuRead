@@ -6,14 +6,14 @@
 
 多人房间共读阅读器：多个用户进同一房间共同阅读同一本书。
 渲染/解析复用 kookit（AGPL-3.0，git submodule）；同步服务器用 Go。
-**server v0.2.0 已实现；client v0.1.2 渲染链路闭环（App 无头自检 EPUB/MOBI/AZW3/PDF 全绿，2026-09-07，见下）。**
+**server v0.2.0 已实现；client v0.1.4 本地阅读 MVP 进行中（渲染链路四格式全绿 + 书架增删 + 目录跳转，2026-09-08，见下）。**
 
 ## 关键文档（按阅读顺序）
 
 1. `docs/STATUS.md` —— 项目状态与决策记录（会话交接首选，先读这个）
 2. `TODO.md` —— **待办清单**（server / client / 跨端 所有未完成事项）
 3. `docs/ARCHITECTURE.md` —— 共同架构：书籍标定（Work/Edition）+ 仓库布局
-4. `client/docs/CONTRACTS.md` —— 客户端契约 v0.2.2（领域类型 / **定位标准 §2.1** / usecases / ports / adapters 接口）
+4. `client/docs/CONTRACTS.md` —— 客户端契约 v0.2.3（领域类型 / **定位系统 §2.1** / usecases / ports / adapters 接口）
 5. `client/docs/ARCHITECTURE.md` —— client 架构（六边形选型 / 术语 / 平台与 UI / 插件）
 6. `client/docs/KOOKIT.md` —— **kookit 逆向文档**（渲染生命周期 / 硬编码契约 / 外部依赖 / 升级指南）
 7. `server/docs/ARCHITECTURE.md` —— server 架构（模块 / 通讯模型 token 双闸 / 数据模型）
@@ -29,11 +29,11 @@
 - UI 不直接 import kookit / better-sqlite3 / WebSocket 实现（只走 ServiceContainer）
 - 引入新依赖先核许可证再登记进借物表
 
-## 当前状态（更新于 2026-09-07）
+## 当前状态（更新于 2026-09-08）
 
 - **server v0.2.0 已实现并测试全绿**：书籍标定（Work/Edition）+ 房间（TTL/发现/聊天/持久化）+ token 双闸 + 配置系统（TOML + 热重载）+ 上传限制 + 转发规范 + 房主删房 + E2E 集成测试；待办见 `TODO.md`
-- **client v0.1.3（2026-09-07）**：渲染链路闭环——**App 无头自检 EPUB/MOBI/AZW3/PDF 四格式全绿**；定位标准立约（`CONTRACTS.md` §2.1 + `core/domain/location.ts`：任何组件不得自行比较/解释位置字段）；历史"EPUB 正文空"已销案（测量假象）；宿主容器两硬规则已固化（overflow-y:auto + iframe 不得 height:100%，KOOKIT §5.8/§5.9）
+- **client v0.1.4（2026-09-08）**：本地阅读 MVP 第一批——书架增删（导入指纹去重 + 删除 UI）+ **目录跳转**（Chapter.chapterDocIndex / goToChapter，CONTRACTS v0.2.3）+ lastLocation 落库/恢复接线；渲染链路闭环保持四格式全绿（2026-09-07）；术语统一定稿（定位系统 / 宿主容器）
 - **样式方案已定案**：Tailwind CSS，随 UI 组件化里程碑引入（借物表已登记）
-- 契约 v0.2.2（定位标准修订）；文档已全面收紧（只记当前事实，过程叙事归 git）
-- 下一步：**UI 组件化**（Tailwind 落地）→ vitest → 笔记实现；RoomSession 有一个 P1 bug（leaveRoom 误解绑，见 TODO）
+- **插件态度**：v1 不做插件运行时，**ports 即插件边界**（官方插件 = 注册进 ServiceContainer 的适配器）；第三方插件演进路径见 `client/docs/ARCHITECTURE.md` §4
+- 下一步：**UI 组件化**（Tailwind 落地）→ vitest → 笔记实现；RoomSession 有一个 P1 bug（leaveRoom 误解绑，见 TODO）；tag 约定 `client-v0.1.x` / `server-v0.2.x`
 - 开发原则：v1 允许"丑但诚实"；**解释优先**；检查点——大改前写理由、不知代码放哪层就停下讨论（Rule of Three）

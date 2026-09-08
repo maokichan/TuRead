@@ -10,18 +10,16 @@
   joinRoom 永久挂起。修法：net 订阅解绑单独保存（`usecases/RoomSession.ts:135`）
 - [ ] **(P2) join 握手无超时**：`pendingJoin` 只被 room.join-ack resolve，断线/丢包时挂死；
   加 10s 超时走 `server-error`（`usecases/RoomSession.ts:101`）
-- [ ] **(P2) 导入按指纹去重**：`importBook` 直接 uuid，同文件重复导入产生重复记录；
-  导入前按 fingerprint.hash 查库复用（`usecases/BookService.ts:40`）
 - [ ] **(P3) 协议形状收拢**：信封 type 字符串与 payload 形状散落在 RoomSession 的
   switch-case 与 REST body 里 → 抽 `core/domain/protocol.ts`（常量 + 归一化），
-  防止"各处自行解释"的腐化（与定位标准同类问题）
+  防止"各处自行解释"的腐化（与定位系统同类问题）
 - [ ] **(P3) JoinResult 类型重复**：domain 与 RoomSession 各一份、reason 枚举不一致 → 收敛 domain
 - [ ] **(P3) emitLocation 绕过节流**：手动路径直接 send，与 onRenderLocation 的 300ms 节流不一致 → 统一走 throttleSend
 - [ ] **UI 组件化（下一里程碑；样式方案 2026-09-07 定案 Tailwind）**：拆分 `App.tsx` 为组件
   （书架/连接/房间/聊天/阅读器/日志）+ 样式迁移 Tailwind（`@tailwindcss/vite`，v4.x；
   决策见 STATUS 决策表 / 借物表）
 - [ ] **vitest 引入**：客户端零测试设施；`domain/location.ts` 这类语义模块需要单元断言兜底（组件化前做）
-- [ ] **笔记/划线实现**（契约已立：`Note` + `IRenderService` 三原语 + 定位标准，链路见
+- [ ] **笔记/划线实现**（契约已立：`Note` + `IRenderService` 三原语 + 定位系统，链路见
   `client/docs/RENDER_INTERFACE.md` §5）：① `ILibraryStore` 笔记存取（JSON 起步）② UI 选段 →
   createNote / renderHighlighters ③ 同步（`room.note` 信封）——v1 后置
 - [ ] **PDF 可见窗口交互抽查**：无头自检已含翻页断言（2026-09-07 全绿），缺真人窗口下的翻页/进度抽查

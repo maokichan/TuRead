@@ -19,6 +19,8 @@ export interface IRenderService extends EventEmitter<RenderServiceEvents> {
   prev(): Promise<void>
   goToPage(page: number): Promise<void>
   goToPercentage(percentage: number): Promise<void>
+  /** 目录跳转：跳转到 chapterDocIndex 对应章节起点（PDF=页码；无目录/越界 no-op）。参数取 getChapter().chapterDocIndex */
+  goToChapter(chapterDocIndex: number): Promise<void>
   goToPosition(location: BookLocation): Promise<void>
   getPosition(): BookLocation
   getProgress(): { totalPage: number; currentPage: number }

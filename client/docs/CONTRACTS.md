@@ -33,7 +33,7 @@ UI（React 外壳）
 ```ts
 /**
  * 阅读位置 —— 房间同步的最小载荷，与 kookit getPosition() 对齐。
- * ⚠ 字段语义与比较规则以 §2.1 定位标准为权威：任何组件不得自行比较/解释字段，
+ * ⚠ 字段语义与比较规则以 §2.1 定位系统为权威：任何组件不得自行比较/解释字段，
  *   一律走 core/domain/location.ts 原语（normalizeLocation / locationKey / sameLocation /
  *   compareLocation / anchorStrength / describeLocation / isZeroLocation）。
  */
@@ -99,10 +99,12 @@ interface RenderOptions {
   ocrEngine?: 'tesseract' | 'paddle' | 'official-ai-ocr' | 'external-engine';
 }
 
-/** 目录（TOC） */
+/** 目录（TOC）。chapterDocIndex 缺省 = 目录项无可直达渲染节（仅分组标题） */
 interface Chapter {
   label: string;
   href: string;
+  /** 目录项起始渲染节号（= BookLocation.chapterDocIndex 同标尺；PDF 下为页码）；goToChapter 的跳转参数 */
+  chapterDocIndex?: number;
   subitems?: Chapter[];
 }
 
@@ -141,7 +143,11 @@ interface RoomInfo {
 }
 ```
 
-### 2.1 定位标准（BookLocation 语义权威，2026-09-07 立）
+### 2.1 定位系统（BookLocation 语义权威，2026-09-07 立）
+
+> **术语**：全项目统一称「**定位系统**」——指让「阅读位置」具有可解释、可比较语义的整套机制，
+> 用途：笔记/划线对内容的跟随、同步时他人绘制/位置落到同一处、进度与恢复、跨端回跳。
+> 语义权威 = 本节；唯一实现 = `core/domain/location.ts`（纯函数）。
 
 **为什么**：位置不只笔记需要 —— 房间同步回跳、进度条、`lastLocation` 恢复、将来的 TTS /
 跳转引用 / 测试断言都要比较、归一、排序位置。此前 `count`/`page` 的注释语义是错的
@@ -170,7 +176,7 @@ interface RoomInfo {
 | hint（兜底） | `text`（可见块前 200 字）、`chapterHref`、`chapterTitle` | 主键因版本/结构差异失效时的重定位线索（见 KOOKIT §8.2 多端一致性） |
 | display（展示） | `percentage`、`chapterTitle` | 仅 UI 展示与粗粒度同步，**不得**作精确锚定 |
 
-**已知时序约束**（消费方必须遵守，实测记录见 KOOKIT §9）：kookit 文字类渲染不监听宿主
+**已知时序约束**（消费方必须遵守，实测记录见 KOOKIT §9）：kookit 文字类渲染不监听宿主容器
 scroll，`next()` 的 smooth 滚动刚开始就 `record()` —— **滚动/翻页停稳后须补一次
 `record()` 再取位置**，否则拿到的是旧位置（PDF 例外，自带 scroll 监听）。
 
@@ -208,6 +214,8 @@ interface IRenderService extends EventEmitter<RenderServiceEvents> {
   prev(): Promise<void>;
   goToPage(page: number): Promise<void>;
   goToPercentage(percentage: number): Promise<void>;
+  /** 目录跳转：跳转到 chapterDocIndex 对应章节起点（PDF=页码；越界/无章节时 no-op） */
+  goToChapter(chapterDocIndex: number): Promise<void>;
   goToPosition(location: BookLocation): Promise<void>;
   getPosition(): BookLocation;
   getProgress(): { totalPage: number; currentPage: number };
@@ -365,8 +373,8 @@ type JoinResult =
 
 ```ts
 interface IBookService {
-  /** 导入：文件 → 指纹 → 元数据 → 入库（内部编排 identity + store；OCR 可选） */
-  importBook(file: File | ArrayBuffer, name: string): Promise<BookRecord>;
+  /** 导入：文件 → 指纹 → 元数据 → 入库。去重（v0.2.3）：同指纹（algorithm+hash+size 全等）复用已有记录并更新 filePath，不产生重复条目 */
+  importBook(file: File | ArrayBuffer, name: string, format: BookFormat, filePath: string): Promise<BookRecord>;
   list(): Promise<BookRecord[]>;
   get(id: string): Promise<BookRecord | null>;
   remove(id: string): Promise<void>;
@@ -410,5 +418,6 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
-| v0.2.2 | 2026-09-07 | **定位标准立约（§2.1）**：`BookLocation` 字段三级角色（key/hint/display）+ 标准原语收拢进 `core/domain/location.ts`；`chapterDocIndex` 收窄为 `number`（kookit string 形态止步适配层，遗留数据由 `normalizeLocation` 边界容错）；修正 `count`/`page` 错误注释。配套领域新增 `location.ts`（纯函数，零依赖） |
+| v0.2.3 | 2026-09-08 | **目录跳转（本地阅读 MVP）**：领域 `Chapter` 增加 `chapterDocIndex`（目录项起始渲染节号，= BookLocation.chapterDocIndex 同标尺，PDF=页码）；`IRenderService` 增加 `goToChapter(chapterDocIndex)`（目录跳转原语） |
+| v0.2.2 | 2026-09-07 | **定位系统立约（§2.1）**：`BookLocation` 字段三级角色（key/hint/display）+ 标准原语收拢进 `core/domain/location.ts`；`chapterDocIndex` 收窄为 `number`（kookit string 形态止步适配层，遗留数据由 `normalizeLocation` 边界容错）；修正 `count`/`page` 错误注释。配套领域新增 `location.ts`（纯函数，零依赖） |
 | v0.2.1 | 2026-08-31 | 契约先行补 REST 传输缺口（client v1 骨架落地时）：`INetService` 增加 `request()`（REST，自带 token 双闸头）与 `getMemberId()`；`NetConfig` 增加 `accessToken` / `memberToken`（token 双闸，见 `server/docs/API.md` 认证），`serverUrl` 统一为 http(s) 基址；`IRoomSession` 增加 `createRoom` / `uploadBookCopy` / `listRooms`（对应 REST：POST /rooms、POST /books/{id}/file、GET /rooms）；领域层增加 `RoomInfo`（GET /rooms 列表项，wire 形状见 `server/docs/API.md`）。变更方向：只增不改，端口仍"只搬运不解语义" |

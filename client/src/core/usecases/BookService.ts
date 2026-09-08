@@ -36,6 +36,20 @@ export class BookService implements IBookService {
       this.identity.computeFingerprint(buffer),
       this.identity.extractMetadata(buffer, format, name)
     ])
+
+    // 导入去重（P2，2026-09-08）：同一电子版（指纹三字段全等）复用已有记录，不产生重复条目。
+    // 判定复用 identity.verify（内容指纹全等 = 同书同电子版，见 CONTRACTS §4.3 / docs/ARCHITECTURE §1）。
+    // 若路径变化（用户移动/复制了文件）则把 filePath 更新到新位置，保证打开链路可用。
+    const existing = (await this.store.listBooks()).find((b) =>
+      this.identity.verify(b.fingerprint, fingerprint)
+    )
+    if (existing) {
+      if (existing.filePath !== filePath) {
+        await this.store.updateBook(existing.id, { filePath })
+      }
+      return { ...existing, filePath }
+    }
+
     const record: BookRecord = {
       id: crypto.randomUUID(),
       fingerprint,

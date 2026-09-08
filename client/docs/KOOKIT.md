@@ -12,7 +12,7 @@
 对外暴露 `rendition`：`renderTo` + 导航 + 位置/进度读取 + 事件。
 
 - 入口 `src/index.ts`（ESM，我们引用的）；许可证 **AGPL-3.0**。
-- **单文件 ESM 并非全自包含**：依赖表见 §4，PDF/漫画需要宿主注入全局对象 + 静态资源。
+- **单文件 ESM 并非全自包含**：依赖表见 §4，PDF/漫画需要宿主页面注入全局对象 + 静态资源。
 
 ## 2. 渲染生命周期（最重要）
 
@@ -67,26 +67,31 @@ GeneralRender (GeneralRender.ts，事件基类)
 
 ## 5. 关键硬编码契约 / 坑（违反就翻车）
 
+> **术语 · 宿主容器**：阅读视图中承载 kookit 渲染 iframe 的滚动容器。本项目实现 = 带
+> 硬编码 `id="page-area"` 的元素（`#page-area`，CSS 类 `.reader-stage`）。下文坑 §5.1/§5.8/§5.9/§5.10
+> 中涉及的「宿主容器」均指它；「宿主页面」则指承载 kookit 的应用页面（CSP / 全局对象注入，见坑 §5.3/§5.5）。
+> 术语锚点见 `RENDER_INTERFACE.md` §2；位置语义概念名 =「定位系统」（`CONTRACTS.md` §2.1）。
+
 1. **`getDocument()` 硬编码 `document.getElementById("page-area")`**（GeneralRender.ts:582、
-   PdfRender.ts:750）——不认 `renderTo` 传入的元素。**容器必须带 `id="page-area"`**，
+   PdfRender.ts:750）——不认 `renderTo` 传入的元素。**宿主容器必须带 `id="page-area"`**，
    否则 `renderTo` 后续流程直接 return（永不 resolve）。
 2. **`renderTo` 不渲染正文** —— 必须补一次导航调用（§2 步骤 3）。
 3. **blob URL 是内部通道**：正文经 `item.load()` → `fetch(blobUrl)` → `doc.body.innerHTML`；
-   图片/CSS 经 `loadAsset` 转 blob。→ **宿主 CSP 必须放行 `blob:`**
+   图片/CSS 经 `loadAsset` 转 blob。→ **宿主页面 CSP 必须放行 `blob:`**
    （connect/img/style/frame/font-src；worker-src 另需 PDF worker）。
 4. **非 PDF/非移动时 iframe 带 `sandbox="allow-same-origin"`** —— 禁脚本。
 5. **PDF/漫画需要外部全局**（§4 表）；vendor 必须在 `window.pdfjsLib` 注入**之后**动态 import
    （kookit 模块顶层捕获该全局，顺序不可反——适配器 `loadKookit()` 已保证）。
 6. **`isElectron()` 检测**影响 `pdfjsPath` 前缀（Electron 下 `.` 开头）。
 7. **`tempLocation` 初始为 `{}`** —— 首次 `getPosition()` 字段可能 undefined，适配器已兜底。
-8. **scroll 模式的滚动发生在宿主元素上**：kookit 把 iframe 拉到 `doc.body.scrollHeight + 300`
-   （layoutUtil.ts:99-103，仅文字类），翻页是对宿主 `scrollTo/scrollBy` →
-   **宿主必须 `overflow-y: auto`，且 CSS 不得对 iframe 设 `height: 100%`**
-   （作者样式会覆盖 kookit 设的 height 属性 → iframe 压回一屏、宿主不可滚、翻页退化为跳章，
+8. **scroll 模式的滚动发生在宿主容器上**：kookit 把 iframe 拉到 `doc.body.scrollHeight + 300`
+   （layoutUtil.ts:99-103，仅文字类），翻页是对宿主容器 `scrollTo/scrollBy` →
+   **宿主容器必须 `overflow-y: auto`，且 CSS 不得对其内 iframe 设 `height: 100%`**
+   （作者样式会覆盖 kookit 设的 height 属性 → iframe 压回一屏、宿主容器不可滚、翻页退化为跳章，
    2026-09-07 定位，App 与 harness 同病同修）。single/double 分页模式走 iframe 内列滚动，无此要求。
 9. **PDF scroll 模式 kookit 不拉高外层 iframe**（`handleIframeHeight` 只被文字类调用）——
-   页面容器全在外层 iframe 内，宿主永不可滚。适配器 `renderTo` 按 `doc.body.scrollHeight + 300` 补齐。
-10. **文字类渲染不监听宿主 scroll**：`next()` 是 smooth 滚动刚开始就 `record()` → 位置是旧值。
+   页面容器全在外层 iframe 内，宿主容器永不可滚。适配器 `renderTo` 按 `doc.body.scrollHeight + 300` 补齐。
+10. **文字类渲染不监听宿主容器 scroll**：`next()` 是 smooth 滚动刚开始就 `record()` → 位置是旧值。
     消费方须**滚动停稳后补一次 `record()`**（PDF 例外，PdfRender 自带 scroll 监听）。
     另：无头隐藏窗口（show:false）会把 smooth scroll 推迟 ~2s 才执行。
 11. **`record()` 有动画等待**：`animation !== "none" && isMobile !== "yes"` 时 sleep(1000)。
@@ -100,7 +105,7 @@ GeneralRender (GeneralRender.ts，事件基类)
   —— `count` = 可见滚动块序号；`page` = 分页模式页码（scroll 模式为空串）；
   `percentage` = 按 chapterDoc `text.size` 加权的累计比例；`text` = 可见块前 200 字。
 - `getProgress()` = `progressInfo()`（按 readerMode 算 totalPage/currentPage）+ percentage。
-- **域层语义与比较规则以定位标准为权威**：`CONTRACTS.md` §2.1 + `core/domain/location.ts`。
+- **域层语义与比较规则以定位系统为权威**：`CONTRACTS.md` §2.1 + `core/domain/location.ts`。
   本节只描述 kookit 侧行为，消费方不要基于本节自行造比较逻辑。
 
 ## 7. 我们的使用（KookitRenderAdapter）
@@ -111,8 +116,11 @@ GeneralRender (GeneralRender.ts，事件基类)
   `import('@vendor/kookit.esm')` —— 不能静态 import（坑 §5.5）。
 - **renderTo**：`rendition.renderTo(el)` → PDF 时补拉高外层 iframe（坑 §5.9）→
   有 `lastLocation` 走 `goToPosition`，否则 `goToChapterIndex(0)`（坑 §5.2）。
-- **容器要求**（UI 侧）：`id="page-area"` + `overflow-y:auto` + iframe 无 `height:100%`
-  （坑 §5.1/§5.8）；CSP 含 `blob:` + `worker-src`（坑 §5.3）。
+- **目录（v0.2.3）**：`getChapter()` 返回 TOC 树，适配器把每项的 `index` 透传为
+  `Chapter.chapterDocIndex`（= 起始渲染节号，与 `tempLocation.chapterDocIndex` 同标尺）；
+  `goToChapter(idx)` = 透传 `goToChapterDocIndex(idx)`（直接按渲染节跳转，不依赖 flatten 顺序）。
+- **宿主容器要求**（UI 侧）：带 `id="page-area"` + `overflow-y:auto` + 其内 iframe 无 `height:100%`
+  （坑 §5.1/§5.8）；宿主页面 CSP 含 `blob:` + `worker-src`（坑 §5.3）。
 - **PDF**：pdfjs-dist@4.8.69 注入 + `/lib/pdfjs/` 静态资源（cmaps/standard_fonts/
   text_layer_builder.css/annotation_layer_builder.css/worker）。pdfjs-dist v4.x 是匹配版本线
   （v5+ 移除 `PDFDataRangeTransport` 等 API，勿升）。**定位**：页码为主键（`chapterDocIndex` = 页码，

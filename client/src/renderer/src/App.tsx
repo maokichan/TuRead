@@ -1,13 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createContainer, type ServiceContainer } from '@core/container'
 import { sameLocation } from '@core/domain/location'
-import type { BookLocation, BookRecord, ChatMessage, ConnectionState, RoomInfo } from '@core/domain/types'
+import type { BookLocation, BookRecord, Chapter, ChatMessage, ConnectionState, RoomInfo } from '@core/domain/types'
 import { IPC } from '@shared/ipc'
 
 const container: ServiceContainer = createContainer(window.turead)
 
 /** dev 无头自检的防重入标记（模块级，StrictMode remount 不重置，见 useEffect 注释） */
 let devAutoOpened = false
+
+/** 目录面板行（树扁平化 + 缩进深度） */
+interface TocRow {
+  label: string
+  depth: number
+  chapterDocIndex?: number
+}
+
+function flattenChapterTree(list: Chapter[], depth: number, out: TocRow[]): void {
+  for (const c of list) {
+    out.push({ label: c.label, depth, chapterDocIndex: c.chapterDocIndex })
+    if (c.subitems && c.subitems.length > 0) flattenChapterTree(c.subitems, depth + 1, out)
+  }
+}
 
 function extToFormat(name: string): BookRecord['format'] {
   const ext = name.split('.').pop()?.toLowerCase() ?? ''
@@ -59,12 +73,26 @@ export default function App(): React.JSX.Element {
 
   const [reading, setReading] = useState<BookRecord | null>(null)
   const [progress, setProgress] = useState<{ totalPage: number; currentPage: number } | null>(null)
+  const [toc, setToc] = useState<TocRow[]>([])
+  const [confirmDelId, setConfirmDelId] = useState<string | null>(null)
   const readerRef = useRef<HTMLDivElement | null>(null)
+  const readingIdRef = useRef<string | null>(null)
+  const lastSavedAtRef = useRef(0)
 
   const logRef = useRef<string[]>([])
   const pushLog = useCallback((line: string) => {
     logRef.current = [...logRef.current, line].slice(-200)
     setLog(logRef.current)
+  }, [])
+
+  /** 节流持久化阅读位置（本地恢复用；2s 窗口，翻页连发不刷盘） */
+  const saveLastLocation = useCallback((loc: BookLocation) => {
+    const id = readingIdRef.current
+    if (!id) return
+    const now = Date.now()
+    if (now - lastSavedAtRef.current < 2000) return
+    lastSavedAtRef.current = now
+    void container.books.updateLastLocation(id, loc)
   }, [])
 
   useEffect(() => {
@@ -88,8 +116,9 @@ export default function App(): React.JSX.Element {
       container.room.on('book-mismatch', ({ local, room }) =>
         pushLog(`书不匹配：本地 ${local.hash} vs 房间 ${room.hash}`)
       ),
-      container.render.on('location-changed', () => {
+      container.render.on('location-changed', (loc) => {
         setProgress(container.render.getProgress())
+        saveLastLocation(loc)
       })
     ]
     void container.books.list().then(setBooks)
@@ -98,7 +127,7 @@ export default function App(): React.JSX.Element {
       if (cfg.nickName) setNick(cfg.nickName)
     })
     return () => unsubs.forEach((u) => u())
-  }, [pushLog])
+  }, [pushLog, saveLastLocation])
 
   const connect = useCallback(async () => {
     setConnError(null)
@@ -137,16 +166,23 @@ export default function App(): React.JSX.Element {
     async (path: string, name?: string) => {
       const buffer = (await window.turead.invoke(IPC.fsReadFile, path)) as ArrayBuffer
       const displayName = name ?? path.split(/[\\/]/).pop() ?? path
+      // 导入前快照书架 id 集合，用于区分「新导入」与「指纹命中复用」（BookService 内部按指纹去重）
+      const beforeIds = new Set((await container.books.list()).map((b) => b.id))
       const book = await container.books.importBook(
         buffer,
         displayName,
         extToFormat(displayName),
         path
       )
+      const reused = beforeIds.has(book.id)
       const list = await container.books.list()
       setBooks(list)
       setSelectedBookId(book.id)
-      pushLog(`已导入：${book.metadata.title}（${book.format}，${book.fingerprint.hash.slice(0, 10)}…）`)
+      pushLog(
+        reused
+          ? `已在书架（指纹命中，复用）：${book.metadata.title}`
+          : `已导入：${book.metadata.title}（${book.format}，${book.fingerprint.hash.slice(0, 10)}…）`
+      )
       return book
     },
     [pushLog]
@@ -275,12 +311,21 @@ export default function App(): React.JSX.Element {
   const openReader = useCallback(
     async (book: BookRecord) => {
       try {
-        setReading(book)
+        // 以 store 为准取最新记录（含上次保存的 lastLocation → 打开即恢复位置）
+        const latest = (await container.books.get(book.id)) ?? book
+        setReading(latest)
+        readingIdRef.current = latest.id
         setTab('reader')
-        await container.render.open(book)
+        await container.render.open(latest)
         if (readerRef.current) await container.render.renderTo(readerRef.current)
         setProgress(container.render.getProgress())
-        pushLog(`已打开：${book.metadata.title}`)
+        // 打开后拉取目录（渲染节号透传）。
+        // 兜底启发式：kookit 无 toc 的书会用纯数字页码生成 chapterList（如 PDF 每页一项），
+        // 全数字 = 假目录，不显示抽屉；存在任一非纯数字标题才视为真目录。
+        const rows: TocRow[] = []
+        flattenChapterTree(container.render.getChapter(), 0, rows)
+        setToc(rows.some((r) => /[^\d]/.test(r.label)) ? rows : [])
+        pushLog(`已打开：${latest.metadata.title}（目录 ${rows.length} 项）`)
       } catch (err) {
         setConnError((err as Error).message)
       }
@@ -290,8 +335,10 @@ export default function App(): React.JSX.Element {
 
   const closeReader = useCallback(async () => {
     await container.render.close()
+    readingIdRef.current = null
     setReading(null)
     setProgress(null)
+    setToc([])
   }, [])
 
   const pageTurn = useCallback(async (dir: 'next' | 'prev') => {
@@ -299,6 +346,40 @@ export default function App(): React.JSX.Element {
     else await container.render.prev()
     setProgress(container.render.getProgress())
   }, [])
+
+  /** 目录跳转：透传到渲染层的 goToChapter（chapterDocIndex 标尺） */
+  const jumpChapter = useCallback(
+    async (row: TocRow) => {
+      if (row.chapterDocIndex === undefined || !reading) return
+      try {
+        await container.render.goToChapter(row.chapterDocIndex)
+        setProgress(container.render.getProgress())
+        pushLog(`跳到：${row.label}`)
+      } catch (err) {
+        setConnError((err as Error).message)
+      }
+    },
+    [reading, pushLog]
+  )
+
+  /** 删除书籍：若正打开该书先关阅读器；JSON store 移除记录（原文件留在磁盘） */
+  const removeBook = useCallback(
+    async (id: string) => {
+      const book = books.find((b) => b.id === id)
+      if (!book) return
+      try {
+        if (readingIdRef.current === id) await closeReader()
+        await container.books.remove(id)
+        const list = await container.books.list()
+        setBooks(list)
+        if (selectedBookId === id) setSelectedBookId(null)
+        pushLog(`已从书架移除：${book.metadata.title}`)
+      } catch (err) {
+        setConnError((err as Error).message)
+      }
+    },
+    [books, selectedBookId, closeReader, pushLog]
+  )
 
   const createRoom = useCallback(async () => {
     const book = books.find((b) => b.id === selectedBookId)
@@ -338,6 +419,12 @@ export default function App(): React.JSX.Element {
   const selectedBook = books.find((b) => b.id === selectedBookId)
   const bookInReader = reading
 
+  /** 选中书籍（顺带清除删除确认态） */
+  const selectBook = useCallback((id: string) => {
+    setSelectedBookId(id)
+    setConfirmDelId(null)
+  }, [])
+
   return (
     <div className="app">
       <header className="topbar">
@@ -345,7 +432,7 @@ export default function App(): React.JSX.Element {
           <span className="logo">T</span>
           <div>
             <h1>TuRead</h1>
-            <span className="sub">多人共读 v0.1.0</span>
+            <span className="sub">多人共读 · 0.1.4-dev</span>
           </div>
         </div>
         <div className="topbar-right">
@@ -366,17 +453,36 @@ export default function App(): React.JSX.Element {
         </div>
         <div className="book-list">
           {books.map((b) => (
-            <button
+            <div
               key={b.id}
+              role="button"
+              tabIndex={0}
               className={`book-item${b.id === selectedBookId ? ' active' : ''}`}
-              onClick={() => setSelectedBookId(b.id)}
+              onClick={() => selectBook(b.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  selectBook(b.id)
+                }
+              }}
             >
               <span className="book-title">{b.metadata.title}</span>
               <span className="book-meta">
                 <b className="fmt">{b.format}</b>
                 {b.fingerprint.hash.slice(0, 10)}
               </span>
-            </button>
+              <button
+                className={`book-del${confirmDelId === b.id ? ' armed' : ''}`}
+                title={confirmDelId === b.id ? '再次点击确认删除' : '从书架移除'}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (confirmDelId === b.id) void removeBook(b.id)
+                  else setConfirmDelId(b.id)
+                }}
+              >
+                {confirmDelId === b.id ? '确认' : '✕'}
+              </button>
+            </div>
           ))}
           {books.length === 0 && <p className="empty">书架为空，点「＋ 导入」添加一本电子书</p>}
         </div>
@@ -540,7 +646,28 @@ export default function App(): React.JSX.Element {
                 )}
               </div>
             </div>
-            <div className="reader-stage" id="page-area" ref={readerRef} />
+            <div className="reader-main">
+              {bookInReader && toc.length > 0 && (
+                <aside className="reader-toc">
+                  <div className="toc-head">目录</div>
+                  <div className="toc-list">
+                    {toc.map((row, i) => (
+                      <button
+                        key={i}
+                        className="toc-item"
+                        style={{ paddingLeft: `${10 + row.depth * 14}px` }}
+                        disabled={row.chapterDocIndex === undefined}
+                        title={row.chapterDocIndex === undefined ? '（无可直达章节）' : '跳转'}
+                        onClick={() => void jumpChapter(row)}
+                      >
+                        {row.label}
+                      </button>
+                    ))}
+                  </div>
+                </aside>
+              )}
+              <div className="reader-stage" id="page-area" ref={readerRef} />
+            </div>
           </section>
         )}
       </main>
