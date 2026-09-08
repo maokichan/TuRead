@@ -38,5 +38,6 @@
 - **client v0.1.7（2026-09-08）**：本地阅读器修复批 —— 滚动停稳补 `record()`（文字类手动滚动此前不留位置）、关闭/切书 flush 位置、`open` 并发守卫、`removeNote` 按笔记章节定位、`isZeroLocation` 判据补 `chapterHref`、JsonStore 写盘串行化 + 损坏备份、`importBook` 返回 `{book,reused}`、dev 自检移入 `dev/selfCheck.ts`；typecheck + 四格式无头自检全绿
 - **样式方案**：Tailwind CSS v4 已落地（`@tailwindcss/vite`；styles.css 仅留主题变量/kookit 契约；借物表已登记）
 - **插件态度**：v1 不做插件运行时，**ports 即插件边界**（官方插件 = 注册进 ServiceContainer 的适配器 + 追加 FeatureDescriptor 进 registry）；第三方插件演进路径见 `client/docs/ARCHITECTURE.md` §4
-- 下一步：vitest → 笔记实现 → 选文件收敛端口 → 更多设置项（字号/行距）；tag 约定 `client-v0.1.x` / `server-v0.2.x`
-- 开发原则：v1 允许"丑但诚实"；**解释优先**；检查点——大改前写理由、不知代码放哪层就停下讨论（Rule of Three）
+- **书库重做（方向已定，细则待定）**：去容器外壳 + 三视图（列表/网格/瀑布流）+ 底部状态栏（左视图切换 / 右导入菜单）+ 右侧详情抽屉（单击详情、双击打开）+ 封面**缩略图落盘**；作品身份（ISBN 等）走**标准化**流程（入口在房间，短期手填、远期 OCR）——见 `client/docs/FEATURES.md` §10
+- 下一步：书库重做 → vitest → 笔记实现 → 更多设置项（字号/行距）；tag 约定 `client-v0.1.x` / `server-v0.2.x`
+- 开发原则：**解释优先**；检查点——大改前写理由、不知代码放哪层就停下讨论（Rule of Three）

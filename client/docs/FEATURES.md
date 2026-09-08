@@ -186,4 +186,42 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
   - 「选文件」收敛为端口（`IBookPicker`）消除 `window.turead` 直用例外（§8 已知例外）；
   - 官方插件首个样例（如 OCR/翻译面板）验证容器扩展性。
 
+## 10. 书库重做（v0.1.8 计划；2026-09-08 定方向，细则待定）
+
+> 状态：**方向已定，实施细则待确认**。本文只记录已定项与待定项；确认后补契约（`CONTRACTS.md`）再动代码。
+
+**已定（2026-09-08）**
+
+- **去容器外壳**：书库主体不再有边框/圆角面板外壳与顶部「书架 / ＋导入」标题栏，直接铺满 + 滚动。
+- **三视图**：列表 / 网格 / 瀑布流；网格与瀑布流**以封面为主**，**不显示指纹**，可显示标题（作者不显示，见下）。
+- **底部状态栏**：**左对齐** = 视图切换；**右对齐** = 导入。书库自己的状态栏，AppShell 不改。
+- **导入菜单**：按钮 → 小菜单「导入文件…」「导入文件夹…」（⚠ Windows 下 Electron **不允许文件与目录同框选择**，
+  [issue #26885](https://github.com/electron/electron/issues/26885)）；文件夹**默认不递归**；批量**串行**导入 + 进度；
+  指纹去重（`importBook` 已按指纹复用）继续生效。
+- **交互语义**：单击 → 右侧**详情抽屉**（Esc / 点空白关闭）；双击 → 打开该书；键盘 Enter 打开、Space 详情、Delete 删除；
+  详情抽屉显示的书 = `selectedBookId`（单一真相，Room 标定 / Reader 打开不变）。
+- **封面：缩略图落盘**。渲染进程用 canvas 生成缩略图（目标宽 ~400px、JPEG q0.8），主进程写
+  `userData/covers/<bookId>.jpg`，`BookRecord` 只存路径 —— **绝不进 `library.json`**：实测一本 157KB 封面转
+  data URL ≈ 210KB，100 本 ≈ 21MB，而 `JsonStore` 每次保存**全量重写**（阅读中每 2s 一次），会把磁盘与内存拖垮。
+  渲染侧经 IPC 取回字节 → `Blob` → `createObjectURL`（CSP 已放行 `blob:`）。
+- **元数据范围**：本地**不采集、不显示** author / publisher（与 server Work 模型一致 —— server 明确"Work 不设 author/publisher"）。
+  作品身份（ISBN 等）由**标准化**流程补齐，**入口在房间功能**，短期手填、远期 OCR。
+- **组件拆分**：新增 `BookRow`（列表行）/ `BookTile`（网格·瀑布流封面卡）/ `BookDetailPanel`（详情抽屉）/
+  `LibraryToolbar`（底部状态栏）；删除 `BookCard`。
+- **端口（计划）**：新增 `IBookPicker`（选文件 / 选目录 / 列目录电子书）以消除 UI 直用 `window.turead` 的例外；
+  `ILibraryStore` 增加封面读写；`IRenderService` 增加 `getMetadata()`（kookit 已具备）。
+- **领域（计划）**：`BookRecord` 增加作品身份字段（`WorkIdentity`：`protocol` + `code`）与封面路径；
+  触发 `library.json` **schema 版本 + 迁移**（当前 `StoreFile` 无版本号，形状一变只能靠边界容错兜）。
+
+**待定（下个 request 确认）**
+
+1. 网格与瀑布流是否合并为一种（封面比例统一时两者视觉趋同）；
+2. 列表模式是否带小缩略图；
+3. 详情抽屉的「其他更改选项」清单（候选：删除、重命名标题、重新定位文件、在文件夹中显示、查看指纹）；
+4. 视图模式的持久化键名与默认值（拟 `librarySettings.view`，默认列表）；
+5. 封面提取时机（导入后异步队列 + `books-changed` 通知；导入期同步提取对大文件代价高）；
+6. 批量导入的进度形态与可中断性、失败逐条报告方式；
+7. 网格/瀑布流下标题显示规则（几行截断、作者位留白）；
+8. 封面缺失的占位样式（拟纯色块 + 书名首字 + 格式徽章，不引入默认封面图）。
+
 > 本文为设计权威：任何改动先更新此处再动代码；新决策追加进 §7 并同步 `STATUS.md` 决策表。

@@ -38,9 +38,12 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | 客户端样式 | **Tailwind CSS v4 已落地（2026-09-08）**：`@tailwindcss/vite`；`styles.css` 仅留主题语义 token / 全局 base / kookit 契约；MIT 已核 | 借物表；`client/docs/FEATURES.md` |
 | 插件 | v1 不做插件运行时；ports 即插件边界（官方插件 = 适配器注册进 ServiceContainer） | `client/docs/ARCHITECTURE.md` §4 |
 | UI 功能组件（2026-09-08 落地） | UI 按 Feature 划分标准化（Library/Reader/**Room[含 Server 连接]**/Settings + 展示组件 + AppShell 宿主）；**标准容器**：`FeatureDescriptor` + `registry.ts` + `AppShell`（侧边栏=单色符号图标栏 + 主面板宿主，功能常驻挂载/非激活隐藏 → 状态继承，settings 钉置底）；跨功能跳转走 `FeatureHost`（navigate/openReader/closeReader/selectBook/pushLog）；**纯 React 状态 + props**；Tailwind 与拆组件同步迁移；颜色语义 token 标准化（第三方覆盖 token 建主题）；官方插件 = 追加 descriptor 进 registry | `client/docs/FEATURES.md` |
+| 书库重做（2026-09-08 定方向，细则待定） | **去容器外壳** + 三视图（列表/网格/瀑布流）+ **底部状态栏**（左=视图切换，右=导入菜单「文件…/文件夹…」）+ 右侧**详情抽屉**（单击详情、双击打开）+ 封面**缩略图落盘**（`userData/covers/<id>.jpg`，渲染进程 canvas 生成，**不进 library.json**） | `client/docs/FEATURES.md` §10 |
+| 书籍身份模型（2026-09-08 定术语） | **作品身份**（Work：`protocol` + `code`，如 ISBN）＋ **电子版身份**（Edition：`fingerprint`）；**标准化** = 补齐作品身份（入口在房间功能，短期手填、远期 OCR）；**标定** = 加入房间时的**比对**动作。本地**不采集/不显示** author·publisher（与 server Work 模型一致） | `docs/ARCHITECTURE.md` §1 |
+| 跨层改动授权（2026-09-08） | 书库重做等改动**允许修改应用层与领域层**（前提：不违背六边形依赖规则、契约文档先行） | — |
 | 许可 | kookit AGPL-3.0 → TuRead 以 **AGPL-3.0** 开源；新依赖先核许可证再登记借物表 | `借物表.md` |
 | 仓库形态 | 单仓库 monorepo（server 可零成本拆出） | `docs/ARCHITECTURE.md` §2 |
-| 开发原则 | v1 允许"丑但诚实"；**解释优先**；大改前写理由（Rule of Three） | — |
+| 开发原则 | **解释优先**；大改前写理由（Rule of Three） | — |
 
 ## 4. 版本历史
 
