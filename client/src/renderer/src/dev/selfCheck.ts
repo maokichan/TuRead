@@ -192,10 +192,10 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
         await wait(1500)
         await waitScrollSettle()
         // 图片页感知：首章常是纯图片扉页（innerText=0 属正常，2026-09-07 销案结论），
-        // 文字为空时向前翻最多 4 章找正文，同时覆盖"翻页位置必须变化"断言
+        // 文字为空时向前翻最多 10 章找正文，同时覆盖"翻页位置必须变化"断言
         const scans: string[] = []
         let prev = container.render.getPosition()
-        for (let i = 0; i < 4 && innerLen <= 100; i++) {
+        for (let i = 0; i < 10 && innerLen <= 100; i++) {
           await container.render.next()
           await wait(3000)
           await waitScrollSettle()
@@ -239,16 +239,50 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
         }
       })()
 
+      // 收尾前再确认一次阅读器可见：已知偶发（面板在测量前被隐藏 → 所有尺寸读成 0 的假阴性）
+      await ensureReaderVisible()
       await waitIframeSized()
       const s2 = readDocState()
-      const ok = innerLen > 0 && s2.scrollH > 0 && posChanged
+      // 判定"渲染成功"：有内容（文字**或图片** —— 纯图片页也是有效渲染）且可滚动且翻页生效
+      const ok = (innerLen > 0 || s2.imgCount > 0) && s2.scrollH > 0 && posChanged
       // 打包字体（源流明體）是否真的可用（侧边栏符号与文字封面都依赖它）
       const fontLine = document.fonts.check('700 16px "GenRyuMin TW"') ? '字体=ok' : '字体=缺失'
+
+      /**
+       * 文字封面填充回归断言（2026-09-08 加）：离屏渲染一个 118×177 的 FittedTitle，
+       * 量它的字号与文字块高度。此前的 bug（用 scrollWidth 当宽度上限 → 字号永远停在 minSize）
+       * 正是这条断言会抓到的。
+       */
+      const fittedLine = await (async (): Promise<string> => {
+        try {
+          const [{ createElement }, { createRoot }, { FittedTitle }] = await Promise.all([
+            import('react'),
+            import('react-dom/client'),
+            import('../components/FittedTitle')
+          ])
+          const host = document.createElement('div')
+          host.style.cssText = 'position:fixed;left:-9999px;top:0;width:118px;height:177px'
+          document.body.appendChild(host)
+          const root = createRoot(host)
+          root.render(createElement(FittedTitle, { text: '年代四部曲' }))
+          await wait(900)
+          const span = host.querySelector('span')
+          const size = span ? parseFloat(getComputedStyle(span).fontSize) : 0
+          const used = span ? span.getBoundingClientRect().height : 0
+          const ratio = Math.round((used / 177) * 100)
+          root.unmount()
+          host.remove()
+          const verdict = size > 20 && ratio > 55 ? 'ok' : '可疑'
+          return `文字封面=${verdict}(字号${size.toFixed(0)}px/填充${ratio}%)`
+        } catch (err) {
+          return `文字封面=异常(${(err as Error).message})`
+        }
+      })()
       const pos1 = container.render.getPosition()
       const ch = container.render.getChapter().length
       const line =
         `[dev] ${ok ? '渲染OK' : '渲染可疑'} 格式=${book.format} 章节数=${ch} ` +
-        `正文长度=${innerLen} 可滚动=${s2.scrollH} iframeH=${s2.iframeH} docScrollH=${s2.docScrollH} ${subInfo} ${coverLine} ${fontLine} 位置=第${pos1.page}页/${pos1.percentage}`
+        `正文长度=${innerLen} 可滚动=${s2.scrollH} iframeH=${s2.iframeH} docScrollH=${s2.docScrollH} ${subInfo} ${coverLine} ${fontLine} ${fittedLine} 位置=第${pos1.page}页/${pos1.percentage}`
       pushLog(line)
       console.log(ok ? '[TUREAD-TEST-OK]' + line : '[TUREAD-TEST-FAIL]' + line)    } catch (err) {
       const e = err as Error
