@@ -6,14 +6,14 @@
 
 多人房间共读阅读器：多个用户进同一房间共同阅读同一本书。
 渲染/解析复用 kookit（AGPL-3.0，git submodule）；同步服务器用 Go。
-**server v0.2.0 已实现；client v0.1.4 本地阅读 MVP 进行中（渲染链路四格式全绿 + 书架增删 + 目录跳转，2026-09-08，见下）。**
+**server v0.2.0 已实现；client v0.1.5（一致性修复：location-updated 死端口 + leaveRoom P1；UI 功能组件设计讨论稿见 client/docs/FEATURES.md，2026-09-08，见下）。**
 
 ## 关键文档（按阅读顺序）
 
 1. `docs/STATUS.md` —— 项目状态与决策记录（会话交接首选，先读这个）
 2. `TODO.md` —— **待办清单**（server / client / 跨端 所有未完成事项）
 3. `docs/ARCHITECTURE.md` —— 共同架构：书籍标定（Work/Edition）+ 仓库布局
-4. `client/docs/CONTRACTS.md` —— 客户端契约 v0.2.3（领域类型 / **定位系统 §2.1** / usecases / ports / adapters 接口）
+4. `client/docs/CONTRACTS.md` —— 客户端契约 v0.2.4（领域类型 / **定位系统 §2.1** / usecases / ports / adapters 接口）
 5. `client/docs/ARCHITECTURE.md` —— client 架构（六边形选型 / 术语 / 平台与 UI / 插件）
 6. `client/docs/KOOKIT.md` —— **kookit 逆向文档**（渲染生命周期 / 硬编码契约 / 外部依赖 / 升级指南）
 7. `server/docs/ARCHITECTURE.md` —— server 架构（模块 / 通讯模型 token 双闸 / 数据模型）
@@ -21,6 +21,7 @@
 9. `server/docs/OPS.md` —— **运维手册**（配置 / 热重载 / 故障排查，运维同学先看这个）
 10. `借物表.md` —— 第三方资源与许可证（AGPL 约束，引新依赖先登记）
 11. `D:\PROJECT\NETWORK.md` —— 网络配置（git 代理+openssl 配方、Go GOPROXY、npm 直连）
+12. `client/docs/FEATURES.md` —— **UI 功能组件设计（讨论稿，未定稿）**：Feature 划分 / 模式与状态机 / 插件化 UI 边界铺垫
 
 ## 红线（不要违反）
 
