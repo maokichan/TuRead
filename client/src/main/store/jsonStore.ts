@@ -138,6 +138,14 @@ export class JsonStore {
     await this.saveConfig()
   }
 
+  /** 原子合并一个设置对象（避免渲染进程侧"读-改-写"造成的互相覆盖） */
+  async patchSetting(key: string, patch: Record<string, unknown>): Promise<void> {
+    const cur = this.config.settings[key]
+    const base = cur && typeof cur === 'object' && !Array.isArray(cur) ? cur : {}
+    this.config.settings[key] = { ...(base as Record<string, unknown>), ...patch }
+    await this.saveConfig()
+  }
+
   /** 写封面缩略图：文件名固定为 `<bookId>.<ext>`（覆盖式），返回文件名供 BookRecord.coverPath */
   async setCover(bookId: string, bytes: ArrayBuffer, ext: string): Promise<string> {
     const safeExt = /^[a-z0-9]{2,5}$/i.test(ext) ? ext.toLowerCase() : 'jpg'

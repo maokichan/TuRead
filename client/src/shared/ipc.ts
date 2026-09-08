@@ -18,6 +18,7 @@ export const IPC = {
   storeRemoveBook: 'store:remove-book',
   storeGetSetting: 'store:get-setting',
   storeSetSetting: 'store:set-setting',
+  storePatchSetting: 'store:patch-setting',
   storeSetCover: 'store:set-cover',
   storeGetCover: 'store:get-cover',
   storeRemoveCover: 'store:remove-cover',

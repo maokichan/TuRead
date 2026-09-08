@@ -48,7 +48,7 @@ src/renderer/src/
 │   ├── SettingsFeature/  # 全局设置（主题[含跟随系统]/阅读模式/诊断日志）
 │   ├── types.ts          # 功能组件标准容器契约（FeatureDescriptor/FeatureProps/FeatureHost）
 │   ├── registry.ts       # 功能组件注册表（官方插件 = 追加一条 descriptor）
-│   └── util.ts           # 共享小工具（extToFormat 等）
+│   └── coverCache.ts     # 封面 objectURL 缓存（模块级）
 ├── components/           # 展示组件（纯 props，无业务编排）
 │   ├── BookRow.tsx   ├── BookTile.tsx  ├── BookDetailPanel.tsx  ├── LibraryToolbar.tsx
 │   ├── TocPanel.tsx  ├── MemberList.tsx
@@ -206,7 +206,15 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 - **列表行**：左侧是**封面槽**（宽 2/5），槽内可以是封面图或**文字封面**（两者同等对待，见下），
   槽整体套 `.book-row-cover` 渐隐（mask 在 18%→82% 之间淡出，2026-09-08 调得更靠左）；
   右侧内容层（标题 + 详情）从 **30%** 处起排 —— 自然压住封面右缘（"适当覆盖封面"）。
-- **底部状态栏**：**左** = 视图切换 + 书目数 + 封面提取进度；**右** = 导入菜单（导入中显示「导入中 3/12」+ 取消）。
+- **底部状态栏**：**左** = 视图切换（**无按钮边框**，只用加粗的源流明体文字）+ 书目数 + 封面提取进度；
+  **右** = 导入菜单（导入中显示「导入中 3/12」+ 取消）。
+  **视图切换动画**（2026-09-08 定）：点击其中一个时 —— ① 判定区域先变**深色**（文字被"吞没"）
+  ② 浅色文字出现在深色区域上 ③ 区域与文字**同时**变回（视觉上"刚刚的异变消失了"）；
+  由 `.view-switch-flash` 关键帧 + 四套主题各自的 `--flash-bg/--flash-text` 实现（620ms）。
+- **列表标题**（2026-09-08 定）：行内标题用**源流明体、放大到 17px、不加粗**（此前 13.5px 无衬线）。
+- **阅读器恢复上次内容**（2026-09-08 定）：从侧边栏进入阅读器时若还没打开书，自动恢复
+  **上次阅读**的那本（`IBookService.getLastRead()`；无阅读记录则回退最近导入），不再每次都空白。
+  导航策略在 `AppShell`（唯一模式决策点），口径在用例层。
 - **导入菜单**：「导入文件…」/「导入文件夹…」（⚠ Electron 不允许文件与目录同框选择，[issue #26885](https://github.com/electron/electron/issues/26885)）；
   **「含子文件夹」在设置界面配置**（2026-09-08 改：设置 → 导入），持久化 `librarySettings.importRecursive`；
   批量**串行** + 进度 + **可取消**；失败逐条进诊断日志；指纹去重继续生效；递归扫描有上限（2000 本 / 12 层）。
@@ -240,6 +248,10 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 - **持久化拆分**：设置移入 `config.json`（`appearance` / `readerSettings` / `librarySettings`），书库留 `library.json`（带 `version`）；
   旧版合并文件**自动迁移**（实测已生效）。
 - **端口收敛**：新增 `IBookPicker`（选文件/选目录/扫描/读文件）—— **UI 层不再直用 `window.turead` 桥**（§8 旧例外已消除）。
+- **编排职责归位（v0.1.9，审查修复）**：批量导入从 `LibraryFeature` 下沉为用例 `IImportQueue`
+  （串行/进度/取消/失败上报，与 `CoverQueue` 同构）；`LibraryFeature` 只订阅事件显示进度。
+  设置写入改走 `ILibraryStore.patchSetting`（主进程原子合并），消除两个 Feature 对
+  `librarySettings` 的"读-改-写"覆盖竞态。`extToFormat` 从 UI 层移入 `core/domain/format.ts`。
 
 **待定（下个 request 确认）**
 

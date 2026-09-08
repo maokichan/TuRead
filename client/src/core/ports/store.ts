@@ -15,6 +15,11 @@ export interface ILibraryStore {
   getSetting<T>(key: string, fallback: T): Promise<T>
   setSetting(key: string, value: unknown): Promise<void>
   /**
+   * 局部更新一个设置对象（v0.1.9）—— 在主进程内**原子合并**，避免两个 Feature 各自
+   * "读-改-写"同一设置键时互相覆盖（见 FEATURES §10 审查记录）。
+   */
+  patchSetting(key: string, patch: Record<string, unknown>): Promise<void>
+  /**
    * 封面缩略图落盘（v0.1.8）：返回写入的相对文件名（存入 `BookRecord.coverPath`）。
    * 字节不进 library.json（体积/写放大，见 BookRecord.coverPath 注释）。
    */

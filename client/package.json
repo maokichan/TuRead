@@ -1,6 +1,6 @@
 {
   "name": "turead-client",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "TuRead 客户端：多人房间共读阅读器",
   "main": "./out/main/index.js",
   "private": true,

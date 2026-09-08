@@ -320,6 +320,8 @@ interface ILibraryStore {
   removeBook(id: string): Promise<void>;
   getSetting<T>(key: string, fallback: T): Promise<T>;
   setSetting(key: string, value: unknown): Promise<void>;
+  /** v0.2.8：局部更新设置对象（主进程内**原子合并**）——避免两个 Feature 各自"读-改-写"同一键互相覆盖 */
+  patchSetting(key: string, patch: Record<string, unknown>): Promise<void>;
   /** v0.2.6：封面缩略图落盘（返回文件名 → 存入 BookRecord.coverPath）；字节不进 library.json */
   setCover(bookId: string, bytes: ArrayBuffer, ext: string): Promise<string>;
   getCover(bookId: string): Promise<ArrayBuffer | null>;
@@ -422,6 +424,8 @@ interface IBookService {
   get(id: string): Promise<BookRecord | null>;
   remove(id: string): Promise<void>;
   updateLastLocation(id: string, location: BookLocation): Promise<void>;
+  /** v0.2.8：最近阅读的书（无阅读记录 → 回退最近导入）；供"进入阅读器恢复上次内容" */
+  getLastRead(): Promise<BookRecord | null>;
 }
 
 interface ImportResult {
@@ -433,6 +437,30 @@ interface ImportResult {
 > `importBook` 是导入**用例**：编排 `IBookIdentityService`（指纹+元数据）与 `ILibraryStore`（持久化）；
 > OCR 提 ISBN 是**可插拔步骤**（候选 `IOcrService`，适配器可复用 PP-OCRv5 技术路线，MIT）。
 
+### 5.3 IImportQueue —— 批量导入编排（v0.2.8 新增）
+
+```ts
+interface ImportQueueEvents {
+  progress: (done: number, total: number) => void;
+  imported: (book: BookRecord, reused: boolean) => void;
+  'import-failed': (path: string, message: string) => void;
+  done: (summary: ImportSummary) => void;
+}
+interface ImportSummary {
+  total: number; imported: number; reused: number; failed: number; cancelled: boolean;
+}
+interface IImportQueue extends EventEmitter<ImportQueueEvents> {
+  enqueue(paths: string[]): void;   // 同一路径只入队一次；运行中可继续入队
+  cancel(): void;                   // 取消剩余队列（正在处理的那本跑完）
+  isRunning(): boolean;
+}
+```
+
+> **为什么是用例**：串行、进度、取消、失败逐条上报属于**编排**，不是 UI 展示 ——
+> 此前写在 `LibraryFeature` 里，与同构的 `CoverQueue` 位置不一致（UI 应是 driving adapter）。
+> 编排：`IBookPicker.readFile` → `IBookService.importBook`（含指纹去重）。
+> `extToFormat` 也随之从 UI 层移到 `core/domain/format.ts`（领域词汇映射，用例可依赖）。
+
 ## 6. 服务装配（ServiceContainer）
 
 ```ts
@@ -442,9 +470,12 @@ interface ServiceContainer {
   net: INetService;
   identity: IBookIdentityService;
   store: ILibraryStore;
+  picker: IBookPicker;
   // 应用服务（用例）
   room: IRoomSession;
   books: IBookService;
+  covers: ICoverQueue;
+  imports: IImportQueue;
 }
 ```
 
@@ -466,6 +497,7 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.2.8 | 2026-09-08 | **审查修复（v0.1.9）**：① 批量导入编排下沉为用例 `IImportQueue`（与 `CoverQueue` 同构；`extToFormat` 随之移入 `core/domain/format.ts`）② `ILibraryStore.patchSetting`（主进程原子合并，消除两个 Feature 对同一设置键"读-改-写"的覆盖竞态）③ `IBookService.getLastRead()`（进入阅读器恢复上次内容的口径）④ `ServiceContainer` 增加 `imports` |
 | v0.2.7 | 2026-09-08 | **书库重做补约（v0.1.8 第二段）**：`IBookPicker.listEbooks` 增 `recursive` 参数（文件夹导入可配置"仅此节点 / 含所有子节点"）；`LibrarySettings` 增 `importRecursive`；设置新增 `deleteNotice`（删除确认"下次不再提示"）。删除语义澄清：**只删书库索引，不删源文件**（弹窗首次说明） |
 | v0.2.5 | 2026-09-08 | **本地阅读器修复批（v0.1.7）**：`IBookService.importBook` 返回 `ImportResult{book,reused}`（去重用例自述结果，删除 UI 侧 id 快照反推）；`isZeroLocation` 判据补 `chapterHref`（首章首块不再被误判为零位置，compare/anchor 对"书的开头"恢复有效）；`extractMetadata` 签名补 `name`（文档与实现对齐） |
 | v0.2.4 | 2026-09-08 | **远端位置派生修约**：`location-updated` 事件由 `room.presence` 全量快照 diff 派生（此前声明但从不触发 = 死端口）；网络载荷位置进域层先归一、比较走 `sameLocation`；订阅生命周期分构造期(net)/join 期(render)，`leaveRoom` 只解绑 join 期 → 修 leaveRoom 误解绑 P1（v0.1.3 遗留） |

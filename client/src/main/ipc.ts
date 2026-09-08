@@ -42,6 +42,9 @@ export function registerIpc(
   ipcMain.handle(IPC.storeSetSetting, (_e, p: { key: string; value: unknown }) =>
     store.setSetting(p.key, p.value)
   )
+  ipcMain.handle(IPC.storePatchSetting, (_e, p: { key: string; patch: Record<string, unknown> }) =>
+    store.patchSetting(p.key, p.patch)
+  )
   ipcMain.handle(IPC.storeSetCover, (_e, p: { bookId: string; bytes: ArrayBuffer; ext: string }) =>
     store.setCover(p.bookId, p.bytes, p.ext)
   )

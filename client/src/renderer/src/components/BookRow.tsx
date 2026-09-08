@@ -79,7 +79,10 @@ export function BookRow({
 
       {/* 内容层：起始更靠左，自然压住封面右缘（标题 + 详情，两种封面情况完全一致） */}
       <div className="relative flex h-full flex-col justify-center gap-0.5 pr-3 pl-[30%]">
-        <span className="truncate text-[13.5px]">{title}</span>
+        {/* 列表标题：源流明体、放大、**不加粗**（2026-09-08 定） */}
+        <span className="truncate font-[var(--font-serif-cn)] text-[17px] leading-tight font-normal">
+          {title}
+        </span>
         {meta}
       </div>
     </div>

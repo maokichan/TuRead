@@ -23,24 +23,46 @@ export default function AppShell(): React.JSX.Element {
   const [readerBookId, setReaderBookId] = useState<string | null>(null)
 
   const selectedBookIdRef = useRef<string | null>(null)
+  const readerBookIdRef = useRef<string | null>(null)
 
   const host = useMemo<FeatureHost>(
     () => ({
-      navigate: (id) => setActiveFeature(id),
+      /**
+       * 切换功能组件。进入阅读器时若还没打开书，自动恢复**上次阅读**的那本
+       * （否则每次进阅读器都是空的；口径由 `books.getLastRead()` 给出，shell 只做导航策略）。
+       */
+      navigate: (id) => {
+        setActiveFeature(id)
+        if (id === 'reader' && !readerBookIdRef.current) {
+          void (async () => {
+            const last = await container.books.getLastRead()
+            if (last && !readerBookIdRef.current) {
+              selectedBookIdRef.current = last.id
+              setSelectedBookId(last.id)
+              readerBookIdRef.current = last.id
+              setReaderBookId(last.id)
+            }
+          })()
+        }
+      },
       openReader: (bookId) => {
         selectedBookIdRef.current = bookId
+        readerBookIdRef.current = bookId
         setSelectedBookId(bookId)
         setReaderBookId(bookId)
         setActiveFeature('reader')
       },
-      closeReader: () => setReaderBookId(null),
+      closeReader: () => {
+        readerBookIdRef.current = null
+        setReaderBookId(null)
+      },
       selectBook: (id) => {
         selectedBookIdRef.current = id
         setSelectedBookId(id)
       },
       pushLog
     }),
-    []
+    [container]
   )
 
   // dev-only：TUREAD_DEV_BOOK 指定书时启动即导入并打开（无头验证渲染链路，实现见 dev/selfCheck.ts）

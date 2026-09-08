@@ -13,6 +13,7 @@ import type { IBookPicker } from '@core/ports/picker'
 import type { IRoomSession } from '@core/usecases/RoomSession'
 import type { IBookService } from '@core/usecases/BookService'
 import type { ICoverQueue } from '@core/usecases/CoverQueue'
+import type { IImportQueue } from '@core/usecases/ImportQueue'
 
 import { IpcNetAdapter } from '@core/adapters/net/ipcNetAdapter'
 import { IpcStoreAdapter } from '@core/adapters/storage/ipcStoreAdapter'
@@ -22,6 +23,7 @@ import { KookitRenderAdapter } from '@core/adapters/render/kookitRenderAdapter'
 import { RoomSession } from '@core/usecases/RoomSession'
 import { BookService } from '@core/usecases/BookService'
 import { CoverQueue } from '@core/usecases/CoverQueue'
+import { ImportQueue } from '@core/usecases/ImportQueue'
 import { IPC, type TureadBridge } from '@shared/ipc'
 
 export interface ServiceContainer {
@@ -35,6 +37,7 @@ export interface ServiceContainer {
   room: IRoomSession
   books: IBookService
   covers: ICoverQueue
+  imports: IImportQueue
 }
 
 /** 装配真实服务容器（渲染进程调用，桥 = preload 注入的 window.turead） */
@@ -51,6 +54,7 @@ export function createContainer(bridge: TureadBridge): ServiceContainer {
   const room: IRoomSession = new RoomSession(net, render, identity)
   const books: IBookService = new BookService(identity, store)
   const covers: ICoverQueue = new CoverQueue(readFile, render, store)
+  const imports: IImportQueue = new ImportQueue(readFile, books)
 
-  return { render, net, identity, store, picker, room, books, covers }
+  return { render, net, identity, store, picker, room, books, covers, imports }
 }

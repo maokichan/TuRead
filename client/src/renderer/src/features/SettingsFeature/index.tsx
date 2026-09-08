@@ -104,13 +104,8 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
   const toggleImportRecursive = useCallback(() => {
     setImportRecursive((prev) => {
       const next = !prev
-      void (async () => {
-        const cur = await container.store.getSetting<LibrarySettings>(
-          'librarySettings',
-          DEFAULT_LIBRARY
-        )
-        await container.store.setSetting('librarySettings', { ...cur, importRecursive: next })
-      })()
+      // 局部更新：主进程原子合并，避免与书库侧写同一键时互相覆盖
+      void container.store.patchSetting('librarySettings', { importRecursive: next })
       return next
     })
   }, [container])

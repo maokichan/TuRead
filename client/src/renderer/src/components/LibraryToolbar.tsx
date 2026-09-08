@@ -33,24 +33,41 @@ export function LibraryToolbar({
   onCancelImport,
   coverProgress
 }: LibraryToolbarProps): React.JSX.Element {
+  /** 点击视图时的"吞没 → 浅字出现 → 异变消失"动画（只作用于被点的那个） */
+  const [flash, setFlash] = useState<LibraryView | null>(null)
+  const flashTimer = useRef<number | null>(null)
+
+  useEffect(
+    () => () => {
+      if (flashTimer.current !== null) window.clearTimeout(flashTimer.current)
+    },
+    []
+  )
+
+  const pickView = (v: LibraryView): void => {
+    onViewChange(v)
+    setFlash(v)
+    if (flashTimer.current !== null) window.clearTimeout(flashTimer.current)
+    flashTimer.current = window.setTimeout(() => setFlash(null), 640)
+  }
+
   return (
     <footer className="flex flex-none items-center justify-between gap-3 border-t border-[var(--border)] pt-2 text-[12px]">
-      <div className="flex items-center gap-2.5">
-        <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
-          {VIEWS.map((v) => (
-            <button
-              key={v.value}
-              onClick={() => onViewChange(v.value)}
-              className={`px-2.5 py-1 transition-colors ${
-                view === v.value
-                  ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                  : 'bg-[var(--panel-2)] text-[var(--muted)] hover:text-[var(--accent)]'
-              }`}
-            >
-              {v.label}
-            </button>
-          ))}
-        </div>
+      <div className="flex items-center gap-3">
+        {/* 视图切换：无按钮边框，只用加粗的源流明体文字 */}
+        {VIEWS.map((v) => (
+          <button
+            key={v.value}
+            onClick={() => pickView(v.value)}
+            className={`view-switch rounded px-1.5 py-0.5 font-[var(--font-serif-cn)] text-[14px] font-bold ${
+              view === v.value
+                ? 'text-[var(--text)]'
+                : 'text-[var(--muted)] hover:text-[var(--text)]'
+            } ${flash === v.value ? 'view-switch-flash' : ''}`}
+          >
+            {v.label}
+          </button>
+        ))}
         <span className="text-[var(--muted)]">{bookCount} 本</span>
         {coverProgress && (
           <span className="text-[var(--muted)]">

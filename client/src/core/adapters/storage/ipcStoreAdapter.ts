@@ -37,6 +37,10 @@ export class IpcStoreAdapter implements ILibraryStore {
     await this.bridge.invoke(IPC.storeSetSetting, { key, value })
   }
 
+  async patchSetting(key: string, patch: Record<string, unknown>): Promise<void> {
+    await this.bridge.invoke(IPC.storePatchSetting, { key, patch })
+  }
+
   async setCover(bookId: string, bytes: ArrayBuffer, ext: string): Promise<string> {
     return (await this.bridge.invoke(IPC.storeSetCover, { bookId, bytes, ext })) as string
   }

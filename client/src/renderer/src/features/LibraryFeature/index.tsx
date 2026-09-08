@@ -1,19 +1,19 @@
 /**
  * 功能组件：书架（LibraryFeature）
  * 职责（编排的用例/端口）：
- *   books.*   —— 导入/去重/列表/删除/选中
+ *   books.*   —— 列表/删除/选中/最近阅读
  *   picker.*  —— 选文件 / 选目录 / 扫描目录（可含子目录）/ 读文件（本地文件能力）
+ *   imports.* —— 批量导入（用例：串行/进度/可取消/失败上报，v0.1.9 从本组件下沉）
  *   covers.*  —— 封面缩略图异步提取（进度/取消）
  * 对外状态：selectedBookId（经 host.selectBook 上报 Shell；详情抽屉显示的就是它）。
  * 依据：client/docs/FEATURES.md §10（书库重做）。
  *
- * 布局纪律（2026-09-08 定）：**状态栏之上是内容区，详情抽屉只在内容区弹出** ——
- * 抽屉由内容区容器 `relative` 定位，因此不覆盖底部状态栏。
+ * 布局纪律：**状态栏之上是内容区，详情抽屉只在内容区弹出** —— 抽屉由内容区容器
+ * `relative` 定位，因此不覆盖底部状态栏。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BookRecord, LibrarySettings, LibraryView } from '@core/domain/types'
 import type { FeatureProps } from '../types'
-import { extToFormat } from '../util'
 import { forgetCover, getCoverUrl } from '../coverCache'
 import { BookRow } from '../../components/BookRow'
 import { BookTile } from '../../components/BookTile'
@@ -32,7 +32,8 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
   const [coverProgress, setCoverProgress] = useState<{ done: number; total: number } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<BookRecord | null>(null)
   const [skipDeleteNotice, setSkipDeleteNotice] = useState(false)
-  const cancelImportRef = useRef(false)
+  /** 本批导入成功的书 id（done 时一次性交给封面队列） */
+  const importedIdsRef = useRef<string[]>([])
 
   /** 重载书库列表 + 取回各书封面 URL（缓存命中不重复走 IPC） */
   const refresh = useCallback(async (): Promise<BookRecord[]> => {
@@ -88,6 +89,42 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
     }
   }, [container, host])
 
+  // 导入事件 → 进度 / 失败日志 / 收尾（刷新列表 + 选中首本 + 入队封面）
+  useEffect(() => {
+    const offProgress = container.imports.on('progress', (done, total) =>
+      setImporting(total > 0 ? { done, total } : null)
+    )
+    const offImported = container.imports.on('imported', (book) => {
+      importedIdsRef.current.push(book.id)
+    })
+    const offFailed = container.imports.on('import-failed', (path, message) =>
+      host.pushLog(`导入失败（${path}）：${message}`)
+    )
+    const offDone = container.imports.on('done', (summary) => {
+      setImporting(null)
+      const ids = importedIdsRef.current
+      importedIdsRef.current = []
+      void (async () => {
+        await refresh()
+        if (ids.length > 0) {
+          host.selectBook(ids[0])
+          container.covers.enqueue(ids)
+        }
+        const parts = [`导入 ${summary.imported - summary.reused} 本`]
+        if (summary.reused > 0) parts.push(`指纹复用 ${summary.reused} 本`)
+        if (summary.failed > 0) parts.push(`失败 ${summary.failed} 本`)
+        if (summary.cancelled) parts.push('（已取消）')
+        host.pushLog(parts.join('，'))
+      })()
+    })
+    return () => {
+      offProgress()
+      offImported()
+      offFailed()
+      offDone()
+    }
+  }, [container, host, refresh])
+
   // 存量补封面：老书库里的书没有封面 → 后台补齐（dev 无头自检跳过，保持渲染验证确定性）
   useEffect(() => {
     if (window.turead.devBook) return
@@ -98,67 +135,18 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
     })()
   }, [container])
 
-  /** 切换视图并持久化（**合并写**：不能把 SettingsFeature 管的 importRecursive 冲掉） */
+  /** 切换视图并持久化（**局部更新**：主进程原子合并，不会冲掉设置界面管的 importRecursive） */
   const changeView = useCallback(
     (v: LibraryView) => {
       setView(v)
-      void (async () => {
-        const cur = await container.store.getSetting<LibrarySettings>(
-          'librarySettings',
-          DEFAULT_SETTINGS
-        )
-        await container.store.setSetting('librarySettings', { ...cur, view: v })
-      })()
+      void container.store.patchSetting('librarySettings', { view: v })
     },
     [container]
   )
 
-  /** 批量导入：串行 + 进度 + 可取消（FEATURES §10 定案） */
-  const importPaths = useCallback(
-    async (paths: string[]): Promise<void> => {
-      if (paths.length === 0) return
-      cancelImportRef.current = false
-      setImporting({ done: 0, total: paths.length })
-
-      const importedIds: string[] = []
-      let reused = 0
-      let failed = 0
-      for (let i = 0; i < paths.length; i++) {
-        if (cancelImportRef.current) break
-        const path = paths[i]
-        const name = path.split(/[\\/]/).pop() ?? path
-        try {
-          const buffer = await container.picker.readFile(path)
-          const res = await container.books.importBook(buffer, name, extToFormat(name), path)
-          importedIds.push(res.book.id)
-          if (res.reused) reused++
-        } catch (err) {
-          failed++
-          host.pushLog(`导入失败（${name}）：${(err as Error).message}`)
-        }
-        setImporting({ done: i + 1, total: paths.length })
-      }
-
-      const cancelled = cancelImportRef.current
-      setImporting(null)
-      await refresh()
-      if (importedIds.length > 0) {
-        host.selectBook(importedIds[0])
-        container.covers.enqueue(importedIds)
-      }
-
-      const parts = [`导入 ${importedIds.length - reused} 本`]
-      if (reused > 0) parts.push(`指纹复用 ${reused} 本`)
-      if (failed > 0) parts.push(`失败 ${failed} 本`)
-      if (cancelled) parts.push('（已取消）')
-      host.pushLog(parts.join('，'))
-    },
-    [container, host, refresh]
-  )
-
   const importFiles = useCallback(async (): Promise<void> => {
-    await importPaths(await container.picker.pickFiles())
-  }, [container, importPaths])
+    container.imports.enqueue(await container.picker.pickFiles())
+  }, [container])
 
   const importFolder = useCallback(async (): Promise<void> => {
     const dir = await container.picker.pickDirectory()
@@ -174,8 +162,8 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
       host.pushLog(`该目录下没有可导入的电子书：${dir}${recursive ? '（含子目录）' : '（仅此节点）'}`)
       return
     }
-    await importPaths(paths)
-  }, [container, host, importPaths])
+    container.imports.enqueue(paths)
+  }, [container, host])
 
   const removeBook = useCallback(
     async (id: string): Promise<void> => {
@@ -211,7 +199,7 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
       if (!target) return
       if (remembered) {
         setSkipDeleteNotice(true)
-        void container.store.setSetting('deleteNotice', { skip: true })
+        void container.store.patchSetting('deleteNotice', { skip: true })
       }
       await removeBook(target.id)
     },
@@ -295,9 +283,7 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
         onImportFiles={() => void importFiles()}
         onImportFolder={() => void importFolder()}
         importing={importing}
-        onCancelImport={() => {
-          cancelImportRef.current = true
-        }}
+        onCancelImport={() => container.imports.cancel()}
         coverProgress={coverProgress}
       />
 

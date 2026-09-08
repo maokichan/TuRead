@@ -26,6 +26,8 @@ export interface IBookService {
   get(id: string): Promise<BookRecord | null>
   remove(id: string): Promise<void>
   updateLastLocation(id: string, location: BookLocation): Promise<void>
+  /** 最近阅读的书（无阅读记录则回退最近导入）；供"进入阅读器恢复上次内容"用（v0.1.9） */
+  getLastRead(): Promise<BookRecord | null>
 }
 
 export class BookService implements IBookService {
@@ -89,5 +91,18 @@ export class BookService implements IBookService {
 
   async updateLastLocation(id: string, location: BookLocation): Promise<void> {
     await this.store.updateBook(id, { lastLocation: location, lastReadAt: Date.now() })
+  }
+
+  /**
+   * 最近阅读的书：优先 `lastReadAt` 最大者；都没有阅读记录时回退最近导入（`createdAt`）。
+   * 排序放在用例层（而不是 UI），保证"上次读到哪本"的口径只有一处。
+   */
+  async getLastRead(): Promise<BookRecord | null> {
+    const list = await this.store.listBooks()
+    if (list.length === 0) return null
+    const sorted = [...list].sort(
+      (a, b) => (b.lastReadAt ?? 0) - (a.lastReadAt ?? 0) || b.createdAt - a.createdAt
+    )
+    return sorted[0]
   }
 }

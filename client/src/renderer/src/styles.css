@@ -69,6 +69,9 @@
   --page-text: #1b1d1f;
 
   --scrollbar: #2f3438;
+  /* 视图切换动画的"深色块 + 浅色字" */
+  --flash-bg: #000000;
+  --flash-text: #e9ebed;
   --mono: 'Cascadia Code', Consolas, 'JetBrains Mono', monospace;
   /* 中文衬线（明体）字栈：打包的源流明體优先，未命中再回退系统宋体 */
   --font-serif-cn: 'GenRyuMin TW', '源流明體', 'GenRyuMin', 'Source Han Serif SC', 'Noto Serif CJK SC', 'SimSun', 'Songti SC', serif;
@@ -106,6 +109,8 @@
   --page-text: #1b1d1f;
 
   --scrollbar: #c3c8cc;
+  --flash-bg: #1b1d1f;
+  --flash-text: #f2f3f5;
 }
 
 [data-theme='sepia-light'] {
@@ -139,6 +144,8 @@
   --page-text: #3a2f21;
 
   --scrollbar: #c2ae86;
+  --flash-bg: #2a2118;
+  --flash-text: #f7f1e3;
 }
 
 [data-theme='sepia-dark'] {
@@ -172,6 +179,8 @@
   --page-text: #e6dcc9;
 
   --scrollbar: #3d3428;
+  --flash-bg: #000000;
+  --flash-text: #e6dcc9;
 }
 
 * {
@@ -230,6 +239,37 @@ body {
 /* ---------- 功能组件图标符号字体 ---------- */
 .feature-icon {
   font-family: var(--font-serif-cn);
+}
+
+/* ---------- 书库底部：视图切换动画（无按钮边框，只用加粗的源流明体文字） ----------
+   点击时：① 判定区域先变深色（文字被"吞没"）② 浅色文字出现在深色区域上
+   ③ 区域与文字同时变回（视觉上"刚刚的异变消失了"）。
+   flash-bg / flash-text 是四套主题各自的"深色块 + 浅色字"（见各主题 token）。 */
+@keyframes view-switch-flash {
+  0% {
+    background-color: transparent;
+    color: var(--muted);
+  }
+  14% {
+    background-color: var(--flash-bg);
+    color: var(--flash-bg);
+  }
+  42% {
+    background-color: var(--flash-bg);
+    color: var(--flash-text);
+  }
+  76% {
+    background-color: var(--flash-bg);
+    color: var(--flash-text);
+  }
+  100% {
+    background-color: transparent;
+    color: var(--text);
+  }
+}
+
+.view-switch-flash {
+  animation: view-switch-flash 620ms ease-out both;
 }
 
 /* ---------- 滚动条 ---------- */

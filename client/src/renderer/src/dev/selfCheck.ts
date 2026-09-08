@@ -10,12 +10,12 @@
  * 已知例外：直接用 `window.turead` 桥读文件（与 LibraryFeature 选文件同类，见 FEATURES.md §8）。
  */
 import type { ServiceContainer } from '@core/container'
-import { sameLocation } from '@core/domain/location'
+import { extToFormat } from '@core/domain/format'
+import { isZeroLocation, sameLocation } from '@core/domain/location'
 import type { BookLocation } from '@core/domain/types'
 import type { CoverSummary } from '@core/usecases/CoverQueue'
 import { pushLog } from '../features/logStore'
 import type { FeatureHost } from '../features/types'
-import { extToFormat } from '../features/util'
 
 /** 防重入标记（模块级）：StrictMode 在 dev 会 mount→unmount→remount，
  *  用 useRef 会在 remount 时重置，导致两个并发 openReader 竞争。 */
@@ -260,31 +260,53 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
             import('react-dom/client'),
             import('../components/FittedTitle')
           ])
-          const host = document.createElement('div')
-          host.style.cssText = 'position:fixed;left:-9999px;top:0;width:118px;height:177px'
-          document.body.appendChild(host)
-          const root = createRoot(host)
+          const probeHost = document.createElement('div')
+          probeHost.style.cssText = 'position:fixed;left:-9999px;top:0;width:118px;height:177px'
+          document.body.appendChild(probeHost)
+          const root = createRoot(probeHost)
           root.render(createElement(FittedTitle, { text: '年代四部曲' }))
           await wait(900)
-          const span = host.querySelector('span')
+          const span = probeHost.querySelector('span')
           const size = span ? parseFloat(getComputedStyle(span).fontSize) : 0
           const used = span ? span.getBoundingClientRect().height : 0
           const ratio = Math.round((used / 177) * 100)
           root.unmount()
-          host.remove()
+          probeHost.remove()
           const verdict = size > 20 && ratio > 55 ? 'ok' : '可疑'
           return `文字封面=${verdict}(字号${size.toFixed(0)}px/填充${ratio}%)`
         } catch (err) {
           return `文字封面=异常(${(err as Error).message})`
         }
       })()
+
+      /**
+       * "阅读器记住上次内容"回归断言（v0.1.9）：关闭阅读器后再进入，应自动恢复上次阅读的书
+       * （否则每次进阅读器都是空的）。走真实导航入口 `host.navigate('reader')`。
+       */
+      const restoreLine = await (async (): Promise<string> => {
+        try {
+          host.closeReader()
+          await wait(500)
+          host.navigate('reader')
+          const deadline = Date.now() + 10000
+          while (Date.now() < deadline) {
+            if (!isZeroLocation(container.render.getPosition())) return '恢复=ok'
+            await wait(200)
+          }
+          return '恢复=失败'
+        } catch (err) {
+          return `恢复=异常(${(err as Error).message})`
+        }
+      })()
+
       const pos1 = container.render.getPosition()
       const ch = container.render.getChapter().length
       const line =
         `[dev] ${ok ? '渲染OK' : '渲染可疑'} 格式=${book.format} 章节数=${ch} ` +
-        `正文长度=${innerLen} 可滚动=${s2.scrollH} iframeH=${s2.iframeH} docScrollH=${s2.docScrollH} ${subInfo} ${coverLine} ${fontLine} ${fittedLine} 位置=第${pos1.page}页/${pos1.percentage}`
+        `正文长度=${innerLen} 可滚动=${s2.scrollH} iframeH=${s2.iframeH} docScrollH=${s2.docScrollH} ${subInfo} ${coverLine} ${fontLine} ${fittedLine} ${restoreLine} 位置=第${pos1.page}页/${pos1.percentage}`
       pushLog(line)
-      console.log(ok ? '[TUREAD-TEST-OK]' + line : '[TUREAD-TEST-FAIL]' + line)    } catch (err) {
+      console.log(ok ? '[TUREAD-TEST-OK]' + line : '[TUREAD-TEST-FAIL]' + line)
+    } catch (err) {
       const e = err as Error
       const line = `[dev] 渲染失败：${e.message}`
       pushLog(line)
