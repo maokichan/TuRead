@@ -25,7 +25,7 @@ const DEFAULT_SETTINGS: LibrarySettings = { view: 'list', importRecursive: false
 
 export function LibraryFeature({ container, host, selectedBookId }: FeatureProps): React.JSX.Element {
   const [books, setBooks] = useState<BookRecord[]>([])
-  const [settings, setSettings] = useState<LibrarySettings>(DEFAULT_SETTINGS)
+  const [view, setView] = useState<LibraryView>(DEFAULT_SETTINGS.view)
   const [covers, setCovers] = useState<Record<string, string>>({})
   const [detailId, setDetailId] = useState<string | null>(null)
   const [importing, setImporting] = useState<{ done: number; total: number } | null>(null)
@@ -49,12 +49,7 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
   useEffect(() => {
     void container.store
       .getSetting<LibrarySettings>('librarySettings', DEFAULT_SETTINGS)
-      .then((s) =>
-        setSettings({
-          view: s.view === 'grid' ? 'grid' : 'list',
-          importRecursive: s.importRecursive === true
-        })
-      )
+      .then((s) => setView(s.view === 'grid' ? 'grid' : 'list'))
     void container.store
       .getSetting<{ skip?: boolean }>('deleteNotice', {})
       .then((s) => setSkipDeleteNotice(s.skip === true))
@@ -103,13 +98,17 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
     })()
   }, [container])
 
-  const patchSettings = useCallback(
-    (patch: Partial<LibrarySettings>) => {
-      setSettings((prev) => {
-        const next = { ...prev, ...patch }
-        void container.store.setSetting('librarySettings', next)
-        return next
-      })
+  /** 切换视图并持久化（**合并写**：不能把 SettingsFeature 管的 importRecursive 冲掉） */
+  const changeView = useCallback(
+    (v: LibraryView) => {
+      setView(v)
+      void (async () => {
+        const cur = await container.store.getSetting<LibrarySettings>(
+          'librarySettings',
+          DEFAULT_SETTINGS
+        )
+        await container.store.setSetting('librarySettings', { ...cur, view: v })
+      })()
     },
     [container]
   )
@@ -164,15 +163,19 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
   const importFolder = useCallback(async (): Promise<void> => {
     const dir = await container.picker.pickDirectory()
     if (!dir) return
-    const paths = await container.picker.listEbooks(dir, settings.importRecursive)
+    // "是否含子目录"在设置界面配置 —— 这里每次导入时现读，避免跨 Feature 的变更通知问题
+    const cfg = await container.store.getSetting<LibrarySettings>(
+      'librarySettings',
+      DEFAULT_SETTINGS
+    )
+    const recursive = cfg.importRecursive === true
+    const paths = await container.picker.listEbooks(dir, recursive)
     if (paths.length === 0) {
-      host.pushLog(
-        `该目录下没有可导入的电子书：${dir}${settings.importRecursive ? '（含子目录）' : '（仅此节点）'}`
-      )
+      host.pushLog(`该目录下没有可导入的电子书：${dir}${recursive ? '（含子目录）' : '（仅此节点）'}`)
       return
     }
     await importPaths(paths)
-  }, [container, host, importPaths, settings.importRecursive])
+  }, [container, host, importPaths])
 
   const removeBook = useCallback(
     async (id: string): Promise<void> => {
@@ -259,7 +262,7 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
             <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
               书架为空，点右下角「＋ 导入」添加电子书
             </p>
-          ) : settings.view === 'grid' ? (
+          ) : view === 'grid' ? (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(118px,1fr))] gap-x-4 gap-y-5">
               {books.map((b) => (
                 <BookTile key={b.id} {...itemProps(b)} />
@@ -286,13 +289,11 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
       </div>
 
       <LibraryToolbar
-        view={settings.view}
-        onViewChange={(v: LibraryView) => patchSettings({ view: v })}
+        view={view}
+        onViewChange={changeView}
         bookCount={books.length}
         onImportFiles={() => void importFiles()}
         onImportFolder={() => void importFolder()}
-        importRecursive={settings.importRecursive}
-        onToggleRecursive={() => patchSettings({ importRecursive: !settings.importRecursive })}
         importing={importing}
         onCancelImport={() => {
           cancelImportRef.current = true

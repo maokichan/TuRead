@@ -242,11 +242,13 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
       await waitIframeSized()
       const s2 = readDocState()
       const ok = innerLen > 0 && s2.scrollH > 0 && posChanged
+      // 打包字体（源流明體）是否真的可用（侧边栏符号与文字封面都依赖它）
+      const fontLine = document.fonts.check('700 16px "GenRyuMin TW"') ? '字体=ok' : '字体=缺失'
       const pos1 = container.render.getPosition()
       const ch = container.render.getChapter().length
       const line =
         `[dev] ${ok ? '渲染OK' : '渲染可疑'} 格式=${book.format} 章节数=${ch} ` +
-        `正文长度=${innerLen} 可滚动=${s2.scrollH} iframeH=${s2.iframeH} docScrollH=${s2.docScrollH} ${subInfo} ${coverLine} 位置=第${pos1.page}页/${pos1.percentage}`
+        `正文长度=${innerLen} 可滚动=${s2.scrollH} iframeH=${s2.iframeH} docScrollH=${s2.docScrollH} ${subInfo} ${coverLine} ${fontLine} 位置=第${pos1.page}页/${pos1.percentage}`
       pushLog(line)
       console.log(ok ? '[TUREAD-TEST-OK]' + line : '[TUREAD-TEST-FAIL]' + line)    } catch (err) {
       const e = err as Error

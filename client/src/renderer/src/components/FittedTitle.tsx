@@ -55,9 +55,20 @@ export function FittedTitle({
     }
 
     fit()
+    // 布局稳定后再拟合一次（首次 useLayoutEffect 时网格可能刚插入，尺寸未最终确定）
+    const raf = requestAnimationFrame(fit)
     const observer = new ResizeObserver(fit)
     observer.observe(box)
-    return () => observer.disconnect()
+    // 打包字体（源流明體）加载完成后字形度量会变 —— 首测用的是回退字体，必须重新拟合
+    let cancelled = false
+    void document.fonts?.ready.then(() => {
+      if (!cancelled) fit()
+    })
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(raf)
+      observer.disconnect()
+    }
   }, [text, maxSize, minSize, paddingRatio])
 
   return (

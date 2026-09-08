@@ -1,17 +1,32 @@
 /* Tailwind v4 入口。布局与组件样式走 utility class（见各功能组件 / 展示组件），
-   本文件只保留：主题变量（语义 token，第三方可整套覆盖建自定义主题）、全局 base、滚动条、
-   以及 kookit 硬编码契约样式（见 KOOKIT.md §5）。 */
+   本文件只保留：字体、主题变量（语义 token，第三方可整套覆盖建自定义主题）、全局 base、
+   滚动条、以及 kookit 硬编码契约样式（见 KOOKIT.md §5）。 */
 
 @import 'tailwindcss';
 
 /* ------------------------------------------------------------------
+   打包字体：源流明體（GenRyuMin2 TW Bold，SIL OFL 1.1）
+   用途：侧边栏功能符号（書/閱/房/設）+ 无封面时的"文字封面"。
+   子集化：BMP CJK（U+4E00–9FFF）+ 拉丁 + 常用标点，去提示指令/布局表 → 18.8MB → 10.95MB。
+   ⚠ 极生僻字（Ext-A/B 等）不在子集内，会回退到字栈里的下一个字体。
+   许可与来源见 src/renderer/src/assets/fonts/NOTICE.md 与 借物表.md。
+------------------------------------------------------------------- */
+@font-face {
+  font-family: 'GenRyuMin TW';
+  src: url('./assets/fonts/GenRyuMinTW-B.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ------------------------------------------------------------------
    主题语义 token（设计令牌）—— 所有颜色必须经 var(--*) 引用，不得在组件里写死。
 
-   色彩取向（2026-09-08 定）：
-   - **暗色 / 亮色两套主题一律黑灰白**（不引入色相；此前偏蓝的 accent 与底色已清除）。
-     高亮色即"灰阶的两端"：暗色主题 = 近白，亮色主题 = 近黑。
-   - **羊皮纸**保持暖棕取向，其"高亮"用**深棕**（暖色主题自己的对应深色）。
-   - 状态色（ok/warn/err）保留语义色相 —— 它们传达"连通/警告/错误"，不是装饰色。
+   色彩取向（2026-09-08 定，共四套）：
+   - **暗色 / 亮色**：一律黑灰白（不引入色相）。
+   - **羊皮纸·亮 / 羊皮纸·暗**：同一暖棕取向下的明暗两版（用户："在羊皮纸的色彩取向上建立亮色和暗色"）。
+   - 状态色（ok/warn/err）保留语义色相 —— 传达"连通/警告/错误"，不是装饰色。
+   - 阅读页（page-bg/page-text）：暗色主题仍为"白纸"；羊皮纸·暗 用深棕纸面。
 
    语义说明：
      bg/panel/panel-2/border/border-soft  —— 背景层级
@@ -31,11 +46,12 @@
   --text: #e9ebed;
   --muted: #9aa1a8;
 
-  --accent: #e9ebed;
-  --accent-soft: rgba(233, 235, 237, 0.12);
-  --accent-strong: rgba(233, 235, 237, 0.2);
-  --accent-ring: rgba(233, 235, 237, 0.32);
-  --on-accent: #101214;
+  /* 高亮已调暗（原近白 #e9ebed → 柔灰） */
+  --accent: #c2c8cf;
+  --accent-soft: rgba(194, 200, 207, 0.12);
+  --accent-strong: rgba(194, 200, 207, 0.2);
+  --accent-ring: rgba(194, 200, 207, 0.3);
+  --on-accent: #131516;
 
   --ok: #6fbf8a;
   --ok-border: rgba(111, 191, 138, 0.4);
@@ -54,11 +70,45 @@
 
   --scrollbar: #2f3438;
   --mono: 'Cascadia Code', Consolas, 'JetBrains Mono', monospace;
-  /* 中文衬线（明体）字栈：功能图标符号 + 无封面时的"文字封面"共用 */
-  --font-serif-cn: '源流明體', 'GenRyuMin', 'Source Han Serif SC', 'Noto Serif CJK SC', 'SimSun', 'Songti SC', serif;
+  /* 中文衬线（明体）字栈：打包的源流明體优先，未命中再回退系统宋体 */
+  --font-serif-cn: 'GenRyuMin TW', '源流明體', 'GenRyuMin', 'Source Han Serif SC', 'Noto Serif CJK SC', 'SimSun', 'Songti SC', serif;
 }
 
-[data-theme='sepia'] {
+[data-theme='light'] {
+  /* 整体压暗一档（原先偏刺眼） */
+  --bg: #e7e9eb;
+  --panel: #f2f3f5;
+  --panel-2: #dde0e2;
+  --border: #cfd3d6;
+  --border-soft: #dbdee1;
+  --text: #1b1d1f;
+  --muted: #62686d;
+
+  --accent: #2a2d30;
+  --accent-soft: rgba(42, 45, 48, 0.08);
+  --accent-strong: rgba(42, 45, 48, 0.16);
+  --accent-ring: rgba(42, 45, 48, 0.28);
+  --on-accent: #ffffff;
+
+  --ok: #2f7d4f;
+  --ok-border: rgba(47, 125, 79, 0.4);
+  --warn: #8f6b12;
+  --warn-border: rgba(143, 107, 18, 0.4);
+  --err: #b03a30;
+  --err-border: rgba(176, 58, 48, 0.4);
+
+  --input-bg: #f7f8f9;
+  --badge-bg: #e4e7e9;
+  --log-bg: #eef0f2;
+  --log-text: #5f666b;
+
+  --page-bg: #ffffff;
+  --page-text: #1b1d1f;
+
+  --scrollbar: #c3c8cc;
+}
+
+[data-theme='sepia-light'] {
   --bg: #f1e9d7;
   --panel: #e9dfc6;
   --panel-2: #ddcfb0;
@@ -91,37 +141,37 @@
   --scrollbar: #c2ae86;
 }
 
-[data-theme='light'] {
-  --bg: #f4f5f6;
-  --panel: #ffffff;
-  --panel-2: #eceef0;
-  --border: #d9dde1;
-  --border-soft: #e6e9ec;
-  --text: #1b1d1f;
-  --muted: #6b7176;
+[data-theme='sepia-dark'] {
+  --bg: #17130e;
+  --panel: #1f1a13;
+  --panel-2: #292218;
+  --border: #3a3125;
+  --border-soft: #2c2519;
+  --text: #e6dcc9;
+  --muted: #a3957c;
 
-  --accent: #1b1d1f;
-  --accent-soft: rgba(27, 29, 31, 0.08);
-  --accent-strong: rgba(27, 29, 31, 0.16);
-  --accent-ring: rgba(27, 29, 31, 0.28);
-  --on-accent: #ffffff;
+  --accent: #cbb48c;
+  --accent-soft: rgba(203, 180, 140, 0.13);
+  --accent-strong: rgba(203, 180, 140, 0.22);
+  --accent-ring: rgba(203, 180, 140, 0.32);
+  --on-accent: #1a150e;
 
-  --ok: #2f7d4f;
-  --ok-border: rgba(47, 125, 79, 0.4);
-  --warn: #8f6b12;
-  --warn-border: rgba(143, 107, 18, 0.4);
-  --err: #b03a30;
-  --err-border: rgba(176, 58, 48, 0.4);
+  --ok: #6fa87f;
+  --ok-border: rgba(111, 168, 127, 0.4);
+  --warn: #d0a862;
+  --warn-border: rgba(208, 168, 98, 0.4);
+  --err: #d08a7a;
+  --err-border: rgba(208, 138, 122, 0.4);
 
-  --input-bg: #fafbfc;
-  --badge-bg: #eef0f2;
-  --log-bg: #f4f5f7;
-  --log-text: #6a7278;
+  --input-bg: #120f0a;
+  --badge-bg: #1a1610;
+  --log-bg: #100d09;
+  --log-text: #b3a68d;
 
-  --page-bg: #ffffff;
-  --page-text: #1b1d1f;
+  --page-bg: #221c14;
+  --page-text: #e6dcc9;
 
-  --scrollbar: #c8cdd2;
+  --scrollbar: #3d3428;
 }
 
 * {
@@ -160,24 +210,24 @@ body {
   border: none;
 }
 
-/* ---------- 书库：列表行左侧封面（填充 + 向右渐隐） ----------
-   封面作为行的左侧背景，用 mask 让它向右淡出到行背景色，形成"书脊—文字"的过渡。
-   ⚠ 只用于**真实封面**；文字封面不用它（否则标题会被淡出遮罩吃掉，见 BookRow）。 */
+/* ---------- 书库：列表行左侧封面槽（填充 + 向右渐隐） ----------
+   封面槽 = 行的左侧区域，里面可以是**封面图**，也可以是**文字封面**（两者同等对待，
+   见 FEATURES §10：文字封面的性质就是封面）。渐隐更靠左（2026-09-08 调），
+   让右侧标题/详情内容自然压住封面边缘。 */
 .book-row-cover {
-  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 38%, transparent 100%);
-  mask-image: linear-gradient(to right, #000 0%, #000 38%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 18%, transparent 82%);
+  mask-image: linear-gradient(to right, #000 0%, #000 18%, transparent 82%);
 }
 
-/* ---------- 书库：文字封面 / 列表左栏标题 ----------
-   中文用明体字栈（源流明体，未安装时回退系统宋体）；字号由 FittedTitle 二分搜索撑满容器。 */
+/* ---------- 书库：文字封面 ----------
+   中文用打包的源流明體（`--font-serif-cn`）；字号由 FittedTitle 二分搜索撑满容器。 */
 .title-cover {
   font-family: var(--font-serif-cn);
   word-break: break-word;
   overflow-wrap: anywhere;
 }
 
-/* ---------- 功能组件图标符号字体：繁体源流明体（明体/宋体风格，更有设计感） ----------
-   未安装时回退到系统中文字体；如需保证所有机器一致，后续可把字体文件打进资源（借物表登记）。 */
+/* ---------- 功能组件图标符号字体 ---------- */
 .feature-icon {
   font-family: var(--font-serif-cn);
 }

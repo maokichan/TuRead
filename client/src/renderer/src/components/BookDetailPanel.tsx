@@ -49,7 +49,7 @@ export function BookDetailPanel({
   return (
     <aside
       ref={panelRef}
-      className="absolute inset-y-0 right-0 z-30 flex w-[340px] flex-col border-l border-[var(--border)] bg-[var(--panel)] shadow-2xl"
+      className="absolute inset-y-0 right-0 z-30 flex w-[280px] flex-col border-l border-[var(--border)] bg-[var(--panel)] shadow-2xl"
     >
       <header className="flex flex-none items-start gap-3 border-b border-[var(--border-soft)] p-4">
         <div className="h-[96px] w-16 flex-none overflow-hidden rounded border border-[var(--border)] bg-[var(--panel-2)]">

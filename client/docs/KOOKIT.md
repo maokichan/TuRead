@@ -129,11 +129,15 @@ GeneralRender (GeneralRender.ts，事件基类)
   每页一个 section），不依赖 OCR；笔记走页码+视口坐标。
 - **扫描版 PDF**：`isScannedPDF` 走 `PdfTextRender`，OCR 是插槽（`external-engine`，
   `config.externalWorker = { recognize }`），无需改 kookit 源码；引擎实现单独立项。
+- **PDF 夜间模式 = 像素处理（方案记录，2026-09-08）**：PDF 页面是**位图**（pdfjs 渲染到 canvas），
+  改 CSS 文字颜色对它无效 —— 夜间模式必须走**像素级处理**：对页面 canvas 取 `getImageData` → 反相/降亮度
+  → `putImageData`，或对页面容器整体施加 `filter: invert(...)` 后再补偿色相。
+  扫描版 PDF 同理（本就无文字层）。**不要**按 EPUB 的思路去改文字颜色。
+  正式实现单独立项（见根 `TODO.md`「PDF 夜间模式」）。
 - **OCR 多端一致性**（已知边界）：页码跨端稳定；count/text/笔记 range 随 OCR 引擎变化，
   同步回跳与笔记回显只在同引擎族内有效。
 
 ## 8. 独立测试工具（kookit-harness）
-
 `client/tools/kookit-harness/`，隔离 App 环境验证单体：
 
 - `serve.mjs`：零依赖静态服务器（root=client/），映射 `/lib/pdfjs/` → `src/renderer/public/lib/pdfjs/`。

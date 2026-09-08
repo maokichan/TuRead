@@ -24,6 +24,12 @@
 - [ ] **打包「源流明体」字体**：当前侧边栏繁体字符靠系统安装字体回退 → 把字体文件打进资源（核许可登记借物表，FEATURES §7.8/§9）
 - [ ] **更多设置项**：文字大小/行距/字体（RenderOptions.fontSize/lineHeight/fontFamily 需先扩 kookit config 映射 + 重开书生效提示）
 - [ ] **详情抽屉操作清单**：当前只有「打开 + 删除」（书库重做待定项，FEATURES §10）
+- [ ] **PDF 夜间模式（像素处理）**：PDF 页面是位图，改文字颜色无效 → 对页面 canvas 做
+  `getImageData` → 反相/降亮度 → `putImageData`（或容器 `filter: invert` + 色相补偿）；
+  扫描版同理。方案已记录在 `client/docs/KOOKIT.md` §7，正式实现单独立项
+- [ ] **多书架（考虑中）**：当前只有单一书库；将来可支持多个书架（分组/不同来源/不同设备同步）。
+  ⚠ 会影响 `ILibraryStore` 与 `BookRecord`（需 bookId → shelfId 归属）、导入目标、视图状态与
+  房间标定选书流程 —— 动手前先定模型，见 `client/docs/FEATURES.md` §10 待定项
 - [ ] **location-updated 同位 UI（跟随模式）**：RoomFeature 消费 ReaderFeature 的跳转回调（FEATURES §9）
 - [ ] **vitest 引入**：客户端零测试设施；`domain/location.ts` 这类语义模块需要单元断言兜底（组件化前做）
 - [ ] **笔记/划线实现**（契约已立：`Note` + `IRenderService` 三原语 + 定位系统，链路见

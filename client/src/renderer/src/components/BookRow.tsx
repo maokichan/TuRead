@@ -62,25 +62,26 @@ export function BookRow({
           : 'border-transparent hover:border-[var(--border)] hover:bg-[var(--panel)]'
       }`}
     >
-      {coverUrl ? (
-        <>
+      {/*
+        封面槽（左侧 2/5）：**封面图与文字封面同等对待** —— 都套 `.book-row-cover` 渐隐，
+        都填满槽位（FEATURES §10：文字封面的性质就是封面，按图片处理）。
+      */}
+      <div className="book-row-cover absolute inset-y-0 left-0 w-2/5 overflow-hidden bg-[var(--panel-2)]">
+        {coverUrl ? (
           <div
-            className="book-row-cover absolute inset-y-0 left-0 w-2/5 bg-cover bg-center"
+            className="h-full w-full bg-cover bg-center"
             style={{ backgroundImage: `url(${coverUrl})` }}
           />
-          <div className="relative flex h-full flex-col justify-center gap-0.5 pr-3 pl-[46%]">
-            <span className="truncate text-[13.5px]">{title}</span>
-            {meta}
-          </div>
-        </>
-      ) : (
-        <div className="relative flex h-full items-center gap-3 px-2">
-          <div className="h-full w-[58%] flex-none">
-            <FittedTitle text={title} maxSize={34} minSize={10} paddingRatio={0.04} />
-          </div>
-          <div className="min-w-0 flex-1">{meta}</div>
-        </div>
-      )}
+        ) : (
+          <FittedTitle text={title} maxSize={34} minSize={9} paddingRatio={0.03} />
+        )}
+      </div>
+
+      {/* 内容层：起始更靠左，自然压住封面右缘（标题 + 详情，两种封面情况完全一致） */}
+      <div className="relative flex h-full flex-col justify-center gap-0.5 pr-3 pl-[30%]">
+        <span className="truncate text-[13.5px]">{title}</span>
+        {meta}
+      </div>
     </div>
   )
 }
