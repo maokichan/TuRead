@@ -5,9 +5,6 @@
 
 ## client
 
-- [ ] **(P1) RoomSession.leaveRoom 误解绑 net 订阅**：unsubs 混装了构造函数的 `net.on` 与
-  joinRoom 的 `render.on`，leaveRoom 全量解绑后重新 joinRoom 时 `room.join-ack` 无人接收 →
-  joinRoom 永久挂起。修法：net 订阅解绑单独保存（`usecases/RoomSession.ts:135`）
 - [ ] **(P2) join 握手无超时**：`pendingJoin` 只被 room.join-ack resolve，断线/丢包时挂死；
   加 10s 超时走 `server-error`（`usecases/RoomSession.ts:101`）
 - [ ] **(P3) 协议形状收拢**：信封 type 字符串与 payload 形状散落在 RoomSession 的
@@ -15,9 +12,10 @@
   防止"各处自行解释"的腐化（与定位系统同类问题）
 - [ ] **(P3) JoinResult 类型重复**：domain 与 RoomSession 各一份、reason 枚举不一致 → 收敛 domain
 - [ ] **(P3) emitLocation 绕过节流**：手动路径直接 send，与 onRenderLocation 的 300ms 节流不一致 → 统一走 throttleSend
-- [ ] **UI 组件化（下一里程碑；样式方案 2026-09-07 定案 Tailwind）**：拆分 `App.tsx` 为组件
-  （书架/连接/房间/聊天/阅读器/日志）+ 样式迁移 Tailwind（`@tailwindcss/vite`，v4.x；
-  决策见 STATUS 决策表 / 借物表）
+- [ ] **打包「源流明体」字体**：当前侧边栏繁体字符靠系统安装字体回退 → 把字体文件打进资源（核许可登记借物表，FEATURES §7.8/§9）
+- [ ] **更多设置项**：文字大小/行距/字体（RenderOptions.fontSize/lineHeight/fontFamily 需先扩 kookit config 映射 + 重开书生效提示）
+- [ ] **选文件收敛为端口**：LibraryFeature/dev 目前直用 `window.turead` 桥选文件 → 收敛 `IBookPicker` 进 ServiceContainer（FEATURES §8 已知例外）
+- [ ] **location-updated 同位 UI（跟随模式）**：RoomFeature 消费 ReaderFeature 的跳转回调（FEATURES §9）
 - [ ] **vitest 引入**：客户端零测试设施；`domain/location.ts` 这类语义模块需要单元断言兜底（组件化前做）
 - [ ] **笔记/划线实现**（契约已立：`Note` + `IRenderService` 三原语 + 定位系统，链路见
   `client/docs/RENDER_INTERFACE.md` §5）：① `ILibraryStore` 笔记存取（JSON 起步）② UI 选段 →

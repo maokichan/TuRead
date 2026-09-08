@@ -6,7 +6,7 @@
 
 多人房间共读阅读器：多个用户进同一房间共同阅读同一本书。
 渲染/解析复用 kookit（AGPL-3.0，git submodule）；同步服务器用 Go。
-**server v0.2.0 已实现；client v0.1.5（一致性修复：location-updated 死端口 + leaveRoom P1；UI 功能组件设计讨论稿见 client/docs/FEATURES.md，2026-09-08，见下）。**
+**server v0.2.0 已实现；client v0.1.6（功能组件标准容器 + UI 交互流：AppShell 宿主 + Library/Reader/Room/Server 拆分 + Tailwind 落地，2026-09-08，见下）。**
 
 ## 关键文档（按阅读顺序）
 
@@ -21,7 +21,7 @@
 9. `server/docs/OPS.md` —— **运维手册**（配置 / 热重载 / 故障排查，运维同学先看这个）
 10. `借物表.md` —— 第三方资源与许可证（AGPL 约束，引新依赖先登记）
 11. `D:\PROJECT\NETWORK.md` —— 网络配置（git 代理+openssl 配方、Go GOPROXY、npm 直连）
-12. `client/docs/FEATURES.md` —— **UI 功能组件设计（讨论稿，未定稿）**：Feature 划分 / 模式与状态机 / 插件化 UI 边界铺垫
+12. `client/docs/FEATURES.md` —— **UI 功能组件设计（v0.1.6 已落地）**：标准容器契约 / 功能划分 / 状态继承 / 插件化 UI 边界
 
 ## 红线（不要违反）
 
@@ -33,8 +33,8 @@
 ## 当前状态（更新于 2026-09-08）
 
 - **server v0.2.0 已实现并测试全绿**：书籍标定（Work/Edition）+ 房间（TTL/发现/聊天/持久化）+ token 双闸 + 配置系统（TOML + 热重载）+ 上传限制 + 转发规范 + 房主删房 + E2E 集成测试；待办见 `TODO.md`
-- **client v0.1.4（2026-09-08）**：本地阅读 MVP 第一批——书架增删（导入指纹去重 + 删除 UI）+ **目录跳转**（Chapter.chapterDocIndex / goToChapter，CONTRACTS v0.2.3）+ lastLocation 落库/恢复接线；渲染链路闭环保持四格式全绿（2026-09-07）；术语统一定稿（定位系统 / 宿主容器）
-- **样式方案已定案**：Tailwind CSS，随 UI 组件化里程碑引入（借物表已登记）
-- **插件态度**：v1 不做插件运行时，**ports 即插件边界**（官方插件 = 注册进 ServiceContainer 的适配器）；第三方插件演进路径见 `client/docs/ARCHITECTURE.md` §4
-- 下一步：**UI 组件化**（Tailwind 落地）→ vitest → 笔记实现；RoomSession 有一个 P1 bug（leaveRoom 误解绑，见 TODO）；tag 约定 `client-v0.1.x` / `server-v0.2.x`
+- **client v0.1.6（2026-09-08）**：功能组件标准容器 + UI 交互流 —— AppShell（侧边栏=单色符号图标栏 + 主面板宿主，功能常驻挂载/非激活隐藏 → 状态继承，settings 钉置底）+ features/{types,registry} 容器契约（官方插件 = 追加 descriptor）+ Library/Reader/Room/Settings 拆分（**Server 并入 Room**）+ Tailwind v4 落地 + 颜色语义 token 标准化；房间流程 = 大厅→选房→`host.openReader` 自动开阅读器；**全局 UI**：无顶栏/日志栏/logo、去 Electron 菜单栏、跟随系统主题；typecheck + 四格式无头自检全绿
+- **样式方案**：Tailwind CSS v4 已落地（`@tailwindcss/vite`；styles.css 仅留主题变量/kookit 契约；借物表已登记）
+- **插件态度**：v1 不做插件运行时，**ports 即插件边界**（官方插件 = 注册进 ServiceContainer 的适配器 + 追加 FeatureDescriptor 进 registry）；第三方插件演进路径见 `client/docs/ARCHITECTURE.md` §4
+- 下一步：vitest → 笔记实现 → 选文件收敛端口 → 更多设置项（字号/行距）；tag 约定 `client-v0.1.x` / `server-v0.2.x`
 - 开发原则：v1 允许"丑但诚实"；**解释优先**；检查点——大改前写理由、不知代码放哪层就停下讨论（Rule of Three）

@@ -1,6 +1,6 @@
 {
   "name": "turead-client",
-  "version": "0.1.4",
+  "version": "0.1.6",
   "description": "TuRead 客户端：多人房间共读阅读器",
   "main": "./out/main/index.js",
   "private": true,
@@ -19,6 +19,7 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^22.13.14",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
@@ -27,6 +28,7 @@
     "@vitejs/plugin-react": "^4.5.0",
     "electron": "^33.4.11",
     "electron-vite": "^3.1.0",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
   }

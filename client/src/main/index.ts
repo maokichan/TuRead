@@ -1,7 +1,7 @@
 /**
  * Electron 主进程入口。
  */
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell, Menu } from 'electron'
 import { join } from 'node:path'
 import { registerIpc } from './ipc'
 import { WsNetAdapter } from './net/wsNetAdapter'
@@ -14,6 +14,7 @@ function createWindow(): void {
     height: 800,
     show: false,
     title: 'TuRead',
+    autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -24,6 +25,8 @@ function createWindow(): void {
   })
 
   win.on('ready-to-show', () => win.show())
+  // 双保险：应用菜单置空 + 移除本窗口菜单（Windows 下 autoHideMenuBar 按 Alt 仍可能弹出）
+  win.removeMenu()
 
   if (devBook) {
     // dev-only 无头验证：渲染进程打印 TUREAD-TEST-* 标记后自动退出
@@ -56,6 +59,9 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(async () => {
+  // 去掉 Electron 自带菜单栏（File/Edit/...），应用内统一由侧边栏功能组件导航
+  Menu.setApplicationMenu(null)
+
   const net = new WsNetAdapter()
   const store = new JsonStore(join(app.getPath('userData'), 'library.json'))
   await store.init()
