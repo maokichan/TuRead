@@ -101,7 +101,11 @@ export interface RenderOptions {
   fontSize?: number
   lineHeight?: number
   fontFamily?: string
-  theme?: 'light' | 'sepia' | 'dark' | 'custom'
+  /**
+   * ⚠ 目前**未被适配器消费**：主题经 CSS 语义 token + `data-theme` 应用到宿主页面（见 FEATURES §10），
+   * 阅读页配色由 `--page-bg/--page-text` 决定。字段保留给"阅读页随主题/自定义配色"的将来实现。
+   */
+  theme?: 'dark' | 'light' | 'sepia-light' | 'sepia-dark' | 'custom'
   backgroundColor?: string
   textColor?: string
   isDarkMode?: boolean

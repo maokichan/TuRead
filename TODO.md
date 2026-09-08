@@ -21,7 +21,6 @@
   防止"各处自行解释"的腐化（与定位系统同类问题）
 - [ ] **(P3) JoinResult 类型重复**：domain 与 RoomSession 各一份、reason 枚举不一致 → 收敛 domain
 - [ ] **(P3) emitLocation 绕过节流**：手动路径直接 send，与 onRenderLocation 的 300ms 节流不一致 → 统一走 throttleSend
-- [ ] **打包「源流明体」字体**：当前侧边栏繁体字符靠系统安装字体回退 → 把字体文件打进资源（核许可登记借物表，FEATURES §7.8/§9）
 - [ ] **更多设置项**：文字大小/行距/字体（RenderOptions.fontSize/lineHeight/fontFamily 需先扩 kookit config 映射 + 重开书生效提示）
 - [ ] **详情抽屉操作清单**：当前只有「打开 + 删除」（书库重做待定项，FEATURES §10）
 - [ ] **PDF 夜间模式（像素处理）**：PDF 页面是位图，改文字颜色无效 → 对页面 canvas 做
@@ -30,6 +29,10 @@
 - [ ] **多书架（考虑中）**：当前只有单一书库；将来可支持多个书架（分组/不同来源/不同设备同步）。
   ⚠ 会影响 `ILibraryStore` 与 `BookRecord`（需 bookId → shelfId 归属）、导入目标、视图状态与
   房间标定选书流程 —— 动手前先定模型，见 `client/docs/FEATURES.md` §10 待定项
+- [ ] **文字封面的艺术化（后话）**：无封面时"文字封面"本身就是标题，列表行右侧还会再显示一遍标题
+  → 同一串字出现两次。除"是否隐藏右侧标题"外，更想做的是让封面文字具备**艺术效果**
+  （字号/字距/行距构成感、可能的竖排或字面造型），让它像一张封面而不是放大的标题。
+  与 `FittedTitle` 同一处演进（`client/docs/FEATURES.md` §10 待定 7）
 - [ ] **location-updated 同位 UI（跟随模式）**：RoomFeature 消费 ReaderFeature 的跳转回调（FEATURES §9）
 - [ ] **vitest 引入**：客户端零测试设施；`domain/location.ts` 这类语义模块需要单元断言兜底（组件化前做）
 - [ ] **笔记/划线实现**（契约已立：`Note` + `IRenderService` 三原语 + 定位系统，链路见

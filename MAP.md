@@ -35,8 +35,7 @@
 
 - **server v0.2.0 已实现并测试全绿**：书籍标定（Work/Edition）+ 房间（TTL/发现/聊天/持久化）+ token 双闸 + 配置系统（TOML + 热重载）+ 上传限制 + 转发规范 + 房主删房 + E2E 集成测试；待办见 `TODO.md`
 - **client 分两半开发**：**本地阅读器**（书架/渲染/设置/本地持久化）与**云端同步**（net + RoomSession + 房间 UI）。当前专注**本地阅读器**
-- **client v0.1.9（2026-09-08）**：架构审查修复 + 交互细化 —— 批量导入下沉为用例 `IImportQueue`（与 `CoverQueue` 同构）+ `ILibraryStore.patchSetting`（主进程原子合并，消除设置读-改-写竞态）+ 进入阅读器**自动恢复上次内容** + `FittedTitle` 修复（文字封面此前字号恒为 10px）+ 列表标题源流明体 17px 不加粗 + 视图切换改无边框文字与"吞没→浅字→复原"动画
-- **client v0.1.8（2026-09-08）**：**书库重做** —— 去容器外壳 + 两视图（列表/网格）+ 底部状态栏（视图切换/导入菜单含"文件夹含子目录"）+ 详情抽屉（只覆盖内容区；单击详情/双击打开）+ 移除只删索引不删源文件（首次确认可勾不再提示）+ 封面缩略图落盘（canvas，157KB→38KB，字节不进 JSON）+ 无封面文字封面（FittedTitle 撑满加粗、源流明体字栈）+ `IBookPicker` 端口（UI 不再直用桥）+ 设置拆 `config.json` + `library.json` 加版本迁移 + 主题色取向黑灰白（羊皮纸深棕）
+- **client v0.1.10（2026-09-08）**：**书库重做 + 交互收口**（v0.1.8→v0.1.10）—— 两视图（列表/網格，**单按钮**切换带"吞没→浮字→复原"动画）+ 底部状态栏文字按钮（導入）+ 详情抽屉（**只覆盖内容区**）+ 移除只删索引不删源文件 + 封面**缩略图落盘**（157KB→38KB）+ 无封面**文字封面**（`FittedTitle` 撑满，源流明体）+ **打包源流明体**（OFL 1.1）+ **四套色彩取向**（明暗黑灰白 / 羊皮纸明暗）+ `IBookPicker` 端口收敛 + 导入编排下沉 `IImportQueue` + 设置原子写 `patchSetting` + 阅读器**恢复上次内容**；细节见 `client/docs/FEATURES.md` §10
 - **样式方案**：Tailwind CSS v4 已落地（`@tailwindcss/vite`；styles.css 仅留主题变量/kookit 契约；借物表已登记）
 - **插件态度**：v1 不做插件运行时，**ports 即插件边界**（官方插件 = 注册进 ServiceContainer 的适配器 + 追加 FeatureDescriptor 进 registry）；第三方插件演进路径见 `client/docs/ARCHITECTURE.md` §4
 - 下一步：vitest → 笔记实现 → 「标准化」（WorkIdentity + 房间入口）→ 更多设置项（字号/行距）；tag 约定 `client-v0.1.x` / `server-v0.2.x`

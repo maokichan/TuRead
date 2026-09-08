@@ -102,7 +102,7 @@ interface RenderOptions {
   fontSize?: number;
   lineHeight?: number;
   fontFamily?: string;
-  theme?: 'light' | 'sepia' | 'dark' | 'custom';
+  theme?: 'dark' | 'light' | 'sepia-light' | 'sepia-dark' | 'custom';  // v0.2.9：与四套主题对齐；⚠ 目前未被适配器消费（主题走 CSS token）
   backgroundColor?: string;
   textColor?: string;
   isDarkMode?: boolean;
@@ -497,6 +497,7 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.2.9 | 2026-09-08 | **文档校订（v0.1.10）**：`RenderOptions.theme` 枚举与四套主题对齐（`dark`/`light`/`sepia-light`/`sepia-dark`/`custom`）并标注**当前未被适配器消费**（主题经 CSS token + `data-theme` 生效）—— 原文枚举 `sepia` 已不存在 |
 | v0.2.8 | 2026-09-08 | **审查修复（v0.1.9）**：① 批量导入编排下沉为用例 `IImportQueue`（与 `CoverQueue` 同构；`extToFormat` 随之移入 `core/domain/format.ts`）② `ILibraryStore.patchSetting`（主进程原子合并，消除两个 Feature 对同一设置键"读-改-写"的覆盖竞态）③ `IBookService.getLastRead()`（进入阅读器恢复上次内容的口径）④ `ServiceContainer` 增加 `imports` |
 | v0.2.7 | 2026-09-08 | **书库重做补约（v0.1.8 第二段）**：`IBookPicker.listEbooks` 增 `recursive` 参数（文件夹导入可配置"仅此节点 / 含所有子节点"）；`LibrarySettings` 增 `importRecursive`；设置新增 `deleteNotice`（删除确认"下次不再提示"）。删除语义澄清：**只删书库索引，不删源文件**（弹窗首次说明） |
 | v0.2.5 | 2026-09-08 | **本地阅读器修复批（v0.1.7）**：`IBookService.importBook` 返回 `ImportResult{book,reused}`（去重用例自述结果，删除 UI 侧 id 快照反推）；`isZeroLocation` 判据补 `chapterHref`（首章首块不再被误判为零位置，compare/anchor 对"书的开头"恢复有效）；`extractMetadata` 签名补 `name`（文档与实现对齐） |
