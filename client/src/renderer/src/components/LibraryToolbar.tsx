@@ -14,14 +14,16 @@ interface LibraryToolbarProps {
   coverProgress: { done: number; total: number } | null
 }
 
-const VIEWS: { value: LibraryView; label: string }[] = [
-  { value: 'list', label: '列表' },
-  { value: 'grid', label: '网格' }
-]
+/** 视图名（繁体，配源流明体字栈）：按钮显示的是**当前**视图 */
+const VIEW_LABEL: Record<LibraryView, string> = { list: '列表', grid: '網格' }
 
 /**
- * 书库底部状态栏（纯展示）：**左** = 视图切换，**右** = 导入。
- * 依据：client/docs/FEATURES.md §10。
+ * 书库底部状态栏（纯展示）：**左** = 视图切换（单个文字按钮），**右** = 导入（文字按钮）。
+ *
+ * 视图切换是**一个**按钮：显示当前视图名，点击后在动画播放过程中切到另一种视图、
+ * 文字也换成另一种（"列表" ↔ "網格"）。动画（`.view-switch-flash`）：
+ * ① 判定区域变深色（旧文字被吞没）② 浅色新文字出现在深色区域上 ③ 区域与文字同时复原。
+ * 因此文字在动画约 42% 处才替换（260ms），让"新文字从深色块里浮出来"。
  */
 export function LibraryToolbar({
   view,
@@ -33,41 +35,47 @@ export function LibraryToolbar({
   onCancelImport,
   coverProgress
 }: LibraryToolbarProps): React.JSX.Element {
-  /** 点击视图时的"吞没 → 浅字出现 → 异变消失"动画（只作用于被点的那个） */
-  const [flash, setFlash] = useState<LibraryView | null>(null)
-  const flashTimer = useRef<number | null>(null)
+  const [flashing, setFlashing] = useState(false)
+  /** 按钮上显示的文字（跟随动画节奏，落后于 view 约 260ms） */
+  const [shown, setShown] = useState<LibraryView>(view)
+  const timers = useRef<number[]>([])
+
+  useEffect(() => {
+    if (!flashing) setShown(view)
+  }, [view, flashing])
 
   useEffect(
     () => () => {
-      if (flashTimer.current !== null) window.clearTimeout(flashTimer.current)
+      timers.current.forEach((t) => window.clearTimeout(t))
     },
     []
   )
 
-  const pickView = (v: LibraryView): void => {
-    onViewChange(v)
-    setFlash(v)
-    if (flashTimer.current !== null) window.clearTimeout(flashTimer.current)
-    flashTimer.current = window.setTimeout(() => setFlash(null), 640)
+  const toggleView = (): void => {
+    const next: LibraryView = view === 'list' ? 'grid' : 'list'
+    onViewChange(next)
+    setFlashing(true)
+    timers.current.forEach((t) => window.clearTimeout(t))
+    timers.current = [
+      window.setTimeout(() => setShown(next), 260),
+      window.setTimeout(() => setFlashing(false), 640)
+    ]
   }
 
+  const textButton = 'rounded px-1 py-0.5 font-[var(--font-serif-cn)] text-[18px] font-bold'
+
   return (
-    <footer className="flex flex-none items-center justify-between gap-3 border-t border-[var(--border)] pt-2 text-[12px]">
+    <footer className="flex flex-none items-center justify-between gap-3 border-t border-[var(--border)] pt-1.5 text-[12px]">
       <div className="flex items-center gap-3">
-        {/* 视图切换：无按钮边框，只用加粗的源流明体文字 */}
-        {VIEWS.map((v) => (
-          <button
-            key={v.value}
-            onClick={() => pickView(v.value)}
-            className={`view-switch rounded px-1.5 py-0.5 font-[var(--font-serif-cn)] text-[14px] font-bold ${
-              view === v.value
-                ? 'text-[var(--text)]'
-                : 'text-[var(--muted)] hover:text-[var(--text)]'
-            } ${flash === v.value ? 'view-switch-flash' : ''}`}
-          >
-            {v.label}
-          </button>
-        ))}
+        <button
+          onClick={toggleView}
+          title="切换显示模式"
+          className={`${textButton} view-switch ${
+            flashing ? 'view-switch-flash' : 'text-[var(--text)] hover:text-[var(--accent)]'
+          }`}
+        >
+          {VIEW_LABEL[shown]}
+        </button>
         <span className="text-[var(--muted)]">{bookCount} 本</span>
         {coverProgress && (
           <span className="text-[var(--muted)]">
@@ -84,26 +92,28 @@ export function LibraryToolbar({
             </span>
             <button
               onClick={onCancelImport}
-              className="rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-2.5 py-1 text-[var(--muted)] hover:border-[var(--err-border)] hover:text-[var(--err)]"
+              className={`${textButton} text-[var(--muted)] hover:text-[var(--err)]`}
             >
               取消
             </button>
           </>
         ) : (
-          <ImportMenu onFiles={onImportFiles} onFolder={onImportFolder} />
+          <ImportMenu onFiles={onImportFiles} onFolder={onImportFolder} className={textButton} />
         )}
       </div>
     </footer>
   )
 }
 
-/** 导入菜单：Windows 下文件与目录不能同框选择 → 两个入口（"含子目录"改在设置里配置） */
+/** 导入菜单：文字按钮 + 小菜单（Windows 下文件与目录不能同框选择 → 两个入口） */
 function ImportMenu({
   onFiles,
-  onFolder
+  onFolder,
+  className
 }: {
   onFiles: () => void
   onFolder: () => void
+  className: string
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const boxRef = useRef<HTMLDivElement | null>(null)
@@ -121,18 +131,18 @@ function ImportMenu({
     <div ref={boxRef} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="rounded-lg border border-[var(--border)] bg-[var(--accent-soft)] px-3 py-1 text-[var(--accent)] hover:bg-[var(--accent-strong)]"
+        className={`${className} text-[var(--text)] hover:text-[var(--accent)]`}
       >
-        ＋ 导入
+        導入
       </button>
       {open && (
-        <div className="absolute right-0 bottom-full z-10 mb-1.5 w-36 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel)] shadow-lg">
+        <div className="absolute right-0 bottom-full z-10 mb-1.5 w-40 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel)] shadow-lg">
           <button
             onClick={() => {
               setOpen(false)
               onFiles()
             }}
-            className="block w-full px-3 py-2 text-left text-[var(--text)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+            className="block w-full px-3 py-2 text-left text-[12.5px] text-[var(--text)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
           >
             导入文件…
           </button>
@@ -141,7 +151,7 @@ function ImportMenu({
               setOpen(false)
               onFolder()
             }}
-            className="block w-full border-t border-[var(--border-soft)] px-3 py-2 text-left text-[var(--text)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+            className="block w-full border-t border-[var(--border-soft)] px-3 py-2 text-left text-[12.5px] text-[var(--text)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
           >
             导入文件夹…
           </button>

@@ -156,7 +156,9 @@ GeneralRender (GeneralRender.ts，事件基类)
   ② 书被"上次阅读位置"恢复到接近结尾处时 `next()` 本就无处可去 → 翻页断言**先 `goToChapter(0)` 再起跑**；
   ③ 翻页判定改为"等变化出现"（`waitForTurn`：位置或宿主 scrollTop 变化，15s 超时）而不是"停稳后再量"；
   ④ **阅读器面板偶发不可见**（功能组件常驻挂载、非激活 `display:none`，隐藏时所有 rect/scrollHeight 均为 0）
-  → `ensureReaderVisible()` 等可见、必要时重试 `openReader`，仍不可见则明确报错（渲染本身正常）。
+  → `ensureReaderVisible()` 等可见、必要时重试 `openReader`，仍不可见则明确报错（渲染本身正常）；
+  ⑤ **断言必须走真实用户路径** —— "恢复上次阅读"最初直接调 `host.navigate('reader')`，于是"通过"了，
+  但侧边栏按钮其实绕过 `host.navigate`，功能在真机上不生效。改为**点击侧边栏按钮**后才是有效断言。
 - **当前结果**：EPUB/MOBI/AZW3 全绿（App 无头自检四格式亦全绿，含 PDF）；
   harness 侧 PDF canvas 未渲染待定位（低优先级，见 TODO）。
 

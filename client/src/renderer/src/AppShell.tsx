@@ -77,7 +77,7 @@ export default function AppShell(): React.JSX.Element {
               key={f.id}
               title={f.label}
               aria-label={f.label}
-              onClick={() => setActiveFeature(f.id)}
+              onClick={() => host.navigate(f.id)}
               className={`feature-icon grid h-10 w-10 place-items-center rounded-xl text-[19px] transition-colors ${
                 activeFeature === f.id
                   ? 'bg-[var(--accent-soft)] ring-1 ring-[var(--accent-ring)] text-[var(--accent)]'
@@ -94,7 +94,7 @@ export default function AppShell(): React.JSX.Element {
               key={f.id}
               title={f.label}
               aria-label={f.label}
-              onClick={() => setActiveFeature(f.id)}
+              onClick={() => host.navigate(f.id)}
               className={`feature-icon grid h-10 w-10 place-items-center rounded-xl text-[19px] transition-colors ${
                 activeFeature === f.id
                   ? 'bg-[var(--accent-soft)] ring-1 ring-[var(--accent-ring)] text-[var(--accent)]'

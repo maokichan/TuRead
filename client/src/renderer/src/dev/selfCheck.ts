@@ -280,14 +280,17 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
       })()
 
       /**
-       * "阅读器记住上次内容"回归断言（v0.1.9）：关闭阅读器后再进入，应自动恢复上次阅读的书
-       * （否则每次进阅读器都是空的）。走真实导航入口 `host.navigate('reader')`。
+       * "阅读器记住上次内容"回归断言（v0.1.9）：关闭阅读器后再进入，应自动恢复上次阅读的书。
+       * ⚠ 必须走**真实用户路径**（点击侧边栏「阅读」按钮）：此前直接调 `host.navigate`，
+       *   掩盖了"侧边栏按钮绕过 host.navigate"的 bug —— 断言测了 API 却没测用户路径（2026-09-08 修正）。
        */
       const restoreLine = await (async (): Promise<string> => {
         try {
           host.closeReader()
           await wait(500)
-          host.navigate('reader')
+          const btn = document.querySelector<HTMLButtonElement>('aside button[aria-label="阅读"]')
+          if (!btn) return '恢复=失败(找不到侧边栏按钮)'
+          btn.click()
           const deadline = Date.now() + 10000
           while (Date.now() < deadline) {
             if (!isZeroLocation(container.render.getPosition())) return '恢复=ok'

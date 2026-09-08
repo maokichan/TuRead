@@ -248,7 +248,7 @@ body {
 @keyframes view-switch-flash {
   0% {
     background-color: transparent;
-    color: var(--muted);
+    color: var(--text);
   }
   14% {
     background-color: var(--flash-bg);
