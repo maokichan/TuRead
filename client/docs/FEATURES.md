@@ -50,7 +50,8 @@ src/renderer/src/
 │   ├── registry.ts       # 功能组件注册表（官方插件 = 追加一条 descriptor）
 │   └── util.ts           # 共享小工具（extToFormat 等）
 ├── components/           # 展示组件（纯 props，无业务编排）
-│   ├── BookCard.tsx  ├── TocPanel.tsx  ├── MemberList.tsx
+│   ├── BookRow.tsx   ├── BookTile.tsx  ├── BookDetailPanel.tsx  ├── LibraryToolbar.tsx
+│   ├── TocPanel.tsx  ├── MemberList.tsx
 │   └── ChatLog.tsx   ├── RoomRow.tsx   └── StatePill.tsx
 ├── dev/                  # 开发工具（非产品代码）
 │   └── selfCheck.ts      # TUREAD_DEV_BOOK 无头渲染自检（v0.1.7 从 AppShell 抽出）
@@ -69,7 +70,7 @@ src/renderer/src/
 
 | Feature | 职责（编排的用例/端口） | 对外状态 | 关键事件（订阅） |
 |---|---|---|---|
-| **LibraryFeature** | `books.*`（导入/去重/列表/删除/选中） | `selectedBookId` | 无（本地）；选中书 → 交 shell 打开 Reader |
+| **LibraryFeature** | `books.*`（导入/去重/列表/删除/选中）+ `picker.*`（选文件/选目录/扫描/读文件）+ `covers.*`（封面异步提取） | `selectedBookId`（= 详情抽屉显示的书） | `covers` 的 progress/cover-ready/cover-failed/done |
 | **ReaderFeature** | `render.*`（open/renderTo/翻页/goToChapter/goToPosition）+ `store`（lastLocation 恢复） | 当前书、进度、目录、阅读位置 | `render.location-changed`、`rendered`；房间侧 `location-updated` 落点（未来跟随） |
 | **RoomFeature** | `net.*`（连接服务器）+ `room.*`（joinRoom/leaveRoom/createRoom/sendChat/listRooms）+ presence/chat | 连接配置/状态、`roomPhase`、成员、聊天 | `net.connection-changed`、`room.presence-updated`、`chat-message`、`book-mismatch` |
 | **SettingsFeature** | `store`（appearance/readerSettings 持久化）+ 主题应用 | 主题、阅读模式、诊断日志 | 无（启动载入 + 系统主题监听） |
@@ -162,10 +163,15 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 - **展示组件**：`components/{StatePill,BookCard,TocPanel,ChatLog,RoomRow,MemberList}`（纯 props，无编排）。
 - **Tailwind**：`@tailwindcss/vite` v4 接入；`styles.css` 保留主题 token / 全局 base / 滚动条 + **kookit 硬编码契约**
   （`.reader-stage` overflow + iframe 不设 height，见 KOOKIT.md §5）——这两条不能用 utility 替代。
-- **已知例外（记录在案）**：`LibraryFeature` 的文件对话框/读文件仍直接走 `window.turead` 桥（IPC）——
-  「选文件」目前只有桥暴露；将来应收敛为端口（如 `IBookPicker`）再进 ServiceContainer。dev 自检同样直接用桥。
-- **验证**：`typecheck` 全绿；App 无头自检四格式（EPUB/MOBI/AZW3/PDF）全绿（走真实 `openReader` 链路）；
-  已知无头时序抖动（读取时刻渲染未完全停稳）偶发 `渲染可疑`，重跑即绿——与 KOOKIT.md §8 记录的 harness 时序问题同类。
+- **已知例外（记录在案）**：`LibraryFeature` 的文件对话框/读文件曾在 UI 层直用 `window.turead` 桥 ——
+  **v0.1.8 已消除**（收敛为 `IBookPicker` 端口，见 §10 与 `CONTRACTS.md` §4.5）。
+  仅剩 `dev/selfCheck.ts`（开发工具，非产品代码）直接用桥。
+- **验证**：`typecheck` 全绿；四格式无头自检（EPUB/MOBI/AZW3/PDF）全绿，且自检新增**封面管线断言**
+  （异步提取 → 缩略图落盘 → `coverPath` 回写 → 字节读回，实测 157KB→38KB）；封面提取对四种格式均可用
+  （PDF 9KB、MOBI 28KB、AZW3 31KB、EPUB 38KB）。自检本身也修了两类假阴性（等 iframe 高度、翻页从章节 0 起跑），
+  见 `KOOKIT.md` §8。
+- **已知无头时序抖动**：书库启动即渲染封面后，自检时序窗口变窄，仍可能偶发 `渲染可疑`（重跑即绿）——
+  与 `KOOKIT.md` §8 记录的 harness 时序问题同类。
 
 ## 9. 后续里程碑（非承诺）
 
@@ -173,55 +179,53 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 - **已交付（v0.1.7，2026-09-08）**：本地阅读器修复批 —— 滚动停稳补 `record()` / 关闭与切书落位置 /
   `open` 并发守卫 / `removeNote` 按笔记章节定位 / `isZeroLocation` 判据 / JsonStore 写盘串行化与损坏备份；
   dev 自检从 `AppShell` 移入 `dev/selfCheck.ts`。
+- **已交付（v0.1.8，未发版）**：书库重做（§10）—— 两视图 + 底部状态栏 + 详情抽屉 + 导入菜单/目录扫描 +
+  封面缩略图落盘 + `IBookPicker` 端口收敛 + 设置拆 `config.json` + `library.json` 版本与迁移。
 - **下一步候选**：
-  - 书籍元数据（作者/简介/封面）—— 路径已探明：`rendition.getMetadata()` 可用，但**导入期解析**
-    （需在 BookService 编排里引入解析器，构造 rendition 有成本）与**首次打开回填**（便宜，但书架需
-    刷新才显示，跨 Feature 通知是缺口）需先做取舍；
+  - **「标准化」落地**：`WorkIdentity`（`protocol` + `code`）+ ISBN 校验 + 房间功能内的入口（§10 待定 4）；
+  - 详情抽屉操作清单定稿（§10 待定 1）；
   - 更多设置项：文字大小/行距/字体 —— ⚠ **不是"扩 config 映射"就能做**：`KookitConfig` 里没有
     fontSize/lineHeight/fontFamily（`kookit.esm.d.ts` 仅 13 个字段），kookit 走的是
     `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（`kookit.esm.js` 内 `StyleHelper`
     无任何调用点，client 侧也未接），需先定注入方案；
-  - 打包「源流明体」字体文件进资源，保证各机器渲染一致（先核许可登记借物表）；
+  - 打包「源流明体」字体文件进资源（现在不只侧边栏符号用，**无封面书的"文字封面"也依赖它**，
+    未安装时回退系统宋体）—— 先核许可登记借物表；
   - `location-updated` 同位 UI（RoomFeature 消费 ReaderFeature 的跳转回调，跟随模式）；
-  - 「选文件」收敛为端口（`IBookPicker`）消除 `window.turead` 直用例外（§8 已知例外）；
   - 官方插件首个样例（如 OCR/翻译面板）验证容器扩展性。
 
-## 10. 书库重做（v0.1.8 计划；2026-09-08 定方向，细则待定）
+## 10. 书库重做（v0.1.8，**已实施，未发版**；2026-09-08）
 
-> 状态：**方向已定，实施细则待确认**。本文只记录已定项与待定项；确认后补契约（`CONTRACTS.md`）再动代码。
+> 状态：**已落地**（typecheck 全绿 + 四格式无头自检全绿 + 封面管线端到端验证）。发版与否由用户决定（见 `STATUS.md` §2）。
+> 契约：`CONTRACTS.md` v0.2.6（`IBookPicker` / `IRenderService.getMetadata` / `ILibraryStore` 封面 / `BookRecord.coverPath` / `LibraryView`）。
 
-**已定（2026-09-08）**
+**已实施**
 
-- **去容器外壳**：书库主体不再有边框/圆角面板外壳与顶部「书架 / ＋导入」标题栏，直接铺满 + 滚动。
-- **三视图**：列表 / 网格 / 瀑布流；网格与瀑布流**以封面为主**，**不显示指纹**，可显示标题（作者不显示，见下）。
-- **底部状态栏**：**左对齐** = 视图切换；**右对齐** = 导入。书库自己的状态栏，AppShell 不改。
-- **导入菜单**：按钮 → 小菜单「导入文件…」「导入文件夹…」（⚠ Windows 下 Electron **不允许文件与目录同框选择**，
-  [issue #26885](https://github.com/electron/electron/issues/26885)）；文件夹**默认不递归**；批量**串行**导入 + 进度；
-  指纹去重（`importBook` 已按指纹复用）继续生效。
-- **交互语义**：单击 → 右侧**详情抽屉**（Esc / 点空白关闭）；双击 → 打开该书；键盘 Enter 打开、Space 详情、Delete 删除；
-  详情抽屉显示的书 = `selectedBookId`（单一真相，Room 标定 / Reader 打开不变）。
-- **封面：缩略图落盘**。渲染进程用 canvas 生成缩略图（目标宽 ~400px、JPEG q0.8），主进程写
-  `userData/covers/<bookId>.jpg`，`BookRecord` 只存路径 —— **绝不进 `library.json`**：实测一本 157KB 封面转
-  data URL ≈ 210KB，100 本 ≈ 21MB，而 `JsonStore` 每次保存**全量重写**（阅读中每 2s 一次），会把磁盘与内存拖垮。
-  渲染侧经 IPC 取回字节 → `Blob` → `createObjectURL`（CSP 已放行 `blob:`）。
-- **元数据范围**：本地**不采集、不显示** author / publisher（与 server Work 模型一致 —— server 明确"Work 不设 author/publisher"）。
-  作品身份（ISBN 等）由**标准化**流程补齐，**入口在房间功能**，短期手填、远期 OCR。
-- **组件拆分**：新增 `BookRow`（列表行）/ `BookTile`（网格·瀑布流封面卡）/ `BookDetailPanel`（详情抽屉）/
-  `LibraryToolbar`（底部状态栏）；删除 `BookCard`。
-- **端口（计划）**：新增 `IBookPicker`（选文件 / 选目录 / 列目录电子书）以消除 UI 直用 `window.turead` 的例外；
-  `ILibraryStore` 增加封面读写；`IRenderService` 增加 `getMetadata()`（kookit 已具备）。
-- **领域（计划）**：`BookRecord` 增加作品身份字段（`WorkIdentity`：`protocol` + `code`）与封面路径；
-  触发 `library.json` **schema 版本 + 迁移**（当前 `StoreFile` 无版本号，形状一变只能靠边界容错兜）。
+- **去容器外壳**：书库主体铺满 + 滚动，无边框面板、无顶部标题栏。
+- **两视图**：`列表` / `网格`（**瀑布流已并入网格** —— 缩略图由我方生成、统一按 2:3 显示，比例可控后两者视觉等同）。
+  网格**不显示指纹**，只显示封面 + 标题（**不显示作者**）。
+- **列表行**：封面从**左侧填充**、向右**渐隐**（`.book-row-cover` 用 mask 淡出到行背景，主题无关），文字叠在其上。
+- **底部状态栏**：**左** = 视图切换 + 书目数 + 封面提取进度；**右** = 导入菜单（导入中显示「导入中 3/12」+ 取消）。
+- **导入菜单**：「导入文件…」/「导入文件夹…」（⚠ Electron 不允许文件与目录同框选择，[issue #26885](https://github.com/electron/electron/issues/26885)）；
+  文件夹**不递归**；批量**串行** + 进度 + **可取消**；失败逐条进诊断日志；指纹去重继续生效。
+- **交互语义**：单击 → 右侧**详情抽屉**（Esc / 点空白关闭）；双击 → 打开；键盘 Enter 打开、Space 详情、Delete 删除；
+  抽屉显示的书 = `selectedBookId`（单一真相，Room 标定 / Reader 打开不变）。
+- **封面：缩略图落盘**。canvas 生成（目标宽 400px、JPEG q0.82，实测 157KB 原图 → **38KB**）→ `userData/covers/<bookId>.jpg`，
+  `BookRecord.coverPath` 只存文件名 —— **字节绝不进 JSON**（一本 data URL ≈ 210KB，书库全量重写会被拖垮）。
+  渲染侧经 IPC 取字节 → `Blob` → `objectURL`（CSP 已放行 `blob:`），模块级缓存避免重复分配。
+- **封面提取时机**：**导入后异步**（`CoverQueue` 用例：串行、进度、可取消、单本失败不影响其余）；存量老书在启动时后台补齐
+  （dev 无头自检跳过，保持渲染验证确定性）。
+- **无封面 → 文字封面**：标题**完整**铺满卡片，中文用**源流明体字栈**（`--font-serif-cn`，未安装回退系统宋体），不带作者。
+- **元数据范围**：本地**不采集、不显示** author / publisher（与 server Work 模型一致）。作品身份（ISBN 等）由**标准化**补齐，
+  入口在房间功能（短期手填、远期 OCR）。`getMetadata()` 仍会带回 author/publisher/language（kookit 白送），仅作本地数据备用。
+- **持久化拆分**：设置移入 `config.json`（`appearance` / `readerSettings` / `librarySettings`），书库留 `library.json`（带 `version`）；
+  旧版合并文件**自动迁移**（实测已生效）。
+- **端口收敛**：新增 `IBookPicker`（选文件/选目录/扫描/读文件）—— **UI 层不再直用 `window.turead` 桥**（§8 旧例外已消除）。
 
 **待定（下个 request 确认）**
 
-1. 网格与瀑布流是否合并为一种（封面比例统一时两者视觉趋同）；
-2. 列表模式是否带小缩略图；
-3. 详情抽屉的「其他更改选项」清单（候选：删除、重命名标题、重新定位文件、在文件夹中显示、查看指纹）；
-4. 视图模式的持久化键名与默认值（拟 `librarySettings.view`，默认列表）；
-5. 封面提取时机（导入后异步队列 + `books-changed` 通知；导入期同步提取对大文件代价高）；
-6. 批量导入的进度形态与可中断性、失败逐条报告方式；
-7. 网格/瀑布流下标题显示规则（几行截断、作者位留白）；
-8. 封面缺失的占位样式（拟纯色块 + 书名首字 + 格式徽章，不引入默认封面图）。
+1. 详情抽屉的「其他更改选项」清单（当前只放了「打开阅读 + 删除」）—— 候选：重命名标题、重新定位文件、在文件夹中显示；
+2. 网格标题截断规则（当前 `line-clamp-2`）与作者位是否留白；
+3. 封面维护动作（重建/清理/手工指定）；
+4. 「标准化」的 UI 形态（房间功能内）与 `WorkIdentity` 领域落地。
 
 > 本文为设计权威：任何改动先更新此处再动代码；新决策追加进 §7 并同步 `STATUS.md` 决策表。

@@ -1,26 +1,51 @@
 /**
- * ILibraryStore 适配器（主进程侧，真实实现）—— JSON 文件持久化。
- * 骨架阶段：只存书库条目（文件路径 + 文件信息）与设置，存于 userData/library.json。
- * 演进：接口不变，可换 better-sqlite3。
+ * ILibraryStore 适配器（主进程侧，真实实现）—— 两个 JSON 文件 + 封面目录。
+ *
+ * 为什么拆成两个文件（v0.1.8）：设置与书库数据的生命周期完全不同 ——
+ * 设置是"用户偶尔点一下"，书库是"阅读中每 2s 写一次位置"。同文件时每次位置保存都要
+ * 连带重写设置；拆开后 `library.json` 只放书、`config.json` 只放设置（各自独立写盘队列）。
+ *
+ * 文件布局（userData/）：
+ *   library.json        { version, books[] }
+ *   config.json         { version, settings{} }
+ *   covers/<id>.<ext>   封面缩略图（字节不落 JSON，见 BookRecord.coverPath 注释）
+ *
+ * 兼容：旧版把 books + settings 合在 library.json 里 → 首次加载自动拆分（migrateLegacy）。
  */
 import { promises as fs } from 'node:fs'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { BookRecord } from '@core/domain/types'
 
-interface StoreFile {
+const LIBRARY_VERSION = 1
+const CONFIG_VERSION = 1
+
+interface LibraryFile {
+  version: number
   books: BookRecord[]
+}
+
+interface ConfigFile {
+  version: number
   settings: Record<string, unknown>
 }
 
-export class JsonStore {
-  private filePath: string
-  private data: StoreFile = { books: [], settings: {} }
-  private loading: Promise<void> | null = null
-  /** 写盘队列（串行化并发 save，见 save()） */
-  private saveChain: Promise<void> = Promise.resolve()
+export interface JsonStoreOptions {
+  libraryPath: string
+  configPath: string
+  coversDir: string
+}
 
-  constructor(filePath: string) {
-    this.filePath = filePath
+export class JsonStore {
+  private opts: JsonStoreOptions
+  private library: LibraryFile = { version: LIBRARY_VERSION, books: [] }
+  private config: ConfigFile = { version: CONFIG_VERSION, settings: {} }
+  private loading: Promise<void> | null = null
+  /** 写盘队列（串行化并发 save；两个文件各自独立） */
+  private libraryChain: Promise<void> = Promise.resolve()
+  private configChain: Promise<void> = Promise.resolve()
+
+  constructor(opts: JsonStoreOptions) {
+    this.opts = opts
   }
 
   async init(): Promise<void> {
@@ -29,73 +54,128 @@ export class JsonStore {
   }
 
   private async load(): Promise<void> {
-    try {
-      const raw = await fs.readFile(this.filePath, 'utf-8')
-      const parsed = JSON.parse(raw) as Partial<StoreFile>
-      this.data.books = Array.isArray(parsed.books) ? parsed.books : []
-      this.data.settings = parsed.settings ?? {}
-    } catch (err) {
-      // 文件不存在 = 首次启动（正常）。能读到却解析失败 = 数据损坏：先改名留证再空库启动 ——
-      // 否则紧接着的第一次 save 就会把唯一副本覆盖掉（旧实现 catch 一切 → 静默丢整个书库）。
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-        const backup = `${this.filePath}.corrupt-${Date.now()}`
-        await fs.rename(this.filePath, backup).catch(() => undefined)
-        console.error(`[store] library.json 解析失败，已备份到 ${backup}：${(err as Error).message}`)
+    const legacy = await readJson<Partial<LibraryFile> & { settings?: Record<string, unknown> }>(
+      this.opts.libraryPath
+    )
+    const configFile = await readJson<Partial<ConfigFile>>(this.opts.configPath)
+
+    if (legacy) {
+      this.library = {
+        version: LIBRARY_VERSION,
+        books: Array.isArray(legacy.books) ? legacy.books : []
       }
-      this.data.books = []
-      this.data.settings = {}
+      // 旧格式：设置与书挤在同一文件 → 迁移到 config.json（一次），再重写 library.json
+      if (legacy.settings && !configFile) {
+        this.config = { version: CONFIG_VERSION, settings: legacy.settings }
+        await this.saveConfig()
+        await this.saveLibrary()
+        console.log('[store] 已把 settings 从 library.json 迁移到 config.json')
+      }
+    }
+    if (configFile) {
+      this.config = {
+        version: CONFIG_VERSION,
+        settings: configFile.settings ?? {}
+      }
     }
   }
 
-  /**
-   * 写盘串行化（v0.1.7）：并发 save() 会共用同一个 `.tmp` 路径，两次 writeFile 交错 →
-   * 可能把半截 JSON rename 成 library.json（书库全丢）。位置持久化是每 2s 一次的自动写入，
-   * 与用户的导入/删除天然会并发，所以这里必须排队，而不是"快就完事"。
-   */
-  private save(): Promise<void> {
-    const next = this.saveChain.then(() => this.writeNow())
-    // 单次失败不阻断后续写入（错误照常抛给调用方）
-    this.saveChain = next.catch(() => undefined)
+  private async writeJson(path: string, data: unknown): Promise<void> {
+    await fs.mkdir(dirname(path), { recursive: true })
+    const tmp = `${path}.tmp`
+    await fs.writeFile(tmp, JSON.stringify(data, null, 2), 'utf-8')
+    await fs.rename(tmp, path)
+  }
+
+  /** 写盘串行化：并发 save 共用同一个 .tmp 路径，交错写会把半截 JSON rename 成正式文件 */
+  private saveLibrary(): Promise<void> {
+    const next = this.libraryChain.then(() => this.writeJson(this.opts.libraryPath, this.library))
+    this.libraryChain = next.catch(() => undefined)
     return next
   }
 
-  private async writeNow(): Promise<void> {
-    await fs.mkdir(dirname(this.filePath), { recursive: true })
-    const tmp = `${this.filePath}.tmp`
-    await fs.writeFile(tmp, JSON.stringify(this.data, null, 2), 'utf-8')
-    await fs.rename(tmp, this.filePath)
+  private saveConfig(): Promise<void> {
+    const next = this.configChain.then(() => this.writeJson(this.opts.configPath, this.config))
+    this.configChain = next.catch(() => undefined)
+    return next
   }
 
   async addBook(record: BookRecord): Promise<void> {
-    if (!this.data.books.some((b) => b.id === record.id)) this.data.books.push(record)
-    await this.save()
+    if (!this.library.books.some((b) => b.id === record.id)) this.library.books.push(record)
+    await this.saveLibrary()
   }
 
   async updateBook(id: string, patch: Partial<BookRecord>): Promise<void> {
-    const idx = this.data.books.findIndex((b) => b.id === id)
-    if (idx >= 0) this.data.books[idx] = { ...this.data.books[idx], ...patch }
-    await this.save()
+    const idx = this.library.books.findIndex((b) => b.id === id)
+    if (idx >= 0) this.library.books[idx] = { ...this.library.books[idx], ...patch }
+    await this.saveLibrary()
   }
 
   async getBook(id: string): Promise<BookRecord | null> {
-    return this.data.books.find((b) => b.id === id) ?? null
+    return this.library.books.find((b) => b.id === id) ?? null
   }
 
   async listBooks(): Promise<BookRecord[]> {
-    return [...this.data.books]
+    return [...this.library.books]
   }
 
   async removeBook(id: string): Promise<void> {
-    this.data.books = this.data.books.filter((b) => b.id !== id)
-    await this.save()
+    // 先取记录再过滤：删完再查就找不到 coverPath，封面文件会留在磁盘上
+    const record = this.library.books.find((b) => b.id === id)
+    this.library.books = this.library.books.filter((b) => b.id !== id)
+    await this.saveLibrary()
+    if (record?.coverPath) {
+      await fs.rm(join(this.opts.coversDir, record.coverPath), { force: true })
+    }
   }
 
   async getSetting<T>(key: string, fallback: T): Promise<T> {
-    return (this.data.settings[key] as T) ?? fallback
+    return (this.config.settings[key] as T) ?? fallback
   }
 
   async setSetting(key: string, value: unknown): Promise<void> {
-    this.data.settings[key] = value
-    await this.save()
+    this.config.settings[key] = value
+    await this.saveConfig()
+  }
+
+  /** 写封面缩略图：文件名固定为 `<bookId>.<ext>`（覆盖式），返回文件名供 BookRecord.coverPath */
+  async setCover(bookId: string, bytes: ArrayBuffer, ext: string): Promise<string> {
+    const safeExt = /^[a-z0-9]{2,5}$/i.test(ext) ? ext.toLowerCase() : 'jpg'
+    const name = `${bookId}.${safeExt}`
+    await fs.mkdir(this.opts.coversDir, { recursive: true })
+    await fs.writeFile(join(this.opts.coversDir, name), Buffer.from(bytes))
+    return name
+  }
+
+  /** 读封面：按记录里的 coverPath 取文件；无记录/无文件 → null */
+  async getCover(bookId: string): Promise<ArrayBuffer | null> {
+    const record = await this.getBook(bookId)
+    if (!record?.coverPath) return null
+    try {
+      const buf = await fs.readFile(join(this.opts.coversDir, record.coverPath))
+      return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
+    } catch {
+      return null // 文件被手工删掉：视为无封面，不报错
+    }
+  }
+
+  async removeCover(bookId: string): Promise<void> {
+    const record = await this.getBook(bookId)
+    if (!record?.coverPath) return
+    await fs.rm(join(this.opts.coversDir, record.coverPath), { force: true })
+  }
+}
+
+/** 读 JSON；文件不存在或解析失败 → null（解析失败会先备份原文件，避免被后续写盘覆盖） */
+async function readJson<T>(path: string): Promise<T | null> {
+  try {
+    return JSON.parse(await fs.readFile(path, 'utf-8')) as T
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      const backup = `${path}.corrupt-${Date.now()}`
+      await fs.rename(path, backup).catch(() => undefined)
+      console.error(`[store] ${path} 解析失败，已备份到 ${backup}：${(err as Error).message}`)
+    }
+    return null
   }
 }

@@ -80,7 +80,16 @@ interface BookRecord {
   createdAt: number;
   lastReadAt?: number;
   lastLocation?: BookLocation;
+  /** 封面缩略图文件名（相对 userData/covers/）；缺省 = 无封面（UI 回落"文字封面"）。
+   *  v0.2.6：封面**字节不落 JSON**（一本 ≈200KB data URL × 全量重写会拖垮书库），只存引用 */
+  coverPath?: string;
 }
+
+/** 书库视图（v0.2.6）：瀑布流因缩略图统一比例并入网格，见 FEATURES §10 */
+type LibraryView = 'list' | 'grid';
+
+/** 书库设置（持久化于 config.json 的 librarySettings 键） */
+interface LibrarySettings { view: LibraryView }
 
 /** 阅读渲染配置（领域层友好配置，适配器内部翻译为 kookit config） */
 interface RenderOptions {
@@ -210,6 +219,9 @@ interface IRenderService extends EventEmitter<RenderServiceEvents> {
   open(record: BookRecord, options?: RenderOptions): Promise<void>;
   close(): Promise<void>;
   renderTo(element: HTMLElement): Promise<void>;
+  /** v0.2.6：解析元数据（kookit 是唯一解析器，故能力挂在此端口）。
+   *  **无状态** —— 内部构造临时 rendition，不 renderTo、不碰当前阅读会话；cover 为 data URL */
+  getMetadata(buffer: ArrayBuffer, format: BookFormat): Promise<BookMetadata>;
   next(): Promise<void>;
   prev(): Promise<void>;
   goToPage(page: number): Promise<void>;
@@ -304,10 +316,33 @@ interface ILibraryStore {
   removeBook(id: string): Promise<void>;
   getSetting<T>(key: string, fallback: T): Promise<T>;
   setSetting(key: string, value: unknown): Promise<void>;
+  /** v0.2.6：封面缩略图落盘（返回文件名 → 存入 BookRecord.coverPath）；字节不进 library.json */
+  setCover(bookId: string, bytes: ArrayBuffer, ext: string): Promise<string>;
+  getCover(bookId: string): Promise<ArrayBuffer | null>;
+  removeCover(bookId: string): Promise<void>;
 }
 ```
 
 > 实现建议：Electron 下 `better-sqlite3`（koodo-reader 同款）；接口保持存储无关。
+> **v0.2.6 存储布局**：主进程实现把数据拆成两个 JSON —— `library.json`（只放书，带 `version`）与
+> `config.json`（只放设置）—— 因为两者写频率差三个数量级（阅读中每 2s 写位置 vs 用户偶尔改设置）。
+> 封面字节写 `userData/covers/<bookId>.<ext>`（缩略图，渲染进程 canvas 生成，见 §4.1）。
+
+### 4.5 IBookPicker —— 本地文件能力（v0.2.6 新增；适配器：Electron 对话框 + fs）
+
+```ts
+interface IBookPicker {
+  pickFiles(): Promise<string[]>;             // 系统对话框选多个文件；取消 → []
+  pickDirectory(): Promise<string | null>;    // 系统对话框选一个目录；取消 → null
+  listEbooks(dir: string): Promise<string[]>; // 目录下**直接**子项的电子书（不递归，扩展名过滤）
+  readFile(path: string): Promise<ArrayBuffer>; // 导入读取
+}
+```
+
+> **为什么新增**：此前书库 UI 直接调 `window.turead` 桥并 import IPC 通道名（FEATURES §8 已知例外）。
+> 导入文件夹还需要目录扫描 —— 两者同属"本地文件能力"，收敛为端口后 UI 只依赖 `ServiceContainer`。
+> **平台约束**：Electron 同一对话框**不能既选文件又选目录**（Windows 下 `openFile`+`openDirectory`
+> 只会给出目录，electron#26885）→ 因此是 `pickFiles` / `pickDirectory` 两个方法，UI 侧表现为导入小菜单。
 
 ## 5. 应用服务（用例层）
 

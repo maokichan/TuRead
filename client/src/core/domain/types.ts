@@ -76,6 +76,20 @@ export interface BookRecord {
   createdAt: number
   lastReadAt?: number
   lastLocation?: BookLocation
+  /**
+   * 封面缩略图文件名（相对 `userData/covers/`，如 `<id>.jpg`）；缺省 = 尚无封面。
+   * 只存文件名不存绝对路径（换机器/换用户目录仍可用）；**封面字节不进 library.json**：
+   * 一本封面转 data URL ≈ 200KB，书库全量重写（阅读中每 2s 一次）会被拖垮，故落盘 + 只存引用。
+   */
+  coverPath?: string
+}
+
+/** 书库视图（列表 / 网格；瀑布流因缩略图统一比例已并入网格，见 FEATURES §10） */
+export type LibraryView = 'list' | 'grid'
+
+/** 书库设置（持久化于 config.json 的 librarySettings 键） */
+export interface LibrarySettings {
+  view: LibraryView
 }
 
 /** 阅读渲染配置（领域层友好配置，适配器内部翻译为 kookit config） */

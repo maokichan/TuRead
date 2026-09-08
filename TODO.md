@@ -5,11 +5,10 @@
 
 ## client
 
-- [ ] **(P2) 书籍元数据只有文件名**：`FingerprintService.extractMetadata` 忽略 buffer/format，
-  只去扩展名 → 作者/封面/简介/ISBN 永远为空，书架只显示标题。
-  **路径已探明**：`rendition.getMetadata()` 可用（`kookit.esm.d.ts:38`），但两种接法需先取舍：
-  ① 导入期解析（BookService 编排里引入解析器；构造 rendition 有成本，40MB PDF 可能秒级）
-  ② 首次打开回填（便宜，但书架要等刷新才显示 → 缺"书库变更"通知通道，跨 Feature）
+- [ ] **(P2) 书籍标题仍来自文件名**：`FingerprintService.extractMetadata` 只去扩展名，故书名带
+  "(作者)" 之类后缀（如 `高级运动营养学（第2版） (丹·贝纳多特)`，而 EPUB 的 `dc:title` 是干净的）。
+  **封面已由 `CoverQueue` 解决**（`IRenderService.getMetadata()` 已在用）；剩下的是：要不要用解析出的
+  title 覆盖显示标题（一行代码），还是留给「标准化」确认 —— 作者/出版社按决策**不采集**，ISBN 归标准化
 - [ ] **(P3) `Note.notes` 类型与 kookit 不匹配**：domain 是 `string`（笔记正文），kookit
   `createOneNote` 期望数组 —— 适配器当前 `notes: note.notes || []` 会**静默丢弃**用户笔记内容
   （笔记功能落地前必须定形状，见 `CONTRACTS.md` §2 Note）
@@ -24,7 +23,7 @@
 - [ ] **(P3) emitLocation 绕过节流**：手动路径直接 send，与 onRenderLocation 的 300ms 节流不一致 → 统一走 throttleSend
 - [ ] **打包「源流明体」字体**：当前侧边栏繁体字符靠系统安装字体回退 → 把字体文件打进资源（核许可登记借物表，FEATURES §7.8/§9）
 - [ ] **更多设置项**：文字大小/行距/字体（RenderOptions.fontSize/lineHeight/fontFamily 需先扩 kookit config 映射 + 重开书生效提示）
-- [ ] **选文件收敛为端口**：LibraryFeature/dev 目前直用 `window.turead` 桥选文件 → 收敛 `IBookPicker` 进 ServiceContainer（FEATURES §8 已知例外）
+- [ ] **详情抽屉操作清单**：当前只有「打开 + 删除」（书库重做待定项，FEATURES §10）
 - [ ] **location-updated 同位 UI（跟随模式）**：RoomFeature 消费 ReaderFeature 的跳转回调（FEATURES §9）
 - [ ] **vitest 引入**：客户端零测试设施；`domain/location.ts` 这类语义模块需要单元断言兜底（组件化前做）
 - [ ] **笔记/划线实现**（契约已立：`Note` + `IRenderService` 三原语 + 定位系统，链路见

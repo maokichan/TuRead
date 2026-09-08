@@ -63,7 +63,11 @@ void app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
 
   const net = new WsNetAdapter()
-  const store = new JsonStore(join(app.getPath('userData'), 'library.json'))
+  const store = new JsonStore({
+    libraryPath: join(app.getPath('userData'), 'library.json'),
+    configPath: join(app.getPath('userData'), 'config.json'),
+    coversDir: join(app.getPath('userData'), 'covers')
+  })
   await store.init()
 
   registerIpc(net, store, (channel, payload) => {

@@ -12,7 +12,7 @@
 import type { ServiceContainer } from '@core/container'
 import { sameLocation } from '@core/domain/location'
 import type { BookLocation } from '@core/domain/types'
-import { IPC } from '@shared/ipc'
+import type { CoverSummary } from '@core/usecases/CoverQueue'
 import { pushLog } from '../features/logStore'
 import type { FeatureHost } from '../features/types'
 import { extToFormat } from '../features/util'
@@ -28,7 +28,7 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
 
   void (async () => {
     try {
-      const buffer = (await window.turead.invoke(IPC.fsReadFile, devBook)) as ArrayBuffer
+      const buffer = await container.picker.readFile(devBook)
       const { book, reused } = await container.books.importBook(
         buffer,
         devBook.split(/[\\/]/).pop() ?? devBook,
@@ -93,6 +93,36 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
           }
         }
       }
+      // 等宿主容器里的 iframe 高度落地再测量：MobiRender/AZW3 偶发晚于首帧才设高度，
+      // 高度为 0 时 `可滚动/iframeH` 会被误判为"渲染可疑"（v0.1.8 观察到，重跑即绿）。
+      // 注意这是**测量等待**，不是掩盖问题：真没设高度会走到超时，仍会判可疑。
+      const waitIframeSized = async (): Promise<void> => {
+        const deadline = performance.now() + 10000
+        while (performance.now() < deadline) {
+          if (readDocState().iframeH > 0) return
+          await wait(200)
+        }
+      }
+
+      /** 等"翻页生效"出现（位置或宿主滚动变化），而不是"停稳后再量" ——
+       *  隐藏窗口的 smooth 滚动会被推迟 ~2s，固定等待+停稳检测分不清"未开始/已结束"。 */
+      const waitForTurn = async (
+        beforeLoc: BookLocation,
+        beforeScrollTop: number
+      ): Promise<boolean> => {
+        const deadline = performance.now() + 15000
+        while (performance.now() < deadline) {
+          await wait(250)
+          if (
+            changed(beforeLoc, container.render.getPosition()) ||
+            (stage()?.scrollTop ?? 0) !== beforeScrollTop
+          ) {
+            return true
+          }
+        }
+        return false
+      }
+
       // PDF：渲染产物是嵌套 iframe（每页一个 pdf-iframe-N）+ 内部 canvas，顶层 iframe 无 innerText
       let innerLen = -1
       let subInfo = ''
@@ -130,11 +160,17 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
         const st2 = s.el?.scrollTop ?? 0
         posChanged = changed(p1, container.render.getPosition()) || st1 !== st2
       } else {
+        await waitIframeSized()
         const s1 = readDocState()
         innerLen = s1.innerLen
         subInfo =
           `bodyHtml=${s1.htmlLen} img=${s1.imgCount} docOk=${s1.doc ? 'yes' : 'no'} ` +
           `pageAreaSame=${document.getElementById('page-area') === s1.el ? 'yes' : 'no'} stageIframes=${s1.el?.querySelectorAll('iframe').length ?? -1} iframeH=${s1.iframeH} docScrollH=${s1.docScrollH}`
+        // 翻页断言从章节 0 起跑：书可能被"上次阅读位置"恢复到接近结尾处，
+        // 那种情况下 next() 本就无处可去 —— 不是渲染问题，是测试起点问题。
+        await container.render.goToChapter(0)
+        await wait(1500)
+        await waitScrollSettle()
         // 图片页感知：首章常是纯图片扉页（innerText=0 属正常，2026-09-07 销案结论），
         // 文字为空时向前翻最多 4 章找正文，同时覆盖"翻页位置必须变化"断言
         const scans: string[] = []
@@ -151,29 +187,48 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
           scans.push(`翻${i + 1}:章${loc.chapterDocIndex}/文${s.innerLen}/图${s.imgCount}`)
         }
         if (scans.length > 0) subInfo += ` 扫描[${scans.join(' ')}]`
-        if (!posChanged && innerLen > 100) {
-          // kookit 坑 §5.10：文字类 smooth 滚动开始即 record → 位置旧值，停稳后 count 不刷新。
-          // 与 harness §8 同语义：scrollTop 变化也算翻页生效（宿主滚动了即证明 next() 工作）。
-          const p1 = container.render.getPosition()
-          const el = stage()
-          const st1 = el?.scrollTop ?? 0
+        if (!posChanged) {
+          // kookit 坑 §5.10：文字类 smooth 滚动开始即 record → 位置旧值。
+          // 这里等"变化出现"（位置或 scrollTop），比"停稳后再量"更可靠（见 waitForTurn）。
+          const beforeLoc = container.render.getPosition()
+          const beforeTop = stage()?.scrollTop ?? 0
           await container.render.next()
-          await wait(3000)
-          await waitScrollSettle()
-          const st2 = el?.scrollTop ?? 0
-          posChanged = changed(p1, container.render.getPosition()) || st1 !== st2
+          posChanged = await waitForTurn(beforeLoc, beforeTop)
         }
       }
+      // 封面管线自检（v0.1.8）：异步提取 → 解析元数据 → canvas 缩略图 → 落盘 → 回写 coverPath。
+      // 平时由 LibraryFeature 在导入后入队；dev 模式跳过自动入队（保证渲染断言确定性），这里显式跑一次。
+      const coverLine = await (async (): Promise<string> => {
+        try {
+          const finished = new Promise<CoverSummary>((resolve) => {
+            const off = container.covers.on('done', (s) => {
+              off()
+              resolve(s)
+            })
+          })
+          container.covers.enqueue([book.id])
+          const summary = await Promise.race([finished, wait(45000).then(() => null)])
+          const fresh = await container.books.get(book.id)
+          if (!fresh?.coverPath) {
+            return `封面=无(${summary ? `ok${summary.ok}/fail${summary.failed}` : '超时'})`
+          }
+          const bytes = await container.store.getCover(book.id)
+          return `封面=${fresh.coverPath}(${bytes ? `${Math.round(bytes.byteLength / 1024)}KB` : '读回失败'})`
+        } catch (err) {
+          return `封面=异常(${(err as Error).message})`
+        }
+      })()
+
+      await waitIframeSized()
       const s2 = readDocState()
       const ok = innerLen > 0 && s2.scrollH > 0 && posChanged
       const pos1 = container.render.getPosition()
       const ch = container.render.getChapter().length
       const line =
         `[dev] ${ok ? '渲染OK' : '渲染可疑'} 格式=${book.format} 章节数=${ch} ` +
-        `正文长度=${innerLen} 可滚动=${s2.scrollH} iframeH=${s2.iframeH} docScrollH=${s2.docScrollH} ${subInfo} 位置=第${pos1.page}页/${pos1.percentage}`
+        `正文长度=${innerLen} 可滚动=${s2.scrollH} iframeH=${s2.iframeH} docScrollH=${s2.docScrollH} ${subInfo} ${coverLine} 位置=第${pos1.page}页/${pos1.percentage}`
       pushLog(line)
-      console.log(ok ? '[TUREAD-TEST-OK]' + line : '[TUREAD-TEST-FAIL]' + line)
-    } catch (err) {
+      console.log(ok ? '[TUREAD-TEST-OK]' + line : '[TUREAD-TEST-FAIL]' + line)    } catch (err) {
       const e = err as Error
       const line = `[dev] 渲染失败：${e.message}`
       pushLog(line)

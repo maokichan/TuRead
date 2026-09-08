@@ -4,7 +4,15 @@
  * 约束：kookit 依赖 DOM（iframe 渲染）→ 外壳必须提供 DOM 环境（Electron / 浏览器 / WebView）。
  */
 import type { Listener, EventEmitter, Unsubscribe } from './events'
-import type { BookLocation, BookRecord, Chapter, Note, RenderOptions } from '@core/domain/types'
+import type {
+  BookFormat,
+  BookLocation,
+  BookMetadata,
+  BookRecord,
+  Chapter,
+  Note,
+  RenderOptions
+} from '@core/domain/types'
 
 export interface RenderServiceEvents {
   rendered: (chapterDocIndex: number) => void
@@ -15,6 +23,12 @@ export interface IRenderService extends EventEmitter<RenderServiceEvents> {
   open(record: BookRecord, options?: RenderOptions): Promise<void>
   close(): Promise<void>
   renderTo(element: HTMLElement): Promise<void>
+  /**
+   * 解析元数据（v0.1.8）—— kookit 是唯一解析器，故能力挂在渲染端口上。
+   * **无状态**：内部构造临时 rendition（不 renderTo、不碰当前阅读会话），cover 为 data URL。
+   * 失败（不支持/损坏）→ 抛错，由调用方决定兜底（书名兜底在 UI）。
+   */
+  getMetadata(buffer: ArrayBuffer, format: BookFormat): Promise<BookMetadata>
   next(): Promise<void>
   prev(): Promise<void>
   goToPage(page: number): Promise<void>

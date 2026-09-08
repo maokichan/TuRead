@@ -18,16 +18,20 @@ export const IPC = {
   storeRemoveBook: 'store:remove-book',
   storeGetSetting: 'store:get-setting',
   storeSetSetting: 'store:set-setting',
+  storeSetCover: 'store:set-cover',
+  storeGetCover: 'store:get-cover',
+  storeRemoveCover: 'store:remove-cover',
   fsReadFile: 'fs:read-file',
-  dialogPickBook: 'dialog:pick-book'
+  pickerPickFiles: 'picker:pick-files',
+  pickerPickDirectory: 'picker:pick-directory',
+  pickerListEbooks: 'picker:list-ebooks'
 } as const
 
-/** 主进程文件选择结果 */
-export interface PickedBookFile {
-  path: string
-  name: string
-  size: number
-}
+/** 可导入的电子书扩展名（对话框过滤 + 目录扫描共用，唯一定义处） */
+export const EBOOK_EXTENSIONS = [
+  'epub', 'pdf', 'mobi', 'azw3', 'azw', 'txt', 'md', 'fb2',
+  'docx', 'html', 'mhtml', 'xml', 'cbz', 'cbr', 'cbt', 'cb7'
+] as const
 
 /** preload 通过 contextBridge 暴露到 window.turead 的桥接口 */
 export interface TureadBridge {

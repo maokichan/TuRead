@@ -18,7 +18,15 @@ import type {
 import { TypedEmitter } from '@core/ports/emitter'
 import { normalizeLocation } from '@core/domain/location'
 import type { IRenderService, RenderServiceEvents } from '@core/ports/render'
-import type { BookLocation, BookRecord, Chapter, Note, RenderOptions } from '@core/domain/types'
+import type {
+  BookFormat,
+  BookLocation,
+  BookMetadata,
+  BookRecord,
+  Chapter,
+  Note,
+  RenderOptions
+} from '@core/domain/types'
 import { ensurePdfjs } from './pdfjsSetup'
 
 export type ReadBookFile = (path: string) => Promise<ArrayBuffer>
@@ -103,6 +111,29 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     this.rendition = null
     this.record = null
     this.element = null
+  }
+
+  /**
+   * 解析元数据（**无状态**，不碰当前阅读会话）：临时构造 rendition 取 metadata 后丢弃。
+   * 用于封面提取（CoverQueue）——不能借用实例上的 rendition，否则会把用户正在读的书顶掉。
+   * kookit 的 getMetadata() 内部会自行 parse（EPUB 读 zip / PDF 走 pdfjs），cover 是 data URL。
+   */
+  async getMetadata(buffer: ArrayBuffer, format: BookFormat): Promise<BookMetadata> {
+    const Kookit = await loadKookit()
+    const rendition = Kookit.BookHelper.getRendition(
+      buffer,
+      this.toKookitConfig(format),
+      buildNamespace(Kookit)
+    )
+    const raw = await rendition.getMetadata()
+    return {
+      title: (raw.name ?? '').trim(),
+      author: raw.author || undefined,
+      publisher: raw.publisher || undefined,
+      description: raw.description || undefined,
+      language: raw.language || undefined,
+      cover: raw.cover || undefined
+    }
   }
 
   async renderTo(element: HTMLElement): Promise<void> {

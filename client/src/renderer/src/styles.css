@@ -49,6 +49,8 @@
   --brand-to: #7f5bff;
   --scrollbar: #2a3245;
   --mono: 'Cascadia Code', Consolas, 'JetBrains Mono', monospace;
+  /* 中文衬线（明体）字栈：功能图标符号 + 无封面时的"文字封面"共用 */
+  --font-serif-cn: '源流明體', 'GenRyuMin', 'Source Han Serif SC', 'Noto Serif CJK SC', 'SimSun', 'Songti SC', serif;
 }
 
 [data-theme='sepia'] {
@@ -155,11 +157,27 @@ body {
   border: none;
 }
 
+/* ---------- 书库：列表行左侧封面（填充 + 向右渐隐） ----------
+   封面作为行的左侧背景，用 mask 让它向右淡出到行背景色，形成"书脊—文字"的过渡。
+   mask 而不是叠加渐变层：主题切换（dark/sepia/light）时不需要另算叠加色。 */
+.book-row-cover {
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 38%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 0%, #000 38%, transparent 100%);
+}
+
+/* ---------- 书库：无封面时的"文字封面"（标题铺满卡片） ----------
+   中文用明体字栈（源流明体，未安装时回退系统宋体）；排版效果：居中、允许折行、字距略松。 */
+.title-cover {
+  font-family: var(--font-serif-cn);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
 /* ---------- 功能组件图标符号字体：繁体源流明体（明体/宋体风格，更有设计感） ----------
    未安装时回退到系统中文字体；如需保证所有机器一致，后续可把字体文件打进资源（借物表登记）。 */
 .feature-icon {
-  font-family: '源流明體', 'GenRyuMin', 'Source Han Serif SC', 'Noto Serif CJK SC', 'SimSun', 'Songti SC',
-    serif;
+  font-family: var(--font-serif-cn);
 }
 
 /* ---------- 滚动条 ---------- */

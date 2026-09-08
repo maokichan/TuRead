@@ -35,7 +35,16 @@ export interface KookitRendition {
   getPosition(): KookitPosition
   getProgress(): { totalPage?: number; currentPage?: number; percentage?: number }
   getChapter(): Array<{ label: string; href: string; index?: number; subitems?: any[] }>
-  getMetadata(): Promise<{ name?: string; author?: string; description?: string; publisher?: string; cover?: string }>
+  /** 元数据：kookit 内部 `{...book.metadata, name, author, description, publisher, cover}` —— 原始 metadata 字段（如 language/identifier）会一并透传 */
+  getMetadata(): Promise<{
+    name?: string
+    author?: string
+    description?: string
+    publisher?: string
+    cover?: string
+    language?: string
+    identifier?: string
+  }>
   next(): Promise<void>
   prev(): Promise<void>
   goToPage(page: number): Promise<void>
