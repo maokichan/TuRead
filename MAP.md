@@ -6,7 +6,7 @@
 
 多人房间共读阅读器：多个用户进同一房间共同阅读同一本书。
 渲染/解析复用 kookit（AGPL-3.0，git submodule）；同步服务器用 Go。
-**server v0.2.0 已实现；client v0.1.6（功能组件标准容器 + UI 交互流：AppShell 宿主 + Library/Reader/Room/Server 拆分 + Tailwind 落地，2026-09-08，见下）。**
+**server v0.2.0 已实现；client v0.1.7（本地阅读器修复批：位置正确性/并发竞态/存储安全 + dev 自检出 AppShell，2026-09-08，见下）。**
 
 ## 关键文档（按阅读顺序）
 
@@ -29,11 +29,13 @@
 - 依赖方向：UI → usecases → ports ← adapters；**领域层零依赖**
 - UI 不直接 import kookit / better-sqlite3 / WebSocket 实现（只走 ServiceContainer）
 - 引入新依赖先核许可证再登记进借物表
+- **提交/打 tag 由 agent 执行；版本号滚动由用户决定**（agent 不自行发版，规则见 `docs/STATUS.md` §2）
 
 ## 当前状态（更新于 2026-09-08）
 
 - **server v0.2.0 已实现并测试全绿**：书籍标定（Work/Edition）+ 房间（TTL/发现/聊天/持久化）+ token 双闸 + 配置系统（TOML + 热重载）+ 上传限制 + 转发规范 + 房主删房 + E2E 集成测试；待办见 `TODO.md`
-- **client v0.1.6（2026-09-08）**：功能组件标准容器 + UI 交互流 —— AppShell（侧边栏=单色符号图标栏 + 主面板宿主，功能常驻挂载/非激活隐藏 → 状态继承，settings 钉置底）+ features/{types,registry} 容器契约（官方插件 = 追加 descriptor）+ Library/Reader/Room/Settings 拆分（**Server 并入 Room**）+ Tailwind v4 落地 + 颜色语义 token 标准化；房间流程 = 大厅→选房→`host.openReader` 自动开阅读器；**全局 UI**：无顶栏/日志栏/logo、去 Electron 菜单栏、跟随系统主题；typecheck + 四格式无头自检全绿
+- **client 分两半开发**：**本地阅读器**（书架/渲染/设置/本地持久化）与**云端同步**（net + RoomSession + 房间 UI）。当前专注**本地阅读器**
+- **client v0.1.7（2026-09-08）**：本地阅读器修复批 —— 滚动停稳补 `record()`（文字类手动滚动此前不留位置）、关闭/切书 flush 位置、`open` 并发守卫、`removeNote` 按笔记章节定位、`isZeroLocation` 判据补 `chapterHref`、JsonStore 写盘串行化 + 损坏备份、`importBook` 返回 `{book,reused}`、dev 自检移入 `dev/selfCheck.ts`；typecheck + 四格式无头自检全绿
 - **样式方案**：Tailwind CSS v4 已落地（`@tailwindcss/vite`；styles.css 仅留主题变量/kookit 契约；借物表已登记）
 - **插件态度**：v1 不做插件运行时，**ports 即插件边界**（官方插件 = 注册进 ServiceContainer 的适配器 + 追加 FeatureDescriptor 进 registry）；第三方插件演进路径见 `client/docs/ARCHITECTURE.md` §4
 - 下一步：vitest → 笔记实现 → 选文件收敛端口 → 更多设置项（字号/行距）；tag 约定 `client-v0.1.x` / `server-v0.2.x`

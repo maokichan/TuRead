@@ -59,6 +59,11 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   private record: BookRecord | null = null
   private rendition: KookitRendition | null = null
   private element: HTMLElement | null = null
+  /** open 的并发代次：close()/后一次 open() 推进它，让仍在读文件/解析的旧 open 作废 */
+  private openToken = 0
+  /** note key → 所属渲染节号（removeNote 需要章节号，不能拿"当前章节"顶替） */
+  private noteChapters = new Map<string, number>()
+  private scrollTimer: number | null = null
 
   constructor(readFile: ReadBookFile) {
     super()
@@ -67,7 +72,12 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
 
   async open(record: BookRecord, options?: RenderOptions): Promise<void> {
     await this.close()
+    // 竞态守卫：open 内部要等"读文件 + 解析"（PDF 可达秒级），期间用户可能已切到另一本书
+    // （ReaderFeature 会取消旧流程，但适配器状态是共享的）。先发起的那次解析完若直接写
+    // this.rendition，就会覆盖后发起的书 —— 用代次令牌让过期的那次直接作废。
+    const token = ++this.openToken
     const [Kookit, buffer] = await Promise.all([loadKookit(), this.readFile(record.filePath)])
+    if (token !== this.openToken) return
     const config = this.toKookitConfig(record.format, options)
     const rendition = Kookit.BookHelper.getRendition(buffer, config, buildNamespace(Kookit))
     this.record = record
@@ -81,6 +91,9 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   }
 
   async close(): Promise<void> {
+    this.openToken++ // 作废仍在进行的 open
+    this.clearScrollWatch()
+    this.noteChapters.clear()
     if (this.rendition) {
       this.rendition.removeContent()
     }
@@ -119,6 +132,12 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     } else {
       await this.rendition.goToChapterIndex(0)
     }
+    // 坑 §5.10：文字类渲染【不监听宿主容器 scroll】—— 用户手动滚动既不触发位置事件，
+    // 也不会有人补 record()，位置永远停在"上一次翻页/初始定位"的旧值（进度条、lastLocation
+    // 持久化、房间同步全跟着错）。这里在宿主容器上自建滚动监听：停稳 400ms 后补一次 record()。
+    // PDF 自带 scroll 监听，多这一次 record() 只是重复算一次，无副作用。
+    element.removeEventListener('scroll', this.onHostScroll)
+    element.addEventListener('scroll', this.onHostScroll, { passive: true })
   }
 
   async next(): Promise<void> {
@@ -185,16 +204,51 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   }
 
   async createNote(note: Note): Promise<void> {
+    this.noteChapters.set(note.key, normalizeLocation(note.location).chapterDocIndex)
     await this.rendition?.createOneNote({ ...note, notes: note.notes || [] }, () => {})
   }
 
   async removeNote(key: string): Promise<void> {
-    const chapterDocIndex = parseInt(String(this.getPosition().chapterDocIndex)) || 0
+    // 用【笔记自身】所属的渲染节号：kookit removeOneNote(key, chapterDocIndex) 会在该节内查找。
+    // 早期实现拿"当前所在章节"，跨章节删除会找不到/删错（笔记功能落地前先修掉这颗雷）。
+    const chapterDocIndex =
+      this.noteChapters.get(key) ?? normalizeLocation(this.getPosition()).chapterDocIndex
     await this.rendition?.removeOneNote(key, chapterDocIndex)
+    this.noteChapters.delete(key)
   }
 
   async renderHighlighters(notes: Note[]): Promise<void> {
+    for (const n of notes) {
+      this.noteChapters.set(n.key, normalizeLocation(n.location).chapterDocIndex)
+    }
     await this.rendition?.renderHighlighters(notes as unknown[], () => {})
+  }
+
+  /** 宿主容器滚动（防抖 400ms）—— 只在停稳后补 record()，避免滚动过程中反复重算 */
+  private readonly onHostScroll = (): void => {
+    if (this.scrollTimer !== null) window.clearTimeout(this.scrollTimer)
+    this.scrollTimer = window.setTimeout(() => {
+      this.scrollTimer = null
+      void this.recordSettled()
+    }, 400)
+  }
+
+  /** 滚动停稳后重算位置并上报（坑 §5.10：滚动刚开始时 record() 拿到的是旧位置） */
+  private async recordSettled(): Promise<void> {
+    const rendition = this.rendition
+    if (!rendition) return
+    await rendition.record()
+    // record() 期间可能已 close() 或打开了另一本书 —— 此时再上报会把"零位置/他书位置"发出去
+    if (rendition !== this.rendition) return
+    this.emitLocationChanged()
+  }
+
+  private clearScrollWatch(): void {
+    if (this.scrollTimer !== null) {
+      window.clearTimeout(this.scrollTimer)
+      this.scrollTimer = null
+    }
+    this.element?.removeEventListener('scroll', this.onHostScroll)
   }
 
   private toKookitConfig(format: BookRecord['format'], options?: RenderOptions): KookitConfig {
@@ -229,6 +283,8 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   }
 
   private emitLocationChanged(): void {
+    // 未打开（或已 close）时不上报：getPosition() 会返回零位置，消费方可能把它当真实位置存下来
+    if (!this.rendition) return
     this.emit('location-changed', this.getPosition())
   }
 }

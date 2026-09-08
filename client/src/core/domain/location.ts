@@ -16,14 +16,21 @@ import type { BookFormat, BookLocation } from './types'
  *  - display 仅展示与粗粒度同步，【不得】作为精确锚定依据：percentage / chapterTitle
  */
 
-/** 零位置（未渲染/未导航时 getPosition() 的返回）：所有 key 字段为 0、hint 为空 */
+/**
+ * 零位置（未渲染/未导航时 getPosition() 的返回）判定。
+ * ⚠ 判据必须含 chapterHref：kookit 的"未渲染"是空对象（chapterHref 为空串），
+ *   而**首章首块是有效位置**（chapterDocIndex=0、count=0，但 chapterHref 已就绪）。
+ *   早期版本只看数值键 → 把"第一页"误判为零位置，compareLocation 返回 null、
+ *   anchorStrength 返回 none（笔记/同步回跳会拒绝回跳到书的开头）。
+ */
 export function isZeroLocation(loc: BookLocation | null | undefined): boolean {
   if (!loc) return true
   return (
     toNonNegativeInt(loc.chapterDocIndex) === 0 &&
     toNonNegativeInt(loc.count) === 0 &&
     toNonNegativeInt(loc.page) === 0 &&
-    !loc.text
+    !loc.text &&
+    !loc.chapterHref
   )
 }
 

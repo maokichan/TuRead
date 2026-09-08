@@ -51,7 +51,8 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
   // 启动载入已持久化设置；跟随系统时监听系统深浅色切换
   useEffect(() => {
     void container.store.getSetting<{ theme?: Theme }>('appearance', {}).then((cfg) => {
-      applyTheme(cfg.theme ?? 'system')
+      // 载入时只应用、不写盘 —— 否则每次启动都产生一次无意义的 JSON 全量重写
+      applyTheme(cfg.theme ?? 'system', false)
     })
     void container.store.getSetting<{ readerMode?: ReaderMode }>('readerSettings', {}).then((cfg) => {
       if (cfg.readerMode) setReaderMode(cfg.readerMode)
@@ -66,11 +67,11 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
   }, [container])
 
   const applyTheme = useCallback(
-    (t: Theme) => {
+    (t: Theme, persist = true) => {
       themeRef.current = t
       setTheme(t)
       applyDataTheme(t)
-      void container.store.setSetting('appearance', { theme: t })
+      if (persist) void container.store.setSetting('appearance', { theme: t })
     },
     [container]
   )

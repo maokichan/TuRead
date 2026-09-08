@@ -58,7 +58,7 @@
 | `getChapter` | `() => Chapter[]` | 目录（TOC） | v0.2.3：含 `label/href/chapterDocIndex/subitems`（chapterDocIndex 为目录项起始渲染节号） |
 | `search` | `(keyword: string) => Promise<unknown>` | 引擎内搜索 | 返回形状待定（CONTRACTS §7） |
 | `createNote` | `(note: Note) => Promise<void>` | 创建/回显一条笔记 | `note.range` 由调用方提供（引擎选区产物，见 §5） |
-| `removeNote` | `(key: string) => Promise<void>` | 删除笔记 | 按当前 chapterDocIndex 定位 |
+| `removeNote` | `(key: string) => Promise<void>` | 删除笔记 | 按**该笔记自身**所属 chapterDocIndex 定位（v0.1.7 修：此前用"当前章节"，跨章节删会删错） |
 | `renderHighlighters` | `(notes: Note[]) => Promise<void>` | 批量回显高亮 | 重开书时用持久化的 notes |
 
 ---
@@ -68,7 +68,7 @@
 | 事件 | 载荷 | 触发时机 | 消费方 |
 |---|---|---|---|
 | `rendered` | `chapterDocIndex: number` | 章节内容加载完成（含初始定位、翻章） | UI 更新进度 |
-| `location-changed` | `BookLocation` | 翻页/滚动/定位后（`page-changed`/`scroll-text` 归一） | **RoomSession 节流广播**；UI 进度；store 存 lastLocation |
+| `location-changed` | `BookLocation` | 翻页/滚动/定位后（`page-changed`/`scroll-text` 归一）；**v0.1.7 起**：宿主容器滚动停稳 400ms 后适配器补一次 `record()` 再上报（坑 §5.10 的消费侧义务） | **RoomSession 节流广播**；UI 进度；store 存 lastLocation |
 
 > 语义：`location-changed` 是**同步的数据源**。上层不得自行猜测位置，一律读事件/`getPosition()`。
 
@@ -142,11 +142,15 @@ config.externalWorker = {
 
 ---
 
-## 8. 遗留事项（2026-09-07）
+## 8. 遗留事项（2026-09-08 更新）
 
 - 历史问题"App 侧 EPUB 正文空"已销案（测量假象：纯图片扉页）；定位中修复的宿主容器 CSS /
   PDF iframe 高度两坑已固化为本文件 §2、§9 与 `KOOKIT.md` §5.8/§5.9 的宿主容器规则。
-- 待办：PDF 可见窗口交互抽查；harness 侧 PDF canvas 渲染定位（低优先级）——见 `TODO.md`。
+- **v0.1.7 修复**：① 宿主容器滚动停稳后补 `record()`（文字类此前手动滚动不产生任何位置事件，
+  进度/持久化/同步都停在旧值）② `open()` 加并发代次守卫（快速切书时后解析完的旧书不再覆盖新书）
+  ③ `removeNote` 按笔记自身章节定位。
+- 待办：书籍元数据（`rendition.getMetadata()` 已具备，见根 `TODO.md`）；PDF 可见窗口交互抽查；
+  harness 侧 PDF canvas 渲染定位（低优先级）。
 
 ---
 

@@ -29,15 +29,13 @@ export function LibraryFeature({
       try {
         const buffer = (await window.turead.invoke(IPC.fsReadFile, path)) as ArrayBuffer
         const displayName = name ?? path.split(/[\\/]/).pop() ?? path
-        // 导入前快照书架 id 集合，用于区分「新导入」与「指纹命中复用」（BookService 内部按指纹去重）
-        const beforeIds = new Set((await container.books.list()).map((b) => b.id))
-        const book = await container.books.importBook(
+        // 去重与复用判定都在用例层（BookService.importBook 返回 reused），UI 不再自己嗅探
+        const { book, reused } = await container.books.importBook(
           buffer,
           displayName,
           extToFormat(displayName),
           path
         )
-        const reused = beforeIds.has(book.id)
         const list = await container.books.list()
         setBooks(list)
         host.selectBook(book.id)

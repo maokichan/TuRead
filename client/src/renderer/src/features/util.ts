@@ -14,6 +14,7 @@ export function extToFormat(name: string): BookRecord['format'] {
     fb2: 'FB2',
     docx: 'DOCX',
     html: 'HTML',
+    mhtml: 'MHTML',
     xml: 'XML',
     cbz: 'CBZ',
     cbr: 'CBR',

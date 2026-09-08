@@ -121,6 +121,8 @@ GeneralRender (GeneralRender.ts，事件基类)
   `goToChapter(idx)` = 透传 `goToChapterDocIndex(idx)`（直接按渲染节跳转，不依赖 flatten 顺序）。
 - **宿主容器要求**（UI 侧）：带 `id="page-area"` + `overflow-y:auto` + 其内 iframe 无 `height:100%`
   （坑 §5.1/§5.8）；宿主页面 CSP 含 `blob:` + `worker-src`（坑 §5.3）。
+- **滚动位置补录（v0.1.7）**：`renderTo` 在宿主容器上挂 `scroll` 监听，停稳 400ms 后补一次 `record()`
+  并上报 `location-changed` —— 即坑 §5.10 的消费侧义务落到了适配器里（文字类手动滚动此前不留任何位置痕迹）。
 - **PDF**：pdfjs-dist@4.8.69 注入 + `/lib/pdfjs/` 静态资源（cmaps/standard_fonts/
   text_layer_builder.css/annotation_layer_builder.css/worker）。pdfjs-dist v4.x 是匹配版本线
   （v5+ 移除 `PDFDataRangeTransport` 等 API，勿升）。**定位**：页码为主键（`chapterDocIndex` = 页码，

@@ -5,6 +5,16 @@
 
 ## client
 
+- [ ] **(P2) 书籍元数据只有文件名**：`FingerprintService.extractMetadata` 忽略 buffer/format，
+  只去扩展名 → 作者/封面/简介/ISBN 永远为空，书架只显示标题。
+  **路径已探明**：`rendition.getMetadata()` 可用（`kookit.esm.d.ts:38`），但两种接法需先取舍：
+  ① 导入期解析（BookService 编排里引入解析器；构造 rendition 有成本，40MB PDF 可能秒级）
+  ② 首次打开回填（便宜，但书架要等刷新才显示 → 缺"书库变更"通知通道，跨 Feature）
+- [ ] **(P3) `Note.notes` 类型与 kookit 不匹配**：domain 是 `string`（笔记正文），kookit
+  `createOneNote` 期望数组 —— 适配器当前 `notes: note.notes || []` 会**静默丢弃**用户笔记内容
+  （笔记功能落地前必须定形状，见 `CONTRACTS.md` §2 Note）
+- [ ] **(P3) 适配器方法静默 no-op**：`next/prev/goTo*/search` 用 `this.rendition?.` 可选链，
+  未 open 时静默返回（`renderTo` 却是抛错）—— 调用方无法区分"成功"与"什么都没发生"
 - [ ] **(P2) join 握手无超时**：`pendingJoin` 只被 room.join-ack resolve，断线/丢包时挂死；
   加 10s 超时走 `server-error`（`usecases/RoomSession.ts:101`）
 - [ ] **(P3) 协议形状收拢**：信封 type 字符串与 payload 形状散落在 RoomSession 的

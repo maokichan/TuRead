@@ -4,6 +4,7 @@
  * 打开/关闭受 readerBookId 驱动（状态继承：Library「打开阅读」或 RoomFeature 加入后 host.openReader 触发）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { isZeroLocation } from '@core/domain/location'
 import type { BookLocation, BookRecord, Chapter, RenderOptions } from '@core/domain/types'
 import type { FeatureProps } from '../types'
 import { TocPanel, type TocRow } from '../../components/TocPanel'
@@ -34,6 +35,19 @@ export function ReaderFeature({ container, host, readerBookId }: FeatureProps): 
     },
     [container, readerBookId]
   )
+
+  /**
+   * 关闭/切换书前落一次位置（绕过 2s 节流）。
+   * 没有这一步时，最后 2s 内的翻页/滚动会被节流丢掉，下次开书回到更早的位置。
+   * ⚠ 位置必须【同步】读取：调用方随后就会 render.close()，异步读到的已是零位置。
+   */
+  const flushLastLocation = useCallback((): void => {
+    if (!readerBookId) return
+    const loc = container.render.getPosition()
+    if (isZeroLocation(loc)) return
+    lastSavedAtRef.current = 0
+    void container.books.updateLastLocation(readerBookId, loc)
+  }, [container, readerBookId])
 
   // 位置事件 → 进度 + 持久化（同步数据源，见 RENDER_INTERFACE.md §4）
   useEffect(() => {
@@ -86,8 +100,10 @@ export function ReaderFeature({ container, host, readerBookId }: FeatureProps): 
     })()
     return () => {
       cancelled = true
+      // 关书 / 切书 / 卸载：先落位置再让下一次 effect（或 render.close）动渲染状态
+      flushLastLocation()
     }
-  }, [readerBookId, container, host])
+  }, [readerBookId, container, host, flushLastLocation])
 
   const pageTurn = useCallback(
     async (dir: 'next' | 'prev') => {

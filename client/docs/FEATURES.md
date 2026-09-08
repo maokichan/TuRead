@@ -52,6 +52,8 @@ src/renderer/src/
 ├── components/           # 展示组件（纯 props，无业务编排）
 │   ├── BookCard.tsx  ├── TocPanel.tsx  ├── MemberList.tsx
 │   └── ChatLog.tsx   ├── RoomRow.tsx   └── StatePill.tsx
+├── dev/                  # 开发工具（非产品代码）
+│   └── selfCheck.ts      # TUREAD_DEV_BOOK 无头渲染自检（v0.1.7 从 AppShell 抽出）
 └── styles.css            # 主题语义 token + kookit 契约（Tailwind 入口）
 ```
 
@@ -145,11 +147,10 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 
 ## 8. 实施落地（v0.1.6，2026-09-08）
 
-- **容器**：`AppShell.tsx`（侧边栏 + 主面板宿主 + 跨功能共享态 + dev 无头自检）。
+- **容器**：`AppShell.tsx`（侧边栏 + 主面板宿主 + 跨功能共享态；**dev 无头自检已于 v0.1.7 移入 `dev/selfCheck.ts`**，shell 只做组合与共享态）。
   - **无顶栏 / 无日志栏 / 无品牌 logo**：Electron 自带菜单栏已移除（`Menu.setApplicationMenu(null)` + `autoHideMenuBar` + `win.removeMenu()` 双保险）；诊断日志移入 SettingsFeature。
   - **侧边栏 = 单色符号图标栏**（宽 56px）：只显示 `FeatureDescriptor.icon`（**繁体汉字单字：書/閱/房/設**），
     以「源流明体」字体栈显示（`.feature-icon`），label 作悬停提示；**禁用带彩色 emoji**。
-  - **settings 钉在侧边栏最下角**（`FeatureDescriptor.pinned`，AppShell 单独渲染）。
   - **settings 钉在侧边栏最下角**（`FeatureDescriptor.pinned`，AppShell 单独渲染）。
 - **功能组件**：`LibraryFeature`（书架/导入/去重/删除/选中/打开）、`ReaderFeature`（受 `readerBookId` 驱动打开/关闭，
   翻页/目录/进度/位置保存；布局模式读 `readerSettings`，重开书生效）、`RoomFeature`（**服务器连接 + 大厅 + 会话**——
@@ -169,8 +170,17 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 ## 9. 后续里程碑（非承诺）
 
 - **已交付（v0.1.6，2026-09-08）**：标准容器 + Library/Reader/Room/Settings 全部分拆 + Tailwind 落地（Server 并入 Room）。
+- **已交付（v0.1.7，2026-09-08）**：本地阅读器修复批 —— 滚动停稳补 `record()` / 关闭与切书落位置 /
+  `open` 并发守卫 / `removeNote` 按笔记章节定位 / `isZeroLocation` 判据 / JsonStore 写盘串行化与损坏备份；
+  dev 自检从 `AppShell` 移入 `dev/selfCheck.ts`。
 - **下一步候选**：
-  - 更多设置项：文字大小/行距/字体（需先扩 kookit config 映射）；
+  - 书籍元数据（作者/简介/封面）—— 路径已探明：`rendition.getMetadata()` 可用，但**导入期解析**
+    （需在 BookService 编排里引入解析器，构造 rendition 有成本）与**首次打开回填**（便宜，但书架需
+    刷新才显示，跨 Feature 通知是缺口）需先做取舍；
+  - 更多设置项：文字大小/行距/字体 —— ⚠ **不是"扩 config 映射"就能做**：`KookitConfig` 里没有
+    fontSize/lineHeight/fontFamily（`kookit.esm.d.ts` 仅 13 个字段），kookit 走的是
+    `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（`kookit.esm.js` 内 `StyleHelper`
+    无任何调用点，client 侧也未接），需先定注入方案；
   - 打包「源流明体」字体文件进资源，保证各机器渲染一致（先核许可登记借物表）；
   - `location-updated` 同位 UI（RoomFeature 消费 ReaderFeature 的跳转回调，跟随模式）；
   - 「选文件」收敛为端口（`IBookPicker`）消除 `window.turead` 直用例外（§8 已知例外）；

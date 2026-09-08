@@ -165,7 +165,7 @@ interface RoomInfo {
 | `sameLocation(a, b, format)` | 同一位置判定（主键相等；调用方保证同书同版本） |
 | `compareLocation(a, b, format)` | 同书内排序（PDF 按 page；文字类按 chapterDocIndex→count）；不可比返回 null |
 | `anchorStrength(loc, format)` | 锚点强度：strong（主键齐备，可精确回跳）/ weak（只有粗粒度）/ none（零位置）——笔记与恢复选路用；精确回显仍以 `Note.range`（引擎序列化）为准，location 是其粗锚点 |
-| `isZeroLocation(loc)` | 零位置（未渲染）判定 |
+| `isZeroLocation(loc)` | 零位置（未渲染）判定：所有数值键为 0 **且 `text` / `chapterHref` 皆空**。`chapterHref` 是必要判据 —— 首章首块（`chapterDocIndex=0`、`count=0`）是有效位置，不是零位置 |
 | `describeLocation(loc, format)` | 日志/调试可读形式 |
 
 **字段三级角色**（语义，不新增字段）：
@@ -284,7 +284,8 @@ interface NetConfig {
 ```ts
 interface IBookIdentityService {
   computeFingerprint(buffer: ArrayBuffer): Promise<BookFingerprint>;
-  extractMetadata(buffer: ArrayBuffer, format: BookFormat): Promise<BookMetadata>;
+  /** name = 文件名（骨架实现用它推导 title；结构化解析见 TODO「书籍元数据」） */
+  extractMetadata(buffer: ArrayBuffer, format: BookFormat, name: string): Promise<BookMetadata>;
   verify(local: BookFingerprint, room: BookFingerprint): boolean;
 }
 ```
@@ -374,12 +375,18 @@ type JoinResult =
 
 ```ts
 interface IBookService {
-  /** 导入：文件 → 指纹 → 元数据 → 入库。去重（v0.2.3）：同指纹（algorithm+hash+size 全等）复用已有记录并更新 filePath，不产生重复条目 */
-  importBook(file: File | ArrayBuffer, name: string, format: BookFormat, filePath: string): Promise<BookRecord>;
+  /** 导入：文件 → 指纹 → 元数据 → 入库。去重（v0.2.3）：同指纹（algorithm+hash+size 全等）复用已有记录并更新 filePath。
+   *  v0.2.5：返回 `{ book, reused }` —— 「是否复用」由用例给出，UI 不再用 list() 前后快照反推 */
+  importBook(file: ArrayBuffer, name: string, format: BookFormat, filePath: string): Promise<ImportResult>;
   list(): Promise<BookRecord[]>;
   get(id: string): Promise<BookRecord | null>;
   remove(id: string): Promise<void>;
   updateLastLocation(id: string, location: BookLocation): Promise<void>;
+}
+
+interface ImportResult {
+  book: BookRecord;
+  reused: boolean;   // true = 指纹命中已有条目（未新增）
 }
 ```
 
@@ -419,6 +426,7 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.2.5 | 2026-09-08 | **本地阅读器修复批（v0.1.7）**：`IBookService.importBook` 返回 `ImportResult{book,reused}`（去重用例自述结果，删除 UI 侧 id 快照反推）；`isZeroLocation` 判据补 `chapterHref`（首章首块不再被误判为零位置，compare/anchor 对"书的开头"恢复有效）；`extractMetadata` 签名补 `name`（文档与实现对齐） |
 | v0.2.4 | 2026-09-08 | **远端位置派生修约**：`location-updated` 事件由 `room.presence` 全量快照 diff 派生（此前声明但从不触发 = 死端口）；网络载荷位置进域层先归一、比较走 `sameLocation`；订阅生命周期分构造期(net)/join 期(render)，`leaveRoom` 只解绑 join 期 → 修 leaveRoom 误解绑 P1（v0.1.3 遗留） |
 | v0.2.3 | 2026-09-08 | **目录跳转（本地阅读 MVP）**：领域 `Chapter` 增加 `chapterDocIndex`（目录项起始渲染节号，= BookLocation.chapterDocIndex 同标尺，PDF=页码）；`IRenderService` 增加 `goToChapter(chapterDocIndex)`（目录跳转原语） |
 | v0.2.2 | 2026-09-07 | **定位系统立约（§2.1）**：`BookLocation` 字段三级角色（key/hint/display）+ 标准原语收拢进 `core/domain/location.ts`；`chapterDocIndex` 收窄为 `number`（kookit string 形态止步适配层，遗留数据由 `normalizeLocation` 边界容错）；修正 `count`/`page` 错误注释。配套领域新增 `location.ts`（纯函数，零依赖） |

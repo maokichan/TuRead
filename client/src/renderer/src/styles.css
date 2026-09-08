@@ -47,6 +47,7 @@
   --page-text: #1c1c1c;
 
   --brand-to: #7f5bff;
+  --scrollbar: #2a3245;
   --mono: 'Cascadia Code', Consolas, 'JetBrains Mono', monospace;
 }
 
@@ -81,6 +82,7 @@
   --page-text: #3b3022;
 
   --brand-to: #8a6d1f;
+  --scrollbar: #cbb98f;
 }
 
 [data-theme='light'] {
@@ -114,6 +116,7 @@
   --page-text: #1c1c1c;
 
   --brand-to: #7f5bff;
+  --scrollbar: #c9ced8;
 }
 
 * {
@@ -166,7 +169,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2a3245;
+  background: var(--scrollbar);
   border-radius: 6px;
 }
 

@@ -53,7 +53,7 @@ export function registerIpc(
           name: '电子书',
           extensions: [
             'epub', 'pdf', 'mobi', 'azw3', 'azw', 'txt', 'md', 'fb2',
-            'docx', 'html', 'xml', 'cbz', 'cbr', 'cbt', 'cb7'
+            'docx', 'html', 'mhtml', 'xml', 'cbz', 'cbr', 'cbt', 'cb7'
           ]
         }
       ]
