@@ -89,7 +89,11 @@ interface BookRecord {
 type LibraryView = 'list' | 'grid';
 
 /** 书库设置（持久化于 config.json 的 librarySettings 键） */
-interface LibrarySettings { view: LibraryView }
+interface LibrarySettings {
+  view: LibraryView;
+  /** 导入文件夹是否含子目录（false = 只此节点；true = 此节点及所有子节点） */
+  importRecursive: boolean;
+}
 
 /** 阅读渲染配置（领域层友好配置，适配器内部翻译为 kookit config） */
 interface RenderOptions {
@@ -334,7 +338,8 @@ interface ILibraryStore {
 interface IBookPicker {
   pickFiles(): Promise<string[]>;             // 系统对话框选多个文件；取消 → []
   pickDirectory(): Promise<string | null>;    // 系统对话框选一个目录；取消 → null
-  listEbooks(dir: string): Promise<string[]>; // 目录下**直接**子项的电子书（不递归，扩展名过滤）
+  /** 列目录电子书：recursive=false 只此节点；true 则此节点及所有子节点（可配置选项） */
+  listEbooks(dir: string, recursive: boolean): Promise<string[]>;
   readFile(path: string): Promise<ArrayBuffer>; // 导入读取
 }
 ```
@@ -461,6 +466,7 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.2.7 | 2026-09-08 | **书库重做补约（v0.1.8 第二段）**：`IBookPicker.listEbooks` 增 `recursive` 参数（文件夹导入可配置"仅此节点 / 含所有子节点"）；`LibrarySettings` 增 `importRecursive`；设置新增 `deleteNotice`（删除确认"下次不再提示"）。删除语义澄清：**只删书库索引，不删源文件**（弹窗首次说明） |
 | v0.2.5 | 2026-09-08 | **本地阅读器修复批（v0.1.7）**：`IBookService.importBook` 返回 `ImportResult{book,reused}`（去重用例自述结果，删除 UI 侧 id 快照反推）；`isZeroLocation` 判据补 `chapterHref`（首章首块不再被误判为零位置，compare/anchor 对"书的开头"恢复有效）；`extractMetadata` 签名补 `name`（文档与实现对齐） |
 | v0.2.4 | 2026-09-08 | **远端位置派生修约**：`location-updated` 事件由 `room.presence` 全量快照 diff 派生（此前声明但从不触发 = 死端口）；网络载荷位置进域层先归一、比较走 `sameLocation`；订阅生命周期分构造期(net)/join 期(render)，`leaveRoom` 只解绑 join 期 → 修 leaveRoom 误解绑 P1（v0.1.3 遗留） |
 | v0.2.3 | 2026-09-08 | **目录跳转（本地阅读 MVP）**：领域 `Chapter` 增加 `chapterDocIndex`（目录项起始渲染节号，= BookLocation.chapterDocIndex 同标尺，PDF=页码）；`IRenderService` 增加 `goToChapter(chapterDocIndex)`（目录跳转原语） |

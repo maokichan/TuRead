@@ -6,119 +6,122 @@
 
 /* ------------------------------------------------------------------
    主题语义 token（设计令牌）—— 所有颜色必须经 var(--*) 引用，不得在组件里写死。
-   第三方自定义主题 = 覆盖下面整套 token（:root 为默认暗色）。
+
+   色彩取向（2026-09-08 定）：
+   - **暗色 / 亮色两套主题一律黑灰白**（不引入色相；此前偏蓝的 accent 与底色已清除）。
+     高亮色即"灰阶的两端"：暗色主题 = 近白，亮色主题 = 近黑。
+   - **羊皮纸**保持暖棕取向，其"高亮"用**深棕**（暖色主题自己的对应深色）。
+   - 状态色（ok/warn/err）保留语义色相 —— 它们传达"连通/警告/错误"，不是装饰色。
+
    语义说明：
      bg/panel/panel-2/border/border-soft  —— 背景层级
      text/muted                            —— 文字
-     accent/accent-soft/accent-strong/accent-ring/on-accent —— 主色系（按钮/选中/高亮）
+     accent/accent-soft/accent-strong/accent-ring/on-accent —— 高亮（按钮/选中/焦点）
      ok/warn/err(+ -border)                —— 状态色（连接/成功/警告/错误）
      input-bg/badge-bg/log-bg/log-text     —— 输入框/格式徽章/诊断日志面板
      page-bg/page-text                     —— 阅读器宿主容器（正文页）
-     brand-to                              —— 品牌渐变终点（预留）
+     scrollbar                             —— 滚动条滑块
 ------------------------------------------------------------------- */
 :root {
-  --bg: #0f1115;
-  --panel: #161a22;
-  --panel-2: #1c2130;
-  --border: #262d3d;
-  --border-soft: #202636;
-  --text: #e6e9f0;
-  --muted: #8a94a8;
+  --bg: #0e0f10;
+  --panel: #161819;
+  --panel-2: #1e2123;
+  --border: #2c3033;
+  --border-soft: #22262a;
+  --text: #e9ebed;
+  --muted: #9aa1a8;
 
-  --accent: #5b8cff;
-  --accent-soft: rgba(91, 140, 255, 0.14);
-  --accent-strong: rgba(91, 140, 255, 0.22);
-  --accent-ring: rgba(91, 140, 255, 0.35);
-  --on-accent: #ffffff;
+  --accent: #e9ebed;
+  --accent-soft: rgba(233, 235, 237, 0.12);
+  --accent-strong: rgba(233, 235, 237, 0.2);
+  --accent-ring: rgba(233, 235, 237, 0.32);
+  --on-accent: #101214;
 
-  --ok: #4ec07c;
-  --ok-border: rgba(78, 192, 124, 0.4);
-  --warn: #e0b45c;
-  --warn-border: rgba(224, 180, 92, 0.4);
-  --err: #e06c6c;
-  --err-border: rgba(224, 108, 108, 0.4);
+  --ok: #6fbf8a;
+  --ok-border: rgba(111, 191, 138, 0.4);
+  --warn: #d7b36a;
+  --warn-border: rgba(215, 179, 106, 0.4);
+  --err: #d9776f;
+  --err-border: rgba(217, 119, 111, 0.4);
 
-  --input-bg: #0f1219;
-  --badge-bg: #12161f;
-  --log-bg: #0b0e14;
-  --log-text: #9fb0c8;
+  --input-bg: #0b0c0d;
+  --badge-bg: #121415;
+  --log-bg: #0a0b0c;
+  --log-text: #a8b0b7;
 
   --page-bg: #ffffff;
-  --page-text: #1c1c1c;
+  --page-text: #1b1d1f;
 
-  --brand-to: #7f5bff;
-  --scrollbar: #2a3245;
+  --scrollbar: #2f3438;
   --mono: 'Cascadia Code', Consolas, 'JetBrains Mono', monospace;
   /* 中文衬线（明体）字栈：功能图标符号 + 无封面时的"文字封面"共用 */
   --font-serif-cn: '源流明體', 'GenRyuMin', 'Source Han Serif SC', 'Noto Serif CJK SC', 'SimSun', 'Songti SC', serif;
 }
 
 [data-theme='sepia'] {
-  --bg: #f3ecd9;
-  --panel: #eae0c8;
-  --panel-2: #dfd2b4;
-  --border: #c9b98f;
-  --border-soft: #d6c9a8;
-  --text: #3b3022;
-  --muted: #8a7a5f;
+  --bg: #f1e9d7;
+  --panel: #e9dfc6;
+  --panel-2: #ddcfb0;
+  --border: #c6b489;
+  --border-soft: #d4c5a3;
+  --text: #3a2f21;
+  --muted: #857354;
 
-  --accent: #8a6d1f;
-  --accent-soft: rgba(138, 109, 31, 0.14);
-  --accent-strong: rgba(138, 109, 31, 0.22);
-  --accent-ring: rgba(138, 109, 31, 0.35);
-  --on-accent: #ffffff;
+  --accent: #4a3a22;
+  --accent-soft: rgba(74, 58, 34, 0.13);
+  --accent-strong: rgba(74, 58, 34, 0.22);
+  --accent-ring: rgba(74, 58, 34, 0.32);
+  --on-accent: #f7f1e3;
 
-  --ok: #4e9c6d;
-  --ok-border: rgba(78, 156, 109, 0.4);
+  --ok: #4f8a63;
+  --ok-border: rgba(79, 138, 99, 0.4);
   --warn: #a9842c;
   --warn-border: rgba(169, 132, 44, 0.4);
   --err: #b05545;
   --err-border: rgba(176, 85, 69, 0.4);
 
-  --input-bg: #f7f0dd;
+  --input-bg: #f7f1e0;
   --badge-bg: #e3d7ba;
   --log-bg: #efe6d0;
   --log-text: #6b5c43;
 
   --page-bg: #f6ecd7;
-  --page-text: #3b3022;
+  --page-text: #3a2f21;
 
-  --brand-to: #8a6d1f;
-  --scrollbar: #cbb98f;
+  --scrollbar: #c2ae86;
 }
 
 [data-theme='light'] {
-  --bg: #f4f5f7;
+  --bg: #f4f5f6;
   --panel: #ffffff;
-  --panel-2: #eef0f3;
-  --border: #dde1e8;
-  --border-soft: #e6e9ef;
-  --text: #1f2328;
-  --muted: #6a7280;
+  --panel-2: #eceef0;
+  --border: #d9dde1;
+  --border-soft: #e6e9ec;
+  --text: #1b1d1f;
+  --muted: #6b7176;
 
-  --accent: #3b6fe0;
-  --accent-soft: rgba(59, 111, 224, 0.12);
-  --accent-strong: rgba(59, 111, 224, 0.2);
-  --accent-ring: rgba(59, 111, 224, 0.35);
+  --accent: #1b1d1f;
+  --accent-soft: rgba(27, 29, 31, 0.08);
+  --accent-strong: rgba(27, 29, 31, 0.16);
+  --accent-ring: rgba(27, 29, 31, 0.28);
   --on-accent: #ffffff;
 
-  --ok: #2e9e5b;
-  --ok-border: rgba(46, 158, 91, 0.4);
-  --warn: #b07d10;
-  --warn-border: rgba(176, 125, 16, 0.4);
-  --err: #d14b3f;
-  --err-border: rgba(209, 75, 63, 0.4);
+  --ok: #2f7d4f;
+  --ok-border: rgba(47, 125, 79, 0.4);
+  --warn: #8f6b12;
+  --warn-border: rgba(143, 107, 18, 0.4);
+  --err: #b03a30;
+  --err-border: rgba(176, 58, 48, 0.4);
 
   --input-bg: #fafbfc;
-  --badge-bg: #eef0f3;
+  --badge-bg: #eef0f2;
   --log-bg: #f4f5f7;
-  --log-text: #6a7280;
+  --log-text: #6a7278;
 
   --page-bg: #ffffff;
-  --page-text: #1c1c1c;
+  --page-text: #1b1d1f;
 
-  --brand-to: #7f5bff;
-  --scrollbar: #c9ced8;
+  --scrollbar: #c8cdd2;
 }
 
 * {
@@ -159,19 +162,18 @@ body {
 
 /* ---------- 书库：列表行左侧封面（填充 + 向右渐隐） ----------
    封面作为行的左侧背景，用 mask 让它向右淡出到行背景色，形成"书脊—文字"的过渡。
-   mask 而不是叠加渐变层：主题切换（dark/sepia/light）时不需要另算叠加色。 */
+   ⚠ 只用于**真实封面**；文字封面不用它（否则标题会被淡出遮罩吃掉，见 BookRow）。 */
 .book-row-cover {
   -webkit-mask-image: linear-gradient(to right, #000 0%, #000 38%, transparent 100%);
   mask-image: linear-gradient(to right, #000 0%, #000 38%, transparent 100%);
 }
 
-/* ---------- 书库：无封面时的"文字封面"（标题铺满卡片） ----------
-   中文用明体字栈（源流明体，未安装时回退系统宋体）；排版效果：居中、允许折行、字距略松。 */
+/* ---------- 书库：文字封面 / 列表左栏标题 ----------
+   中文用明体字栈（源流明体，未安装时回退系统宋体）；字号由 FittedTitle 二分搜索撑满容器。 */
 .title-cover {
   font-family: var(--font-serif-cn);
   word-break: break-word;
   overflow-wrap: anywhere;
-  hyphens: auto;
 }
 
 /* ---------- 功能组件图标符号字体：繁体源流明体（明体/宋体风格，更有设计感） ----------

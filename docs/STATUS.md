@@ -2,7 +2,7 @@
 
 > 目的：让下一次会话/模型以最低成本恢复上下文。
 > 阅读顺序：本文件 → `MAP.md`（自动加载）→ `TODO.md` → 各端架构文档（见 MAP）。
-> 更新：2026-09-08（client 书库重做已实施，未发版；上一发版 v0.1.7 本地阅读器修复批）
+> 更新：2026-09-08（client v0.1.8：书库重做 —— 两视图/详情抽屉/封面缩略图/端口收敛/主题色取向）
 
 ## 1. 一句话
 
@@ -38,7 +38,8 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | 客户端样式 | **Tailwind CSS v4 已落地（2026-09-08）**：`@tailwindcss/vite`；`styles.css` 仅留主题语义 token / 全局 base / kookit 契约；MIT 已核 | 借物表；`client/docs/FEATURES.md` |
 | 插件 | v1 不做插件运行时；ports 即插件边界（官方插件 = 适配器注册进 ServiceContainer） | `client/docs/ARCHITECTURE.md` §4 |
 | UI 功能组件（2026-09-08 落地） | UI 按 Feature 划分标准化（Library/Reader/**Room[含 Server 连接]**/Settings + 展示组件 + AppShell 宿主）；**标准容器**：`FeatureDescriptor` + `registry.ts` + `AppShell`（侧边栏=单色符号图标栏 + 主面板宿主，功能常驻挂载/非激活隐藏 → 状态继承，settings 钉置底）；跨功能跳转走 `FeatureHost`（navigate/openReader/closeReader/selectBook/pushLog）；**纯 React 状态 + props**；Tailwind 与拆组件同步迁移；颜色语义 token 标准化（第三方覆盖 token 建主题）；官方插件 = 追加 descriptor 进 registry | `client/docs/FEATURES.md` |
-| 书库重做（2026-09-08 定方向，细则待定） | **去容器外壳** + 三视图（列表/网格/瀑布流）+ **底部状态栏**（左=视图切换，右=导入菜单「文件…/文件夹…」）+ 右侧**详情抽屉**（单击详情、双击打开）+ 封面**缩略图落盘**（`userData/covers/<id>.jpg`，渲染进程 canvas 生成，**不进 library.json**） | `client/docs/FEATURES.md` §10 |
+| 书库重做（2026-09-08 已交付 v0.1.8） | **去容器外壳** + **两视图**（列表/网格；瀑布流并入）+ **底部状态栏**（左=视图切换，右=导入菜单含"文件夹含子目录"）+ 详情抽屉（**只在内容区弹出**，不覆盖状态栏）+ 移除=**只删索引不删源文件**（首次确认可勾不再提示）+ 封面**缩略图落盘**（canvas，字节不进 JSON）+ 文字封面（FittedTitle 撑满加粗） | `client/docs/FEATURES.md` §10 |
+| 主题色取向（2026-09-08 定） | **暗色/亮色一律黑灰白**（不引入色相；高亮=灰阶两端）；**羊皮纸**暖棕、高亮用**深棕**；状态色（ok/warn/err）保留语义色相 | `client/src/renderer/src/styles.css` |
 | 书籍身份模型（2026-09-08 定术语） | **作品身份**（Work：`protocol` + `code`，如 ISBN）＋ **电子版身份**（Edition：`fingerprint`）；**标准化** = 补齐作品身份（入口在房间功能，短期手填、远期 OCR）；**标定** = 加入房间时的**比对**动作。本地**不采集/不显示** author·publisher（与 server Work 模型一致） | `docs/ARCHITECTURE.md` §1 |
 | 跨层改动授权（2026-09-08） | 书库重做等改动**允许修改应用层与领域层**（前提：不违背六边形依赖规则、契约文档先行） | — |
 | 许可 | kookit AGPL-3.0 → TuRead 以 **AGPL-3.0** 开源；新依赖先核许可证再登记借物表 | `借物表.md` |
@@ -47,19 +48,11 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 
 ## 4. 版本历史
 
-### 未发版改动（是否滚动版本由用户决定，见 §2）
-
-- **书库重做（v0.1.8 候选，2026-09-08 已实施）**：去容器外壳 + 两视图（列表 / 网格；瀑布流因缩略图统一比例并入网格）
-  + 底部状态栏（左=视图切换、右=导入菜单）+ 详情抽屉（单击详情 / 双击打开 / Esc 关闭）+ 导入菜单与目录扫描（串行/进度/可取消）
-  + **封面缩略图落盘**（canvas 生成，实测 157KB→38KB；字节不进 JSON）+ **无封面时"文字封面"**（中文用源流明体字栈）
-  + `IBookPicker` 端口收敛（UI 不再直用桥）+ 设置拆 `config.json` + `library.json` 加版本与迁移 + 异步封面队列 `CoverQueue`。
-  契约 `CONTRACTS.md` v0.2.6；细节 `client/docs/FEATURES.md` §10。
-  验证：typecheck 全绿；四格式无头自检全绿；封面管线端到端（落盘 + `coverPath` 回写 + 读回 38KB）。
-
 ### client
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| v0.1.8 | 2026-09-08 | **书库重做**：**去容器外壳**（无边框面板/无标题栏，主体铺满）+ **两视图**（列表/网格；瀑布流因缩略图统一 2:3 并入网格）+ 列表行封面**左侧填充向右渐隐**（文字封面不套遮罩）+ **底部状态栏**（左=视图切换/书目数/封面进度，右=导入菜单「文件…/文件夹…」+「文件夹含子目录」可配置项 + 导入进度可取消）+ **详情抽屉只在内容区弹出**（不覆盖状态栏；单击详情/双击打开/Esc/点外关闭）+ **移除语义**（只删书库索引不删源文件，首次确认弹窗可勾"下次不再提示"）+ **封面缩略图落盘**（canvas 400px/q0.82，实测 157KB→38KB；字节不进 JSON）+ `CoverQueue` 异步提取 + 无封面**文字封面**（`FittedTitle` 二分搜索撑满 + 加粗 + 源流明体字栈）+ **`IBookPicker` 端口**（选文件/选目录/递归扫描/读文件，UI 不再直用桥）+ 设置拆 `config.json`（`library.json` 加 `version` 与迁移）+ **主题色取向**（明暗一律黑灰白、羊皮纸深棕；状态色保留语义色）+ 自检新增封面管线断言并修三类假阴性（可见性/iframe 高度/翻页起点）。契约 `CONTRACTS.md` v0.2.6/v0.2.7；细节 `client/docs/FEATURES.md` §10。验证：typecheck 全绿；四格式无头自检全绿；封面管线端到端（落盘 + `coverPath` 回写 + 读回） |
 | v0.1.7 | 2026-09-08 | **本地阅读器修复批（只动本地阅读器半边，云端同步未触碰）**：① **滚动位置补录** —— 宿主容器 `scroll` 停稳 400ms 后适配器补 `record()` 并上报（文字类手动滚动此前不留位置痕迹，进度/持久化/同步全错）② **关闭/切书落位置** —— 绕过 2s 节流 flush（最后 2s 的翻页不再丢）③ **`open` 并发守卫** —— 代次令牌，快速切书时后解析完的旧书不再覆盖新书 ④ `removeNote` 按**笔记自身**章节定位（原用"当前章节"）⑤ `isZeroLocation` 判据补 `chapterHref`（首章首块不再被误判为零位置）⑥ **JsonStore 写盘串行化 + 损坏文件备份**（并发 save 共用 `.tmp` 可能写坏书库；解析失败不再静默清空）⑦ `BookService.importBook` 返回 `{book,reused}`（删除 UI 侧 id 快照反推）⑧ 启动不再重复写盘、补 MHTML 扩展名 ⑨ **dev 自检从 AppShell 移入 `dev/selfCheck.ts`**（shell 只做组合）。typecheck 全绿 + 四格式无头自检全绿 |
 | v0.1.6 | 2026-09-08 | **功能组件标准容器 + UI 交互流**：`AppShell`（侧边栏=纯符号图标栏 + 主面板=宿主，功能常驻挂载/非激活隐藏 → 状态继承，settings 钉置底）+ `features/{types,registry}` 容器契约（FeatureDescriptor/FeatureHost，官方插件=追加 descriptor）+ Library/Reader/Room/Settings 功能组件 + 展示组件 + **Tailwind v4 引入** + 房间流程（大厅→选房→`host.openReader` 状态继承自动开阅读器）+ dev 自检走真实 openReader 链路；**全局 UI**：去顶栏/日志栏/logo、去 Electron 菜单栏（三重保险）、侧边栏压窄为**单色汉字符号**（禁彩色 emoji）、**Server 并入 Room**（连接=房间组件一部分）、SettingsFeature（**跟随系统**/dark/sepia/light 主题 + 阅读模式 + 诊断日志）、**颜色语义 token 标准化**（组件禁写死 hex，第三方覆盖 token 建主题）；typecheck 全绿、四格式无头自检全绿（偶发时序抖动重跑即绿）；记录已知例外（选文件仍走桥） |
 | v0.1.5 | 2026-09-08 | **一致性修复**：`location-updated` 死端口修复（join-ack 基线 + room.presence 快照 diff 派生远端位置；位置先归一、比较走 sameLocation）+ **leaveRoom 误解绑 P1**（订阅分构造期 net / join 期 render，离开后可重 join，契约 v0.2.4）+ **UI 功能组件讨论稿**（`client/docs/FEATURES.md`，未定稿） |

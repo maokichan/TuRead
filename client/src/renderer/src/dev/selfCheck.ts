@@ -39,6 +39,26 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
       host.openReader(book.id)
 
       const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+      /**
+       * 阅读器可见性保障：功能组件**常驻挂载、非激活 `display:none`** —— 隐藏时所有
+       * getBoundingClientRect/scrollHeight 都是 0，"可滚动/iframeH"断言必然假阴性
+       * （2026-09-08 观察到偶发；渲染本身正常）。这里等它可见，必要时重试 openReader。
+       */
+      const ensureReaderVisible = async (): Promise<boolean> => {
+        for (let i = 0; i < 24; i++) {
+          if (document.getElementById('page-area')?.offsetParent) return true
+          if (i > 0 && i % 4 === 0) host.openReader(book.id)
+          await wait(250)
+        }
+        return false
+      }
+      const visible = await ensureReaderVisible()
+      if (!visible) {
+        const line = '[dev] 阅读器面板始终不可见（功能组件非激活隐藏？）'
+        pushLog(line)
+        console.error('[TUREAD-TEST-FAIL]' + line)
+        return
+      }
       // 等 ReaderFeature 打开流程完成（轮询宿主容器内 iframe 出现，跨组件解耦）
       const deadline = Date.now() + 30000
       while (

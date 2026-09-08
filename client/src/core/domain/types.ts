@@ -90,6 +90,8 @@ export type LibraryView = 'list' | 'grid'
 /** 书库设置（持久化于 config.json 的 librarySettings 键） */
 export interface LibrarySettings {
   view: LibraryView
+  /** 导入文件夹时是否包含子目录（false = 只导入此节点；true = 此节点及所有子节点） */
+  importRecursive: boolean
 }
 
 /** 阅读渲染配置（领域层友好配置，适配器内部翻译为 kookit config） */

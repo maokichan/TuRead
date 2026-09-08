@@ -14,8 +14,11 @@ export interface IBookPicker {
   pickFiles(): Promise<string[]>
   /** 系统对话框选**一个目录**；取消 → null */
   pickDirectory(): Promise<string | null>
-  /** 列出目录下**直接**子项中的电子书路径（不递归，按扩展名过滤，排序稳定） */
-  listEbooks(dir: string): Promise<string[]>
+  /**
+   * 列出目录下的电子书路径（按扩展名过滤，排序稳定）。
+   * @param recursive false = 只此节点（当前目录）；true = 此节点及其所有子节点（可配置选项）
+   */
+  listEbooks(dir: string, recursive: boolean): Promise<string[]>
   /** 读文件字节（导入用）—— 同属"本地文件能力"，放这里以彻底消除 UI 直用 IPC 桥的例外 */
   readFile(path: string): Promise<ArrayBuffer>
 }

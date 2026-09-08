@@ -16,8 +16,8 @@ export class IpcPickerAdapter implements IBookPicker {
     return (await this.bridge.invoke(IPC.pickerPickDirectory)) as string | null
   }
 
-  async listEbooks(dir: string): Promise<string[]> {
-    return (await this.bridge.invoke(IPC.pickerListEbooks, dir)) as string[]
+  async listEbooks(dir: string, recursive: boolean): Promise<string[]> {
+    return (await this.bridge.invoke(IPC.pickerListEbooks, { dir, recursive })) as string[]
   }
 
   async readFile(path: string): Promise<ArrayBuffer> {

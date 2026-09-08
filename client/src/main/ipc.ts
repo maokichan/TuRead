@@ -3,6 +3,7 @@
  */
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { promises as fs } from 'node:fs'
+import type { Dirent } from 'node:fs'
 import { extname, join } from 'node:path'
 import { EBOOK_EXTENSIONS, IPC } from '@shared/ipc'
 import type { HttpRequestOptions } from '@core/ports/net'
@@ -70,14 +71,45 @@ export function registerIpc(
     return canceled || filePaths.length === 0 ? null : filePaths[0]
   })
 
-  /** 列目录下**直接**子项中的电子书（不递归）；排序稳定，便于进度可预期 */
-  ipcMain.handle(IPC.pickerListEbooks, async (_e, dir: string) => {
-    const entries = await fs.readdir(dir, { withFileTypes: true })
-    return entries
-      .filter((it) => it.isFile() && EBOOK_EXT_SET.has(extname(it.name).slice(1).toLowerCase()))
-      .map((it) => join(dir, it.name))
-      .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
+  /**
+   * 列目录下的电子书：`recursive=false` 只此节点，`true` 则连子节点（用户可配置，见 FEATURES §10）。
+   * 递归有上限（MAX_SCAN）防止误选到巨大的目录树；子目录读取失败（权限等）跳过，不整体失败。
+   */
+  ipcMain.handle(IPC.pickerListEbooks, async (_e, p: { dir: string; recursive: boolean }) => {
+    const out: string[] = []
+    await collectEbooks(p.dir, p.recursive, out, 0)
+    return out.sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
   })
+}
+
+const MAX_SCAN = 2000
+const MAX_DEPTH = 12
+
+async function collectEbooks(
+  dir: string,
+  recursive: boolean,
+  out: string[],
+  depth: number
+): Promise<void> {
+  if (out.length >= MAX_SCAN || depth > MAX_DEPTH) return
+  let entries: Dirent[]
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true })
+  } catch {
+    return // 目录不可读（权限/竞态删除）→ 跳过，不打断整次导入
+  }
+  const subdirs: string[] = []
+  for (const it of entries) {
+    if (it.isFile() && EBOOK_EXT_SET.has(extname(it.name).slice(1).toLowerCase())) {
+      out.push(join(dir, it.name))
+    } else if (recursive && it.isDirectory() && !it.name.startsWith('.')) {
+      subdirs.push(join(dir, it.name))
+    }
+  }
+  for (const sub of subdirs) {
+    if (out.length >= MAX_SCAN) return
+    await collectEbooks(sub, true, out, depth + 1)
+  }
 }
 
 async function showOpen(

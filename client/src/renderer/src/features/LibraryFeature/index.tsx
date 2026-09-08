@@ -2,10 +2,13 @@
  * 功能组件：书架（LibraryFeature）
  * 职责（编排的用例/端口）：
  *   books.*   —— 导入/去重/列表/删除/选中
- *   picker.*  —— 选文件 / 选目录 / 扫描目录 / 读文件（本地文件能力）
+ *   picker.*  —— 选文件 / 选目录 / 扫描目录（可含子目录）/ 读文件（本地文件能力）
  *   covers.*  —— 封面缩略图异步提取（进度/取消）
  * 对外状态：selectedBookId（经 host.selectBook 上报 Shell；详情抽屉显示的就是它）。
  * 依据：client/docs/FEATURES.md §10（书库重做）。
+ *
+ * 布局纪律（2026-09-08 定）：**状态栏之上是内容区，详情抽屉只在内容区弹出** ——
+ * 抽屉由内容区容器 `relative` 定位，因此不覆盖底部状态栏。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BookRecord, LibrarySettings, LibraryView } from '@core/domain/types'
@@ -15,17 +18,20 @@ import { forgetCover, getCoverUrl } from '../coverCache'
 import { BookRow } from '../../components/BookRow'
 import { BookTile } from '../../components/BookTile'
 import { BookDetailPanel } from '../../components/BookDetailPanel'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { LibraryToolbar } from '../../components/LibraryToolbar'
 
-const DEFAULT_SETTINGS: LibrarySettings = { view: 'list' }
+const DEFAULT_SETTINGS: LibrarySettings = { view: 'list', importRecursive: false }
 
 export function LibraryFeature({ container, host, selectedBookId }: FeatureProps): React.JSX.Element {
   const [books, setBooks] = useState<BookRecord[]>([])
-  const [view, setView] = useState<LibraryView>(DEFAULT_SETTINGS.view)
+  const [settings, setSettings] = useState<LibrarySettings>(DEFAULT_SETTINGS)
   const [covers, setCovers] = useState<Record<string, string>>({})
   const [detailId, setDetailId] = useState<string | null>(null)
   const [importing, setImporting] = useState<{ done: number; total: number } | null>(null)
   const [coverProgress, setCoverProgress] = useState<{ done: number; total: number } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<BookRecord | null>(null)
+  const [skipDeleteNotice, setSkipDeleteNotice] = useState(false)
   const cancelImportRef = useRef(false)
 
   /** 重载书库列表 + 取回各书封面 URL（缓存命中不重复走 IPC） */
@@ -43,7 +49,15 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
   useEffect(() => {
     void container.store
       .getSetting<LibrarySettings>('librarySettings', DEFAULT_SETTINGS)
-      .then((s) => setView(s.view === 'grid' ? 'grid' : 'list'))
+      .then((s) =>
+        setSettings({
+          view: s.view === 'grid' ? 'grid' : 'list',
+          importRecursive: s.importRecursive === true
+        })
+      )
+    void container.store
+      .getSetting<{ skip?: boolean }>('deleteNotice', {})
+      .then((s) => setSkipDeleteNotice(s.skip === true))
     void refresh()
   }, [container, refresh])
 
@@ -89,10 +103,13 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
     })()
   }, [container])
 
-  const changeView = useCallback(
-    (v: LibraryView) => {
-      setView(v)
-      void container.store.setSetting('librarySettings', { view: v })
+  const patchSettings = useCallback(
+    (patch: Partial<LibrarySettings>) => {
+      setSettings((prev) => {
+        const next = { ...prev, ...patch }
+        void container.store.setSetting('librarySettings', next)
+        return next
+      })
     },
     [container]
   )
@@ -147,29 +164,55 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
   const importFolder = useCallback(async (): Promise<void> => {
     const dir = await container.picker.pickDirectory()
     if (!dir) return
-    const paths = await container.picker.listEbooks(dir)
+    const paths = await container.picker.listEbooks(dir, settings.importRecursive)
     if (paths.length === 0) {
-      host.pushLog(`该目录下没有可导入的电子书：${dir}`)
+      host.pushLog(
+        `该目录下没有可导入的电子书：${dir}${settings.importRecursive ? '（含子目录）' : '（仅此节点）'}`
+      )
       return
     }
     await importPaths(paths)
-  }, [container, host, importPaths])
+  }, [container, host, importPaths, settings.importRecursive])
 
   const removeBook = useCallback(
     async (id: string): Promise<void> => {
       const book = books.find((b) => b.id === id)
       try {
+        // 只删书库索引（不删源文件）；封面是我们生成的缓存，一并清理
         await container.books.remove(id)
         forgetCover(id)
         setDetailId((cur) => (cur === id ? null : cur))
         if (selectedBookId === id) host.selectBook(null)
         await refresh()
-        host.pushLog(`已从书架移除：${book?.metadata.title ?? id}`)
+        host.pushLog(`已从书库移除：${book?.metadata.title ?? id}（源文件保留）`)
       } catch (err) {
-        host.pushLog(`删除失败：${(err as Error).message}`)
+        host.pushLog(`移除失败：${(err as Error).message}`)
       }
     },
     [books, container, host, refresh, selectedBookId]
+  )
+
+  /** 删除入口：首次弹确认（说明"只删索引、不删源文件"，可勾选不再提示） */
+  const requestDelete = useCallback(
+    (book: BookRecord) => {
+      if (skipDeleteNotice) void removeBook(book.id)
+      else setPendingDelete(book)
+    },
+    [removeBook, skipDeleteNotice]
+  )
+
+  const confirmDelete = useCallback(
+    async (remembered: boolean): Promise<void> => {
+      const target = pendingDelete
+      setPendingDelete(null)
+      if (!target) return
+      if (remembered) {
+        setSkipDeleteNotice(true)
+        void container.store.setSetting('deleteNotice', { skip: true })
+      }
+      await removeBook(target.id)
+    },
+    [container, pendingDelete, removeBook]
   )
 
   /** 单击 → 选中并弹详情（详情显示的书 = selectedBookId，单一真相） */
@@ -177,6 +220,15 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
     (id: string) => {
       host.selectBook(id)
       setDetailId(id)
+    },
+    [host]
+  )
+
+  /** 双击 / Enter → 打开阅读（同时收起抽屉，避免回到书库时还挂着上一本） */
+  const openBook = useCallback(
+    (id: string) => {
+      setDetailId(null)
+      host.openReader(id)
     },
     [host]
   )
@@ -194,38 +246,53 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
     active: b.id === selectedBookId,
     coverUrl: covers[b.id] ?? null,
     onDetail: () => openDetail(b.id),
-    onOpen: () => host.openReader(b.id),
-    onDelete: () => void removeBook(b.id)
+    onOpen: () => openBook(b.id),
+    onDelete: () => requestDelete(b)
   })
 
   return (
     <section className="flex h-full flex-col gap-3">
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        {books.length === 0 ? (
-          <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
-            书架为空，点右下角「＋ 导入」添加电子书
-          </p>
-        ) : view === 'grid' ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(118px,1fr))] gap-x-4 gap-y-5">
-            {books.map((b) => (
-              <BookTile key={b.id} {...itemProps(b)} />
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col gap-1">
-            {books.map((b) => (
-              <BookRow key={b.id} {...itemProps(b)} />
-            ))}
-          </div>
+      {/* 内容区：抽屉的定位上下文（抽屉只在这里弹出，不覆盖下方状态栏） */}
+      <div className="relative min-h-0 flex-1">
+        <div className="h-full overflow-y-auto pr-1">
+          {books.length === 0 ? (
+            <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
+              书架为空，点右下角「＋ 导入」添加电子书
+            </p>
+          ) : settings.view === 'grid' ? (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(118px,1fr))] gap-x-4 gap-y-5">
+              {books.map((b) => (
+                <BookTile key={b.id} {...itemProps(b)} />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {books.map((b) => (
+                <BookRow key={b.id} {...itemProps(b)} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {detailBook && (
+          <BookDetailPanel
+            book={detailBook}
+            coverUrl={covers[detailBook.id] ?? null}
+            onClose={() => setDetailId(null)}
+            onOpen={() => openBook(detailBook.id)}
+            onDelete={() => requestDelete(detailBook)}
+          />
         )}
       </div>
 
       <LibraryToolbar
-        view={view}
-        onViewChange={changeView}
+        view={settings.view}
+        onViewChange={(v: LibraryView) => patchSettings({ view: v })}
         bookCount={books.length}
         onImportFiles={() => void importFiles()}
         onImportFolder={() => void importFolder()}
+        importRecursive={settings.importRecursive}
+        onToggleRecursive={() => patchSettings({ importRecursive: !settings.importRecursive })}
         importing={importing}
         onCancelImport={() => {
           cancelImportRef.current = true
@@ -233,13 +300,14 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
         coverProgress={coverProgress}
       />
 
-      {detailBook && (
-        <BookDetailPanel
-          book={detailBook}
-          coverUrl={covers[detailBook.id] ?? null}
-          onClose={() => setDetailId(null)}
-          onOpen={() => host.openReader(detailBook.id)}
-          onDelete={() => void removeBook(detailBook.id)}
+      {pendingDelete && (
+        <ConfirmDialog
+          title="从书库移除？"
+          message={`《${pendingDelete.metadata.title || '未命名'}》只会从书库索引中移除，源文件不会被删除。`}
+          confirmLabel="移除"
+          rememberLabel="下次不再提示"
+          onConfirm={(remembered) => void confirmDelete(remembered)}
+          onCancel={() => setPendingDelete(null)}
         />
       )}
     </section>

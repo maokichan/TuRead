@@ -147,10 +147,12 @@ GeneralRender (GeneralRender.ts，事件基类)
   再停稳检测 + 补 `record()`（坑 §5.10：隐藏窗口推迟 smooth scroll ~2s，停稳检测无法区分
   「未开始/已结束」）③ 位置快照（章节索引/count/percentage/scrollTop 任一变化）才算翻页生效。
 - **v0.1.8 健壮性修正（App 自检 `dev/selfCheck.ts`，2026-09-08）**：书库启动即渲染封面后，
-  自检时序窗口变窄，暴露出两类假阴性 ——
+  自检时序窗口变窄，暴露出三类假阴性 ——
   ① `MobiRender`/AZW3 偶发晚于首帧才设 iframe 高度 → 加 `waitIframeSized()`（等高度落地，超时仍判可疑）；
   ② 书被"上次阅读位置"恢复到接近结尾处时 `next()` 本就无处可去 → 翻页断言**先 `goToChapter(0)` 再起跑**；
-  ③ 翻页判定改为"等变化出现"（`waitForTurn`：位置或宿主 scrollTop 变化，15s 超时）而不是"停稳后再量"。
+  ③ 翻页判定改为"等变化出现"（`waitForTurn`：位置或宿主 scrollTop 变化，15s 超时）而不是"停稳后再量"；
+  ④ **阅读器面板偶发不可见**（功能组件常驻挂载、非激活 `display:none`，隐藏时所有 rect/scrollHeight 均为 0）
+  → `ensureReaderVisible()` 等可见、必要时重试 `openReader`，仍不可见则明确报错（渲染本身正常）。
 - **当前结果**：EPUB/MOBI/AZW3 全绿（App 无头自检四格式亦全绿，含 PDF）；
   harness 侧 PDF canvas 未渲染待定位（低优先级，见 TODO）。
 
