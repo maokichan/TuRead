@@ -133,8 +133,10 @@ function ImportMenu({
         導入
       </button>
       {open && (
-        /* 浮层（STYLE.md §5.2 例外③）保留一层底色；**菜单项本身是文字行**，无边框无分隔线 */
-        <div className="absolute right-0 bottom-full z-10 mb-2 flex w-40 flex-col items-start gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] p-2.5 shadow-lg">
+        /* 浮层（STYLE.md §5.2 例外③）保留一层底色；**左缘与「導入」按钮左缘对齐**
+           （原来右对齐，菜单整体偏到按钮左侧，看起来"没对齐"—— 2026-09-09 修）。
+           菜单项本身是文字行，无边框无分隔线。 */
+        <div className="absolute bottom-full left-0 z-10 mb-2 flex w-40 flex-col items-start gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] p-2.5 shadow-lg">
           <button
             onClick={() => {
               setOpen(false)

@@ -280,6 +280,17 @@ body {
   color: var(--negative-text);
 }
 
+/* ---------- 竖排标签（STYLE.md §5.5）----------
+   抽屉指标行：标签竖排在块左侧 —— 这样标签不占额外行高，三行才能**等高、同字号**。
+   用 `writing-mode: vertical-rl`（真正的竖排：字形正立、自上而下），
+   而非 `transform: rotate(90deg)`（那会把字形横倒）。 */
+.vertical-label {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
 /* ---------- 单行滚动（Marquee 组件，STYLE.md §5.5）----------
    抽屉的标题与信息行都**单行**：超出容器才滚（组件先量宽度），不超出则静止。
    两份内容 + 各自 padding-right 保证无缝；hover 暂停；reduced-motion 下不动。 */
