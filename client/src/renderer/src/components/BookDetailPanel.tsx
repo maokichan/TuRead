@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { BookRecord } from '@core/domain/types'
 import { formatRelative, formatSize, formatTime, progressText } from '../features/format'
 import { FittedTitle } from './FittedTitle'
+import { Marquee } from './Marquee'
 
 interface BookDetailPanelProps {
   book: BookRecord
@@ -17,15 +18,26 @@ interface BookDetailPanelProps {
  *
  * 位置纪律（2026-09-08 定）：抽屉**只在内容区弹出** —— 由父容器 `relative` 定位为
  * `absolute inset-y-0 right-0`，因此**不覆盖底部状态栏**；被它盖住的内容不显示也不可点。
- * 关闭：Esc / 点击抽屉外的任意位置（document mousedown，不使用全屏遮罩 ——
+ * 关闭：Esc / 点击抽屉外的任意位置（document mousedown，不用全屏遮罩 ——
  * 全屏遮罩会吞掉列表项的第二次点击，导致双击打开失效）。
  *
- * 风格（STYLE.md §5.2 例外③ / §5.5，2026-09-09 定）：
- * - **外壳完全透明**：无边框、无阴影、**无底色** —— 抽屉不再画任何底，
- *   下层书库内容从文字块之间透出来（负片块自身提供可读底）。
- * - **文字即负片**：标题与每个字段各自是一块**反色矩形**（`--negative-bg/--negative-text`，
- *   即页面白 → 块黑字白），左对齐、块宽随内容（`inline-block` + `max-w-full`）。
- * - **动作即文字**：`打开阅读` / `移除` 用 `.text-action`（与书库底部状态栏同一套）。
+ * **平面结构（2026-09-09 用户定，这是本组件的主设计）**：
+ *
+ * ```
+ * ┌──────────┬──────────────────────────────────┐
+ * │          │ 标题条（负片，过长自己滚）        │  ← 三行
+ * │  封面     │ 数据行（格式 · 大小 · 导入时间）   │     左对齐「封面右缘」，
+ * │ 64×96    │ 指标条（进度｜最近｜总时长）       │     撑满抽屉宽度
+ * ├──────────┴──────────────────────────────────┤
+ * │ 描述块（满宽负片）                            │  ← 更多信息：与上方单元相得益彰
+ * │ 文件路径块（满宽负片，可换行）                │
+ * └─────────────────────────────────────────────┘
+ * ```
+ *
+ * 设计取舍：上方单元用"封面 + 三行文本列"的高度对齐（96px ≈ 三行），
+ * 形成一块规整的矩形；下方信息**满宽**、左边距与封面左缘对齐，
+ * 与上方形成"窄列 / 满宽"的节奏对比，而不是把两者都做成同一栅格。
+ * 标题与数据行都**单行**（`Marquee` 超出才滚），绝不向下生长。
  */
 export function BookDetailPanel({
   book,
@@ -52,70 +64,58 @@ export function BookDetailPanel({
   }, [onClose])
 
   const title = book.metadata.title || '未命名'
-  /**
-   * 字段清单（2026-09-09 用户定）：
-   * - 移除「当前位置」「指纹」；
-   * - 「文件大小」「导入时间」的内容已并入上方**滚动信息行**，不再单独成栏；
-   * - 「最近阅读」用相对时间（"3 天前"）；
-   * - 保留「描述」占位（显示什么尚未决定，见 TODO.md）。
-   */
-  const fields: { label: string; value: string; wrap?: boolean }[] = [
-    { label: '描述', value: book.metadata.description || '（描述待定）' },
-    { label: '阅读进度', value: progressText(book) },
-    { label: '最近阅读', value: formatRelative(book.lastReadAt) },
-    { label: '文件路径', value: book.filePath, wrap: true }
-  ]
-  /** 滚动行内容：格式 · 文件大小 · 导入时间 */
-  const ticker = [book.format, formatSize(book.fingerprint.size), formatTime(book.createdAt)]
+  /** 数据行：格式 · 文件大小 · 导入时间 */
+  const dataLine = [book.format, formatSize(book.fingerprint.size), formatTime(book.createdAt)]
 
   return (
-    <aside ref={panelRef} className="absolute inset-y-0 right-0 z-30 flex w-[280px] flex-col">
-      <header className="flex flex-none items-start gap-3 pt-4 pb-2">
-        <div className="h-[96px] w-16 flex-none overflow-hidden bg-[var(--panel-2)]">
+    <aside ref={panelRef} className="absolute inset-y-0 right-0 z-30 flex w-[320px] flex-col px-4">
+      <button
+        onClick={onClose}
+        title="关闭（Esc）"
+        className="absolute top-3 right-3 text-[13px] text-[var(--muted)] hover:text-[var(--text)]"
+      >
+        ✕
+      </button>
+
+      {/* 顶部单元：封面（左列）+ 三行文本列（左对齐封面右缘，撑满抽屉宽度） */}
+      <header className="flex flex-none items-start gap-3 pt-4 pb-3">
+        <div className="h-24 w-16 flex-none overflow-hidden bg-[var(--panel-2)]">
           {coverUrl ? (
             <img src={coverUrl} alt="" className="h-full w-full object-cover" draggable={false} />
           ) : (
             <FittedTitle text={title} maxSize={20} minSize={8} paddingRatio={0.05} />
           )}
         </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="m-0 inline-block max-w-full bg-[var(--negative-bg)] px-1.5 py-1 font-[var(--font-serif-cn)] text-[14px] leading-snug font-bold break-words text-[var(--negative-text)]">
+
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          {/* 行 1 · 标题条（负片）：过长时自己滚，不向下生长 */}
+          <Marquee
+            duration={18}
+            className="bg-[var(--negative-bg)] px-1.5 py-1 font-[var(--font-serif-cn)] text-[14px] font-bold text-[var(--negative-text)]"
+          >
             {title}
-          </h3>
+          </Marquee>
+
+          {/* 行 2 · 数据行：格式 · 大小 · 导入时间（安静的信息条） */}
+          <Marquee duration={16} className="text-[11px] text-[var(--muted)]">
+            {dataLine.join(' · ')}
+          </Marquee>
+
+          {/* 行 3 · 三项指标：三个独立容器，同处一行 */}
+          <div className="flex gap-1.5">
+            <Metric label="阅读进度" value={progressText(book)} />
+            <Metric label="最近阅读" value={formatRelative(book.lastReadAt)} />
+            {/* 占位：累计阅读时长，功能待实现（见 TODO.md） */}
+            <Metric label="总阅读时间" value="—" />
+          </div>
         </div>
-        <button
-          onClick={onClose}
-          title="关闭（Esc）"
-          className="flex-none text-[13px] text-[var(--muted)] hover:text-[var(--text)]"
-        >
-          ✕
-        </button>
       </header>
 
-      {/* 滚动信息行（两份内容循环，见 styles.css .drawer-ticker） */}
-      <div className="drawer-ticker-mask flex-none overflow-hidden pb-3">
-        <div className="drawer-ticker flex w-max whitespace-nowrap text-[11px] text-[var(--muted)]">
-          {[0, 1].map((copy) => (
-            <span key={copy} className="flex gap-5 pr-5">
-              {ticker.map((t) => (
-                <span key={t}>{t}</span>
-              ))}
-            </span>
-          ))}
-        </div>
-      </div>
-
+      {/* 更多信息：满宽负片块，左边距与封面左缘对齐 */}
       <div className="min-h-0 flex-1 overflow-y-auto pb-4">
-        <div className="flex flex-col items-start gap-2">
-          {fields.map((f) => (
-            <span
-              key={f.label}
-              className="inline-block max-w-full bg-[var(--negative-bg)] px-1.5 py-1 text-[var(--negative-text)]"
-            >
-              <span className="block text-[10px] opacity-60">{f.label}</span>
-              <span className={`block text-[12.5px] ${f.wrap ? 'break-all' : ''}`}>{f.value}</span>
-            </span>
-          ))}
+        <div className="flex flex-col gap-2">
+          <Block label="描述" value={book.metadata.description || '（描述待定）'} />
+          <Block label="文件路径" value={book.filePath} />
         </div>
       </div>
 
@@ -132,5 +132,25 @@ export function BookDetailPanel({
         </button>
       </footer>
     </aside>
+  )
+}
+
+/** 指标块（行 3 的三分之一）：等宽、单行截断，标签小、值大 */
+function Metric({ label, value }: { label: string; value: string }): React.JSX.Element {
+  return (
+    <span className="min-w-0 flex-1 bg-[var(--negative-bg)] px-1 py-1 text-[var(--negative-text)]">
+      <span className="block truncate text-[11px] opacity-60">{label}</span>
+      <span className="block truncate text-[12.5px]">{value}</span>
+    </span>
+  )
+}
+
+/** 信息块（满宽负片）：标签小、值可换行 */
+function Block({ label, value }: { label: string; value: string }): React.JSX.Element {
+  return (
+    <span className="block w-full bg-[var(--negative-bg)] px-1.5 py-1 text-[var(--negative-text)]">
+      <span className="block text-[11px] opacity-60">{label}</span>
+      <span className="block text-[12.5px] break-all">{value}</span>
+    </span>
   )
 }

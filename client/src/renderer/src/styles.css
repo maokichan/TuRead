@@ -280,10 +280,10 @@ body {
   color: var(--negative-text);
 }
 
-/* ---------- 抽屉信息行滚动（STYLE.md §5.5）----------
-   格式 · 文件大小 · 导入时间 一行慢速循环；两份内容 + 各自 padding-right 保证无缝，
-   hover 暂停，`prefers-reduced-motion` 下不动。 */
-@keyframes drawer-ticker {
+/* ---------- 单行滚动（Marquee 组件，STYLE.md §5.5）----------
+   抽屉的标题与信息行都**单行**：超出容器才滚（组件先量宽度），不超出则静止。
+   两份内容 + 各自 padding-right 保证无缝；hover 暂停；reduced-motion 下不动。 */
+@keyframes marquee-x {
   from {
     transform: translateX(0);
   }
@@ -292,16 +292,16 @@ body {
   }
 }
 
-.drawer-ticker {
-  animation: drawer-ticker 16s linear infinite;
+.marquee-track {
+  animation: marquee-x linear infinite;
 }
 
-.drawer-ticker-mask:hover .drawer-ticker {
+.marquee:hover .marquee-track {
   animation-play-state: paused;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .drawer-ticker {
+  .marquee-track {
     animation: none;
   }
 }
