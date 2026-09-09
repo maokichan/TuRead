@@ -75,6 +75,11 @@
   --mono: 'Cascadia Code', Consolas, 'JetBrains Mono', monospace;
   /* 中文衬线（明体）字栈：打包的源流明體优先，未命中再回退系统宋体 */
   --font-serif-cn: 'GenRyuMin TW', '源流明體', 'GenRyuMin', 'Source Han Serif SC', 'Noto Serif CJK SC', 'SimSun', 'Songti SC', serif;
+  /* 负片（反色矩形块）—— 文字块自身成为"纸"的反面：页面白 → 块黑字白，反之亦然。
+     派生自各主题的 text/bg，因此四套色彩取向自动成立（STYLE.md §3.4 / §5.5）。
+     用途：详情抽屉的字段文字（仅此一处，STYLE.md §5.2）。 */
+  --negative-bg: var(--text);
+  --negative-text: var(--bg);
 }
 
 [data-theme='light'] {
@@ -241,27 +246,103 @@ body {
   font-family: var(--font-serif-cn);
 }
 
-/* ---------- 书库底部：视图切换动画（无按钮边框，只用加粗的源流明体文字） ----------
-   点击时：① 判定区域先变深色（文字被"吞没"）② 浅色文字出现在深色区域上
-   ③ 区域与文字同时变回（视觉上"刚刚的异变消失了"）。
-   flash-bg / flash-text 是四套主题各自的"深色块 + 浅色字"（见各主题 token）。 */
+/* ---------- 文字动作按钮（STYLE.md §5.1）----------
+   动作即文字：18px 加粗衬线、无框无底色。主/次动作靠**色温**区分（accent / muted），
+   破坏性动作仍是文字，只在 hover 时转 err —— 全应用唯一定义处，组件只挂类名。 */
+.text-action {
+  font-family: var(--font-serif-cn);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  transition: color 120ms ease-out;
+}
+
+.text-action:hover {
+  color: var(--text);
+}
+
+.text-action:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.text-action--primary {
+  color: var(--accent);
+}
+
+.text-action--primary:hover {
+  color: var(--accent);
+  filter: brightness(1.25);
+}
+
+.text-action--danger:hover {
+  color: var(--err);
+}
+
+/* ---------- 书库底部：视图切换按钮（STYLE.md §5.1 / §5.4）----------
+   这是**唯一**带"三角负片标记"的按钮：它的职责是引导用户点击切换视图。
+   三角取 currentColor（与文字同色的"墨"）→ 四套主题下都可见，且动画期间随文字颜色一起变。
+   动画期间按钮 disabled（不可点），避免快速连点导致动画不出现。 */
+.view-switch {
+  position: relative;
+  padding-right: 11px;
+  padding-bottom: 4px;
+  font-family: var(--font-serif-cn);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition: color 120ms ease-out;
+}
+
+.view-switch:hover {
+  color: var(--accent);
+}
+
+.view-switch:disabled {
+  cursor: default;
+}
+
+.view-switch::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 0 6px 6px;
+  border-color: transparent transparent currentColor transparent;
+}
+
 @keyframes view-switch-flash {
   0% {
     background-color: transparent;
     color: var(--text);
   }
-  14% {
+  /* ① 判定区域变深色：旧文字被"吞没" */
+  12% {
     background-color: var(--flash-bg);
     color: var(--flash-bg);
   }
-  42% {
+  /* ② 浅色新文字从深色块里浮出（文字在 50% 处替换，见 LibraryToolbar） */
+  50% {
     background-color: var(--flash-bg);
     color: var(--flash-text);
   }
-  76% {
+  82% {
     background-color: var(--flash-bg);
     color: var(--flash-text);
   }
+  /* ③ 区域与文字同时复原 */
   100% {
     background-color: transparent;
     color: var(--text);
@@ -269,7 +350,7 @@ body {
 }
 
 .view-switch-flash {
-  animation: view-switch-flash 620ms ease-out both;
+  animation: view-switch-flash 900ms ease-out both;
 }
 
 /* ---------- 中文排版（STYLE.md §4）----------

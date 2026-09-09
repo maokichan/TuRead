@@ -17,6 +17,11 @@ interface LibraryToolbarProps {
 /** 视图名（繁体，配源流明体字栈）：按钮显示的是**当前**视图 */
 const VIEW_LABEL: Record<LibraryView, string> = { list: '列表', grid: '網格' }
 
+/** 动画总时长（与 styles.css 的 `view-switch-flash` 一致）：动画期间按钮禁用 */
+const VIEW_SWITCH_MS = 900
+/** 文字替换时刻 = 动画 50%（"新文字从深色块里浮出"） */
+const VIEW_SWITCH_SWAP_MS = 450
+
 /**
  * 书库底部状态栏（纯展示）：**左** = 视图切换（单个文字按钮），**右** = 导入（文字按钮）。
  *
@@ -52,27 +57,25 @@ export function LibraryToolbar({
   )
 
   const toggleView = (): void => {
+    if (flashing) return // 动画期间不可点（按钮已 disabled，这里再挡一次）
     const next: LibraryView = view === 'list' ? 'grid' : 'list'
     onViewChange(next)
     setFlashing(true)
     timers.current.forEach((t) => window.clearTimeout(t))
     timers.current = [
-      window.setTimeout(() => setShown(next), 260),
-      window.setTimeout(() => setFlashing(false), 640)
+      window.setTimeout(() => setShown(next), VIEW_SWITCH_SWAP_MS),
+      window.setTimeout(() => setFlashing(false), VIEW_SWITCH_MS + 60)
     ]
   }
-
-  const textButton = 'rounded px-1 py-0.5 font-[var(--font-serif-cn)] text-[18px] font-bold'
 
   return (
     <footer className="flex flex-none items-center justify-between gap-3 border-t border-[var(--border)] pt-1.5 text-[12px]">
       <div className="flex items-center gap-3">
         <button
           onClick={toggleView}
+          disabled={flashing}
           title="切换显示模式"
-          className={`${textButton} view-switch ${
-            flashing ? 'view-switch-flash' : 'text-[var(--text)] hover:text-[var(--accent)]'
-          }`}
+          className={`view-switch ${flashing ? 'view-switch-flash' : ''}`}
         >
           {VIEW_LABEL[shown]}
         </button>
@@ -90,15 +93,16 @@ export function LibraryToolbar({
             <span className="text-[var(--muted)]">
               导入中 {importing.done}/{importing.total}
             </span>
-            <button
-              onClick={onCancelImport}
-              className={`${textButton} text-[var(--muted)] hover:text-[var(--err)]`}
-            >
+            <button onClick={onCancelImport} className="text-action text-action--danger">
               取消
             </button>
           </>
         ) : (
-          <ImportMenu onFiles={onImportFiles} onFolder={onImportFolder} className={textButton} />
+          <ImportMenu
+            onFiles={onImportFiles}
+            onFolder={onImportFolder}
+            className="text-action text-action--primary"
+          />
         )}
       </div>
     </footer>

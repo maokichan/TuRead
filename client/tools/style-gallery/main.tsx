@@ -6,6 +6,8 @@
  * 因此这里**只导入真实组件与真实 token**（`@renderer/styles.css` + `components/*`），
  * 用 mock props 铺出各种状态：改一处 token，浏览器里秒级看到全局效果。
  *
+ * **它同时是"部件命名表"**：每节都标出真实源码路径，便于口头指认（"改 BookDetailPanel 的字段块"）。
+ *
  * 覆盖：主题取向 / 动作文字档 / 三声部与字号阶梯 / 中文排版 / 真实组件全量。
  * 不覆盖：Electron 专属行为（IPC、窗口、kookit 渲染）—— 那些仍以 App 内自测为准。
  * 用法：`cd client && npm run style` → http://localhost:5199/tools/style-gallery/index.html
@@ -69,18 +71,52 @@ const FAKE_COVER =
 
 const MEMBERS: RoomMember[] = [
   { id: 'Aaaa111', nickName: 'alice', isMe: true, location: BOOK.lastLocation },
-  { id: 'Bbbb222', nickName: 'bob', location: { ...BOOK.lastLocation!, chapterDocIndex: 20, percentage: 0.6 } },
+  {
+    id: 'Bbbb222',
+    nickName: 'bob',
+    location: { ...BOOK.lastLocation!, chapterDocIndex: 20, percentage: 0.6 }
+  },
   { id: 'Cccc333', nickName: 'carol' }
 ]
 
 const CHAT: ChatMessage[] = [
-  { id: 1, roomId: 'a1b2c3d4', member: 'Bbbb222', nick: 'bob', text: '这一段讲糖原储备，和上一章呼应。', createdAt: 1756300000 },
-  { id: 2, roomId: 'a1b2c3d4', member: 'Aaaa111', nick: 'alice', text: '我把进度拖到 42% 了，你们跟一下。', createdAt: 1756300060 }
+  {
+    id: 1,
+    roomId: 'a1b2c3d4',
+    member: 'Bbbb222',
+    nick: 'bob',
+    text: '这一段讲糖原储备，和上一章呼应。',
+    createdAt: 1756300000
+  },
+  {
+    id: 2,
+    roomId: 'a1b2c3d4',
+    member: 'Aaaa111',
+    nick: 'alice',
+    text: '我把进度拖到 42% 了，你们跟一下。',
+    createdAt: 1756300060
+  }
 ]
 
 const ROOMS: RoomInfo[] = [
-  { roomId: 'a1b2c3d4', editionId: 1, title: '高级运动营养学（第2版）', ext: 'epub', ownerNick: 'alice', memberCount: 3, createdAt: 1756300000 },
-  { roomId: 'deadbeef', editionId: 2, title: '机器学习', ext: 'pdf', ownerNick: 'bob', memberCount: 1, createdAt: 1756290000 }
+  {
+    roomId: 'a1b2c3d4',
+    editionId: 1,
+    title: '高级运动营养学（第2版）',
+    ext: 'epub',
+    ownerNick: 'alice',
+    memberCount: 3,
+    createdAt: 1756300000
+  },
+  {
+    roomId: 'deadbeef',
+    editionId: 2,
+    title: '机器学习',
+    ext: 'pdf',
+    ownerNick: 'bob',
+    memberCount: 1,
+    createdAt: 1756290000
+  }
 ]
 
 const TOC = [
@@ -151,22 +187,17 @@ export function Gallery(): React.JSX.Element {
         </span>
       </p>
 
-      {/* 1. 动作文字档（STYLE.md §5.1） */}
-      <Panel title="动作文字档" note="主/次动作靠色温区分，不靠边框；破坏性动作仍是文字，只换语义色">
+      {/* 1. 动作文字档 */}
+      <Panel
+        title="动作文字档"
+        path="styles.css · .text-action / .text-action--primary / --danger"
+        note="动作即文字：18px 加粗衬线、无框无底色；主/次靠色温区分，破坏性动作仍是文字"
+      >
         <div className="flex flex-wrap items-center gap-7">
-          <button className="font-[var(--font-serif-cn)] text-[18px] font-bold text-[var(--accent)]">
-            主动作 · 导入
-          </button>
-          <button className="font-[var(--font-serif-cn)] text-[18px] font-bold text-[var(--muted)] hover:text-[var(--text)]">
-            次动作 · 刷新
-          </button>
-          <button className="font-[var(--font-serif-cn)] text-[18px] font-bold text-[var(--muted)] hover:text-[var(--err)]">
-            破坏性 · 移除
-          </button>
-          <button
-            disabled
-            className="font-[var(--font-serif-cn)] text-[18px] font-bold text-[var(--muted)] opacity-35"
-          >
+          <button className="text-action text-action--primary">主动作 · 导入</button>
+          <button className="text-action">次动作 · 刷新</button>
+          <button className="text-action text-action--danger">破坏性 · 移除</button>
+          <button disabled className="text-action">
             禁用态
           </button>
         </div>
@@ -179,8 +210,33 @@ export function Gallery(): React.JSX.Element {
         </div>
       </Panel>
 
-      {/* 2. 三声部 + 字号阶梯（STYLE.md §3.1 / §3.2） */}
-      <Panel title="三声部与字号阶梯" note="衬线仅 700（字体只有 Bold）；层级靠字号，不靠字重">
+      {/* 2. 视图切换按钮（唯一带三角负片标记） */}
+      <Panel
+        title="视图切换按钮（三角负片标记）"
+        path="components/LibraryToolbar.tsx + styles.css · .view-switch"
+        note="点击播放 900ms 动画（旧文字被吞没 → 新文字浮出 → 复原）；动画期间按钮 disabled，连点无效。三角取 currentColor（墨色），四套主题都可见"
+      >
+        <LibraryToolbar
+          view="list"
+          onViewChange={noop}
+          bookCount={2}
+          onImportFiles={noop}
+          onImportFolder={noop}
+          importing={null}
+          onCancelImport={noop}
+          coverProgress={{ done: 1, total: 2 }}
+        />
+        <p className="mt-3 mb-0 text-[11px] text-[var(--muted)]">
+          ↑ 点左下角「列表」试一次：注意三角标记与 900ms 动画，动画期间再点无效。
+        </p>
+      </Panel>
+
+      {/* 3. 三声部 + 字号阶梯 */}
+      <Panel
+        title="三声部与字号阶梯"
+        path="styles.css · --font-serif-cn / --mono / 字号白名单"
+        note="衬线仅 700（字体只有 Bold）；层级靠字号，不靠字重"
+      >
         <div className="grid gap-3 md:grid-cols-3">
           <Specimen voice="衬线 · 界面语气" cls="font-[var(--font-serif-cn)] font-bold">
             <span className="text-[19px]">書閱房設</span>
@@ -205,8 +261,32 @@ export function Gallery(): React.JSX.Element {
         </div>
       </Panel>
 
-      {/* 3. 中文排版（STYLE.md §4） */}
-      <Panel title="中文排版" note="混排间距 / 标点禁则 / 段距与缩进二选一（默认段距、不缩进）">
+      {/* 4. 负片（反色矩形块） */}
+      <Panel
+        title="负片（反色矩形块）"
+        path="styles.css · --negative-bg / --negative-text（仅详情抽屉字段使用）"
+        note="文字块自身成为纸的反面：页面白 → 块黑字白。派生自各主题 text/bg，四套取向自动成立"
+      >
+        <div className="flex flex-col items-start gap-2">
+          <span className="inline-block bg-[var(--negative-bg)] px-1.5 py-1 text-[var(--negative-text)]">
+            <span className="block font-[system-ui] text-[10px] opacity-60">字段标签</span>
+            <span className="block text-[12.5px]">字段值（左对齐，块宽随内容）</span>
+          </span>
+          <span className="inline-block max-w-full bg-[var(--negative-bg)] px-1.5 py-1 text-[var(--negative-text)]">
+            <span className="block font-[system-ui] text-[10px] opacity-60">长文本会换行</span>
+            <span className="block font-[var(--mono)] text-[11px] break-all">
+              a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6
+            </span>
+          </span>
+        </div>
+      </Panel>
+
+      {/* 5. 中文排版 */}
+      <Panel
+        title="中文排版"
+        path="styles.css · .cjk-ui / .cjk-body"
+        note="混排间距 / 标点禁则 / 段距与缩进二选一（默认段距、不缩进）"
+      >
         <div className="grid gap-6 md:grid-cols-2">
           <div className="cjk-body text-[14px]">
             <p className="m-0 mb-3">
@@ -226,8 +306,12 @@ export function Gallery(): React.JSX.Element {
         </div>
       </Panel>
 
-      {/* 4. 真实组件 */}
-      <Panel title="书库 · 列表行（BookRow）" note="有封面 / 无封面（文字封面）—— 两者同等对待">
+      {/* 6. 真实组件 */}
+      <Panel
+        title="书库 · 列表行（BookRow）"
+        path="components/BookRow.tsx"
+        note="有封面 / 无封面（文字封面）—— 两者同等对待"
+      >
         <div className="flex flex-col gap-1">
           <BookRow
             book={BOOK}
@@ -248,20 +332,10 @@ export function Gallery(): React.JSX.Element {
         </div>
       </Panel>
 
-      <Panel title="书库 · 底部状态栏（LibraryToolbar）" note="左=视图切换单按钮，右=導入文字按钮">
-        <LibraryToolbar
-          view="list"
-          onViewChange={noop}
-          bookCount={2}
-          onImportFiles={noop}
-          onImportFolder={noop}
-          importing={null}
-          onCancelImport={noop}
-          coverProgress={{ done: 1, total: 2 }}
-        />
-      </Panel>
-
-      <Panel title="书库 · 网格（BookTile）与文字封面（FittedTitle）">
+      <Panel
+        title="书库 · 网格（BookTile）与文字封面（FittedTitle）"
+        path="components/BookTile.tsx / components/FittedTitle.tsx"
+      >
         <div className="grid grid-cols-[repeat(auto-fill,minmax(118px,1fr))] gap-x-4 gap-y-5">
           <BookTile book={BOOK} active coverUrl={FAKE_COVER} onDetail={noop} onOpen={noop} onDelete={noop} />
           <BookTile book={BOOK_PDF} active={false} coverUrl={null} onDetail={noop} onOpen={noop} onDelete={noop} />
@@ -280,7 +354,11 @@ export function Gallery(): React.JSX.Element {
         </div>
       </Panel>
 
-      <Panel title="阅读器 · 目录（TocPanel）与连接状态（StatePill）">
+      <Panel
+        title="阅读器 · 目录（TocPanel）"
+        path="components/TocPanel.tsx"
+        note="目录项是导航文字、不是按钮：无边框/无底色，靠留白分行，hover 只变色温"
+      >
         <div className="flex flex-wrap items-start gap-6">
           <div className="h-[220px]">
             <TocPanel rows={TOC} onJump={noop} />
@@ -293,15 +371,17 @@ export function Gallery(): React.JSX.Element {
         </div>
       </Panel>
 
-      <Panel title="房间 · 大厅行（RoomRow）">
-        <div className="overflow-hidden rounded-xl border border-[var(--border-soft)]">
-          {ROOMS.map((r) => (
-            <RoomRow key={r.roomId} room={r} onEnter={noop} />
-          ))}
-        </div>
+      <Panel
+        title="房间 · 大厅行（RoomRow）"
+        path="components/RoomRow.tsx"
+        note="同样是导航文字：无边框/无底色/无分隔线，靠留白分行（五列对齐不变）"
+      >
+        {ROOMS.map((r) => (
+          <RoomRow key={r.roomId} room={r} onEnter={noop} />
+        ))}
       </Panel>
 
-      <Panel title="房间 · 会话（MemberList / ChatLog）">
+      <Panel title="房间 · 会话（MemberList / ChatLog）" path="components/MemberList.tsx / components/ChatLog.tsx">
         <div className="grid gap-6 md:grid-cols-2">
           <div>
             <h4 className="mb-1.5 mt-0 text-[12.5px] tracking-[0.6px] text-[var(--muted)] uppercase">成员</h4>
@@ -314,20 +394,15 @@ export function Gallery(): React.JSX.Element {
         </div>
       </Panel>
 
-      <Panel title="浮层 · 详情抽屉（BookDetailPanel）与确认弹窗（ConfirmDialog）">
-        <div className="relative h-[320px] overflow-hidden rounded-xl border border-[var(--border-soft)]">
-          <BookDetailPanel
-            book={BOOK}
-            coverUrl={null}
-            onClose={noop}
-            onOpen={noop}
-            onDelete={noop}
-          />
+      <Panel
+        title="浮层 · 详情抽屉（BookDetailPanel）与确认弹窗（ConfirmDialog）"
+        path="components/BookDetailPanel.tsx / components/ConfirmDialog.tsx"
+        note="抽屉外壳零 chrome（无边框/无阴影，底色取页面底色）；标题与字段为反色矩形；动作用 .text-action"
+      >
+        <div className="relative h-[360px] overflow-hidden rounded-xl border border-[var(--border-soft)]">
+          <BookDetailPanel book={BOOK} coverUrl={null} onClose={noop} onOpen={noop} onDelete={noop} />
         </div>
-        <button
-          onClick={() => setShowDialog(true)}
-          className="mt-4 font-[var(--font-serif-cn)] text-[18px] font-bold text-[var(--accent)]"
-        >
+        <button onClick={() => setShowDialog(true)} className="text-action text-action--primary mt-4">
           打开确认弹窗
         </button>
         {showDialog && (
@@ -343,7 +418,7 @@ export function Gallery(): React.JSX.Element {
       </Panel>
 
       <footer className="mt-8 border-t border-[var(--border)] pt-4 font-[var(--mono)] text-[11px] text-[var(--muted)]">
-        基线：client/docs/STYLE.md v0.1 · 本页只用于**确认效果**，不参与产品构建
+        基线：client/docs/STYLE.md v0.1 · 本页只用于**确认效果**与**指认部件**，不参与产品构建
       </footer>
     </div>
   )
@@ -355,16 +430,22 @@ function noop(): void {}
 
 function Panel({
   title,
+  path,
   note,
   children
 }: {
   title: string
+  /** 真实源码路径（部件命名表用） */
+  path?: string
   note?: string
   children: React.ReactNode
 }): React.JSX.Element {
   return (
     <section className="mb-6 rounded-xl border border-[var(--border-soft)] bg-[var(--panel)] p-5">
       <h3 className="m-0 font-[var(--font-serif-cn)] text-[15px] font-bold">{title}</h3>
+      {path && (
+        <code className="mt-1 block font-[var(--mono)] text-[10.5px] text-[var(--accent)]">{path}</code>
+      )}
       {note && <p className="mt-1 mb-4 text-[12px] text-[var(--muted)]">{note}</p>}
       {children}
     </section>

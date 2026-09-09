@@ -13,14 +13,13 @@ import { StatePill } from '../../components/StatePill'
 
 type RoomView = 'lobby' | 'session'
 
-// STYLE.md §5.1：**动作即文字** —— 18px 加粗衬线、无框无底色；主/次动作靠色温区分，不靠边框。
+// STYLE.md §5.1：**动作即文字** —— 样式统一定义在 styles.css 的 `.text-action` 家族
+// （18px 加粗衬线、无框无底色；主/次动作靠色温区分，不靠边框）。
 // 旧档（framed，回退用）：
 //   btnGhost   = 'rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-[13px] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40'
 //   btnPrimary = 'rounded-lg border border-transparent bg-[var(--accent)] px-3 py-2 text-[13px] text-[var(--on-accent)] hover:brightness-110 disabled:opacity-40'
-const btnPrimary =
-  'font-[var(--font-serif-cn)] text-[18px] font-bold text-[var(--accent)] hover:brightness-125 disabled:opacity-35'
-const btnGhost =
-  'font-[var(--font-serif-cn)] text-[18px] font-bold text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-35'
+const btnPrimary = 'text-action text-action--primary'
+const btnGhost = 'text-action'
 // 例外①（STYLE.md §5.2）：输入类必须可见可点 —— 唯一保留边框的控件
 const inputCls =
   'rounded-lg border border-[var(--border)] bg-[var(--input-bg)] px-2.5 py-2 text-[13px] outline-none focus:border-[var(--accent)]'
@@ -218,7 +217,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
 
         <div className="flex-none">
           <button
-            className={`${btnGhost} hover:text-[var(--err)]`}
+            className="text-action text-action--danger"
             onClick={() => void leaveRoom()}
           >
             离开房间
@@ -277,7 +276,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
             连接
           </button>
           <button
-            className={`${btnGhost} hover:text-[var(--err)]`}
+            className="text-action text-action--danger"
             onClick={() => void container.net.disconnect()}
             disabled={connState === 'disconnected'}
           >
@@ -310,7 +309,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-[var(--border-soft)]">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {rooms.map((r) => (
           <RoomRow key={r.roomId} room={r} onEnter={() => void enterRoom(r.roomId)} />
         ))}
