@@ -419,7 +419,7 @@ export function Gallery(): React.JSX.Element {
       <Panel
         title="浮层 · 详情抽屉（BookDetailPanel）与确认弹窗（ConfirmDialog）"
         path="components/BookDetailPanel.tsx + components/Marquee.tsx / components/ConfirmDialog.tsx"
-        note="三行等高（52px）同字号（12.5px）：标题条 / 数据行（含文件路径）/ 指标行；① ② 单行超出才滚；③ 宽度按内容分配，后两项标签竖排在块左侧；外壳完全透明，关闭按钮在底部"
+        note="封面 64×96（2:3 不拉伸）+ 三行各 32px（= 封面高度三等分）：标题条 / 数据行（含路径）/ 指标行；都不带标签（内容自述）；①② 单行超出才滚；外壳完全透明，关闭在底部"
       >
         <div className="relative h-[380px] overflow-hidden rounded-xl border border-[var(--border-soft)]">
           {/* 下层内容：用来验证抽屉的透明（抽屉只画文字块，不画底） */}
