@@ -272,6 +272,41 @@ body {
   animation: view-switch-flash 620ms ease-out both;
 }
 
+/* ---------- 中文排版（STYLE.md §4）----------
+   规则集中在此，组件不得自行设置 letter-spacing / text-indent / line-break（§6 禁区）。
+   .cjk-ui  = 界面文字块；.cjk-body = 中文正文块（阅读页/长文）。
+   混排间距与标点挤压属**渐进增强**：浏览器不支持时静默跳过，禁止用 JS 插空格。 */
+.cjk-ui,
+.cjk-body {
+  line-break: strict;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.cjk-body {
+  /* 中文正文比西文松：行距 1.6–1.8；行宽由容器控制在 28–40 字/行（§4.1-3/4） */
+  line-height: 1.7;
+  letter-spacing: 0;
+  /* 段间距、不缩进 —— 与首行缩进二选一，不得并用（§4.1-5） */
+  text-indent: 0;
+}
+
+/* 汉字与西文/数字之间约 1/4 em 空隙（CSS Text 4；未支持则忽略） */
+@supports (text-autospace: normal) {
+  .cjk-ui,
+  .cjk-body {
+    text-autospace: normal;
+  }
+}
+
+/* 标点行首/行尾挤压（未支持则忽略） */
+@supports (text-spacing-trim: trim-start) {
+  .cjk-ui,
+  .cjk-body {
+    text-spacing-trim: trim-start;
+  }
+}
+
 /* ---------- 滚动条 ---------- */
 ::-webkit-scrollbar {
   width: 10px;

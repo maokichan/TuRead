@@ -13,12 +13,17 @@ import { StatePill } from '../../components/StatePill'
 
 type RoomView = 'lobby' | 'session'
 
+// STYLE.md §5.1：**动作即文字** —— 18px 加粗衬线、无框无底色；主/次动作靠色温区分，不靠边框。
+// 旧档（framed，回退用）：
+//   btnGhost   = 'rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-[13px] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40'
+//   btnPrimary = 'rounded-lg border border-transparent bg-[var(--accent)] px-3 py-2 text-[13px] text-[var(--on-accent)] hover:brightness-110 disabled:opacity-40'
+const btnPrimary =
+  'font-[var(--font-serif-cn)] text-[18px] font-bold text-[var(--accent)] hover:brightness-125 disabled:opacity-35'
+const btnGhost =
+  'font-[var(--font-serif-cn)] text-[18px] font-bold text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-35'
+// 例外①（STYLE.md §5.2）：输入类必须可见可点 —— 唯一保留边框的控件
 const inputCls =
   'rounded-lg border border-[var(--border)] bg-[var(--input-bg)] px-2.5 py-2 text-[13px] outline-none focus:border-[var(--accent)]'
-const btnGhost =
-  'rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-[13px] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40'
-const btnPrimary =
-  'rounded-lg border border-transparent bg-[var(--accent)] px-3 py-2 text-[13px] text-[var(--on-accent)] hover:brightness-110 disabled:opacity-40'
 const h3Cls = 'mb-1.5 mt-2 text-[12.5px] tracking-[0.6px] text-[var(--muted)] uppercase'
 
 export function RoomFeature({ container, host, selectedBookId }: FeatureProps): React.JSX.Element {
@@ -169,9 +174,9 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
 
   if (view === 'session' && joinedRoomId) {
     return (
-      <section className="flex h-full flex-col gap-3">
+      <section className="cjk-ui flex h-full flex-col gap-3">
         <header className="flex items-center justify-between">
-          <h2 className="m-0 text-[15px]">房间会话</h2>
+          <h2 className="m-0 font-[var(--font-serif-cn)] text-[15px] font-bold">房间会话</h2>
           <div className="flex items-center gap-2">
             <span className="font-[var(--mono)] text-[12px] text-[var(--accent)]">{joinedRoomId}</span>
             <StatePill state={connState} />
@@ -213,7 +218,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
 
         <div className="flex-none">
           <button
-            className="rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-3 py-1.5 text-[13px] hover:border-[var(--err)] hover:text-[var(--err)]"
+            className={`${btnGhost} hover:text-[var(--err)]`}
             onClick={() => void leaveRoom()}
           >
             离开房间
@@ -224,9 +229,9 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
   }
 
   return (
-    <section className="flex h-full flex-col gap-3">
+    <section className="cjk-ui flex h-full flex-col gap-3">
       <header className="flex items-center justify-between">
-        <h2 className="m-0 text-[15px]">房间</h2>
+        <h2 className="m-0 font-[var(--font-serif-cn)] text-[15px] font-bold">房间</h2>
         <StatePill state={connState} />
       </header>
 
@@ -272,7 +277,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
             连接
           </button>
           <button
-            className="rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-[13px] hover:border-[var(--err)] hover:text-[var(--err)] disabled:opacity-40"
+            className={`${btnGhost} hover:text-[var(--err)]`}
             onClick={() => void container.net.disconnect()}
             disabled={connState === 'disconnected'}
           >

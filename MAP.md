@@ -22,11 +22,13 @@
 10. `借物表.md` —— 第三方资源与许可证（AGPL 约束，引新依赖先登记）
 11. `D:\PROJECT\NETWORK.md` —— 网络配置（git 代理+openssl 配方、Go GOPROXY、npm 直连）
 12. `client/docs/FEATURES.md` —— **UI 功能组件设计（v0.1.6 已落地）**：标准容器契约 / 功能划分 / 状态继承 / 插件化 UI 边界
+13. `client/docs/STYLE.md` —— **渲染层风格基线（v0.1，准则）**：文字优先（P1）/ 三声部字体 / 字号阶梯 / **中文排版 §4** / 例外清单 / 禁区与验收 / 激进档回退机制
 
 ## 红线（不要违反）
 
 - **kookit 子模块内禁止 `git commit` / `git push`**（其 CLAUDE.md 规则）
 - 依赖方向：UI → usecases → ports ← adapters；**领域层零依赖**
+- **渲染层开发先读 `client/docs/STYLE.md`**（风格基线）：新组件不得自创视觉语汇；加边框/图标/新字号前先改基线
 - UI 不直接 import kookit / better-sqlite3 / WebSocket 实现（只走 ServiceContainer）
 - 引入新依赖先核许可证再登记进借物表
 - **提交/打 tag 由 agent 执行；版本号滚动由用户决定**（agent 不自行发版，规则见 `docs/STATUS.md` §2）
