@@ -182,7 +182,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
           </div>
         </header>
 
-        <div className="flex flex-col gap-1.5 rounded-xl border border-[var(--border-soft)] px-3.5 py-3 text-[13px]">
+        <div className="flex flex-col gap-1.5 text-[13px]">
           <div className="flex gap-3">
             <span className="w-[72px] flex-none text-[var(--muted)]">当前书籍</span>
             <span className="truncate">{sessionBookTitle || '—'}</span>
@@ -293,16 +293,17 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2 text-[12px]">
+      <div className="flex flex-wrap items-baseline gap-4 text-[12.5px]">
         {connState !== 'connected' && (
-          <span className="rounded-lg border border-[var(--border-soft)] bg-[var(--panel)] px-3 py-1.5 text-[var(--muted)]">
-            未连接服务器，先在上方展开「服务器连接」配置
-          </span>
+          <span className="text-[var(--muted)]">未连接服务器，先在上方展开「服务器连接」配置</span>
         )}
         {!selectedBookId && (
-          <span className="rounded-lg border border-[var(--border-soft)] bg-[var(--panel)] px-3 py-1.5 text-[var(--muted)]">
+          <span className="text-[var(--muted)]">
             未选择书籍
-            <button className="ml-2 text-[var(--accent)] underline" onClick={() => host.navigate('library')}>
+            <button
+              className="ml-3 text-[var(--accent)] hover:brightness-125"
+              onClick={() => host.navigate('library')}
+            >
               去书架选书 →
             </button>
           </span>

@@ -69,12 +69,22 @@
   --page-text: #1b1d1f;
 
   --scrollbar: #2f3438;
-  /* 视图切换动画的"深色块 + 浅色字" */
-  --flash-bg: #000000;
-  --flash-text: #e9ebed;
-  --mono: 'Cascadia Code', Consolas, 'JetBrains Mono', monospace;
-  /* 中文衬线（明体）字栈：打包的源流明體优先，未命中再回退系统宋体 */
-  --font-serif-cn: 'GenRyuMin TW', '源流明體', 'GenRyuMin', 'Source Han Serif SC', 'Noto Serif CJK SC', 'SimSun', 'Songti SC', serif;
+  /* 视图切换动画的"深色块 + 浅色字"。
+     ⚠ 暗色主题下必须是**亮块 + 暗字** —— 否则深块与页面底色几乎同色，动画根本看不出来
+     （2026-09-09 修：原 `--flash-bg: #000000` 在 `--bg: #0e0f10` 上等于隐形）。 */
+  --flash-bg: var(--text);
+  --flash-text: var(--bg);
+  /* 全局字体（2026-09-09 统一，STYLE.md §3.1）：
+     西文/数字 = Times New Roman（印刷体）；中文 = 源流明體。
+     ⚠ 顺序不可反：Times 无 CJK 字形 → 汉字自动回退到源流明體；若把源流明體放前面，
+       它的拉丁字形会抢走西文（打包子集含拉丁）。
+     ⚠ 只作用于界面 chrome；**阅读器正文在 kookit 的 iframe 内，不受宿主字体影响**。 */
+  --font-ui: 'Times New Roman', 'GenRyuMin TW', 'GenRyuMin', 'Source Han Serif SC', 'Noto Serif CJK SC', 'Songti SC', serif;
+  /* 兼容别名：旧代码里的 --font-serif-cn 指向同一字体栈 */
+  --font-serif-cn: var(--font-ui);
+  /* 技术数据声部已并入全局字体（用户 2026-09-09 决定「全局字体统一」）。
+     若要恢复等宽，改回 'Cascadia Code', Consolas, 'JetBrains Mono', monospace 即可。 */
+  --mono: var(--font-ui);
   /* 负片（反色矩形块）—— 文字块自身成为"纸"的反面：页面白 → 块黑字白，反之亦然。
      派生自各主题的 text/bg，因此四套色彩取向自动成立（STYLE.md §3.4 / §5.5）。
      用途：详情抽屉的字段文字（仅此一处，STYLE.md §5.2）。 */
@@ -184,8 +194,8 @@
   --page-text: #e6dcc9;
 
   --scrollbar: #3d3428;
-  --flash-bg: #000000;
-  --flash-text: #e6dcc9;
+  --flash-bg: var(--text);
+  --flash-text: var(--bg);
 }
 
 * {
@@ -202,7 +212,8 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  /* 全局统一字体（STYLE.md §3.1）：西文 Times New Roman + 中文源流明體 */
+  font-family: var(--font-ui);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
 }
@@ -284,16 +295,21 @@ body {
   color: var(--err);
 }
 
+/* 状态栏用的放大档（书库底部两个文字按钮，2026-09-09 定） */
+.text-action--lg {
+  font-size: 20px;
+}
+
 /* ---------- 书库底部：视图切换按钮（STYLE.md §5.1 / §5.4）----------
    这是**唯一**带"三角负片标记"的按钮：它的职责是引导用户点击切换视图。
-   三角取 currentColor（与文字同色的"墨"）→ 四套主题下都可见，且动画期间随文字颜色一起变。
-   动画期间按钮 disabled（不可点），避免快速连点导致动画不出现。 */
+   三角用 `mix-blend-mode: difference`（真负片）—— 压到文字上时把字形反相，
+   所以它是**盖住一部分文字**的，而不是贴在按钮外侧。动画期间按钮 disabled。 */
 .view-switch {
   position: relative;
-  padding-right: 11px;
-  padding-bottom: 4px;
+  padding-right: 9px;
+  padding-bottom: 7px;
   font-family: var(--font-serif-cn);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   line-height: 1.2;
   color: var(--text);
@@ -314,13 +330,14 @@ body {
 .view-switch::after {
   content: '';
   position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 0 0 6px 6px;
-  border-color: transparent transparent currentColor transparent;
+  right: 2px;
+  bottom: 2px;
+  width: 10px;
+  height: 10px;
+  background: var(--text);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  mix-blend-mode: difference;
+  pointer-events: none;
 }
 
 @keyframes view-switch-flash {

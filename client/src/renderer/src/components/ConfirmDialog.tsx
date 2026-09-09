@@ -57,17 +57,11 @@ export function ConfirmDialog({
           </label>
         )}
 
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            onClick={onCancel}
-            className="rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-3 py-1.5 text-[13px] text-[var(--muted)] hover:text-[var(--text)]"
-          >
+        <div className="mt-4 flex justify-end gap-6">
+          <button onClick={onCancel} className="text-action">
             {cancelLabel}
           </button>
-          <button
-            onClick={() => onConfirm(remembered)}
-            className="rounded-lg border border-transparent bg-[var(--accent)] px-3 py-1.5 text-[13px] text-[var(--on-accent)] hover:brightness-110"
-          >
+          <button onClick={() => onConfirm(remembered)} className="text-action text-action--primary">
             {confirmLabel}
           </button>
         </div>

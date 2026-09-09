@@ -231,28 +231,25 @@ export function Gallery(): React.JSX.Element {
         </p>
       </Panel>
 
-      {/* 3. 三声部 + 字号阶梯 */}
+      {/* 3. 字体（全局统一）+ 字号阶梯 */}
       <Panel
-        title="三声部与字号阶梯"
-        path="styles.css · --font-serif-cn / --mono / 字号白名单"
-        note="衬线仅 700（字体只有 Bold）；层级靠字号，不靠字重"
+        title="字体（全局统一）与字号阶梯"
+        path="styles.css · --font-ui = 'Times New Roman' + 'GenRyuMin TW'"
+        note="界面 chrome 只有一套字体：西文 Times New Roman、中文源流明體（顺序不可反）；阅读器正文在 kookit iframe 内，不受此约束"
       >
         <div className="grid gap-3 md:grid-cols-3">
-          <Specimen voice="衬线 · 界面语气" cls="font-[var(--font-serif-cn)] font-bold">
-            <span className="text-[19px]">書閱房設</span>
-            <span className="mt-1 block text-[17px]">高级运动营养学</span>
+          <Specimen voice="中文 · 源流明體（仅 Bold 一个切面）">
+            <span className="text-[19px]">書閱房設 高级运动营养学</span>
           </Specimen>
-          <Specimen voice="无衬线 · 表单与密集信息" cls="font-[system-ui]">
-            <span className="text-[14px]">表单标签、辅助说明</span>
-            <span className="mt-1 block text-[13px] text-[var(--muted)]">正文控件与说明文字</span>
+          <Specimen voice="西文 / 数字 · Times New Roman">
+            <span className="text-[17px]">TuRead · Room a1b2c3d4 · 42%</span>
           </Specimen>
-          <Specimen voice="等宽 · 技术数据" cls="font-[var(--mono)]">
-            <span className="text-[12.5px]">a1b2c3d4e5f6…</span>
-            <span className="mt-1 block text-[11px] text-[var(--muted)]">42% · a1b2c3d4</span>
+          <Specimen voice="中西混排（同一行自动分工）">
+            <span className="text-[15px]">第 12 章 EPUB / PDF · 15809857 bytes</span>
           </Specimen>
         </div>
         <div className="mt-4 flex flex-wrap items-baseline gap-5 border-t border-[var(--border-soft)] pt-4">
-          {[11, 12.5, 13, 14, 15, 17, 18, 19].map((s) => (
+          {[11, 12.5, 13, 14, 15, 17, 18, 19, 20].map((s) => (
             <span key={s} style={{ fontSize: `${s}px` }} className="text-[var(--muted)]">
               {s}
             </span>
@@ -454,16 +451,16 @@ function Panel({
 
 function Specimen({
   voice,
-  cls,
+  cls = '',
   children
 }: {
   voice: string
-  cls: string
+  cls?: string
   children: React.ReactNode
 }): React.JSX.Element {
   return (
     <div className={`rounded-lg border border-[var(--border-soft)] bg-[var(--panel-2)] p-4 ${cls}`}>
-      <div className="mb-2 font-[system-ui] text-[11px] text-[var(--muted)]">{voice}</div>
+      <div className="mb-2 text-[11px] text-[var(--muted)]">{voice}</div>
       {children}
     </div>
   )

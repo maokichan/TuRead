@@ -28,10 +28,8 @@ export function BookRow({
 }: BookRowProps): React.JSX.Element {
   const title = book.metadata.title || '未命名'
   const meta = (
-    <span className="flex items-center gap-2 font-[var(--mono)] text-[10.5px] text-[var(--muted)]">
-      <b className="rounded border border-[var(--border)] bg-[var(--badge-bg)] px-1 text-[9.5px] font-bold tracking-[0.4px] text-[var(--accent)]">
-        {book.format}
-      </b>
+    <span className="flex items-center gap-2 text-[10.5px] text-[var(--muted)]">
+      <b className="text-[10.5px] font-bold tracking-[0.4px] text-[var(--accent)]">{book.format}</b>
       <span>{formatSize(book.fingerprint.size)}</span>
       <span>{progressText(book)}</span>
     </span>

@@ -69,41 +69,45 @@ export function LibraryToolbar({
   }
 
   return (
-    <footer className="flex flex-none items-center justify-between gap-3 border-t border-[var(--border)] pt-1.5 text-[12px]">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={toggleView}
-          disabled={flashing}
-          title="切换显示模式"
-          className={`view-switch ${flashing ? 'view-switch-flash' : ''}`}
-        >
-          {VIEW_LABEL[shown]}
-        </button>
-        <span className="text-[var(--muted)]">{bookCount} 本</span>
-        {coverProgress && (
-          <span className="text-[var(--muted)]">
-            提取封面 {coverProgress.done}/{coverProgress.total}
-          </span>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2">
-        {importing ? (
-          <>
+    /* 状态栏（2026-09-09 定）：整体居中且**左右收窄**（max-w-[720px]），分割线随之缩短；
+       `pt-4` 让分割线相对内容区**上移**（状态栏更高）；两个文字按钮因此向中间靠拢。 */
+    <footer className="flex flex-none justify-center">
+      <div className="flex w-full max-w-[720px] items-center justify-between gap-10 border-t border-[var(--border)] pt-4 pb-1 text-[12px]">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={toggleView}
+            disabled={flashing}
+            title="切换显示模式"
+            className={`view-switch ${flashing ? 'view-switch-flash' : ''}`}
+          >
+            {VIEW_LABEL[shown]}
+          </button>
+          <span className="text-[var(--muted)]">{bookCount} 本</span>
+          {coverProgress && (
             <span className="text-[var(--muted)]">
-              导入中 {importing.done}/{importing.total}
+              提取封面 {coverProgress.done}/{coverProgress.total}
             </span>
-            <button onClick={onCancelImport} className="text-action text-action--danger">
-              取消
-            </button>
-          </>
-        ) : (
-          <ImportMenu
-            onFiles={onImportFiles}
-            onFolder={onImportFolder}
-            className="text-action text-action--primary"
-          />
-        )}
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {importing ? (
+            <>
+              <span className="text-[var(--muted)]">
+                导入中 {importing.done}/{importing.total}
+              </span>
+              <button onClick={onCancelImport} className="text-action text-action--danger text-action--lg">
+                取消
+              </button>
+            </>
+          ) : (
+            <ImportMenu
+              onFiles={onImportFiles}
+              onFolder={onImportFolder}
+              className="text-action text-action--primary text-action--lg"
+            />
+          )}
+        </div>
       </div>
     </footer>
   )
@@ -133,20 +137,18 @@ function ImportMenu({
 
   return (
     <div ref={boxRef} className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className={`${className} text-[var(--text)] hover:text-[var(--accent)]`}
-      >
+      <button onClick={() => setOpen((v) => !v)} className={className}>
         導入
       </button>
       {open && (
-        <div className="absolute right-0 bottom-full z-10 mb-1.5 w-40 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel)] shadow-lg">
+        /* 浮层（STYLE.md §5.2 例外③）保留一层底色；**菜单项本身是文字行**，无边框无分隔线 */
+        <div className="absolute right-0 bottom-full z-10 mb-2 flex w-40 flex-col items-start gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] p-2.5 shadow-lg">
           <button
             onClick={() => {
               setOpen(false)
               onFiles()
             }}
-            className="block w-full px-3 py-2 text-left text-[12.5px] text-[var(--text)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+            className="block w-full text-left text-[13px] text-[var(--muted)] hover:text-[var(--text)]"
           >
             导入文件…
           </button>
@@ -155,7 +157,7 @@ function ImportMenu({
               setOpen(false)
               onFolder()
             }}
-            className="block w-full border-t border-[var(--border-soft)] px-3 py-2 text-left text-[12.5px] text-[var(--text)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+            className="block w-full text-left text-[13px] text-[var(--muted)] hover:text-[var(--text)]"
           >
             导入文件夹…
           </button>

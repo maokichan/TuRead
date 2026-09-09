@@ -110,9 +110,9 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
     })
   }, [container])
 
-  const segActive = 'border-transparent bg-[var(--accent)] text-[var(--on-accent)]'
-  const segIdle =
-    'border-[var(--border)] bg-[var(--panel-2)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
+  // 选项即文字（STYLE.md §5.1）：无边框无底色，选中态靠 accent 色温（不再用色块按钮）
+  const segActive = 'text-action text-action--primary'
+  const segIdle = 'text-action'
 
   return (
     <section className="flex h-full flex-col gap-4">
@@ -121,14 +121,12 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
       <div className="flex flex-col gap-4 rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4">
         <div className="flex flex-col gap-1.5">
           <span className="text-[12px] text-[var(--muted)]">外观主题</span>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-5">
             {THEMES.map((t) => (
               <button
                 key={t.value}
                 onClick={() => applyTheme(t.value)}
-                className={`rounded-lg border px-3 py-1.5 text-[13px] ${
-                  theme === t.value ? segActive : segIdle
-                }`}
+                className={theme === t.value ? segActive : segIdle}
               >
                 {t.label}
               </button>
@@ -141,14 +139,12 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
 
         <div className="flex flex-col gap-1.5">
           <span className="text-[12px] text-[var(--muted)]">阅读器布局模式（重开书生效）</span>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-5">
             {READER_MODES.map((m) => (
               <button
                 key={m.value}
                 onClick={() => changeReaderMode(m.value)}
-                className={`rounded-lg border px-3 py-1.5 text-[13px] ${
-                  readerMode === m.value ? segActive : segIdle
-                }`}
+                className={readerMode === m.value ? segActive : segIdle}
               >
                 {m.label}
               </button>

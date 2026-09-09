@@ -136,29 +136,18 @@ export function ReaderFeature({ container, host, readerBookId }: FeatureProps): 
         <span className="truncate text-[14px] font-semibold">
           {book ? book.metadata.title : '未打开书籍'}
         </span>
-        <div className="flex flex-none items-center gap-2">
-          <button
-            className="rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-3 py-1.5 text-[13px] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40"
-            onClick={() => void pageTurn('prev')}
-            disabled={!book}
-          >
+        <div className="flex flex-none items-center gap-5">
+          <button className="text-action" onClick={() => void pageTurn('prev')} disabled={!book}>
             上一页
           </button>
-          <span className="min-w-[90px] text-center font-[var(--mono)] text-[12.5px] text-[var(--muted)]">
+          <span className="min-w-[90px] text-center text-[12.5px] text-[var(--muted)]">
             {progress ? `${progress.currentPage} / ${progress.totalPage}` : '—'}
           </span>
-          <button
-            className="rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-3 py-1.5 text-[13px] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40"
-            onClick={() => void pageTurn('next')}
-            disabled={!book}
-          >
+          <button className="text-action" onClick={() => void pageTurn('next')} disabled={!book}>
             下一页
           </button>
           {book && (
-            <button
-              className="rounded-lg border border-transparent bg-[var(--accent)] px-3 py-1.5 text-[13px] text-[var(--on-accent)] hover:brightness-110"
-              onClick={() => host.closeReader()}
-            >
+            <button className="text-action text-action--primary" onClick={() => host.closeReader()}>
               关闭
             </button>
           )}
