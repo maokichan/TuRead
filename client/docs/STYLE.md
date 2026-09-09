@@ -167,6 +167,13 @@
 
 ## 8. 验收
 
+### 8.0 效果确认（第一手段）
+
+`cd client && npm run style` —— **样式样张**（`tools/style-gallery/`）：浏览器里看 token / 字号 /
+中文排版 / 各组件状态，**不启动 Electron**。样张只导入真实组件与真实 `styles.css`，
+因此"样张所见 = 组件实现"，不会漂移。改 token → HMR 秒级刷新。
+（Electron 内的最终复核仍走 `dev/selfCheck.ts`；样张不覆盖 IPC/窗口/kookit 渲染。）
+
 ### 8.1 机器断言（可进 `dev/selfCheck.ts`）
 
 - `document.fonts.check('700 16px "GenRyuMin TW"')` —— 衬线体可用（已有）。
