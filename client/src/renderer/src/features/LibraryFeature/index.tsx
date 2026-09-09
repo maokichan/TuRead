@@ -279,7 +279,6 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
       <LibraryToolbar
         view={view}
         onViewChange={changeView}
-        bookCount={books.length}
         onImportFiles={() => void importFiles()}
         onImportFolder={() => void importFolder()}
         importing={importing}

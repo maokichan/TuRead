@@ -219,7 +219,6 @@ export function Gallery(): React.JSX.Element {
         <LibraryToolbar
           view="list"
           onViewChange={noop}
-          bookCount={2}
           onImportFiles={noop}
           onImportFolder={noop}
           importing={null}
@@ -229,6 +228,32 @@ export function Gallery(): React.JSX.Element {
         <p className="mt-3 mb-0 text-[11px] text-[var(--muted)]">
           ↑ 点左下角「列表」试一次：注意三角标记与 900ms 动画，动画期间再点无效。
         </p>
+      </Panel>
+
+      {/* 2.5 侧边栏功能导航 */}
+      <Panel
+        title="侧边栏功能导航（选中 = 负片）"
+        path="AppShell.tsx + styles.css · .feature-nav / .feature-nav--active"
+        note="未选中=单色汉字；选中=负片块（反色），不再用圆角按钮/底色/描边。样式取自同一 CSS 类，未复制组件逻辑"
+      >
+        <div className="flex items-center gap-2">
+          {(
+            [
+              ['書', true],
+              ['閱', false],
+              ['房', false],
+              ['設', false]
+            ] as const
+          ).map(([icon, active]) => (
+            <button
+              key={icon}
+              title={icon}
+              className={`feature-nav ${active ? 'feature-nav--active' : ''}`}
+            >
+              {icon}
+            </button>
+          ))}
+        </div>
       </Panel>
 
       {/* 3. 字体（全局统一）+ 字号阶梯 */}
@@ -261,8 +286,8 @@ export function Gallery(): React.JSX.Element {
       {/* 4. 负片（反色矩形块） */}
       <Panel
         title="负片（反色矩形块）"
-        path="styles.css · --negative-bg / --negative-text（仅详情抽屉字段使用）"
-        note="文字块自身成为纸的反面：页面白 → 块黑字白。派生自各主题 text/bg，四套取向自动成立"
+        path="styles.css · --negative-bg / --negative-text"
+        note="用途仅两处（§5.5）：① 详情抽屉的标题与字段 ② 侧边栏选中项。文字块成为纸的反面：页面白 → 块黑字白"
       >
         <div className="flex flex-col items-start gap-2">
           <span className="inline-block bg-[var(--negative-bg)] px-1.5 py-1 text-[var(--negative-text)]">

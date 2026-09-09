@@ -4,7 +4,6 @@ import type { LibraryView } from '@core/domain/types'
 interface LibraryToolbarProps {
   view: LibraryView
   onViewChange: (v: LibraryView) => void
-  bookCount: number
   onImportFiles: () => void
   onImportFolder: () => void
   /** 批量导入进度（null = 空闲）；可取消 */
@@ -33,7 +32,6 @@ const VIEW_SWITCH_SWAP_MS = 450
 export function LibraryToolbar({
   view,
   onViewChange,
-  bookCount,
   onImportFiles,
   onImportFolder,
   importing,
@@ -81,7 +79,6 @@ export function LibraryToolbar({
         >
           {VIEW_LABEL[shown]}
         </button>
-        <span className="text-[var(--muted)]">{bookCount} 本</span>
         {coverProgress && (
           <span className="text-[var(--muted)]">
             提取封面 {coverProgress.done}/{coverProgress.total}

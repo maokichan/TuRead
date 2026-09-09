@@ -252,9 +252,58 @@ body {
   overflow-wrap: anywhere;
 }
 
-/* ---------- 功能组件图标符号字体 ---------- */
-.feature-icon {
+/* ---------- 功能组件图标（侧边栏）----------
+   未选中 = 单色汉字；**选中 = 负片（反色块）** —— 不再用圆角按钮/底色/描边
+   （2026-09-09 用户定）。 */
+.feature-nav {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
   font-family: var(--font-serif-cn);
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition: color 120ms ease-out;
+}
+
+.feature-nav:hover {
+  color: var(--text);
+}
+
+.feature-nav--active,
+.feature-nav--active:hover {
+  background: var(--negative-bg);
+  color: var(--negative-text);
+}
+
+/* ---------- 抽屉信息行滚动（STYLE.md §5.5）----------
+   格式 · 文件大小 · 导入时间 一行慢速循环；两份内容 + 各自 padding-right 保证无缝，
+   hover 暂停，`prefers-reduced-motion` 下不动。 */
+@keyframes drawer-ticker {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.drawer-ticker {
+  animation: drawer-ticker 16s linear infinite;
+}
+
+.drawer-ticker-mask:hover .drawer-ticker {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-ticker {
+    animation: none;
+  }
 }
 
 /* ---------- 文字动作按钮（STYLE.md §5.1）----------
@@ -295,9 +344,11 @@ body {
   color: var(--err);
 }
 
-/* 状态栏用的放大档（书库底部两个文字按钮，2026-09-09 定） */
+/* 状态栏用的放大档（书库底部两个文字按钮，2026-09-09 定）
+   22px + 0.08em 字距 —— 比 18px 略大、字距略松，但不过分（用户要求）。 */
 .text-action--lg {
-  font-size: 20px;
+  font-size: 22px;
+  letter-spacing: 0.08em;
 }
 
 /* ---------- 书库底部：视图切换按钮（STYLE.md §5.1 / §5.4）----------
@@ -312,9 +363,10 @@ body {
   width: fit-content;
   padding: 0;
   font-family: var(--font-serif-cn);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   line-height: 1.1;
+  letter-spacing: 0.08em;
   color: var(--text);
   background: none;
   border: 0;
@@ -333,7 +385,8 @@ body {
 .view-switch::after {
   content: '';
   position: absolute;
-  right: 0;
+  /* letter-spacing 会在最后一个字后留出一份字距 → 三角右移同样距离才落在字上 */
+  right: 0.08em;
   bottom: 0;
   width: 10px;
   height: 10px;

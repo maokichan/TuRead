@@ -78,11 +78,7 @@ export default function AppShell(): React.JSX.Element {
               title={f.label}
               aria-label={f.label}
               onClick={() => host.navigate(f.id)}
-              className={`feature-icon grid h-10 w-10 place-items-center rounded-xl text-[19px] transition-colors ${
-                activeFeature === f.id
-                  ? 'bg-[var(--accent-soft)] ring-1 ring-[var(--accent-ring)] text-[var(--accent)]'
-                  : 'text-[var(--muted)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]'
-              }`}
+              className={`feature-nav ${activeFeature === f.id ? 'feature-nav--active' : ''}`}
             >
               {f.icon}
             </button>
@@ -95,11 +91,7 @@ export default function AppShell(): React.JSX.Element {
               title={f.label}
               aria-label={f.label}
               onClick={() => host.navigate(f.id)}
-              className={`feature-icon grid h-10 w-10 place-items-center rounded-xl text-[19px] transition-colors ${
-                activeFeature === f.id
-                  ? 'bg-[var(--accent-soft)] ring-1 ring-[var(--accent-ring)] text-[var(--accent)]'
-                  : 'text-[var(--muted)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]'
-              }`}
+              className={`feature-nav ${activeFeature === f.id ? 'feature-nav--active' : ''}`}
             >
               {f.icon}
             </button>

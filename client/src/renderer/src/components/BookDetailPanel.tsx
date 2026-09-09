@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { BookRecord } from '@core/domain/types'
-import { formatSize, formatTime, progressText } from '../features/format'
+import { formatRelative, formatSize, formatTime, progressText } from '../features/format'
 import { FittedTitle } from './FittedTitle'
 
 interface BookDetailPanelProps {
@@ -54,21 +54,23 @@ export function BookDetailPanel({
   const title = book.metadata.title || '未命名'
   /**
    * 字段清单（2026-09-09 用户定）：
-   * - 移除「当前位置」「指纹」（没必要的信息）；
-   * - 保留一个**描述栏占位** —— 显示什么尚未决定（见 TODO.md「抽屉描述栏」）。
+   * - 移除「当前位置」「指纹」；
+   * - 「文件大小」「导入时间」的内容已并入上方**滚动信息行**，不再单独成栏；
+   * - 「最近阅读」用相对时间（"3 天前"）；
+   * - 保留「描述」占位（显示什么尚未决定，见 TODO.md）。
    */
-  const fields: { label: string; value: string; mono?: boolean; wrap?: boolean }[] = [
+  const fields: { label: string; value: string; wrap?: boolean }[] = [
     { label: '描述', value: book.metadata.description || '（描述待定）' },
-    { label: '文件大小', value: formatSize(book.fingerprint.size) },
     { label: '阅读进度', value: progressText(book) },
-    { label: '导入时间', value: formatTime(book.createdAt) },
-    { label: '最近阅读', value: formatTime(book.lastReadAt) },
+    { label: '最近阅读', value: formatRelative(book.lastReadAt) },
     { label: '文件路径', value: book.filePath, wrap: true }
   ]
+  /** 滚动行内容：格式 · 文件大小 · 导入时间 */
+  const ticker = [book.format, formatSize(book.fingerprint.size), formatTime(book.createdAt)]
 
   return (
     <aside ref={panelRef} className="absolute inset-y-0 right-0 z-30 flex w-[280px] flex-col">
-      <header className="flex flex-none items-start gap-3 pt-4 pb-3">
+      <header className="flex flex-none items-start gap-3 pt-4 pb-2">
         <div className="h-[96px] w-16 flex-none overflow-hidden bg-[var(--panel-2)]">
           {coverUrl ? (
             <img src={coverUrl} alt="" className="h-full w-full object-cover" draggable={false} />
@@ -80,9 +82,6 @@ export function BookDetailPanel({
           <h3 className="m-0 inline-block max-w-full bg-[var(--negative-bg)] px-1.5 py-1 font-[var(--font-serif-cn)] text-[14px] leading-snug font-bold break-words text-[var(--negative-text)]">
             {title}
           </h3>
-          <span className="mt-1.5 block font-[var(--mono)] text-[10px] text-[var(--muted)]">
-            {book.format}
-          </span>
         </div>
         <button
           onClick={onClose}
@@ -93,6 +92,19 @@ export function BookDetailPanel({
         </button>
       </header>
 
+      {/* 滚动信息行（两份内容循环，见 styles.css .drawer-ticker） */}
+      <div className="drawer-ticker-mask flex-none overflow-hidden pb-3">
+        <div className="drawer-ticker flex w-max whitespace-nowrap text-[11px] text-[var(--muted)]">
+          {[0, 1].map((copy) => (
+            <span key={copy} className="flex gap-5 pr-5">
+              {ticker.map((t) => (
+                <span key={t}>{t}</span>
+              ))}
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div className="min-h-0 flex-1 overflow-y-auto pb-4">
         <div className="flex flex-col items-start gap-2">
           {fields.map((f) => (
@@ -100,14 +112,8 @@ export function BookDetailPanel({
               key={f.label}
               className="inline-block max-w-full bg-[var(--negative-bg)] px-1.5 py-1 text-[var(--negative-text)]"
             >
-              <span className="block font-[system-ui] text-[10px] opacity-60">{f.label}</span>
-              <span
-                className={`block ${f.mono ? 'font-[var(--mono)] text-[11px]' : 'text-[12.5px]'} ${
-                  f.wrap ? 'break-all' : ''
-                }`}
-              >
-                {f.value}
-              </span>
+              <span className="block text-[10px] opacity-60">{f.label}</span>
+              <span className={`block text-[12.5px] ${f.wrap ? 'break-all' : ''}`}>{f.value}</span>
             </span>
           ))}
         </div>
