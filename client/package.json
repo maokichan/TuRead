@@ -9,7 +9,9 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+    "style": "vite --config tools/style-gallery/vite.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "typecheck:preview": "tsc --noEmit -p tsconfig.preview.json"
   },
   "dependencies": {
     "pdfjs-dist": "^4.8.69",

@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.web.json",
+  "include": [
+    "tools/style-gallery/**/*",
+    "src/renderer/**/*",
+    "src/core/**/*",
+    "src/shared/**/*"
+  ]
+}
