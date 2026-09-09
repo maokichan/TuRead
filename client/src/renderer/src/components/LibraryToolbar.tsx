@@ -69,45 +69,40 @@ export function LibraryToolbar({
   }
 
   return (
-    /* 状态栏（2026-09-09 定）：整体居中且**左右收窄**（max-w-[720px]），分割线随之缩短；
-       `pt-4` 让分割线相对内容区**上移**（状态栏更高）；两个文字按钮因此向中间靠拢。 */
-    <footer className="flex flex-none justify-center">
-      <div className="flex w-full max-w-[720px] items-center justify-between gap-10 border-t border-[var(--border)] pt-4 pb-1 text-[12px]">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={toggleView}
-            disabled={flashing}
-            title="切换显示模式"
-            className={`view-switch ${flashing ? 'view-switch-flash' : ''}`}
-          >
-            {VIEW_LABEL[shown]}
-          </button>
-          <span className="text-[var(--muted)]">{bookCount} 本</span>
-          {coverProgress && (
+    /* 状态栏（2026-09-09 定）：**所有元素统一左对齐**（不再左右对称分布），
+       分割线随内容区宽度铺开（此前 max-w-[720px] 收得太短），`pt-4` 让线上移。 */
+    <footer className="flex-none">
+      <div className="flex items-center gap-7 border-t border-[var(--border)] pt-4 pb-1 text-[12px]">
+        <button
+          onClick={toggleView}
+          disabled={flashing}
+          title="切换显示模式"
+          className={`view-switch ${flashing ? 'view-switch-flash' : ''}`}
+        >
+          {VIEW_LABEL[shown]}
+        </button>
+        <span className="text-[var(--muted)]">{bookCount} 本</span>
+        {coverProgress && (
+          <span className="text-[var(--muted)]">
+            提取封面 {coverProgress.done}/{coverProgress.total}
+          </span>
+        )}
+        {importing ? (
+          <>
             <span className="text-[var(--muted)]">
-              提取封面 {coverProgress.done}/{coverProgress.total}
+              导入中 {importing.done}/{importing.total}
             </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {importing ? (
-            <>
-              <span className="text-[var(--muted)]">
-                导入中 {importing.done}/{importing.total}
-              </span>
-              <button onClick={onCancelImport} className="text-action text-action--danger text-action--lg">
-                取消
-              </button>
-            </>
-          ) : (
-            <ImportMenu
-              onFiles={onImportFiles}
-              onFolder={onImportFolder}
-              className="text-action text-action--primary text-action--lg"
-            />
-          )}
-        </div>
+            <button onClick={onCancelImport} className="text-action text-action--danger text-action--lg">
+              取消
+            </button>
+          </>
+        ) : (
+          <ImportMenu
+            onFiles={onImportFiles}
+            onFolder={onImportFolder}
+            className="text-action text-action--primary text-action--lg"
+          />
+        )}
       </div>
     </footer>
   )

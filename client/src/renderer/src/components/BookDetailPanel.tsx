@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import type { BookRecord } from '@core/domain/types'
-import { describeLocation } from '@core/domain/location'
 import { formatSize, formatTime, progressText } from '../features/format'
 import { FittedTitle } from './FittedTitle'
 
@@ -22,8 +21,8 @@ interface BookDetailPanelProps {
  * 全屏遮罩会吞掉列表项的第二次点击，导致双击打开失效）。
  *
  * 风格（STYLE.md §5.2 例外③ / §5.5，2026-09-09 定）：
- * - **外壳零 chrome**：无边框、无阴影；底色取页面底色（`--bg`）—— 视觉上"透明"，
- *   但必须遮挡下层列表（真透明会让两层文字叠在一起）。
+ * - **外壳完全透明**：无边框、无阴影、**无底色** —— 抽屉不再画任何底，
+ *   下层书库内容从文字块之间透出来（负片块自身提供可读底）。
  * - **文字即负片**：标题与每个字段各自是一块**反色矩形**（`--negative-bg/--negative-text`，
  *   即页面白 → 块黑字白），左对齐、块宽随内容（`inline-block` + `max-w-full`）。
  * - **动作即文字**：`打开阅读` / `移除` 用 `.text-action`（与书库底部状态栏同一套）。
@@ -53,24 +52,22 @@ export function BookDetailPanel({
   }, [onClose])
 
   const title = book.metadata.title || '未命名'
+  /**
+   * 字段清单（2026-09-09 用户定）：
+   * - 移除「当前位置」「指纹」（没必要的信息）；
+   * - 保留一个**描述栏占位** —— 显示什么尚未决定（见 TODO.md「抽屉描述栏」）。
+   */
   const fields: { label: string; value: string; mono?: boolean; wrap?: boolean }[] = [
+    { label: '描述', value: book.metadata.description || '（描述待定）' },
     { label: '文件大小', value: formatSize(book.fingerprint.size) },
     { label: '阅读进度', value: progressText(book) },
-    {
-      label: '当前位置',
-      value: book.lastLocation ? describeLocation(book.lastLocation, book.format) : '—'
-    },
     { label: '导入时间', value: formatTime(book.createdAt) },
     { label: '最近阅读', value: formatTime(book.lastReadAt) },
-    { label: '指纹', value: book.fingerprint.hash, mono: true, wrap: true },
-    { label: '文件路径', value: book.filePath, mono: true, wrap: true }
+    { label: '文件路径', value: book.filePath, wrap: true }
   ]
 
   return (
-    <aside
-      ref={panelRef}
-      className="absolute inset-y-0 right-0 z-30 flex w-[280px] flex-col bg-[var(--bg)]"
-    >
+    <aside ref={panelRef} className="absolute inset-y-0 right-0 z-30 flex w-[280px] flex-col">
       <header className="flex flex-none items-start gap-3 pt-4 pb-3">
         <div className="h-[96px] w-16 flex-none overflow-hidden bg-[var(--panel-2)]">
           {coverUrl ? (

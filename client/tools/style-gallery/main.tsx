@@ -394,9 +394,16 @@ export function Gallery(): React.JSX.Element {
       <Panel
         title="浮层 · 详情抽屉（BookDetailPanel）与确认弹窗（ConfirmDialog）"
         path="components/BookDetailPanel.tsx / components/ConfirmDialog.tsx"
-        note="抽屉外壳零 chrome（无边框/无阴影，底色取页面底色）；标题与字段为反色矩形；动作用 .text-action"
+        note="抽屉**完全透明**（无边框/无阴影/无底色）—— 下层列表从负片块之间透出来；字段已移除「当前位置」「指纹」，保留「描述」占位；动作用 .text-action"
       >
-        <div className="relative h-[360px] overflow-hidden rounded-xl border border-[var(--border-soft)]">
+        <div className="relative h-[380px] overflow-hidden rounded-xl border border-[var(--border-soft)]">
+          {/* 下层内容：用来验证抽屉的透明（抽屉只画文字块，不画底） */}
+          <div className="flex flex-col gap-1 p-2">
+            <BookRow book={BOOK} active={false} coverUrl={FAKE_COVER} onDetail={noop} onOpen={noop} onDelete={noop} />
+            <BookRow book={BOOK_PDF} active={false} coverUrl={null} onDetail={noop} onOpen={noop} onDelete={noop} />
+            <BookRow book={BOOK} active={false} coverUrl={null} onDetail={noop} onOpen={noop} onDelete={noop} />
+            <BookRow book={BOOK_PDF} active={false} coverUrl={FAKE_COVER} onDetail={noop} onOpen={noop} onDelete={noop} />
+          </div>
           <BookDetailPanel book={BOOK} coverUrl={null} onClose={noop} onOpen={noop} onDelete={noop} />
         </div>
         <button onClick={() => setShowDialog(true)} className="text-action text-action--primary mt-4">

@@ -115,71 +115,85 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
   const segIdle = 'text-action'
 
   return (
-    <section className="flex h-full flex-col gap-4">
-      <h2 className="m-0 text-[15px]">设置</h2>
+    <section className="flex h-full flex-col gap-5">
+      <h2 className="m-0 font-[var(--font-serif-cn)] text-[18px] font-bold">设置</h2>
 
-      <div className="flex flex-col gap-4 rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4">
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[12px] text-[var(--muted)]">外观主题</span>
-          <div className="flex flex-wrap items-center gap-5">
-            {THEMES.map((t) => (
-              <button
-                key={t.value}
-                onClick={() => applyTheme(t.value)}
-                className={theme === t.value ? segActive : segIdle}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <span className="text-[11px] text-[var(--muted)]">
-            暗色/亮色为黑灰白取向；羊皮纸为暖棕取向，含亮、暗两版。
-          </span>
+      {/* 分组结构（STYLE.md §5.1）：**去掉圆角容器**，用副标题 + 分割线划分 —— 设置项会越来越多 */}
+      <Field
+        title="外观主题"
+        hint="暗色/亮色为黑灰白取向；羊皮纸为暖棕取向，含亮、暗两版。"
+      >
+        <div className="flex flex-wrap items-center gap-5">
+          {THEMES.map((t) => (
+            <button
+              key={t.value}
+              onClick={() => applyTheme(t.value)}
+              className={theme === t.value ? segActive : segIdle}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
+      </Field>
 
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[12px] text-[var(--muted)]">阅读器布局模式（重开书生效）</span>
-          <div className="flex flex-wrap items-center gap-5">
-            {READER_MODES.map((m) => (
-              <button
-                key={m.value}
-                onClick={() => changeReaderMode(m.value)}
-                className={readerMode === m.value ? segActive : segIdle}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-          <span className="text-[11px] text-[var(--muted)]">
-            单页/双页为分页模式（iframe 内列滚动）；滚动模式为宿主容器滚动。
-          </span>
+      <Field
+        title="阅读器布局模式"
+        hint="重开书生效。单页/双页为分页模式（iframe 内列滚动）；滚动模式为宿主容器滚动。"
+      >
+        <div className="flex flex-wrap items-center gap-5">
+          {READER_MODES.map((m) => (
+            <button
+              key={m.value}
+              onClick={() => changeReaderMode(m.value)}
+              className={readerMode === m.value ? segActive : segIdle}
+            >
+              {m.label}
+            </button>
+          ))}
         </div>
+      </Field>
 
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[12px] text-[var(--muted)]">导入</span>
-          <label className="flex cursor-pointer items-center gap-2 text-[13px]">
-            <input
-              type="checkbox"
-              checked={importRecursive}
-              onChange={toggleImportRecursive}
-              className="h-3.5 w-3.5 accent-[var(--accent)]"
-            />
-            导入文件夹时包含子文件夹
-          </label>
-          <span className="text-[11px] text-[var(--muted)]">
-            关闭 = 只导入所选目录本身；开启 = 连同其所有子目录里的电子书。
-          </span>
-        </div>
-      </div>
+      <Field
+        title="导入"
+        hint="关闭 = 只导入所选目录本身；开启 = 连同其所有子目录里的电子书。"
+      >
+        <label className="flex cursor-pointer items-center gap-2 text-[13px]">
+          <input
+            type="checkbox"
+            checked={importRecursive}
+            onChange={toggleImportRecursive}
+            className="h-3.5 w-3.5 accent-[var(--accent)]"
+          />
+          导入文件夹时包含子文件夹
+        </label>
+      </Field>
 
-      <div className="flex min-h-0 flex-1 flex-col">
-        <h3 className="mt-1 mb-1.5 text-[12.5px] tracking-[0.6px] text-[var(--muted)] uppercase">
-          诊断日志
-        </h3>
-        <pre className="m-0 min-h-0 flex-1 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--log-bg)] p-3 font-[var(--mono)] text-[11px] leading-[1.6] whitespace-pre-wrap text-[var(--log-text)]">
+      <Field title="诊断日志" className="flex min-h-0 flex-1 flex-col">
+        <pre className="m-0 min-h-0 flex-1 overflow-y-auto bg-[var(--log-bg)] p-3 text-[11px] leading-[1.6] whitespace-pre-wrap text-[var(--log-text)]">
           {logs.length === 0 ? '（暂无日志）' : logs.join('\n')}
         </pre>
-      </div>
+      </Field>
+    </section>
+  )
+}
+
+/** 设置分组：副标题 + 上分割线（取代原来的圆角容器） */
+function Field({
+  title,
+  hint,
+  className = '',
+  children
+}: {
+  title: string
+  hint?: string
+  className?: string
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <section className={`border-t border-[var(--border)] pt-4 pb-2 ${className}`}>
+      <h3 className="m-0 mb-2 font-[var(--font-serif-cn)] text-[14px] font-bold">{title}</h3>
+      {hint && <p className="m-0 mb-3 text-[11px] text-[var(--muted)]">{hint}</p>}
+      {children}
     </section>
   )
 }

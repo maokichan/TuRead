@@ -302,16 +302,19 @@ body {
 
 /* ---------- 书库底部：视图切换按钮（STYLE.md §5.1 / §5.4）----------
    这是**唯一**带"三角负片标记"的按钮：它的职责是引导用户点击切换视图。
-   三角用 `mix-blend-mode: difference`（真负片）—— 压到文字上时把字形反相，
-   所以它是**盖住一部分文字**的，而不是贴在按钮外侧。动画期间按钮 disabled。 */
+   盒子必须**紧贴文字**（padding 0 + line-height 紧）—— 否则动画时背景块远大于文字，
+   三角也就落不到字上（2026-09-09 修：原来 padding-right/bottom 把三角推到了字外）。
+   三角用 `mix-blend-mode: difference`（真负片）：压在字形右下角上，把压到的部分反相。
+   动画期间按钮 disabled。 */
 .view-switch {
   position: relative;
-  padding-right: 9px;
-  padding-bottom: 7px;
+  display: inline-block;
+  width: fit-content;
+  padding: 0;
   font-family: var(--font-serif-cn);
   font-size: 20px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.1;
   color: var(--text);
   background: none;
   border: 0;
@@ -330,8 +333,8 @@ body {
 .view-switch::after {
   content: '';
   position: absolute;
-  right: 2px;
-  bottom: 2px;
+  right: 0;
+  bottom: 0;
   width: 10px;
   height: 10px;
   background: var(--text);
