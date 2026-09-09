@@ -26,7 +26,7 @@ npm run typecheck:preview
 
 ## 覆盖 / 不覆盖
 
-- ✅ 覆盖：四套色彩取向 + 跟随系统、动作文字档（主/次/破坏性/禁用）、三声部字体、字号白名单、
+- ✅ 覆盖：四套色彩取向 + 跟随系统、动作文字档（主/次/破坏性/禁用）、全局统一字体、字号白名单、
   中文排版（混排间距 / 标点禁则 / 段距 vs 缩进）、以及全部展示组件的真实渲染
   （BookRow / BookTile / FittedTitle / LibraryToolbar / TocPanel / StatePill / RoomRow /
   MemberList / ChatLog / BookDetailPanel / ConfirmDialog）。

@@ -1,7 +1,8 @@
 # UI 功能组件设计（Feature Components）
 
-> 状态：**v0.1.6 已落地实施（2026-09-08）**：标准容器（`features/types.ts` + `registry.ts` + `AppShell`）+ 四个功能组件
-> （Library/Reader/Room/Settings，Server 已并入 Room）+ Tailwind v4 迁移完成；本文为设计权威，实施细节以 `client/src/renderer/src/` 为准。
+> 状态：**v0.1.6 落地实施；v0.1.11 起视觉语汇由 `STYLE.md` 统一约束（2026-09-09）**：标准容器（`features/types.ts` + `registry.ts` + `AppShell`）+ 四个功能组件
+> （Library/Reader/Room/Settings，Server 已并入 Room）+ Tailwind v4 迁移完成。
+> 本文只管**功能划分与容器契约**；字体/字号/颜色/边框/动效/负片等一律以 **`STYLE.md`（渲染层风格基线）** 为准。
 > 已定决策（2026-09-08 确认，原待定项见 §7）：**纯 React 状态 + props 下发**；**Tailwind 与拆组件同步迁移**；
 > **侧边栏 = 功能组件导航，主面板 = 宿主容器**；功能组件**常驻挂载、非激活隐藏** → 状态继承。
 > 归属：**client 专属**。相关权威：六边形/端口见 `ARCHITECTURE.md`；契约见 `CONTRACTS.md`；
@@ -32,7 +33,7 @@
 | UI 直接订阅多个容器事件并各自 setState | Feature 边界与用例层事件一一对应关系不清晰 |
 | 顶部模式靠 `tab: 'server' \| 'room' \| 'reader'` 手工切换 | 没有“进入房间才能聊天”之类的状态约束 |
 
-用例层（`IRoomSession`/`IBookService`）与端口（net/render/store/identity）已按六边形就绪、事件契约 v0.2.4 已收敛——**缺的是 UI 侧同等的结构**（该缺口已由 v0.1.6 拆分填平）。
+用例层（`IRoomSession`/`IBookService`）与端口（net/render/store/identity）已按六边形就绪、事件契约 v0.2.9 已收敛——**缺的是 UI 侧同等的结构**（该缺口已由 v0.1.6 拆分填平）。
 
 ---
 
@@ -50,9 +51,9 @@ src/renderer/src/
 │   ├── registry.ts       # 功能组件注册表（官方插件 = 追加一条 descriptor）
 │   └── coverCache.ts     # 封面 objectURL 缓存（模块级）
 ├── components/           # 展示组件（纯 props，无业务编排）
-│   ├── BookRow.tsx   ├── BookTile.tsx  ├── BookDetailPanel.tsx  ├── LibraryToolbar.tsx
-│   ├── TocPanel.tsx  ├── MemberList.tsx
-│   └── ChatLog.tsx   ├── RoomRow.tsx   └── StatePill.tsx
+│   ├── BookRow.tsx / BookTile.tsx / BookDetailPanel.tsx / LibraryToolbar.tsx
+│   ├── TocPanel.tsx / MemberList.tsx / ChatLog.tsx / RoomRow.tsx / StatePill.tsx
+│   └── FittedTitle.tsx（文字封面拟合）/ Marquee.tsx（单行超出才滚）/ ConfirmDialog.tsx
 ├── dev/                  # 开发工具（非产品代码）
 │   └── selfCheck.ts      # TUREAD_DEV_BOOK 无头渲染自检（v0.1.7 从 AppShell 抽出）
 └── styles.css            # 主题语义 token + kookit 契约（Tailwind 入口）
@@ -143,15 +144,17 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
    **官方插件 = 追加 descriptor 进 registry**（未来挂载点/权限再做 manifest）。
 7. **状态继承机制** ✅ 定案：功能组件**常驻挂载、非激活 `display:none`** —— 房间会话/阅读位置不因侧边栏切换丢失；
    跨功能跳转统一走 `FeatureHost`（`navigate` / `openReader` / `closeReader` / `selectBook` / `pushLog`）。
-8. **侧边栏符号与字体** ✅ 定案：**繁体汉字单字**（書/閱/房/設）以「源流明体」显示（`styles.css` `.feature-icon`），
-   **禁用带彩色 emoji**；设置钉在最下角（`pinned`）。字体已于 v0.1.8 **打包进资源**（SIL OFL 1.1，见 §10）。
+8. **侧边栏符号与字体** ✅ 定案：**繁体汉字单字**（書/閱/房/設）以「源流明体」显示（`styles.css` `.feature-nav`；
+   **选中态 = 负片块**，2026-09-09），**禁用带彩色 emoji**；设置钉在最下角（`pinned`）。
+   字体已于 v0.1.8 **打包进资源**（SIL OFL 1.1，见 §10）；v0.1.11 起与西文 Times New Roman 合为全局统一字体栈（`STYLE.md` §3.1）。
 
 ## 8. 实施落地（v0.1.6，2026-09-08）
 
 - **容器**：`AppShell.tsx`（侧边栏 + 主面板宿主 + 跨功能共享态；**dev 无头自检已于 v0.1.7 移入 `dev/selfCheck.ts`**，shell 只做组合与共享态）。
   - **无顶栏 / 无日志栏 / 无品牌 logo**：Electron 自带菜单栏已移除（`Menu.setApplicationMenu(null)` + `autoHideMenuBar` + `win.removeMenu()` 双保险）；诊断日志移入 SettingsFeature。
   - **侧边栏 = 单色符号图标栏**（宽 56px）：只显示 `FeatureDescriptor.icon`（**繁体汉字单字：書/閱/房/設**），
-    以「源流明体」字体栈显示（`.feature-icon`），label 作悬停提示；**禁用带彩色 emoji**。
+    样式为 `.feature-nav`（字体栈见 `STYLE.md` §3.1），label 作悬停提示；**禁用带彩色 emoji**；
+    **选中态 = 负片块**（`.feature-nav--active`，2026-09-09 定，见 `STYLE.md` §5.5）。
   - **settings 钉在侧边栏最下角**（`FeatureDescriptor.pinned`，AppShell 单独渲染）。
 - **功能组件**：`LibraryFeature`（书架/导入/去重/删除/选中/打开）、`ReaderFeature`（受 `readerBookId` 驱动打开/关闭，
   翻页/目录/进度/位置保存；布局模式读 `readerSettings`，重开书生效）、`RoomFeature`（**服务器连接 + 大厅 + 会话**——
@@ -164,6 +167,10 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
   `--ok/--warn/--err(+ -border)/--input-bg/--badge-bg/--log-bg/--log-text/--page-bg/--page-text/`
   `--scrollbar/--flash-bg/--flash-text/--mono/--font-serif-cn`）；
   组件内**禁止写死 hex/rgba**。第三方自定义主题 = 覆盖整套 token（`:root` 为默认暗色，其余三套为样例）。
+  **2026-09-09 起**：字体统一为 `--font-ui`（Times New Roman + 源流明體）、负片 token `--negative-bg/--negative-text`、
+  **全应用无阴影**；规则见 `STYLE.md` §3。
+- **样式效果确认**：`cd client && npm run style` 起**浏览器样式样张**（`tools/style-gallery/`，
+  只导入真实组件与真实 token）；改 token 秒级可见。排版类最终判定仍在 Electron 内复核。
 - **展示组件**：`components/{BookRow,BookTile,BookDetailPanel,LibraryToolbar,FittedTitle,ConfirmDialog,`
   `TocPanel,ChatLog,RoomRow,MemberList,StatePill}`（纯 props，无编排）。
 - **Tailwind**：`@tailwindcss/vite` v4 接入；`styles.css` 保留主题 token / 全局 base / 滚动条 + **kookit 硬编码契约**
@@ -188,18 +195,15 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
   导入（文件/文件夹菜单 + 目录扫描）+ 封面缩略图落盘 + `IBookPicker` 端口收敛 + 设置拆 `config.json` +
   `library.json` 版本与迁移；随后审查修复（导入编排下沉 / 设置原子写）+ 阅读器恢复上次内容 +
   打包源流明体 + 四套色彩取向 + 视图切换单按钮。
-- **下一步候选**：
-  - **「标准化」落地**：`WorkIdentity`（`protocol` + `code`）+ ISBN 校验 + 房间功能内的入口（§10 待定 4）；
-  - 详情抽屉操作清单定稿（§10 待定 1）；
-  - **文字封面的艺术化**（§10 待定 7）—— 与"列表行标题重复"一并考虑；
-  - 更多设置项：文字大小/行距/字体 —— ⚠ **不是"扩 config 映射"就能做**：`KookitConfig` 里没有
-    fontSize/lineHeight/fontFamily（`kookit.esm.d.ts` 仅 13 个字段），kookit 走的是
-    `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（`kookit.esm.js` 内 `StyleHelper`
-    无任何调用点，client 侧也未接），需先定注入方案；
-  - `location-updated` 同位 UI（RoomFeature 消费 ReaderFeature 的跳转回调，跟随模式）；
-  - 官方插件首个样例（如 OCR/翻译面板）验证容器扩展性。
+- **已交付（v0.1.11，2026-09-09）**：**渲染层风格基线**（`STYLE.md`）—— 文字优先（动作/导航/选项全文字）、
+  全局统一字体、负片（抽屉字段 + 侧边栏选中）、中文排版规则、抽屉平面重做、浏览器样式样张（`npm run style`）。
+- **下一步候选**：**全部收敛到 `../../TODO.md`**（全项目唯一待办清单），本文不再维护待办。
+  其中一条实现要点值得留档：**「更多设置项（字号/行距/字体）」不是扩 config 映射就能做** ——
+  `KookitConfig` 无 fontSize/lineHeight/fontFamily（`kookit.esm.d.ts` 仅 13 字段），
+  kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（`kookit.esm.js` 内
+  `StyleHelper` 无调用点、client 侧未接），需先定注入方案。
 
-## 10. 书库重做（v0.1.8 起，含 v0.1.9 / v0.1.10 细化；2026-09-08）
+## 10. 书库重做（v0.1.8 起，v0.1.9 / v0.1.10 / v0.1.11 细化；2026-09-08 ~ 09-09）
 
 > 状态：**已落地并发版**。发版由用户决定（见 `STATUS.md` §2）。
 > 契约：`CONTRACTS.md` v0.2.6~v0.2.8（`IBookPicker` / `IRenderService.getMetadata` / `ILibraryStore` 封面与
@@ -213,11 +217,13 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 - **列表行**：左侧是**封面槽**（宽 2/5），槽内可以是封面图或**文字封面**（两者同等对待，见下），
   槽整体套 `.book-row-cover` 渐隐（mask 在 18%→82% 之间淡出，2026-09-08 调得更靠左）；
   右侧内容层（标题 + 详情）从 **30%** 处起排 —— 自然压住封面右缘（"适当覆盖封面"）。
-- **底部状态栏**：**左** = 视图切换 + 书目数 + 封面提取进度；**右** = 导入 + 进度/取消。
-  两者都是**文字按钮**（18px 加粗源流明体、无边框）。
+- **底部状态栏**：**全部元素左对齐**（2026-09-09 起，不再左右对称）；视图切换 + 封面提取进度 + 导入 + 进度/取消。
+  **不显示书目数量**（2026-09-09 用户定，无关紧要）；两个文字按钮 **22px + 字距 0.08em**。
   **视图切换是单个按钮**：显示**当前**视图名（`列表` / `網格`，繁体），点击后视图与文字同时切换；
-  动画节奏 ① 判定区域变**深色**（旧文字被"吞没"）② 浅色**新**文字从深色块里浮出（文字在动画 42% 处替换）
-  ③ 区域与文字**同时**复原。实现：`.view-switch-flash` 关键帧（620ms）+ 四主题各自的 `--flash-bg/--flash-text`。
+  动画节奏 ① 判定区域变**深色**（旧文字被"吞没"）② 浅色**新**文字从深色块里浮出（文字在动画 50% 处替换）
+  ③ 区域与文字**同时**复原。实现：`.view-switch-flash`（**900ms**，动画期间按钮 `disabled`）+
+  四主题各自的 `--flash-bg/--flash-text`（暗色主题为**亮块 + 暗字**，否则深块与底色同色看不见）；
+  按钮右下角有**负片三角标记**（`difference` 混合、压在字上）—— 视觉规则见 `STYLE.md` §5.1。
 - **列表标题**（2026-09-08 定）：行内标题用**源流明体、放大到 17px、不加粗**（此前 13.5px 无衬线）。
 - **阅读器恢复上次内容**（2026-09-08 定）：从侧边栏进入阅读器时若还没打开书，自动恢复
   **上次阅读**的那本（`IBookService.getLastRead()`；无阅读记录则回退最近导入），不再每次都空白。
@@ -230,10 +236,12 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
   批量**串行** + 进度 + **可取消**；失败逐条进诊断日志；指纹去重继续生效；递归扫描有上限（2000 本 / 12 层）。
 - **交互语义**：单击 → 右侧**详情抽屉**；双击 → 打开；键盘 Enter 打开、Space 详情、Delete 移除；
   抽屉显示的书 = `selectedBookId`（单一真相，Room 标定 / Reader 打开不变）。
-- **抽屉位置纪律**（2026-09-08 定）：**状态栏之上是内容区，抽屉只在内容区弹出** —— 抽屉由内容区容器
-  `relative` 定位为 `absolute inset-y-0 right-0`（宽 **280px**），**不覆盖底部状态栏**；被它盖住的内容不显示也不可点。
-  关闭 = Esc / 点击抽屉外任意位置（document mousedown，**不用全屏遮罩** —— 全屏遮罩会吞掉列表项的
-  第二次点击，双击打开会失效）。
+- **抽屉位置纪律**（2026-09-08 定，2026-09-09 补）：**状态栏之上是内容区，抽屉只在内容区弹出** —— 抽屉由内容区容器
+  `relative` 定位为 `absolute inset-y-0 right-0`（宽 **280px**），**不覆盖底部状态栏**。
+  **外壳完全透明**（无边框/无阴影/无底色）→ 下层书库内容从文字块之间透出来；
+  平面结构（封面 2:3 + 三行三等分 + 单行滚动 + 无标签指标行）见 **`STYLE.md` §5.5**。
+  关闭 = Esc / 点击抽屉外任意位置 / 底部「关闭」按钮（document mousedown，**不用全屏遮罩** ——
+  全屏遮罩会吞掉列表项的第二次点击，双击打开会失效）。
 - **移除语义**（2026-09-08 定）：所有"删除"都是**从书库索引移除，不删源文件**。首次点击弹确认弹窗说明
   这一点，并提供**「下次不再提示」**（持久化 `deleteNotice.skip`）；确认后才移除（封面缓存一并清理）。
 - **封面：缩略图落盘**。canvas 生成（目标宽 400px、JPEG q0.82，实测 157KB 原图 → **38KB**）→ `userData/covers/<bookId>.jpg`，
@@ -244,7 +252,8 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 - **无封面 → 文字封面**：`FittedTitle` **二分搜索不溢出的最大字号**（只按高度拟合 —— 宽度由容器约束 +
   `overflow-wrap: anywhere` 自动换行），字号定下后把剩余垂直空间分给行距（上限 2.4）以铺满；
   `ResizeObserver` + `requestAnimationFrame` + `document.fonts.ready` 三重重新拟合（打包字体加载后字形度量会变）。
-  字体为**打包的源流明體**（`--font-serif-cn`），**加粗**。**文字封面按"封面"处理**：填进**同一个封面槽**、套**同一套渐隐**。
+  字体为**打包的源流明體**（2026-09-09 起 `--font-serif-cn` 即全局统一字体栈 `--font-ui`，见 `STYLE.md` §3.1），**加粗**。
+  **文字封面按"封面"处理**：填进**同一个封面槽**、套**同一套渐隐**。
 - **打包字体（源流明體）**：`GenRyuMin2 TW Bold` 切面子集化（BMP CJK + 拉丁 + 标点，去提示指令），
   18.8MB → **10.95MB**，经 Vite 资源管线打包（`assets/fonts/`），`@font-face` 定义在 `styles.css`。
   许可 **SIL OFL 1.1**（已登记借物表；来源/子集/复现见 `assets/fonts/NOTICE.md`）。
@@ -263,19 +272,11 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
   设置写入改走 `ILibraryStore.patchSetting`（主进程原子合并），消除两个 Feature 对
   `librarySettings` 的"读-改-写"覆盖竞态。`extToFormat` 从 UI 层移入 `core/domain/format.ts`。
 
-**待定（下个 request 确认）**
+**待定 / 未完成 —— 见根 `../../TODO.md`（唯一待办清单）**
 
-1. 详情抽屉的「其他更改选项」清单（当前只放了「打开阅读 + 移除」）—— 候选：重命名标题、重新定位文件、在文件夹中显示；
-2. 网格卡片下方标题的截断规则（当前 `line-clamp-2`）；
-3. 封面维护动作（重建/清理/手工指定）；
-4. 「标准化」的 UI 形态（房间功能内）与 `WorkIdentity` 领域落地；
-5. 网格模式下抽屉覆盖右侧卡片时的进一步处理（当前按"内容区抽屉 + 被盖住即不显示"统一处理，未做避让）；
-6. **多书架**（考虑中，2026-09-08 记录）：当前只有单一书库。将来可支持多个书架（分组/来源/设备），
-   但会影响 `ILibraryStore` 与 `BookRecord`（bookId → shelfId 归属）、导入目标、视图状态与房间标定选书流程 ——
-   动手前先定模型（见根 `TODO.md`）。
-7. **文字封面的艺术化**（后话，2026-09-08 记录）：无封面时"文字封面"本身就是标题，而列表行右侧还会再显示
-   一遍标题 —— **同一串字出现两次**。除"是否隐藏右侧标题"外，更想做的是让封面文字具备**艺术效果**
-   （字号/字距/行距的构成感、可能的竖排或字面造型），使"文字封面"真正像一张封面而不是放大的标题。
-   与 §10 的 `FittedTitle` 同一处演进（见根 `TODO.md`）。
+> 原 §10 的 7 条待定项已于 2026-09-09 誊挪进 `TODO.md`（"从各文档誊挪过来的待办"一节）：
+> 详情抽屉操作清单、网格标题截断、封面维护动作、「标准化」落地、抽屉与网格遮挡、
+> 多书架、文字封面艺术化。本文不再维护待办列表。
 
-> 本文为设计权威：任何改动先更新此处再动代码；新决策追加进 §7 并同步 `STATUS.md` 决策表。
+> 本文为设计权威：任何改动先更新此处再动代码；新决策追加进 §7 并同步 `STATUS.md` 决策表；
+> **视觉语汇一律以 `STYLE.md` 为准**。
