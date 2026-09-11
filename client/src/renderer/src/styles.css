@@ -88,6 +88,8 @@
   --toc-line-w: 220px;
   --toc-line-top: 28px;
   --toc-veil-rest: 0.74;
+  /* 右侧阅读参数面板宽度上限（实际宽度还会被右留白夹取，见 .reader-controls） */
+  --reader-panel-w: 250px;
 
   --scrollbar: #2f3438;
   /* 视图切换动画的"深色块 + 浅色字"。
