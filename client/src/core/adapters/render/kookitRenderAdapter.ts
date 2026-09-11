@@ -374,8 +374,9 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
    *
    * 隐藏手段：设内联 `scrollbar-width: none` —— 标准属性优先于 `::-webkit-scrollbar`
    * （Chromium 121+，见 styles.css 的坑注释），正好当开关用，而且**完全不占位**；
-   * 真正溢出时清掉它，让 4px 的 webkit 规则生效。
-   * 用内联 style / 自定义属性而不是 class：宿主元素的 `className` 归 React 管，外部改 class 会被渲染冲掉。
+   * 真正溢出时清掉它，让 2px 的 webkit 规则生效。
+   * 用内联 style 而不是 class：宿主元素的 `className` 归 React 管，外部改 class 会被渲染冲掉。
+   * 溢出像素数写到 `data-scroll-overflow`（排查用，自检读它）。
    */
   private refreshScrollAffordance(): void {
     const el = this.element
@@ -383,7 +384,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     const overflow = el.scrollHeight - el.clientHeight
     const fits = overflow <= SCROLL_SLACK_PX
     el.style.setProperty('scrollbar-width', fits ? 'none' : '')
-    el.style.setProperty('--stage-overflow', fits ? '0' : '1')
+    el.dataset.scrollOverflow = String(overflow)
   }
 
   private clearScrollWatch(): void {

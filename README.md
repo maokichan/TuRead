@@ -16,7 +16,6 @@ TuRead/
 ├── docs/      # 共同文档（书籍标定 / 仓库布局）
 ├── TODO.md    # 待办清单
 ├── MAP.md     # 项目地图与文档导航（模型会话自动加载）
-└── 借物表.md   # 第三方资源与许可证
 ```
 
 ## 快速开始（服务端）
@@ -28,6 +27,32 @@ go test ./...                        # 单测 + E2E 集成测试
 go build -o turead-server ./cmd/server
 ./turead-server
 ```
+
+## 客户端开发与打包（Windows）
+
+```bash
+cd client
+npm install
+npm run dev            # 开发（Electron + HMR）
+npm run typecheck      # 类型检查（node + web 两个 project；样张另有 typecheck:preview）
+npm run style          # 浏览器里的样式样张（改 styles.css 秒级看效果，不用起 Electron）
+npm run dist           # 打包发行版 → release/（见下）
+```
+
+**发行版范围**：**只出 64 位 Windows**（NSIS 安装包，用户 2026-09-11 定），配置在
+`client/electron-builder.yml`；产物 `client/release/TuRead-<version>-win-x64-setup.exe`（`release/` 已 gitignore）。
+
+打包前置（本机网络，详见 `NETWORK.md`）：electron-builder 要从 GitHub 拉 Electron 发行版与 NSIS 组件，
+本机 GitHub 直连被墙 → **构建前设代理**（Node 的 TLS 走 OpenSSL，环境变量即可）：
+
+```powershell
+$env:HTTP_PROXY  = "http://127.0.0.1:7897"
+$env:HTTPS_PROXY = "http://127.0.0.1:7897"
+npm run dist
+```
+
+> 无头自检（开发用）：`$env:TUREAD_DEV_BOOK="<书的绝对路径>"; npm run dev` —— 跑真实链路并打印
+> `[TUREAD-TEST-OK/FAIL]`（渲染/注入/封面/字体/恢复等断言，细节见 `client/src/renderer/src/dev/selfCheck.ts`）。
 
 ## 文档导航
 
@@ -42,4 +67,9 @@ TuRead 的原型是 [V2tin19/TuRead](https://github.com/V2tin19/TuRead)（早期
 
 ## 许可证
 
-TuRead 以 **AGPL-3.0** 开源（因核心依赖 kookit 为 AGPL-3.0）；第三方资源清单见 `借物表.md`。
+TuRead 以 **AGPL-3.0** 开源（因核心依赖 kookit 为 AGPL-3.0）。
+
+> ⚠ **发行物缺件（待补）**：仓库目前**没有 LICENSE 文件**，源流明体的 OFL 全文也尚未随包 ——
+> 对外发行前必须补（登记在 TODO.md）。
+> `借物表.md`（第三方资源登记）已于 2026-09-11 **退役**并移出版本控制，见 `docs/STATUS.md` §3；
+> 许可义务仍在：引入新依赖先核许可证与 AGPL 兼容性。

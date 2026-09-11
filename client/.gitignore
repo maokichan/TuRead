@@ -2,5 +2,8 @@
 out/
 dist/
 
+# electron-builder 发行版产物（安装包等；不进仓库，用 npm run dist 生成）
+release/
+
 # local dev data
 *.json.tmp

@@ -9,7 +9,7 @@
    用途：侧边栏功能符号（書/閱/房/設）+ 无封面时的"文字封面"。
    子集化：BMP CJK（U+4E00–9FFF）+ 拉丁 + 常用标点，去提示指令/布局表 → 18.8MB → 10.95MB。
    ⚠ 极生僻字（Ext-A/B 等）不在子集内，会回退到字栈里的下一个字体。
-   许可与来源见 src/renderer/src/assets/fonts/NOTICE.md 与 借物表.md。
+   许可与来源见 src/renderer/src/assets/fonts/NOTICE.md。
 ------------------------------------------------------------------- */
 @font-face {
   font-family: 'GenRyuMin TW';
@@ -271,10 +271,8 @@ body {
      （Electron 33 = Chromium 130）：上一版写了 `scrollbar-width: thin`，于是 4px 规则失效、
      实际是 thin 的 ~11px（用户 2026-09-11 复现："仍然很宽"）。本项目只出 Electron，故只用 webkit 伪元素。
      静息只有 10% 不透明度，指针进入正文列才升到 26% —— 不能在用户不希望的时候影响注意力。
-     `--stage-overflow` 由适配器标记（1 = 真的溢出 / 0 = 只有 kookit 的余量）；**隐藏不是靠 width:0，
-     而是适配器直接设 `scrollbar-width: none`** —— 标准属性优先正好当开关用（见上面那条坑），
-     完全不占位也不显示。 */
-  --stage-overflow: 1;
+     **短章节整条隐藏**不是靠 width:0，而是适配器直接设内联 `scrollbar-width: none` ——
+     标准属性优先正好当开关用（见上面那条坑），完全不占位也不显示。 */
 }
 
 .reader-stage::-webkit-scrollbar {

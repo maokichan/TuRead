@@ -4,7 +4,7 @@
  * 为什么自己生成而不是存原图：实测一本 EPUB 的封面 157KB，转 data URL ≈ 210KB；
  * 书库若把原图塞进 JSON 会被写放大拖垮（见 BookRecord.coverPath 注释）。缩略图目标宽 400px
  * （网格卡片 ~200px，2x 屏够用），JPEG q0.82，实测落到 20~40KB。
- * 不引第三方图像库 → 借物表零新增。
+ * 不引第三方图像库。
  */
 const DEFAULT_TARGET_WIDTH = 400
 const JPEG_QUALITY = 0.82

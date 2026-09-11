@@ -1,0 +1,59 @@
+# TuRead 客户端发行版打包配置（electron-builder）
+#
+# 范围（用户 2026-09-11 定）：**只出 64 位 Windows**（NSIS 安装包），不出 mac/linux。
+# 产物目录 = `client/release/`（已 gitignore：产物不进仓库）。
+# 用法：`npm run dist`（先 electron-vite build，再 electron-builder）。
+#
+# 环境前提（见 `../NETWORK.md`）：electron-builder 需要从 GitHub 拉 Electron 发行版与
+# winCodeSign/NSIS 等二进制 → 必须走本地代理（Node 的 TLS 走 OpenSSL，故用环境变量即可）：
+#   $env:HTTP_PROXY = "http://127.0.0.1:7897"; $env:HTTPS_PROXY = "http://127.0.0.1:7897"
+# （npmmirror 在本机不可达，不能用它当镜像。）
+
+appId: com.turead.client
+productName: TuRead
+copyright: AGPL-3.0 — TuRead（渲染核心 kookit © koodo-reader，AGPL-3.0）
+
+directories:
+  output: release
+
+# 进包内容：electron-vite 的构建产物 + package.json（main 指向 out/main/index.js）。
+# 运行时依赖（node_modules 里的 production deps，如 ws）由 electron-builder 自动带上。
+files:
+  - out/**
+  - package.json
+  # `canvas` 是 pdfjs-dist 的**可选**依赖（只在 Node 端渲染用，我们在渲染进程用 pdfjs，
+  # 已被 Vite 打进 bundle）→ 不进包：它是原生模块，带上只会拖体积并触发原生重建。
+  - '!node_modules/canvas/**'
+
+# 不重建原生模块：我们运行时**没有**需要编译的原生依赖
+# （`ws`/`spark-md5` 纯 JS；kookit 与 pdfjs 都在渲染进程由 Vite 打包）。
+# 若开启，electron-builder 会对 node_modules 里的原生模块逐个 rebuild ——
+# 本机缺少 cairo/GTK 的头文件，`canvas` 会直接编译失败（2026-09-11 实测）。
+npmRebuild: false
+
+# 用**本地已解包的 Electron 发行版**，避免从 GitHub 下载 Electron。
+# 为什么必须这么做（2026-09-11 实测）：本机 GitHub 直连被墙、只能走本地代理，而代理会在下载中途
+# **静默挂起**（既不报错也不超时）→ 打包在 "unpacking default Electron distribution" 处停住、
+# 看起来像死循环（实测进程 6 分钟 CPU 只 0.5s）。而发行版 zip 其实早在
+# `%LOCALAPPDATA%\electron\Cache\electron-v<ver>-win32-x64.zip` 里、`npm i electron` 也已解包到
+# `node_modules/electron/dist`（含 electron.exe 与 LICENSE / LICENSES.chromium.html）。
+electronDist: node_modules/electron/dist
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: TuRead-${version}-win-x64-setup.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: TuRead
+  deleteAppDataOnUninstall: false
+
+# 说明：暂无品牌图标（用户未提供）→ 使用 electron-builder 默认图标；
+# 待有 .ico 后放到 client/build/icon.ico（electron-builder 会自动取用）。

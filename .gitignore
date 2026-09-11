@@ -15,6 +15,10 @@ server/tmp/
 # client test books (真实样书不入库)
 client/test_docs/
 
+# 借物表已退役（用户 2026-09-11 定：不再逐依赖登记、注明后移出版本控制）：
+# 文件仍留在本地作参考，但**不再进仓库**；许可义务仍要核（见 docs/STATUS.md §3 与 TODO.md）
+借物表.md
+
 # editors / os
 .vscode/
 .DS_Store

@@ -30,4 +30,4 @@ pyftsubset GenRyuMinTW-B.otf `
 
 > ⚠ OFL 1.1 要求随字体分发许可声明。本文件记录来源与许可；若需严格的**许可全文**随包，
 > 请把 <https://openfontlicense.org/open-font-license-official-text/> 的正文存为同目录 `OFL.txt`
-> （本仓库未内置该正文，避免手抄出错）。第三方资源登记见仓库根 `借物表.md`。
+> （本仓库未内置该正文，避免手抄出错）。来源/子集/复现步骤以本文件为准；`借物表.md` 已退役（2026-09-11），许可义务见 `docs/STATUS.md` §3。

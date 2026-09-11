@@ -268,20 +268,16 @@ interface IRenderService extends EventEmitter<RenderServiceEvents> {
   open(record: BookRecord, options?: RenderOptions): Promise<void>;
   close(): Promise<void>;
   renderTo(element: HTMLElement): Promise<void>;
-  /** v0.3.0：向已打开的正文（kookit iframe）注入/更新正文样式。
-   *  非 PDF 电子书（EPUB/MOBI/AZW3/TXT/HTML…）正文是 HTML —— 走 `rendition.setStyle`
-   *  （kookit 唯一样式注入口，默认 CSS 未注入、内容完全可控；换章只重写 body，`<style>` 留在 head →
-   *  **一次注入全书生效**）。当前含两部分：
-   *  ① **排版参数**（任何主题都注入）：纸内边距 `body{padding-inline: var(--page-pad-x)}`
-   *     —— 注入到 body 而非宿主容器（kookit 排版宽度读宿主 `clientWidth`，给宿主加 padding 会对不上；
-   *     `handleImageSize.getContentWidth` 会扣掉父容器 padding，故 body 内边距是安全的）
-   *  ② **颜色**：深色模式注入深色正文 CSS；**浅色不注入颜色**（保留书的自有外观）。
-   *  PDF 是位图，深色走像素处理（TODO 单独立项），本方法对 PDF 无操作。
-   *  颜色取自宿主 CSS 语义 token（`--page-bg/--page-text`），主题是否深色走 `core/domain/theme.ts`。
-   *  v0.3.2：明确"浅色不注入"只针对颜色；纸内边距等排版参数始终注入。 */
+  /** v0.3.0：向已打开的正文注入**颜色**（深色模式）。非 PDF 电子书正文是 HTML，走 `rendition.setStyle`
+   *  （kookit 唯一样式注入口；**浅色不注入颜色**，保留书的自有外观）；PDF 是位图 → 深色走像素处理
+   *  （TODO 单独立项），本方法对 PDF 无操作。颜色取自宿主语义 token `--page-bg/--page-text`。
+   *  ⚠ 注入通道与"排版参数"共用（见 `applyTypography`）：每次调用重建**整份** reader style，
+   *  所以"浅色不注入"只针对颜色，不代表整份样式不注入。 */
   applyTheme(theme: ResolvedTheme): Promise<void>;
-  /** v0.3.3：向正文注入**排版参数**（与 applyTheme 共用同一条注入通道 `setStyle`，可任意次调用，
-   *  每次重建整份 reader style）。覆盖集合保守但有效：字号/行距打 `html,body` + 常见块级元素，
+  /** v0.3.3：向正文注入**排版参数**（字号/行距/段距）。
+   *  与 `applyTheme` 共用同一条注入通道（kookit `setStyle`），可任意次调用；每次重建整份 reader style
+   *  （换章只重写 `body`，我们的 `<style>` 留在 `head` → **一次注入全书生效**）。
+   *  覆盖集合保守但有效：字号/行距打 `html,body` + 常见块级元素（书用相对单位会随之缩放），
    *  段距打 `p` 的下边距；**字段缺省 = 该项不注入**（尊重书自带排版）。PDF 无操作。 */
   applyTypography(typography: ReaderTypography): Promise<void>;
   /** v0.2.6：解析元数据（kookit 是唯一解析器，故能力挂在此端口）。
