@@ -11,10 +11,10 @@
  */
 import type { ServiceContainer } from '@core/container'
 import { extToFormat } from '@core/domain/format'
-import { isZeroLocation, sameLocation } from '@core/domain/location'
+import { sameLocation } from '@core/domain/location'
 import type { BookLocation } from '@core/domain/types'
 import type { CoverSummary } from '@core/usecases/CoverQueue'
-import { pushLog } from '../features/logStore'
+import { getLogs, pushLog } from '../features/logStore'
 import type { FeatureHost } from '../features/types'
 
 /** 防重入标记（模块级）：StrictMode 在 dev 会 mount→unmount→remount，
@@ -59,6 +59,7 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
         console.error('[TUREAD-TEST-FAIL]' + line)
         return
       }
+
       // 等 ReaderFeature 打开流程完成（轮询宿主容器内 iframe 出现，跨组件解耦）
       const deadline = Date.now() + 30000
       while (
@@ -74,6 +75,7 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
         el: HTMLElement | null
         doc: Document | null
         innerLen: number
+        textLen: number
         htmlLen: number
         imgCount: number
         scrollH: number
@@ -87,6 +89,7 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
           el,
           doc: doc ?? null,
           innerLen: doc?.body?.innerText?.length ?? -1,
+          textLen: doc?.body?.textContent?.length ?? -1,
           htmlLen: doc?.body?.innerHTML?.length ?? -1,
           imgCount: doc?.body?.querySelectorAll('img').length ?? 0,
           scrollH: el?.scrollHeight ?? -1,
@@ -144,6 +147,8 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
       }
 
       // PDF：渲染产物是嵌套 iframe（每页一个 pdf-iframe-N）+ 内部 canvas，顶层 iframe 无 innerText
+      /** 正文内容量（**判定用**）：textContent，与排版无关 —— 见下方 innerLen 说明 */
+      let contentLen = -1
       let innerLen = -1
       let subInfo = ''
       let posChanged = false
@@ -171,6 +176,7 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
         const subIframes = s.doc?.querySelectorAll('iframe[data-pdf-page], iframe[id^="pdf-iframe-"]') ?? []
         const firstSub = subIframes[0] as HTMLIFrameElement | undefined
         innerLen = canvasCount
+        contentLen = canvasCount
         subInfo = `子iframe=${subIframes.length} canvas=${canvasCount} subHtml=${firstSub?.contentDocument?.body?.innerHTML?.length ?? -1} visible=${s.el?.offsetParent != null}`
         const p1 = container.render.getPosition()
         const st1 = s.el?.scrollTop ?? 0
@@ -183,6 +189,7 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
         await waitIframeSized()
         const s1 = readDocState()
         innerLen = s1.innerLen
+        contentLen = s1.textLen
         subInfo =
           `bodyHtml=${s1.htmlLen} img=${s1.imgCount} docOk=${s1.doc ? 'yes' : 'no'} ` +
           `pageAreaSame=${document.getElementById('page-area') === s1.el ? 'yes' : 'no'} stageIframes=${s1.el?.querySelectorAll('iframe').length ?? -1} iframeH=${s1.iframeH} docScrollH=${s1.docScrollH}`
@@ -191,11 +198,20 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
         await container.render.goToChapter(0)
         await wait(1500)
         await waitScrollSettle()
-        // 图片页感知：首章常是纯图片扉页（innerText=0 属正常，2026-09-07 销案结论），
-        // 文字为空时向前翻最多 10 章找正文，同时覆盖"翻页位置必须变化"断言
+        /**
+         * 图片页感知：首章常是纯图片扉页（正文=0 属正常，2026-09-07 销案结论），
+         * 文字为空时向前翻最多 10 章找正文，同时覆盖"翻页位置必须变化"断言。
+         *
+         * ⚠ 内容量一律用 **textContent**（上文的 contentLen），不用 innerText：
+         *   innerText 是"排版后可见文本"，依赖布局与时机 —— 同一本书、同一模式、同一章，
+         *   两次运行实测给过 70 与 109 两个值（2026-09-11），拿它当"正文长度"会自己造出
+         *   假异常（HANDOFF-2026-09-11 §4 的"深色正文长度偏低"就是这样来的：
+         *   浅色 70 / 深色 109，`bodyHtml` 两侧同为 704 = 内容其实一模一样）。
+         *   innerText 仅作参考值随行输出。
+         */
         const scans: string[] = []
         let prev = container.render.getPosition()
-        for (let i = 0; i < 10 && innerLen <= 100; i++) {
+        for (let i = 0; i < 10 && contentLen <= 100; i++) {
           await container.render.next()
           await wait(3000)
           await waitScrollSettle()
@@ -204,7 +220,8 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
           prev = loc
           const s = readDocState()
           innerLen = Math.max(innerLen, s.innerLen)
-          scans.push(`翻${i + 1}:章${loc.chapterDocIndex}/文${s.innerLen}/图${s.imgCount}`)
+          contentLen = Math.max(contentLen, s.textLen)
+          scans.push(`翻${i + 1}:章${loc.chapterDocIndex}/文${s.textLen}/图${s.imgCount}`)
         }
         if (scans.length > 0) subInfo += ` 扫描[${scans.join(' ')}]`
         if (!posChanged) {
@@ -244,7 +261,7 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
       await waitIframeSized()
       const s2 = readDocState()
       // 判定"渲染成功"：有内容（文字**或图片** —— 纯图片页也是有效渲染）且可滚动且翻页生效
-      const ok = (innerLen > 0 || s2.imgCount > 0) && s2.scrollH > 0 && posChanged
+      const ok = (contentLen > 0 || s2.imgCount > 0) && s2.scrollH > 0 && posChanged
       // 打包字体（源流明體）是否真的可用（侧边栏符号与文字封面都依赖它）
       const fontLine = document.fonts.check('700 16px "GenRyuMin TW"') ? '字体=ok' : '字体=缺失'
 
@@ -280,23 +297,76 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
       })()
 
       /**
+       * 夜间模式·正文注入回归断言（2026-09-11 加，HANDOFF §4 的正式化）
+       * 症状假设："深色注入把正文吞掉了"（曾表现为深色下正文长度骤降）。
+       * 做法：对**当前已渲染的正文**就地切换深色 → 等一帧 → 比较 textContent 与子元素数。
+       *   - 注入必须真的落在正文 iframe（`style#kookit-default-style` 长度 > 0）；
+       *   - 正文内容量必须**一字不少**（textContent 与元素数不变）。
+       * 这条断言与排版无关，因此不会像 innerText 那样自己产生假异常；
+       * 真正的"注入吞正文"（例如注入 CSS 打坏 head / 触发重渲染清空 body）会被它抓住。
+       * 结束后把主题还原为 SettingsFeature 当前应用的 resolved 值，不改变用户状态。
+       */
+      const nightLine = await (async (): Promise<string> => {
+        try {
+          const before = readDocState()
+          if (!before.doc) return '夜間注入=跳过(无正文)'
+          const beforeText = before.textLen
+          const beforeKids = before.doc.body.querySelectorAll('*').length
+          await container.render.applyTheme('dark')
+          await wait(600)
+          const after = readDocState()
+          const styleEl = after.doc?.querySelector('style#kookit-default-style') as HTMLElement | null
+          const styleLen = styleEl ? styleEl.innerHTML.length : -1
+          const afterText = after.textLen
+          const afterKids = after.doc?.body?.querySelectorAll('*').length ?? -1
+          // 还原当前主题（reader 激活时 ReaderFeature 也会重算，但这里显式还原以免污染后续断言）
+          const cur = document.documentElement.getAttribute('data-theme')
+          await container.render.applyTheme(
+            cur === 'light' || cur === 'sepia-light' || cur === 'sepia-dark' ? cur : 'dark'
+          )
+          const injected = styleLen > 0
+          const intact = afterText === beforeText && afterKids === beforeKids
+          const verdict = injected && intact ? 'ok' : `可疑(注入${styleLen}字/正文${beforeText}→${afterText}/元素${beforeKids}→${afterKids})`
+          return `夜間注入=${verdict}`
+        } catch (err) {
+          return `夜間注入=异常(${(err as Error).message})`
+        }
+      })()
+
+      /**
        * "阅读器记住上次内容"回归断言（v0.1.9）：关闭阅读器后再进入，应自动恢复上次阅读的书。
        * ⚠ 必须走**真实用户路径**（点击侧边栏「阅读」按钮）：此前直接调 `host.navigate`，
        *   掩盖了"侧边栏按钮绕过 host.navigate"的 bug —— 断言测了 API 却没测用户路径（2026-09-08 修正）。
+       * v0.1.12：判定改为"宿主里真的有正文回来了"（iframe 出现 + textContent>0），
+       *   不再只看 `isZeroLocation` —— 首章首块（ch=0/count=0 且 chapterHref 为空）是**有效位置**
+       *   却被判为零位置，会让这条断言对"正文确实回来了"的书报假失败（2026-09-11 实测）。
        */
       const restoreLine = await (async (): Promise<string> => {
         try {
+          // 记录重开前的宿主节点：若重开后 `#page-area` 换了节点，说明 renderTo 把 iframe
+          // 画进了**已被 React 换掉**的旧节点（内容在 DOM 里但看不见）—— 必须能一眼分辨
+          const stageBefore = stage()
           host.closeReader()
           await wait(500)
           const btn = document.querySelector<HTMLButtonElement>('aside button[aria-label="阅读"]')
           if (!btn) return '恢复=失败(找不到侧边栏按钮)'
           btn.click()
-          const deadline = Date.now() + 10000
+          const deadline = Date.now() + 12000
           while (Date.now() < deadline) {
-            if (!isZeroLocation(container.render.getPosition())) return '恢复=ok'
+            const s = readDocState()
+            if (s.doc && s.textLen > 0) return '恢复=ok'
             await wait(200)
           }
-          return '恢复=失败'
+          const s = readDocState()
+          const loc = container.render.getPosition()
+          // 附上应用内日志尾（ReaderFeature 的"已打开/打开失败"都记在 pushLog）：
+          // 这条失败信息要能自己说清"断在哪一步"，否则只能靠猜。
+          const tail = getLogs().slice(-4).join(' ⏎ ')
+          return (
+            `恢复=失败(正文未回来) textLen=${s.textLen} iframe=${s.el?.querySelectorAll('iframe').length ?? -1} ` +
+            `节点同一=${s.el === stageBefore ? 'y' : 'n'} stage=${s.el ? 'yes' : 'no'} ` +
+            `适配器位置=章${loc.chapterDocIndex}/count${loc.count}/pct${loc.percentage} 日志尾=[${tail}]`
+          )
         } catch (err) {
           return `恢复=异常(${(err as Error).message})`
         }
@@ -304,9 +374,15 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
 
       const pos1 = container.render.getPosition()
       const ch = container.render.getChapter().length
+      const themeAttr = document.documentElement.getAttribute('data-theme') ?? 'dark'
+      // 滚动条应否出现（适配器按"扣除 kookit +300px 余量后是否真溢出"决定，见 refreshScrollAffordance）
+      const st = stage()
+      const overflowPx = st ? st.scrollHeight - st.clientHeight : -1
+      const sbHidden = st?.style.getPropertyValue('scrollbar-width') === 'none'
+      const sbLine = `滚动条=${sbHidden ? '隐藏' : '显示'}(溢出${overflowPx})`
       const line =
-        `[dev] ${ok ? '渲染OK' : '渲染可疑'} 格式=${book.format} 章节数=${ch} ` +
-        `正文长度=${innerLen} 可滚动=${s2.scrollH} iframeH=${s2.iframeH} docScrollH=${s2.docScrollH} ${subInfo} ${coverLine} ${fontLine} ${fittedLine} ${restoreLine} 位置=第${pos1.page}页/${pos1.percentage}`
+        `[dev] ${ok ? '渲染OK' : '渲染可疑'} 主题=${themeAttr} 格式=${book.format} 章节数=${ch} ` +
+        `正文textContent=${contentLen} 正文innerText=${innerLen} 可滚动=${s2.scrollH} iframeH=${s2.iframeH} docScrollH=${s2.docScrollH} ${sbLine} ${subInfo} ${nightLine} ${coverLine} ${fontLine} ${fittedLine} ${restoreLine} 位置=第${pos1.page}页/${pos1.percentage}`
       pushLog(line)
       console.log(ok ? '[TUREAD-TEST-OK]' + line : '[TUREAD-TEST-FAIL]' + line)
     } catch (err) {

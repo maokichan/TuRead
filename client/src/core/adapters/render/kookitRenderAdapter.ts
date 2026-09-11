@@ -17,6 +17,7 @@ import type {
 } from '@vendor/kookit.esm'
 import { TypedEmitter } from '@core/ports/emitter'
 import { normalizeLocation } from '@core/domain/location'
+import { isDarkResolvedTheme, type ResolvedTheme } from '@core/domain/theme'
 import type { IRenderService, RenderServiceEvents } from '@core/ports/render'
 import type {
   BookFormat,
@@ -30,6 +31,10 @@ import type {
 import { ensurePdfjs } from './pdfjsSetup'
 
 export type ReadBookFile = (path: string) => Promise<ArrayBuffer>
+
+/** 正文溢出的"真伪阈值"（px）：kookit 给文字类 iframe 的 height 留了 +300px 余量，
+ *  ≤ 这个量级不算真的需要滚动，滚动条宽度归零（见 refreshScrollAffordance）。 */
+const SCROLL_SLACK_PX = 320
 
 type KookitModule = typeof import('@vendor/kookit.esm')
 
@@ -72,6 +77,8 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   /** note key → 所属渲染节号（removeNote 需要章节号，不能拿"当前章节"顶替） */
   private noteChapters = new Map<string, number>()
   private scrollTimer: number | null = null
+  /** 当前主题（open 时由 options.theme 写入；applyTheme 热更新；深色 → 注入正文 CSS） */
+  private theme: ResolvedTheme | null = null
 
   constructor(readFile: ReadBookFile) {
     super()
@@ -84,14 +91,22 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     // （ReaderFeature 会取消旧流程，但适配器状态是共享的）。先发起的那次解析完若直接写
     // this.rendition，就会覆盖后发起的书 —— 用代次令牌让过期的那次直接作废。
     const token = ++this.openToken
+    this.theme = options?.theme ?? null
     const [Kookit, buffer] = await Promise.all([loadKookit(), this.readFile(record.filePath)])
-    if (token !== this.openToken) return
+    if (token !== this.openToken) {
+      // 代次守卫命中：这次 open 已被更晚的 open/close 作废。**静默返回**是调用方无法区分的
+      // "成功 / 什么都没发生"（TODO「适配器方法静默 no-op」）；至少让它留下痕迹，
+      // 便于定位"重开书偶发空白"（2026-09-11 dev 自检观察到间歇性 恢复=失败）。
+      console.warn(`[render] open 作废（代次守卫）：${record.filePath}`)
+      return
+    }
     const config = this.toKookitConfig(record.format, options)
     const rendition = Kookit.BookHelper.getRendition(buffer, config, buildNamespace(Kookit))
     this.record = record
     this.rendition = rendition
     rendition.on('rendered', (chapterDocIndex: number) => {
       this.emit('rendered', chapterDocIndex)
+      this.refreshScrollAffordance()
       this.emitLocationChanged()
     })
     rendition.on('page-changed', () => this.emitLocationChanged())
@@ -111,6 +126,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     this.rendition = null
     this.record = null
     this.element = null
+    this.theme = null
   }
 
   /**
@@ -169,6 +185,58 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     // PDF 自带 scroll 监听，多这一次 record() 只是重复算一次，无副作用。
     element.removeEventListener('scroll', this.onHostScroll)
     element.addEventListener('scroll', this.onHostScroll, { passive: true })
+    // 深色模式：注入正文深色 CSS（浅色不注入，保留书的自有外观）
+    await this.applyStoredTheme()
+    // 内容高度已定 → 决定滚动条是否该出现（见 refreshScrollAffordance）
+    this.refreshScrollAffordance()
+  }
+
+  /** 向已打开的正文注入/更新主题样式（CONTRACTS.md §4.1）。未 open 时只记录、renderTo 时生效。 */
+  async applyTheme(theme: ResolvedTheme): Promise<void> {
+    this.theme = theme
+    await this.applyStoredTheme()
+  }
+
+  private async applyStoredTheme(): Promise<void> {
+    const rendition = this.rendition
+    if (!rendition) return
+    // PDF 是位图（canvas），正文深色走像素处理（TODO 单独立项）；这里对 PDF 无操作。
+    if (this.record?.format === 'PDF') return
+    // ⚠ 注意：**排版参数（纸内边距）与主题无关，任何主题下都要注入** ——
+    // "浅色不注入"这条只针对**颜色**（保留书的自有外观），不是整份样式。
+    rendition.setStyle(this.buildReaderCss())
+  }
+
+  /**
+   * 正文样式（kookit 唯一注入口 `setStyle`，换章只重写 `body`、我们的 `<style>` 留在 `head`，
+   * 一次注入全书生效）。当前含两部分：
+   * ① **纸内边距**（`--page-pad-x`）：正文与纸边之间的距离（用户 2026-09-11 指出"出血留得太少"）。
+   *    注入到 `body` 而不是宿主容器 —— 见 styles.css `--page-pad-x` 的注释（kookit 排版宽度算术）。
+   * ② **深色正文颜色**（仅深色模式）：颜色取自宿主语义 token `--page-bg/--page-text`。
+   */
+  private buildReaderCss(): string {
+    const cs = getComputedStyle(document.documentElement)
+    const readVar = (name: string): string => (cs.getPropertyValue(name) || '').trim()
+    const padX = readVar('--page-pad-x') || '44px'
+    const parts = [`body{padding-inline:${padX}!important;}`]
+    const dark = this.theme ? isDarkResolvedTheme(this.theme) : false
+    if (dark) {
+      const bg = readVar('--page-bg') || '#141619'
+      const text = readVar('--page-text') || '#d8dbe0'
+      parts.push(
+        `body,html{background-color:${bg}!important;color:${text}!important;-webkit-text-fill-color:${text}!important;}` +
+          `a{text-decoration:underline!important;}` +
+          `code,pre{background-color:transparent!important;}` +
+          `img{opacity:0.85;}` +
+          `table{border-color:currentColor!important;}`
+      )
+    }
+    return parts.join('')
+  }
+
+  /** 读取宿主 CSS 变量（页面配色单一来源 = styles.css token） */
+  private readCssVar(name: string, fallback = ''): string {
+    return (getComputedStyle(document.documentElement).getPropertyValue(name) || fallback).trim()
   }
 
   async next(): Promise<void> {
@@ -271,7 +339,27 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     await rendition.record()
     // record() 期间可能已 close() 或打开了另一本书 —— 此时再上报会把"零位置/他书位置"发出去
     if (rendition !== this.rendition) return
+    this.refreshScrollAffordance()
     this.emitLocationChanged()
+  }
+
+  /**
+   * kookit 对文字类 iframe 的 height 硬留了 **+300px 余量**（`handleIframeHeight`，KOOKIT §5.8），
+   * 所以"短章节"也总有 ~300px 可滚 —— 那不是真正的内容溢出。这种量级下**隐藏滚动条**，
+   * 否则短章节会顶着一根接近满高的长条（用户 2026-09-11 反馈）。
+   *
+   * 隐藏手段：设内联 `scrollbar-width: none` —— 标准属性优先于 `::-webkit-scrollbar`
+   * （Chromium 121+，见 styles.css 的坑注释），正好当开关用，而且**完全不占位**；
+   * 真正溢出时清掉它，让 4px 的 webkit 规则生效。
+   * 用内联 style / 自定义属性而不是 class：宿主元素的 `className` 归 React 管，外部改 class 会被渲染冲掉。
+   */
+  private refreshScrollAffordance(): void {
+    const el = this.element
+    if (!el) return
+    const overflow = el.scrollHeight - el.clientHeight
+    const fits = overflow <= SCROLL_SLACK_PX
+    el.style.setProperty('scrollbar-width', fits ? 'none' : '')
+    el.style.setProperty('--stage-overflow', fits ? '0' : '1')
   }
 
   private clearScrollWatch(): void {
@@ -283,6 +371,10 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   }
 
   private toKookitConfig(format: BookRecord['format'], options?: RenderOptions): KookitConfig {
+    // 深色判定优先走 theme（v0.3.0 规正）：纯色·深 / 羊皮纸·深 = 深色；isDarkMode 为兼容兜底
+    const isDark = options?.theme
+      ? isDarkResolvedTheme(options.theme)
+      : (options?.isDarkMode ?? false)
     return {
       format: format.toUpperCase(),
       readerMode: options?.readerMode || 'scroll',
@@ -290,11 +382,12 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
       animation: options?.animation || 'none',
       convertChinese: options?.convertChinese ? 'yes' : 'no',
       parserRegex: '',
-      isDarkMode: options?.isDarkMode ? 'yes' : 'no',
+      isDarkMode: isDark ? 'yes' : 'no',
       isMobile: 'no',
       password: options?.password || '',
       isConvertPDF: 'no',
-      backgroundColor: options?.backgroundColor || '',
+      // 正文纸色单一来源 = 宿主 --page-bg token（styles.css）；分页模式的折页阴影据此配色
+      backgroundColor: options?.backgroundColor || this.readCssVar('--page-bg'),
       isScannedPDF: options?.isScannedPDF ? 'yes' : 'no',
       ocrEngine: options?.ocrEngine || ''
     }

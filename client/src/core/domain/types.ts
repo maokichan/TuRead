@@ -102,10 +102,10 @@ export interface RenderOptions {
   lineHeight?: number
   fontFamily?: string
   /**
-   * ⚠ 目前**未被适配器消费**：主题经 CSS 语义 token + `data-theme` 应用到宿主页面（见 FEATURES §10），
-   * 阅读页配色由 `--page-bg/--page-text` 决定。字段保留给"阅读页随主题/自定义配色"的将来实现。
+   * v0.3.0 起**适配器已消费**：open 时映射为 kookit config 的 isDarkMode/backgroundColor；
+   * 深色下 renderTo 后经 `applyTheme` 注入正文深色 CSS。类型见 ./theme.ts。
    */
-  theme?: 'dark' | 'light' | 'sepia-light' | 'sepia-dark' | 'custom'
+  theme?: import('./theme').ResolvedTheme
   backgroundColor?: string
   textColor?: string
   isDarkMode?: boolean

@@ -43,6 +43,8 @@ export interface FeatureProps {
   selectedBookId: string | null
   /** 阅读器中当前打开的书（null = 未打开；ReaderFeature 受它驱动） */
   readerBookId: string | null
+  /** 当前激活的功能组件（v0.1.12：ReaderFeature 用它做沉浸态激活时 applyTheme） */
+  activeFeature: FeatureId
 }
 
 /** 功能组件注册描述 —— 官方插件 = 新增一条 descriptor 注册进 registry。 */

@@ -59,6 +59,17 @@ type BookFormat =
   | 'FB2' | 'DOCX' | 'HTML' | 'MHTML' | 'XML'
   | 'CBZ' | 'CBR' | 'CBT' | 'CB7';
 
+/**
+ * 主题模型（v0.3.0 规正，权威 = core/domain/theme.ts）：
+ * **2 主题 × 2 模式** = 4 套 resolved 取向 —— 主题（tone）表达取向：纯色（黑灰白）/ 羊皮纸（暖棕）；
+ * 模式（mode）表达明暗：深 / 浅。跟随系统只作用于模式，在所选主题内解析。
+ * 数据层沿用既有四值（dark=纯色·深 / light=纯色·浅 / sepia-light=羊皮纸·浅 / sepia-dark=羊皮纸·深）。
+ */
+type ResolvedTheme = 'dark' | 'light' | 'sepia-light' | 'sepia-dark';
+type ThemeSetting = ResolvedTheme | 'system';
+type ThemeTone = 'solid' | 'parchment';
+type ThemeMode = 'dark' | 'light';
+
 /** 书籍元数据（epub/fb2 等有结构化字段，pdf/txt 可能缺省） */
 interface BookMetadata {
   title: string;
@@ -95,6 +106,20 @@ interface LibrarySettings {
   importRecursive: boolean;
 }
 
+/**
+ * 阅读器设置（持久化于 config.json 的 readerSettings 键）—— v0.3.1。
+ * ⚠ 这些是**呈现/排版参数**，不是"阅读页控件"：阅读页零控件（`STYLE.md` §5.8），
+ *   参数一律在「设置」功能组件里改。
+ */
+interface ReaderSettings {
+  readerMode: 'single' | 'double' | 'scroll';
+  /** 正文列宽（px）—— 即 kookit 的排版宽度依据（宿主容器 `clientWidth`，`KOOKIT.md` §5）：
+   *  改它 = 改"一行多长"、图片缩放与分页宽度，**不需要新端口**。
+   *  默认 760（档位 620/760/920 是设置页的呈现方式）。**存数值而不是档位名**，
+   *  是为远期"自由调节 + 按屏幕/字号自适应"留余地（`STYLE.md` §5.9）。 */
+  readerWidth?: number;
+}
+
 /** 阅读渲染配置（领域层友好配置，适配器内部翻译为 kookit config） */
 interface RenderOptions {
   readerMode: 'single' | 'double' | 'scroll';
@@ -102,7 +127,9 @@ interface RenderOptions {
   fontSize?: number;
   lineHeight?: number;
   fontFamily?: string;
-  theme?: 'dark' | 'light' | 'sepia-light' | 'sepia-dark' | 'custom';  // v0.2.9：与四套主题对齐；⚠ 目前未被适配器消费（主题走 CSS token）
+  /** v0.3.0：**适配器已消费** —— open 时映射为 kookit config 的 isDarkMode/backgroundColor；
+   *  深色下 `renderTo` 后经 `applyTheme` 注入正文深色 CSS。ResolvedTheme 见 `core/domain/theme.ts` */
+  theme?: ResolvedTheme;
   backgroundColor?: string;
   textColor?: string;
   isDarkMode?: boolean;
@@ -223,6 +250,18 @@ interface IRenderService extends EventEmitter<RenderServiceEvents> {
   open(record: BookRecord, options?: RenderOptions): Promise<void>;
   close(): Promise<void>;
   renderTo(element: HTMLElement): Promise<void>;
+  /** v0.3.0：向已打开的正文（kookit iframe）注入/更新正文样式。
+   *  非 PDF 电子书（EPUB/MOBI/AZW3/TXT/HTML…）正文是 HTML —— 走 `rendition.setStyle`
+   *  （kookit 唯一样式注入口，默认 CSS 未注入、内容完全可控；换章只重写 body，`<style>` 留在 head →
+   *  **一次注入全书生效**）。当前含两部分：
+   *  ① **排版参数**（任何主题都注入）：纸内边距 `body{padding-inline: var(--page-pad-x)}`
+   *     —— 注入到 body 而非宿主容器（kookit 排版宽度读宿主 `clientWidth`，给宿主加 padding 会对不上；
+   *     `handleImageSize.getContentWidth` 会扣掉父容器 padding，故 body 内边距是安全的）
+   *  ② **颜色**：深色模式注入深色正文 CSS；**浅色不注入颜色**（保留书的自有外观）。
+   *  PDF 是位图，深色走像素处理（TODO 单独立项），本方法对 PDF 无操作。
+   *  颜色取自宿主 CSS 语义 token（`--page-bg/--page-text`），主题是否深色走 `core/domain/theme.ts`。
+   *  v0.3.2：明确"浅色不注入"只针对颜色；纸内边距等排版参数始终注入。 */
+  applyTheme(theme: ResolvedTheme): Promise<void>;
   /** v0.2.6：解析元数据（kookit 是唯一解析器，故能力挂在此端口）。
    *  **无状态** —— 内部构造临时 rendition，不 renderTo、不碰当前阅读会话；cover 为 data URL */
   getMetadata(buffer: ArrayBuffer, format: BookFormat): Promise<BookMetadata>;
@@ -497,6 +536,9 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.3.2 | 2026-09-11 | **`applyTheme` 语义澄清 + 首个排版参数**：`IRenderService.applyTheme` 的注入内容 = **排版参数（始终）+ 颜色（仅深色）** —— "浅色不注入"只针对颜色；新增纸内边距注入 `body{padding-inline: var(--page-pad-x)}`（注入 body 而非宿主容器：kookit 排版宽度读宿主 `clientWidth`，且 `handleImageSize.getContentWidth` 会扣掉父容器 padding）。可调参数清单见 `STYLE.md` §5.9 |
+| v0.3.1 | 2026-09-11 | **阅读器设置契约（沉浸态二次修订）**：§2 增 `ReaderSettings`（`readerMode` + `readerWidth` —— 正文列宽存 **px 数值**，档位只是设置页呈现，为远期自由调节/按屏幕·字号自适应留余地）；口径见 `STYLE.md` §5.8（全屏的是"纸"不是"正文"、阅读页零控件、目录挂载线）+ §5.9（预留登记）+ `FEATURES.md` §11 |
+| v0.3.0 | 2026-09-11 | **阅读器 MVP（夜间模式·非 PDF）**：① 主题模型规正 —— §2 增 `ResolvedTheme`/`ThemeSetting`/`ThemeTone`/`ThemeMode`（2 主题 × 2 模式，权威 `core/domain/theme.ts`）② `IRenderService` 增 `applyTheme(theme)`（向正文 iframe 注入深色 CSS，kookit `setStyle` 注入口；PDF 无操作）③ `RenderOptions.theme` 转正为适配器消费（→ kookit isDarkMode/backgroundColor）|
 | v0.2.9 | 2026-09-08 | **文档校订（v0.1.10）**：`RenderOptions.theme` 枚举与四套主题对齐（`dark`/`light`/`sepia-light`/`sepia-dark`/`custom`）并标注**当前未被适配器消费**（主题经 CSS token + `data-theme` 生效）—— 原文枚举 `sepia` 已不存在 |
 | v0.2.8 | 2026-09-08 | **审查修复（v0.1.9）**：① 批量导入编排下沉为用例 `IImportQueue`（与 `CoverQueue` 同构；`extToFormat` 随之移入 `core/domain/format.ts`）② `ILibraryStore.patchSetting`（主进程原子合并，消除两个 Feature 对同一设置键"读-改-写"的覆盖竞态）③ `IBookService.getLastRead()`（进入阅读器恢复上次内容的口径）④ `ServiceContainer` 增加 `imports` |
 | v0.2.7 | 2026-09-08 | **书库重做补约（v0.1.8 第二段）**：`IBookPicker.listEbooks` 增 `recursive` 参数（文件夹导入可配置"仅此节点 / 含所有子节点"）；`LibrarySettings` 增 `importRecursive`；设置新增 `deleteNotice`（删除确认"下次不再提示"）。删除语义澄清：**只删书库索引，不删源文件**（弹窗首次说明） |

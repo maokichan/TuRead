@@ -30,10 +30,12 @@ function createWindow(): void {
 
   if (devBook) {
     // dev-only 无头验证：渲染进程打印 TUREAD-TEST-* 标记后自动退出
+    // 上限 180s：文字类书（尤其 MOBI/AZW3）找不到正文时会逐章向前扫描，单次可耗 60~120s，
+    // 原来 120s 会把「跑得慢」误报成 FAIL（2026-09-11 实测）。
     const timeout = setTimeout(() => {
       console.error('[TUREAD-TEST-FAIL] 超时未完成')
       app.exit(2)
-    }, 120000)
+    }, 180000)
     win.webContents.on('console-message', (_e, level, message) => {
       if (message.startsWith('[TUREAD-TEST-')) {
         console.log(message)

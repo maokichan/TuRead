@@ -377,19 +377,39 @@ export function Gallery(): React.JSX.Element {
       </Panel>
 
       <Panel
-        title="阅读器 · 目录（TocPanel）"
-        path="components/TocPanel.tsx"
-        note="目录项是导航文字、不是按钮：无边框/无底色，靠留白分行，hover 只变色温"
+        title="阅读器 · 桌/纸 + 挂载线 + 垂挂目录"
+        path="components/TocPanel.tsx · ReaderFeature/index.tsx"
+        note="沉浸态（STYLE.md §5.8 v0.5）：全屏的是「桌」不是「正文」——纸在居中定宽列里，靠 --desk-bg/--page-edge 用颜色区分；目录左缘对齐侧边栏右缘（--sidebar-w）；条目高亮是「遮罩按到鼠标的距离」变化（把鼠标在列表上上下移动看过渡），静息更淡；目录默认展示"
       >
-        <div className="flex flex-wrap items-start gap-6">
-          <div className="h-[220px]">
-            <TocPanel rows={TOC} onJump={noop} />
-          </div>
-          <div className="flex flex-col gap-2">
-            <StatePill state="connected" />
-            <StatePill state="reconnecting" />
-            <StatePill state="disconnected" />
-          </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          {[true, false].map((open) => (
+            <div key={String(open)} className="flex flex-col gap-2">
+              <span className="text-[12.5px] text-[var(--muted)]">
+                {open ? '目錄展開（默認態）' : '只剩掛載線'}
+              </span>
+              {/* 模拟阅读页：全屏桌 + 居中定宽纸（列宽按样张宽度等比缩小）；
+                  与真实结构一致 —— 挂载线/目录是桌的**兄弟节点**（不参与纸的滚动） */}
+              <div
+                className="relative h-[260px] w-full"
+                style={{ '--read-width': '320px' } as React.CSSProperties}
+              >
+                <div className="reader-paper absolute inset-0">
+                  <div className="reader-stage">
+                    <p className="m-0 text-[13px] leading-[1.9] text-[var(--page-text)]">
+                      紙（正文列 = 宿主容器）：它的 clientWidth 就是 kookit 的排版寬度依據 ——
+                      所以「一行多長」由列寬決定。紙與桌的差別**只靠顏色**（底色 + 1px 邊）。
+                    </p>
+                  </div>
+                </div>
+                <TocPanel open={open} rows={TOC} onJump={noop} onToggle={noop} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-6">
+          <StatePill state="connected" />
+          <StatePill state="reconnecting" />
+          <StatePill state="disconnected" />
         </div>
       </Panel>
 

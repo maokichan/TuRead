@@ -1,13 +1,25 @@
 /**
  * 功能组件：阅读器（ReaderFeature）
- * 职责（编排的用例/端口）：render.*（open/renderTo/翻页/goToChapter）+ store（lastLocation 恢复/保存）。
+ * 职责（编排的用例/端口）：render.*（open/renderTo/翻页/goToChapter/goToPosition/applyTheme）
+ * + store（lastLocation 恢复/保存）+ 主题跟随（2 主题 × 2 模式，夜间模式·非 PDF 深色注入）。
  * 打开/关闭受 readerBookId 驱动（状态继承：Library「打开阅读」或 RoomFeature 加入后 host.openReader 触发）。
+ *
+ * 沉浸态（STYLE.md §5.8 / FEATURES.md §11；2026-09-11 二次修订 v0.4）：
+ * - **全屏的是"纸"不是"正文"**：外层全屏纸（--page-bg）+ 内层**居中定宽正文列**（--read-width，
+ *   由「设置」写入 documentElement）；列宽 = kookit 排版宽度依据（宿主 clientWidth）→ 决定"一行多长"。
+ * - **阅读页上没有任何栏**：书名/页码/翻页/目录/关闭都不常驻、也不做"浮现栏"（浮动出来的栏同样是状态栏）。
+ *   退出 = Esc（鼠标路径：贴缘按钮召回侧边栏 → 「書」）；翻页 = 键盘 + 分页模式点击区。
+ * - 目录 = **挂载线 + 垂挂列表**（TocPanel；容器全透明）。
+ * - 滚轮在两侧留白上也要能滚 → 纸容器把 wheel 转发给正文列。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isZeroLocation } from '@core/domain/location'
+import type { ResolvedTheme } from '@core/domain/theme'
 import type { BookLocation, BookRecord, Chapter, RenderOptions } from '@core/domain/types'
 import type { FeatureProps } from '../types'
 import { TocPanel, type TocRow } from '../../components/TocPanel'
+
+type ReaderMode = NonNullable<RenderOptions['readerMode']>
 
 function flattenChapterTree(list: Chapter[], depth: number, out: TocRow[]): void {
   for (const c of list) {
@@ -16,11 +28,25 @@ function flattenChapterTree(list: Chapter[], depth: number, out: TocRow[]): void
   }
 }
 
-export function ReaderFeature({ container, host, readerBookId }: FeatureProps): React.JSX.Element {
+/** 当前 resolved 主题：以宿主 data-theme 为准（SettingsFeature 应用），非法值回退 纯色·深 */
+function currentTheme(): ResolvedTheme {
+  const v = document.documentElement.getAttribute('data-theme')
+  return v === 'light' || v === 'sepia-light' || v === 'sepia-dark' ? v : 'dark'
+}
+
+export function ReaderFeature({
+  container,
+  host,
+  readerBookId,
+  activeFeature
+}: FeatureProps): React.JSX.Element {
   const [book, setBook] = useState<BookRecord | null>(null)
-  const [progress, setProgress] = useState<{ totalPage: number; currentPage: number } | null>(null)
+  const [readerMode, setReaderMode] = useState<ReaderMode>('scroll')
   const [toc, setToc] = useState<TocRow[]>([])
   const [opening, setOpening] = useState(false)
+  /** 目录垂挂列表开关（TocPanel）。**默认展示**（用户 2026-09-11 定）：只有当用户主动
+   *  「折疊」/`t` 时才临时隐藏；点条目跳转**不**改变它，且不持久化（重开书回到展示态）。 */
+  const [tocOpen, setTocOpen] = useState(true)
   const stageRef = useRef<HTMLDivElement | null>(null)
   const lastSavedAtRef = useRef(0)
 
@@ -49,10 +75,9 @@ export function ReaderFeature({ container, host, readerBookId }: FeatureProps): 
     void container.books.updateLastLocation(readerBookId, loc)
   }, [container, readerBookId])
 
-  // 位置事件 → 进度 + 持久化（同步数据源，见 RENDER_INTERFACE.md §4）
+  // 位置事件 → 持久化（同步数据源，见 RENDER_INTERFACE.md §4）
   useEffect(() => {
     return container.render.on('location-changed', (loc) => {
-      setProgress(container.render.getProgress())
       saveLastLocation(loc)
     })
   }, [container, saveLastLocation])
@@ -61,8 +86,8 @@ export function ReaderFeature({ container, host, readerBookId }: FeatureProps): 
   useEffect(() => {
     if (!readerBookId) {
       setBook(null)
-      setProgress(null)
       setToc([])
+      setTocOpen(true)
       void container.render.close()
       return
     }
@@ -76,21 +101,25 @@ export function ReaderFeature({ container, host, readerBookId }: FeatureProps): 
         await new Promise((r) => requestAnimationFrame(() => r(null)))
         // 布局模式来自「设置」功能组件（readerSettings，重开书生效）
         const cfg = await container.store.getSetting<{
-          readerMode?: NonNullable<RenderOptions['readerMode']>
+          readerMode?: ReaderMode
         }>('readerSettings', {})
+        const mode = cfg.readerMode ?? 'scroll'
+        setReaderMode(mode)
         await container.render.open(latest, {
-          readerMode: cfg.readerMode ?? 'scroll',
-          animation: 'none'
+          readerMode: mode,
+          animation: 'none',
+          theme: currentTheme()
         })
         if (stageRef.current) await container.render.renderTo(stageRef.current)
         if (cancelled) return
         setBook(latest)
-        setProgress(container.render.getProgress())
         // 兜底启发式：kookit 无 toc 的书会用纯数字页码生成 chapterList（如 PDF 每页一项），
-        // 全数字 = 假目录，不显示抽屉；存在任一非纯数字标题才视为真目录。
+        // 全数字 = 假目录，不显示挂载线；存在任一非纯数字标题才视为真目录。
         const rows: TocRow[] = []
         flattenChapterTree(container.render.getChapter(), 0, rows)
         setToc(rows.some((r) => /[^\d]/.test(r.label)) ? rows : [])
+        // 换书回到默认展示态（隐藏是"临时"的，不跨书继承）
+        setTocOpen(true)
         host.pushLog(`已打开：${latest.metadata.title}（目录 ${rows.length} 项）`)
       } catch (err) {
         host.pushLog(`打开失败：${(err as Error).message}`)
@@ -105,23 +134,29 @@ export function ReaderFeature({ container, host, readerBookId }: FeatureProps): 
     }
   }, [readerBookId, container, host, flushLastLocation])
 
+  // 激活到阅读器时热更新主题（设置里改主题后返回阅读器不重开书也生效，STYLE.md §3.4）
+  useEffect(() => {
+    if (activeFeature !== 'reader') return
+    if (!readerBookId) return
+    void container.render.applyTheme(currentTheme())
+  }, [activeFeature, readerBookId, container])
+
   const pageTurn = useCallback(
     async (dir: 'next' | 'prev') => {
       if (!book || opening) return
       if (dir === 'next') await container.render.next()
       else await container.render.prev()
-      setProgress(container.render.getProgress())
     },
     [container, book, opening]
   )
 
-  /** 目录跳转：透传到渲染层 goToChapter（chapterDocIndex 标尺） */
+  /** 目录跳转：透传到渲染层 goToChapter（chapterDocIndex 标尺）。
+   *  ⚠ **不收起目录**（用户 2026-09-11 定：目录默认就是展示的，只有用户主动才隐藏）。 */
   const jumpChapter = useCallback(
     async (row: TocRow) => {
       if (row.chapterDocIndex === undefined || !book || opening) return
       try {
         await container.render.goToChapter(row.chapterDocIndex)
-        setProgress(container.render.getProgress())
         host.pushLog(`跳到：${row.label}`)
       } catch (err) {
         host.pushLog(`跳转失败：${(err as Error).message}`)
@@ -130,39 +165,87 @@ export function ReaderFeature({ container, host, readerBookId }: FeatureProps): 
     [container, book, opening, host]
   )
 
+  /**
+   * 滚轮转发：正文列之外是留白（全屏纸），滚轮落在留白上时把位移交给正文列 ——
+   * 否则鼠标停在两侧就没反应（STYLE.md §5.8）。列内部的滚轮由浏览器原生处理，
+   * 这里必须跳过，不然会双倍滚动。
+   */
+  const onPaperWheel = useCallback(
+    (e: React.WheelEvent<HTMLDivElement>): void => {
+      if (readerMode !== 'scroll') return
+      if ((e.target as HTMLElement).closest('.reader-stage')) return
+      const stage = stageRef.current
+      if (stage) stage.scrollTop += e.deltaY
+    },
+    [readerMode]
+  )
+
+  // 阅读器键盘（STYLE.md §5.8）：Esc 关闭；←/→/PgUp/PgDn 翻页；Space 仅分页模式翻页；t 目录开合
+  useEffect(() => {
+    if (activeFeature !== 'reader' || !book) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        host.closeReader()
+        return
+      }
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+        e.preventDefault()
+        void pageTurn('next')
+        return
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault()
+        void pageTurn('prev')
+        return
+      }
+      if (e.key === ' ' && readerMode !== 'scroll') {
+        e.preventDefault()
+        void pageTurn('next')
+        return
+      }
+      if (e.key === 't' || e.key === 'T') {
+        setTocOpen((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [activeFeature, book, readerMode, host, pageTurn])
+
   return (
-    <section className="flex h-full flex-col gap-3">
-      <div className="flex flex-none items-center justify-between gap-3">
-        <span className="truncate text-[14px] font-semibold">
-          {book ? book.metadata.title : '未打开书籍'}
-        </span>
-        <div className="flex flex-none items-center gap-5">
-          <button className="text-action" onClick={() => void pageTurn('prev')} disabled={!book}>
-            上一页
-          </button>
-          <span className="min-w-[90px] text-center text-[12.5px] text-[var(--muted)]">
-            {progress ? `${progress.currentPage} / ${progress.totalPage}` : '—'}
-          </span>
-          <button className="text-action" onClick={() => void pageTurn('next')} disabled={!book}>
-            下一页
-          </button>
-          {book && (
-            <button className="text-action text-action--primary" onClick={() => host.closeReader()}>
-              关闭
-            </button>
-          )}
-        </div>
+    <section className="relative h-full select-none">
+      {/* 全屏纸（纸色铺满内容区，退场多余信息）+ 滚轮转发；
+          正文列是它的子元素（宿主容器 = 正文列，见 styles.css .reader-stage） */}
+      <div className="reader-paper absolute inset-0" onWheel={onPaperWheel}>
+        {/* 正文列：id 是 kookit 硬编码契约；列宽 = --read-width（设置写入）→ 决定一行多长 */}
+        <div className="reader-stage" id="page-area" ref={stageRef} />
       </div>
 
-      <div className="flex min-h-0 flex-1 gap-3">
-        {book && toc.length > 0 && <TocPanel rows={toc} onJump={(r) => void jumpChapter(r)} />}
-        {/* kookit 宿主容器：id 硬编码契约 + 可滚动（见 styles.css .reader-stage）；页面色随主题 */}
-        <div
-          className="reader-stage min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--page-bg)] text-[var(--page-text)]"
-          id="page-area"
-          ref={stageRef}
+      {/* 目录 = 挂载线 + 垂挂列表（STYLE.md §5.8；容器全透明） */}
+      {book && toc.length > 0 && (
+        <TocPanel
+          open={tocOpen}
+          rows={toc}
+          onToggle={() => setTocOpen((v) => !v)}
+          onJump={(r) => void jumpChapter(r)}
         />
-      </div>
+      )}
+
+      {/* 鼠标左右点击区翻页（z 低于挂载线/目录，不遮它们）。
+          ⚠ 只在分页模式（single/double）激活：scroll 模式滚轮优先，点击区会遮住 1/4 边缘的正文选择。 */}
+      {book && !opening && readerMode !== 'scroll' && (
+        <>
+          <button
+            className="absolute inset-y-0 left-0 w-1/4"
+            aria-label="上一頁（點擊左側）"
+            onClick={() => void pageTurn('prev')}
+          />
+          <button
+            className="absolute inset-y-0 right-0 w-1/4"
+            aria-label="下一頁（點擊右側）"
+            onClick={() => void pageTurn('next')}
+          />
+        </>
+      )}
     </section>
   )
 }

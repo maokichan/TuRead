@@ -26,7 +26,9 @@
    - **暗色 / 亮色**：一律黑灰白（不引入色相）。
    - **羊皮纸·亮 / 羊皮纸·暗**：同一暖棕取向下的明暗两版（用户："在羊皮纸的色彩取向上建立亮色和暗色"）。
    - 状态色（ok/warn/err）保留语义色相 —— 传达"连通/警告/错误"，不是装饰色。
-   - 阅读页（page-bg/page-text）：暗色主题仍为"白纸"；羊皮纸·暗 用深棕纸面。
+   - 阅读页（page-bg/page-text）**跟随模式**（2026-09-11 规正）：深色模式 = 该主题的深色纸
+     （纯色·深 = 深灰纸；羊皮纸·深 = 深棕纸）；浅色模式 = 白/浅纸。
+     主题模型（2 主题 × 2 模式）权威见 core/domain/theme.ts 与 STYLE.md §3.4。
 
    语义说明：
      bg/panel/panel-2/border/border-soft  —— 背景层级
@@ -35,6 +37,7 @@
      ok/warn/err(+ -border)                —— 状态色（连接/成功/警告/错误）
      input-bg/badge-bg/log-bg/log-text     —— 输入框/格式徽章/诊断日志面板
      page-bg/page-text                     —— 阅读器宿主容器（正文页）
+     desk-bg/page-edge                     —— 阅读页的"桌"（正文列之外）与"纸的边"（STYLE.md §5.8 v0.5）
      scrollbar                             —— 滚动条滑块
 ------------------------------------------------------------------- */
 :root {
@@ -65,8 +68,26 @@
   --log-bg: #0a0b0c;
   --log-text: #a8b0b7;
 
-  --page-bg: #ffffff;
-  --page-text: #1b1d1f;
+  /* 阅读页（纯色·深）：深灰纸（跟随模式，2026-09-11 改 —— 原为白纸） */
+  --page-bg: #141619;
+  --page-text: #d8dbe0;
+  /* 阅读页的"桌"与"纸的边"（STYLE.md §5.8，2026-09-11 v0.5）：
+     内容与背景**靠颜色区分** —— 桌比纸暗一档，纸有 1px 边。四套主题各给一组（不允许局部覆盖）。 */
+  --desk-bg: #0a0b0c;
+  --page-edge: #2b3036;
+  /* 纸内边距（正文到纸边的距离，px）—— 适配器读它并注入正文 iframe 的 `body{padding-inline}`。
+     ⚠ 不能给宿主容器加 padding：kookit 的排版宽度读宿主 `clientWidth`（含 padding），
+       与实际 iframe 宽度会不一致；注入到 body 则安全（`handleImageSize` 的 getContentWidth
+       会扣掉父容器 padding，图片上限自动收进来）。 */
+  --page-pad-x: 44px;
+  /* 侧边栏图标栏宽度：目录左缘对齐它（= 侧边栏展开时的右缘），AppShell 也读这个值 */
+  --sidebar-w: 56px;
+  /* 目录（挂载线 + 垂挂列表）几何与遮罩（STYLE.md §5.8）：
+     --toc-line-w 同时是**挂载线长度**与**条目容器宽度上限**（都受左侧留白夹取）；
+     --toc-veil-rest = 静息遮罩不透明度（越大越淡、越"退场"）；--toc-line-top = 挂载线纵向位置。 */
+  --toc-line-w: 220px;
+  --toc-line-top: 28px;
+  --toc-veil-rest: 0.74;
 
   --scrollbar: #2f3438;
   /* 视图切换动画的"深色块 + 浅色字"。
@@ -122,6 +143,9 @@
 
   --page-bg: #ffffff;
   --page-text: #1b1d1f;
+  /* 桌（纸外）与纸的边：白纸放在浅灰桌上，靠一档色调差分开 */
+  --desk-bg: #e3e5e7;
+  --page-edge: #ccd0d4;
 
   --scrollbar: #c3c8cc;
   --flash-bg: #1b1d1f;
@@ -157,6 +181,9 @@
 
   --page-bg: #f6ecd7;
   --page-text: #3a2f21;
+  /* 桌（纸外）与纸的边：羊皮纸浅色版——桌取暖棕深一档 */
+  --desk-bg: #e7d9bb;
+  --page-edge: #c9b691;
 
   --scrollbar: #c2ae86;
   --flash-bg: #2a2118;
@@ -192,6 +219,9 @@
 
   --page-bg: #221c14;
   --page-text: #e6dcc9;
+  /* 桌（纸外）与纸的边：羊皮纸深色版 */
+  --desk-bg: #150f0a;
+  --page-edge: #3b3023;
 
   --scrollbar: #3d3428;
   --flash-bg: var(--text);
@@ -218,13 +248,50 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ---------- kookit 硬编码契约（KOOKIT.md §5）: 宿主容器必须可滚动、iframe 不设 height:100% ---------- */
-/* .reader-stage 由 ReaderFeature 使用 Tailwind 布局；此处只保证 kookit 语义 */
+/* ---------- kookit 硬编码契约（KOOKIT.md §5）: 宿主容器必须可滚动、iframe 不设 height:100% ----------
+   宿主容器 = **正文列**（STYLE.md §5.8 v0.4）：它的 clientWidth 就是 kookit 的排版宽度依据
+   （getPageWidth / handleImageSize），所以"一行多长"由列宽决定 —— 不需要新端口。
+   列宽 = `--read-width`（由 SettingsFeature 写到 documentElement，默认 760px）。 */
 .reader-stage {
+  width: min(100%, var(--read-width, 760px));
+  height: 100%;
+  margin: 0 auto;
+  /* 纸：内容与背景靠**颜色**区分（STYLE.md §5.8 v0.5）—— 纸色填充 + 1px 纸边，
+     外面是 --desk-bg 的"桌"。不用圆角（用户 2026-09-11 定：不要"嵌入盒子"） */
+  background: var(--page-bg);
+  border: 1px solid var(--page-edge);
   /* kookit scroll 模式的滚动发生在宿主元素上（iframe 被拉到正文高度，
      见 client/docs/KOOKIT.md §5.10）→ 宿主必须可纵向滚动，否则正文裁切无法滚动 */
   overflow-y: auto;
   overflow-x: hidden;
+  /* 滚动条：**只写 ::-webkit-scrollbar，绝不写 scrollbar-width/scrollbar-color** ——
+     Chromium 121+ 支持这两个标准属性后，一旦写了它们，::-webkit-scrollbar 系列会被**整个忽略**
+     （Electron 33 = Chromium 130）：上一版写了 `scrollbar-width: thin`，于是 4px 规则失效、
+     实际是 thin 的 ~11px（用户 2026-09-11 复现："仍然很宽"）。本项目只出 Electron，故只用 webkit 伪元素。
+     静息只有 10% 不透明度，指针进入正文列才升到 26% —— 不能在用户不希望的时候影响注意力。
+     `--stage-overflow` 由适配器标记（1 = 真的溢出 / 0 = 只有 kookit 的余量）；**隐藏不是靠 width:0，
+     而是适配器直接设 `scrollbar-width: none`** —— 标准属性优先正好当开关用（见上面那条坑），
+     完全不占位也不显示。 */
+  --stage-overflow: 1;
+}
+
+.reader-stage::-webkit-scrollbar {
+  width: 2px;
+  height: 2px;
+}
+
+.reader-stage::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.reader-stage::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--page-text) 10%, transparent);
+  border-radius: 2px;
+  transition: background-color 200ms ease-out;
+}
+
+.reader-stage:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--page-text) 26%, transparent);
 }
 
 /* ⚠ 不要设 iframe height:100% —— kookit 会把 iframe 的 height 属性拉到正文高度
@@ -474,4 +541,182 @@ body {
 
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* ---------- 阅读器沉浸态（STYLE.md §5.8 / FEATURES.md §11，2026-09-11 二次修订 v0.4） ----------
+   **全屏的是"纸"不是"正文"**：外层全屏纸铺开（退场多余信息），正文只占居中定宽列。
+   **阅读页上没有任何栏**（无顶栏/状态栏/功能键；浮动出来的栏同样是状态栏）。 */
+
+/* 全屏的"桌"：只有桌色，不承载滚动（滚动条因此只出现在正文列上，不会跑到屏幕边缘） */
+.reader-paper {
+  background: var(--desk-bg);
+  overflow: hidden;
+}
+
+/* 贴左缘的按钮：阅读态召回/收起侧边栏图标栏。
+   形态（用户 2026-09-11 定）：**可见条更窄（6px）但更长（160px）**，
+   按钮本体再**外扩一圈**（18×200）= 判定范围，方便鼠标弹出；可见条由 ::before 画。 */
+.reader-sidebar-toggle {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  width: 18px;
+  height: 200px;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.reader-sidebar-toggle::before {
+  content: '';
+  display: block;
+  width: 6px;
+  height: 160px;
+  background: color-mix(in srgb, var(--text) 16%, transparent);
+  border-radius: 0 3px 3px 0;
+  transition: background-color 120ms ease-out;
+}
+
+.reader-sidebar-toggle:hover::before {
+  background: color-mix(in srgb, var(--text) 32%, transparent);
+}
+
+/* 侧边栏展开（被钉住）时，按钮跟着"被它控制的东西"移到侧边栏右缘 —— 永远贴边且可点 */
+.reader-sidebar-toggle--pinned {
+  left: var(--sidebar-w);
+}
+
+/* ---------- 目录：挂载线 + 垂挂列表（STYLE.md §5.8）----------
+   形态（用户 2026-09-11 二次定）：挂载线是**目录的挂载点**，条目自线下方**逐条向下**垂挂，
+   容器**全透明**。
+   几何：左缘 = **左侧边栏展开时的右缘**（`--sidebar-w`）—— 既不贴屏幕边缘显得拥挤，
+   也不占用/遮挡侧边栏的贴缘召回按钮；宽度 = 左侧留白可用宽度（上限 `--toc-line-w`）→ 不侵入正文列。
+   高亮：不是改文字颜色，而是**条目容器上覆盖一层遮罩**（`--desk-bg`），
+   其不透明度按**条目到鼠标的距离**调整（近 → 揭开，远 → 盖上），并带 200ms 过渡（见 TocPanel）。 */
+.toc-mount,
+.toc-list {
+  left: var(--sidebar-w, 56px);
+  width: clamp(
+    120px,
+    calc((100% - var(--read-width, 760px)) / 2 - var(--sidebar-w, 56px)),
+    var(--toc-line-w, 220px)
+  );
+}
+
+.toc-mount {
+  position: absolute;
+  top: calc(var(--toc-line-top, 28px) - 16px);
+  z-index: 15;
+  /* 点击判定区放大（用户 2026-09-11 定）：线本身只有 1px，靠上下 padding 撑出 ~34px 高的可点块。
+     线画在 pad 之后 → 视觉位置仍由 --toc-line-top 决定，与列表顶端严格对齐。 */
+  padding: 16px 0 18px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.toc-mount__line {
+  display: block;
+  width: 100%;
+  border-top: 1px solid var(--muted);
+  opacity: 0.34;
+  transition: opacity 200ms ease-out;
+}
+
+.toc-mount:hover .toc-mount__line {
+  opacity: 0.75;
+}
+
+/* 垂挂列表：从挂载线下方开始，宽度与线一致（左端对齐），**全透明** */
+.toc-list {
+  position: absolute;
+  top: calc(var(--toc-line-top, 28px) + 1px);
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  max-height: 60vh;
+  background: none;
+}
+
+.toc-list__rows {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.toc-list__rows::-webkit-scrollbar {
+  width: 0;
+}
+
+/* 折叠按钮：与目录条目容器**中间对齐**；静息也保持淡（与条目同一个"退场"口径）。
+   ⚠ 与条目区之间必须有**一条引导分割线**（用户 2026-09-11 定）：没有它，条目滚到边界时
+   "像是凭空出现/消失"；有了它，滚动被可视地截在线上。 */
+.toc-list__fold {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--muted) 40%, transparent);
+}
+
+.toc-list__fold .text-action {
+  opacity: 0.5;
+  transition: opacity 200ms ease-out;
+}
+
+.toc-list__fold .text-action:hover {
+  opacity: 1;
+}
+
+.toc-row {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 4px 10px 4px 0;
+  text-align: left;
+  font-family: var(--font-serif-cn);
+  font-size: 14px;
+  line-height: 1.5;
+  /* 文字给足强度，明暗**全部由遮罩承担**（这样"距离→不透明度"的过渡才平滑可解释） */
+  color: var(--text);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toc-row__label {
+  position: relative;
+  z-index: 1;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 遮罩：盖在条目容器上的一层"桌色"。静息 `--toc-veil-rest`；鼠标靠近时该值趋 0（揭开）。 */
+.toc-row__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: var(--desk-bg);
+  opacity: var(--toc-veil, var(--toc-veil-rest, 0.74));
+  transition: opacity 200ms ease-out;
+  pointer-events: none;
+}
+
+.toc-row:disabled {
+  cursor: default;
+}
+
+.toc-row:disabled .toc-row__label {
+  opacity: 0.55;
 }
