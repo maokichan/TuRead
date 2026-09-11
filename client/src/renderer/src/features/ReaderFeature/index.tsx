@@ -18,6 +18,21 @@ import type { ResolvedTheme } from '@core/domain/theme'
 import type { BookLocation, BookRecord, Chapter, RenderOptions } from '@core/domain/types'
 import type { FeatureProps } from '../types'
 import { TocPanel, type TocRow } from '../../components/TocPanel'
+import {
+  ReaderControls,
+  DEFAULT_READER_PARAMS,
+  type ReaderParams
+} from '../../components/ReaderControls'
+
+/** config.json 里 readerSettings 的形状（与 SettingsFeature 共用一个键，**必须原子 patch**） */
+interface ReaderSettingsShape {
+  readerMode?: ReaderMode
+  readerWidth?: number
+  pagePadX?: number
+  fontSize?: number | null
+  lineHeight?: number | null
+  paragraphSpacing?: number | null
+}
 
 type ReaderMode = NonNullable<RenderOptions['readerMode']>
 
@@ -47,8 +62,65 @@ export function ReaderFeature({
   /** 目录垂挂列表开关（TocPanel）。**默认展示**（用户 2026-09-11 定）：只有当用户主动
    *  「折疊」/`t` 时才临时隐藏；点条目跳转**不**改变它，且不持久化（重开书回到展示态）。 */
   const [tocOpen, setTocOpen] = useState(true)
+  /** 右侧阅读参数面板（默认收起：阅读页零控件，STYLE.md §5.8） */
+  const [controlsOpen, setControlsOpen] = useState(false)
+  const [params, setParams] = useState<ReaderParams>(DEFAULT_READER_PARAMS)
+  const paramsRef = useRef<ReaderParams>(DEFAULT_READER_PARAMS)
   const stageRef = useRef<HTMLDivElement | null>(null)
   const lastSavedAtRef = useRef(0)
+
+  /**
+   * 应用参数到渲染层。分工（`STYLE.md` §5.9）：
+   * - **宿主几何** → CSS 变量挂在 documentElement（与主题同款做法，渲染层不感知设置来源）
+   * - **正文排版** → `applyTypography` 注入正文 iframe
+   */
+  const applyParams = useCallback(
+    (p: ReaderParams) => {
+      const root = document.documentElement
+      root.style.setProperty('--read-width', `${p.readerWidth}px`)
+      root.style.setProperty('--page-pad-x', `${p.pagePadX}px`)
+      void container.render.applyTypography({
+        fontSize: p.fontSize ?? undefined,
+        lineHeight: p.lineHeight ?? undefined,
+        paragraphSpacing: p.paragraphSpacing ?? undefined
+      })
+    },
+    [container]
+  )
+
+  /** 改参数：先应用（当场生效）再原子落库（readerSettings 与 SettingsFeature 共用一个键） */
+  const changeParams = useCallback(
+    (patch: Partial<ReaderParams>) => {
+      const next = { ...paramsRef.current, ...patch }
+      paramsRef.current = next
+      setParams(next)
+      applyParams(next)
+      void container.store.patchSetting('readerSettings', {
+        readerWidth: next.readerWidth,
+        pagePadX: next.pagePadX,
+        fontSize: next.fontSize,
+        lineHeight: next.lineHeight,
+        paragraphSpacing: next.paragraphSpacing
+      })
+    },
+    [container, applyParams]
+  )
+
+  // 启动载入阅读参数（缺省 = 不改，尊重书自带排版）
+  useEffect(() => {
+    void container.store.getSetting<ReaderSettingsShape>('readerSettings', {}).then((cfg) => {
+      const loaded: ReaderParams = {
+        fontSize: cfg.fontSize ?? DEFAULT_READER_PARAMS.fontSize,
+        lineHeight: cfg.lineHeight ?? DEFAULT_READER_PARAMS.lineHeight,
+        paragraphSpacing: cfg.paragraphSpacing ?? DEFAULT_READER_PARAMS.paragraphSpacing,
+        pagePadX: cfg.pagePadX ?? DEFAULT_READER_PARAMS.pagePadX,
+        readerWidth: cfg.readerWidth ?? DEFAULT_READER_PARAMS.readerWidth
+      }
+      paramsRef.current = loaded
+      setParams(loaded)
+      applyParams(loaded)
+    })
+  }, [container, applyParams])
 
   /** 节流持久化阅读位置（本地恢复用；2s 窗口，翻页连发不刷盘） */
   const saveLastLocation = useCallback(
@@ -180,11 +252,16 @@ export function ReaderFeature({
     [readerMode]
   )
 
-  // 阅读器键盘（STYLE.md §5.8）：Esc 关闭；←/→/PgUp/PgDn 翻页；Space 仅分页模式翻页；t 目录开合
+  // 阅读器键盘（STYLE.md §5.8）：Esc 关闭（参数面板开着时先收面板）；←/→/PgUp/PgDn 翻页；
+  // Space 仅分页模式翻页；t 目录开合；p 阅读参数面板开合
   useEffect(() => {
     if (activeFeature !== 'reader' || !book) return
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
+        if (controlsOpen) {
+          setControlsOpen(false)
+          return
+        }
         host.closeReader()
         return
       }
@@ -205,11 +282,15 @@ export function ReaderFeature({
       }
       if (e.key === 't' || e.key === 'T') {
         setTocOpen((v) => !v)
+        return
+      }
+      if (e.key === 'p' || e.key === 'P') {
+        setControlsOpen((v) => !v)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [activeFeature, book, readerMode, host, pageTurn])
+  }, [activeFeature, book, readerMode, host, pageTurn, controlsOpen])
 
   return (
     <section className="relative h-full select-none">
@@ -227,6 +308,16 @@ export function ReaderFeature({
           rows={toc}
           onToggle={() => setTocOpen((v) => !v)}
           onJump={(r) => void jumpChapter(r)}
+        />
+      )}
+
+      {/* 右侧阅读参数（可召唤；默认收起 —— 阅读页零控件，STYLE.md §5.8/§5.9） */}
+      {book && (
+        <ReaderControls
+          open={controlsOpen}
+          params={params}
+          onToggle={() => setControlsOpen((v) => !v)}
+          onChange={changeParams}
         />
       )}
 

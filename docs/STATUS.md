@@ -2,7 +2,7 @@
 
 > 目的：让下一次会话/模型以最低成本恢复上下文。
 > 阅读顺序：本文件 → `MAP.md`（自动加载）→ `TODO.md` → 各端架构文档（见 MAP）。
-> 更新：2026-09-09（client v0.1.11：渲染层风格基线落地 —— 文字优先 / 全局统一字体 / 负片抽屉 / 中文排版 / 浏览器样张）
+> 更新：2026-09-11（client **阅读器沉浸态收官 v0.4~v0.8** —— 桌/纸、零控件、覆盖式侧边栏、挂载线目录、右侧阅读参数面板；夜间模式自检销案）
 
 ## 1. 一句话
 
@@ -38,6 +38,9 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | 客户端样式 | **Tailwind CSS v4 已落地（2026-09-08）**：`@tailwindcss/vite`；`styles.css` 仅留主题语义 token / 全局 base / kookit 契约；MIT 已核 | 借物表；`client/docs/FEATURES.md` |
 | 渲染层风格（2026-09-09 定，**准则**） | **文字即界面**：动作/导航/选项一律文字（边框仅输入类与浮层）；**全局统一字体**（西文 Times New Roman + 中文源流明體，`--font-ui`，`--mono` 并为同值别名）；**负片（反色块）仅两处**（详情抽屉字段 + 侧边栏选中）；中文排版硬规则（混排/标点/段距）；层级靠排版不靠颜色 | `client/docs/STYLE.md`（MAP §13，渲染层开发先读） |
 | 抽屉平面结构（2026-09-09 定） | 封面 **2:3（64×96）不得拉伸**；三行 = 封面高度三等分（各 32px）；标题/数据行**单行**（`Marquee` 超出才滚）；数据行含格式·大小·导入时间·**文件路径**；指标行无标签（已读 42% / 3 天前 / 共 —）；外壳**完全透明** | `client/docs/STYLE.md` §5.5 |
+| **阅读器沉浸态（2026-09-11 定稿，v0.4~v0.8；用户逐条纠正后收敛）** | **全屏的是「桌」不是正文**：桌 `--desk-bg` + 纸 `--page-bg` + 1px `--page-edge` 边（**靠颜色区分**，不用阴影/圆角）；正文在**居中定宽「纸」**（`--read-width` 档 620/760/920）+ **纸内边距** `--page-pad-x`（注入 `body{padding-inline}`，即"出血"旋钮）；**阅读页零控件**（无常驻顶栏/状态栏，退出 = `Esc`）；滚动条 **2px**、静息 10%、指针进入正文列才 26%、**短章节（仅 kookit +300px 余量）整条隐藏**；目录 = **挂载线 + 垂挂列表**（左缘 = 侧边栏展开时的右缘、容器全透明、**遮罩按鼠标距离高亮**（远端保持静息）、**默认展示**、点条目不收起） | `client/docs/STYLE.md` §5.8；`FEATURES.md` §11 |
+| **阅读态侧边栏覆盖式（2026-09-11 定）** | `activeFeature === 'reader'` 时侧边栏 `absolute` 浮在左侧桌边（**不占布局**）→ **打开左侧菜单不影响阅读器界面宽度**（占位式会让纸右移/被压窄、目录左缘漂）。⚠ **只给阅读态**：其他功能态的交互形态需求未知，保持占位；将来第二个功能需要时扩成显式能力标记（`descriptor.floatSidebar`），不要散落判断 | `client/docs/STYLE.md` §5.8；`AppShell.tsx` 注释 |
+| **阅读参数分工（2026-09-11 v0.3.3 定）** | **宿主几何走 CSS 变量**（纸宽 `--read-width` / 内边距 `--page-pad-x` —— kookit 的排版宽度读宿主 `clientWidth`，给宿主加 padding 会对不上）；**正文排版走注入**（字号/行距/段距 → `IRenderService.applyTypography` → kookit `setStyle`，一次注入全书生效、换章无需重注入）；**字段缺省 = 不注入**（尊重书自带排版）；数据层存 **px 数值**不存档位名。**高频参数入口 = 阅读页右侧可召唤面板**（默认收起），低频（布局模式）留设置页 | `client/docs/CONTRACTS.md` §2/§4.1；`STYLE.md` §5.9（可调参数清单表） |
 | 样式效果确认方式（2026-09-09 定） | 浏览器**样式样张**（`npm run style`，`client/tools/style-gallery/`）—— 只导入真实组件与真实 token，不启动 Electron；排版类最终判定仍需在 Electron 内复核（CJK 特性依赖 Chromium 版本） | `client/tools/style-gallery/README.md` |
 | 插件 | v1 不做插件运行时；ports 即插件边界（官方插件 = 适配器注册进 ServiceContainer） | `client/docs/ARCHITECTURE.md` §4 |
 | UI 功能组件（2026-09-08 落地） | UI 按 Feature 划分标准化（Library/Reader/**Room[含 Server 连接]**/Settings + 展示组件 + AppShell 宿主）；**标准容器**：`FeatureDescriptor` + `registry.ts` + `AppShell`（侧边栏=单色符号图标栏 + 主面板宿主，功能常驻挂载/非激活隐藏 → 状态继承，settings 钉置底）；跨功能跳转走 `FeatureHost`（navigate/openReader/closeReader/selectBook/pushLog）；**纯 React 状态 + props**；Tailwind 与拆组件同步迁移；颜色语义 token 标准化（第三方覆盖 token 建主题）；官方插件 = 追加 descriptor 进 registry | `client/docs/FEATURES.md` |

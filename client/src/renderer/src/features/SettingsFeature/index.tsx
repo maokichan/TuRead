@@ -40,25 +40,6 @@ const READER_MODES: { value: ReaderMode; label: string }[] = [
   { value: 'double', label: '雙頁' }
 ]
 
-/**
- * 正文列宽档位（STYLE.md §5.8 v0.4：全屏的是"纸"不是"正文"）。
- * ⚠ 档位只是**设置页的呈现**；落库的是 px 数值（`readerSettings.readerWidth`）——
- * 为远期"自由调节 + 按屏幕/字号自适应"留余地（STYLE.md §5.9）。
- */
-const READER_WIDTHS: { value: number; label: string }[] = [
-  { value: 620, label: '窄' },
-  { value: 760, label: '中' },
-  { value: 920, label: '寬' }
-]
-
-const DEFAULT_READER_WIDTH = 760
-
-/** 把列宽写到 documentElement（正文列 CSS 读 --read-width）——与主题同款做法：渲染层不感知设置来源 */
-function applyReadWidth(px: number): void {
-  const safe = Math.min(1600, Math.max(480, Math.round(px)))
-  document.documentElement.style.setProperty('--read-width', `${safe}px`)
-}
-
 const DEFAULT_LIBRARY: LibrarySettings = { view: 'list', importRecursive: false }
 
 function applyDataTheme(pref: ThemePreference): void {
@@ -69,7 +50,6 @@ function applyDataTheme(pref: ThemePreference): void {
 export function SettingsFeature({ container }: FeatureProps): React.JSX.Element {
   const [themePref, setThemePref] = useState<ThemePreference>({ tone: 'solid', mode: 'system' })
   const [readerMode, setReaderMode] = useState<ReaderMode>('scroll')
-  const [readerWidth, setReaderWidth] = useState(DEFAULT_READER_WIDTH)
   const [importRecursive, setImportRecursive] = useState(false)
   const [logs, setLogs] = useState<string[]>([])
   const themePrefRef = useRef<ThemePreference>({ tone: 'solid', mode: 'system' })
@@ -85,16 +65,12 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
       // 载入时只应用、不写盘 —— 否则每次启动都产生一次无意义的 JSON 全量重写
       applyThemePref(normalizeThemeSetting(cfg.theme), false)
     })
-    void container.store.getSetting<{ readerMode?: ReaderMode; readerWidth?: number }>(
-      'readerSettings',
-      {}
-    ).then((cfg) => {
-      if (cfg.readerMode) setReaderMode(cfg.readerMode)
-      // 列宽是纯 CSS 的（--read-width）→ 载入即生效，无需重开书
-      const w = typeof cfg.readerWidth === 'number' ? cfg.readerWidth : DEFAULT_READER_WIDTH
-      setReaderWidth(w)
-      applyReadWidth(w)
-    })
+    // 只读 readerMode；阅读宽度等**高频显示参数归阅读器右侧面板**（ReaderFeature 拥有，避免两个写者）
+    void container.store
+      .getSetting<{ readerMode?: ReaderMode }>('readerSettings', {})
+      .then((cfg) => {
+        if (cfg.readerMode) setReaderMode(cfg.readerMode)
+      })
     void container.store
       .getSetting<LibrarySettings>('librarySettings', DEFAULT_LIBRARY)
       .then((cfg) => setImportRecursive(cfg.importRecursive === true))
@@ -131,17 +107,8 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
   const changeReaderMode = useCallback(
     (m: ReaderMode) => {
       setReaderMode(m)
-      // 局部更新：与下面 changeReaderWidth 写同一个键，必须原子合并（否则互相覆盖）
+      // 局部更新（原子合并）：readerSettings 由本页与阅读器右侧面板共写，不能整键覆盖
       void container.store.patchSetting('readerSettings', { readerMode: m })
-    },
-    [container]
-  )
-
-  const changeReaderWidth = useCallback(
-    (w: number) => {
-      setReaderWidth(w)
-      applyReadWidth(w)
-      void container.store.patchSetting('readerSettings', { readerWidth: w })
     },
     [container]
   )
@@ -198,7 +165,7 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
 
       <Field
         title="閱讀器"
-        hint="佈局模式重開書生效；閱讀寬度 = 正文列寬（即 kookit 的排版寬度依據，當場生效）。閱讀頁本身不留任何欄，顯示設計一律在這裡改。"
+        hint="佈局模式重開書生效。**高頻的顯示設計（字號/行距/段距/紙寬/內邊距）在閱讀器裏**——貼右緣的召喚條，不必回設置頁（見 STYLE.md §5.9 的可調參數清單）。"
       >
         <div className="flex flex-wrap items-center gap-5">
           <div className="flex items-center gap-3">
@@ -210,18 +177,6 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
                 className={readerMode === m.value ? segActive : segIdle}
               >
                 {m.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-[12px] text-[var(--muted)]">閱讀寬度</span>
-            {READER_WIDTHS.map((w) => (
-              <button
-                key={w.value}
-                onClick={() => changeReaderWidth(w.value)}
-                className={readerWidth === w.value ? segActive : segIdle}
-              >
-                {w.label}
               </button>
             ))}
           </div>

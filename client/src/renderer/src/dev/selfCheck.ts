@@ -107,7 +107,7 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
         let prev = el.scrollTop
         let stable = 0
         const start = performance.now()
-        while (stable < 3 && performance.now() - start < 12000) {
+        while (stable < 3 && performance.now() - start < 8000) {
           await wait(150)
           if (el.scrollTop === prev) stable++
           else {
@@ -193,6 +193,19 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
         subInfo =
           `bodyHtml=${s1.htmlLen} img=${s1.imgCount} docOk=${s1.doc ? 'yes' : 'no'} ` +
           `pageAreaSame=${document.getElementById('page-area') === s1.el ? 'yes' : 'no'} stageIframes=${s1.el?.querySelectorAll('iframe').length ?? -1} iframeH=${s1.iframeH} docScrollH=${s1.docScrollH}`
+        /**
+         * 注入是否真的落到正文（**早发**：用 console.error → main 立即转发，即使后面超时也能拿到数据）。
+         * 事实源 = 正文 iframe 里那份 `style#kookit-default-style` + body 的**计算样式**
+         * （字号/行距/内边距）——「改了参数没反应」和「整个流程跑不完」要能分开判断。
+         */
+        const injected = s1.doc?.querySelector('style#kookit-default-style') as HTMLElement | null
+        const bodyStyle = s1.doc ? getComputedStyle(s1.doc.body) : null
+        const injectFacts =
+          `注入樣式=${injected ? injected.innerHTML.length : -1}字 ` +
+          `字號=${bodyStyle?.fontSize ?? '-'} 行距=${bodyStyle?.lineHeight ?? '-'} ` +
+          `內邊距=${bodyStyle?.paddingLeft ?? '-'}`
+        console.error(`[probe] 正文注入：${injectFacts}`)
+        subInfo += ` ${injectFacts}`
         // 翻页断言从章节 0 起跑：书可能被"上次阅读位置"恢复到接近结尾处，
         // 那种情况下 next() 本就无处可去 —— 不是渲染问题，是测试起点问题。
         await container.render.goToChapter(0)
@@ -212,8 +225,11 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
         const scans: string[] = []
         let prev = container.render.getPosition()
         for (let i = 0; i < 10 && contentLen <= 100; i++) {
+          // 等"翻页生效"（位置/滚动变化）而不是死等 3s：固定等待 + 停稳检测
+          // 在长内容下会一路吃满预算（10 章 × (3s + 12s) ≈ 150s，会把"跑得慢"报成 FAIL）。
+          const beforeTop = stage()?.scrollTop ?? 0
           await container.render.next()
-          await wait(3000)
+          await waitForTurn(prev, beforeTop)
           await waitScrollSettle()
           const loc = container.render.getPosition()
           posChanged = posChanged || changed(loc, prev)

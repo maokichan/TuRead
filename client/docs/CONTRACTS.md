@@ -115,13 +115,31 @@ interface ReaderSettings {
   readerMode: 'single' | 'double' | 'scroll';
   /** 正文列宽（px）—— 即 kookit 的排版宽度依据（宿主容器 `clientWidth`，`KOOKIT.md` §5）：
    *  改它 = 改"一行多长"、图片缩放与分页宽度，**不需要新端口**。
-   *  默认 760（档位 620/760/920 是设置页的呈现方式）。**存数值而不是档位名**，
+   *  默认 760（档位 620/760/920 是控件的呈现方式）。**存数值而不是档位名**，
    *  是为远期"自由调节 + 按屏幕/字号自适应"留余地（`STYLE.md` §5.9）。 */
   readerWidth?: number;
+  /** 纸内边距（px）—— 正文到纸边的距离，宿主 token `--page-pad-x`（默认 44）。
+   *  适配器注入 `body{padding-inline}`；这就是"出血"的可调旋钮。 */
+  pagePadX?: number;
+  /** v0.3.3：正文排版参数（与 `ReaderTypography` 同形状，**缺省 = 不改**，尊重书自带排版） */
+  fontSize?: number;
+  lineHeight?: number;
+  paragraphSpacing?: number;
 }
 
-/** 阅读渲染配置（领域层友好配置，适配器内部翻译为 kookit config） */
-interface RenderOptions {
+/**
+ * 阅读排版参数（v0.3.3；持久化于 config.json 的 readerSettings）。
+ * 分工（`STYLE.md` §5.9）：**宿主几何**（`--read-width` / `--page-pad-x`）走 CSS 变量；
+ * **正文排版**（本类型）走 `IRenderService.applyTypography` 注入正文 iframe。
+ * 三态：字段**缺省 = 不改**（UI 上是「默認」档）；存数值不存档位名。
+ */
+interface ReaderTypography {
+  fontSize?: number;         // px
+  lineHeight?: number;       // 倍数
+  paragraphSpacing?: number; // px（段落下边距）
+}
+
+/** 阅读渲染配置（领域层友好配置，适配器内部翻译为 kookit config） */interface RenderOptions {
   readerMode: 'single' | 'double' | 'scroll';
   animation: 'sliding' | 'mimical' | 'none';
   fontSize?: number;
@@ -262,6 +280,10 @@ interface IRenderService extends EventEmitter<RenderServiceEvents> {
    *  颜色取自宿主 CSS 语义 token（`--page-bg/--page-text`），主题是否深色走 `core/domain/theme.ts`。
    *  v0.3.2：明确"浅色不注入"只针对颜色；纸内边距等排版参数始终注入。 */
   applyTheme(theme: ResolvedTheme): Promise<void>;
+  /** v0.3.3：向正文注入**排版参数**（与 applyTheme 共用同一条注入通道 `setStyle`，可任意次调用，
+   *  每次重建整份 reader style）。覆盖集合保守但有效：字号/行距打 `html,body` + 常见块级元素，
+   *  段距打 `p` 的下边距；**字段缺省 = 该项不注入**（尊重书自带排版）。PDF 无操作。 */
+  applyTypography(typography: ReaderTypography): Promise<void>;
   /** v0.2.6：解析元数据（kookit 是唯一解析器，故能力挂在此端口）。
    *  **无状态** —— 内部构造临时 rendition，不 renderTo、不碰当前阅读会话；cover 为 data URL */
   getMetadata(buffer: ArrayBuffer, format: BookFormat): Promise<BookMetadata>;
@@ -536,6 +558,7 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.3.3 | 2026-09-11 | **阅读排版参数契约 + 右侧控件**：§2 增 `ReaderTypography`（fontSize/lineHeight/paragraphSpacing，**缺省 = 不改**）、`ReaderSettings` 扩 `pagePadX/fontSize/lineHeight/paragraphSpacing`；§4.1 `IRenderService` 增 `applyTypography`（与 `applyTheme` 共用同一条 `setStyle` 注入通道，每次重建整份 reader style）。口径：**宿主几何走 CSS 变量（纸宽/内边距），正文排版走注入（字号/行距/段距）**；高频参数入口 = 阅读页**右侧可召唤面板**（`STYLE.md` §5.8/§5.9） |
 | v0.3.2 | 2026-09-11 | **`applyTheme` 语义澄清 + 首个排版参数**：`IRenderService.applyTheme` 的注入内容 = **排版参数（始终）+ 颜色（仅深色）** —— "浅色不注入"只针对颜色；新增纸内边距注入 `body{padding-inline: var(--page-pad-x)}`（注入 body 而非宿主容器：kookit 排版宽度读宿主 `clientWidth`，且 `handleImageSize.getContentWidth` 会扣掉父容器 padding）。可调参数清单见 `STYLE.md` §5.9 |
 | v0.3.1 | 2026-09-11 | **阅读器设置契约（沉浸态二次修订）**：§2 增 `ReaderSettings`（`readerMode` + `readerWidth` —— 正文列宽存 **px 数值**，档位只是设置页呈现，为远期自由调节/按屏幕·字号自适应留余地）；口径见 `STYLE.md` §5.8（全屏的是"纸"不是"正文"、阅读页零控件、目录挂载线）+ §5.9（预留登记）+ `FEATURES.md` §11 |
 | v0.3.0 | 2026-09-11 | **阅读器 MVP（夜间模式·非 PDF）**：① 主题模型规正 —— §2 增 `ResolvedTheme`/`ThemeSetting`/`ThemeTone`/`ThemeMode`（2 主题 × 2 模式，权威 `core/domain/theme.ts`）② `IRenderService` 增 `applyTheme(theme)`（向正文 iframe 注入深色 CSS，kookit `setStyle` 注入口；PDF 无操作）③ `RenderOptions.theme` 转正为适配器消费（→ kookit isDarkMode/backgroundColor）|

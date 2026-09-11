@@ -94,6 +94,25 @@ export interface LibrarySettings {
   importRecursive: boolean
 }
 
+/**
+ * 阅读排版参数（v0.3.3 新增；持久化于 config.json 的 readerSettings）。
+ *
+ * 与"宿主几何"分工（`STYLE.md` §5.9）：
+ * - **宿主几何** = 纸宽 `--read-width` / 纸内边距 `--page-pad-x` → 走 CSS 变量（kookit 排版宽度依据）
+ * - **正文排版** = 本类型 → 走 `IRenderService.applyTypography` 注入正文 iframe（`setStyle`）
+ *
+ * 三态约定：字段**缺省 = 不改**（尊重书自带排版，UI 上是「默認」档）；给值才覆盖。
+ * 存**数值**不存档位名 —— 档位只是控件的呈现（`CONTRACTS.md` §2）。
+ */
+export interface ReaderTypography {
+  /** 正文字号（px） */
+  fontSize?: number
+  /** 行距倍数（无单位） */
+  lineHeight?: number
+  /** 段间距（px，段落下边距） */
+  paragraphSpacing?: number
+}
+
 /** 阅读渲染配置（领域层友好配置，适配器内部翻译为 kookit config） */
 export interface RenderOptions {
   readerMode: 'single' | 'double' | 'scroll'

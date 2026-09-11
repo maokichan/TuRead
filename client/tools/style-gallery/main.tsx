@@ -21,6 +21,7 @@ import { BookTile } from '@renderer/components/BookTile'
 import { BookDetailPanel } from '@renderer/components/BookDetailPanel'
 import { LibraryToolbar } from '@renderer/components/LibraryToolbar'
 import { TocPanel } from '@renderer/components/TocPanel'
+import { ReaderControls, DEFAULT_READER_PARAMS } from '@renderer/components/ReaderControls'
 import { StatePill } from '@renderer/components/StatePill'
 import { ChatLog } from '@renderer/components/ChatLog'
 import { MemberList } from '@renderer/components/MemberList'
@@ -373,6 +374,38 @@ export function Gallery(): React.JSX.Element {
             </div>
             <span className="text-[12.5px] text-[var(--muted)]">FittedTitle 长标题</span>
           </div>
+        </div>
+      </Panel>
+
+      <Panel
+        title="阅读器 · 右侧阅读参数（ReaderControls）"
+        path="components/ReaderControls.tsx"
+        note="高频显示设计的入口（STYLE.md §5.9）：🅐 默认收起，只有贴右缘的窄条（与左侧侧边栏召回条同款、镜像）；🅑 展开后是纯文字档位 + 发丝分割线 + 底部引导线与「收起」。档位只是呈现，回调交出的是数值（缺省档 = 不注入，尊重书自带排版）"
+      >
+        <div className="grid gap-6 md:grid-cols-2">
+          {[true, false].map((open) => (
+            <div key={String(open)} className="flex flex-col gap-2">
+              <span className="text-[12.5px] text-[var(--muted)]">
+                {open ? '展開（可調）' : '默認（只有召喚條）'}
+              </span>
+              <div
+                className="reader-paper relative h-[300px] w-full"
+                style={{ '--read-width': '320px' } as React.CSSProperties}
+              >
+                <div className="reader-stage">
+                  <p className="m-0 text-[13px] leading-[1.9] text-[var(--page-text)]">
+                    字號 / 行距 / 段距 注入正文；紙寬 / 內邊距 走宿主 token。
+                  </p>
+                </div>
+                <ReaderControls
+                  open={open}
+                  params={DEFAULT_READER_PARAMS}
+                  onToggle={noop}
+                  onChange={noop}
+                />
+              </div>
+            </div>
+          ))}
         </div>
       </Panel>
 

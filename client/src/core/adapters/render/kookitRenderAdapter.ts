@@ -26,6 +26,7 @@ import type {
   BookRecord,
   Chapter,
   Note,
+  ReaderTypography,
   RenderOptions
 } from '@core/domain/types'
 import { ensurePdfjs } from './pdfjsSetup'
@@ -79,6 +80,11 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   private scrollTimer: number | null = null
   /** 当前主题（open 时由 options.theme 写入；applyTheme 热更新；深色 → 注入正文 CSS） */
   private theme: ResolvedTheme | null = null
+  /**
+   * 当前排版参数（`applyTypography` 写入）。**跨书保留**（是用户偏好，不是某本书的状态），
+   * `close()` 不清它 —— 换书后 renderTo 末尾的注入会用同一份值。
+   */
+  private typography: ReaderTypography | null = null
 
   constructor(readFile: ReadBookFile) {
     super()
@@ -197,6 +203,12 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     await this.applyStoredTheme()
   }
 
+  /** 向已打开的正文注入/更新排版参数（CONTRACTS.md §4.1，v0.3.3）。与 applyTheme 共用一份 CSS。 */
+  async applyTypography(typography: ReaderTypography): Promise<void> {
+    this.typography = typography
+    await this.applyStoredTheme()
+  }
+
   private async applyStoredTheme(): Promise<void> {
     const rendition = this.rendition
     if (!rendition) return
@@ -209,16 +221,28 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
 
   /**
    * 正文样式（kookit 唯一注入口 `setStyle`，换章只重写 `body`、我们的 `<style>` 留在 `head`，
-   * 一次注入全书生效）。当前含两部分：
+   * 一次注入全书生效）。三部分：
    * ① **纸内边距**（`--page-pad-x`）：正文与纸边之间的距离（用户 2026-09-11 指出"出血留得太少"）。
    *    注入到 `body` 而不是宿主容器 —— 见 styles.css `--page-pad-x` 的注释（kookit 排版宽度算术）。
-   * ② **深色正文颜色**（仅深色模式）：颜色取自宿主语义 token `--page-bg/--page-text`。
+   * ② **排版参数**（`applyTypography`）：字号/行距/段距；**缺省项不注入**（尊重书自带排版）。
+   *    字号/行距同时打到 `html,body` 与常见块级元素 —— 书若用相对单位（em/%）会随之缩放，
+   *    而写成 px 的那些元素只有显式覆盖才动得了（"保守但有效"）。
+   * ③ **深色正文颜色**（仅深色模式）：颜色取自宿主语义 token `--page-bg/--page-text`。
    */
   private buildReaderCss(): string {
     const cs = getComputedStyle(document.documentElement)
     const readVar = (name: string): string => (cs.getPropertyValue(name) || '').trim()
     const padX = readVar('--page-pad-x') || '44px'
     const parts = [`body{padding-inline:${padX}!important;}`]
+
+    const t = this.typography
+    const blocks = 'body,p,div,li,dd,blockquote,td'
+    if (t?.fontSize) parts.push(`html,body{font-size:${t.fontSize}px!important;}`)
+    if (t?.lineHeight) parts.push(`html,body,${blocks}{line-height:${t.lineHeight}!important;}`)
+    if (t?.paragraphSpacing !== undefined) {
+      parts.push(`p{margin-top:0!important;margin-bottom:${t.paragraphSpacing}px!important;}`)
+    }
+
     const dark = this.theme ? isDarkResolvedTheme(this.theme) : false
     if (dark) {
       const bg = readVar('--page-bg') || '#141619'

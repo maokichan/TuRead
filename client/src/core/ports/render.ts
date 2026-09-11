@@ -12,6 +12,7 @@ import type {
   BookRecord,
   Chapter,
   Note,
+  ReaderTypography,
   RenderOptions
 } from '@core/domain/types'
 
@@ -31,6 +32,15 @@ export interface IRenderService extends EventEmitter<RenderServiceEvents> {
    * 颜色取自宿主 CSS 语义 token（`--page-bg/--page-text`），深色判定走 `core/domain/theme.ts`。
    */
   applyTheme(theme: ResolvedTheme): Promise<void>
+  /**
+   * 向正文注入**排版参数**（v0.3.3）—— 与 `applyTheme` 共用同一条注入通道（`setStyle`），
+   * 可任意次调用（每次重建整份 reader style，避免多次注入互相覆盖）。
+   *
+   * 覆盖的元素集合是「保守但有效」的：字号/行距走 `html,body` + 常见块级元素（书若用相对单位会随之缩放），
+   * 段距走 `p` 的下边距。字段缺省 = 该项不注入（尊重书自带排版）。
+   * PDF 无操作（位图，后置像素处理）。可调参数清单见 `STYLE.md` §5.9。
+   */
+  applyTypography(typography: ReaderTypography): Promise<void>
   /**
    * 解析元数据（v0.1.8）—— kookit 是唯一解析器，故能力挂在渲染端口上。
    * **无状态**：内部构造临时 rendition（不 renderTo、不碰当前阅读会话），cover 为 data URL。
