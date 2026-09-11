@@ -146,23 +146,35 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
         return false
       }
 
+      /**
+       * PDF 的正文是**每页子 iframe 里的 canvas**（顶层 iframe 只有壳），所以"有没有内容"
+       * 不能看顶层 `body.textContent` —— 必须数子 iframe 里的 canvas（阈值见下）。
+       */
+      const countPdfCanvases = (): number => {
+        const el = document.getElementById('page-area')
+        const doc = el?.querySelector('iframe')?.contentDocument
+        const subs = doc?.querySelectorAll('iframe[data-pdf-page], iframe[id^="pdf-iframe-"]') ?? []
+        return Array.from(subs).reduce(
+          (n, f) =>
+            n + ((f as HTMLIFrameElement).contentDocument?.querySelectorAll('canvas').length ?? 0),
+          0
+        )
+      }
+
       // PDF：渲染产物是嵌套 iframe（每页一个 pdf-iframe-N）+ 内部 canvas，顶层 iframe 无 innerText
+      /** 文字类的"正文回来了"判据（PDF 不走这条，见 countPdfCanvases） */
+      const stageHasText = (): boolean => {
+        const s = readDocState()
+        return Boolean(s.doc) && s.textLen > 0
+      }
+
       /** 正文内容量（**判定用**）：textContent，与排版无关 —— 见下方 innerLen 说明 */
       let contentLen = -1
       let innerLen = -1
       let subInfo = ''
       let posChanged = false
       if (book.format === 'PDF') {
-        const countCanvases = (): number => {
-          const el = document.getElementById('page-area')
-          const doc = el?.querySelector('iframe')?.contentDocument
-          const subs = doc?.querySelectorAll('iframe[data-pdf-page], iframe[id^="pdf-iframe-"]') ?? []
-          return Array.from(subs).reduce(
-            (n, f) =>
-              n + ((f as HTMLIFrameElement).contentDocument?.querySelectorAll('canvas').length ?? 0),
-            0
-          )
-        }
+        const countCanvases = countPdfCanvases
         // PDF 页面 canvas 异步渲染（大文件冷启动较慢；封面等空页无 canvas 属正常）→
         // 聚合所有页面 iframe 的 canvas 数并轮询其出现
         let canvasCount = 0
@@ -324,6 +336,9 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
        */
       const nightLine = await (async (): Promise<string> => {
         try {
+          // PDF 是位图：`applyTheme` 对 PDF **本来就是 no-op**（深色走像素处理，TODO 单独立项）
+          // → 不能对 PDF 断言"注入必须存在"，否则是对着正确行为报假阴性（2026-09-11 实测）。
+          if (book.format === 'PDF') return '夜間注入=跳过(PDF 位圖，待像素處理)'
           const before = readDocState()
           if (!before.doc) return '夜間注入=跳过(无正文)'
           const beforeText = before.textLen
@@ -369,8 +384,9 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
           btn.click()
           const deadline = Date.now() + 12000
           while (Date.now() < deadline) {
-            const s = readDocState()
-            if (s.doc && s.textLen > 0) return '恢复=ok'
+            // 判据按格式分：文字类看正文 textContent；**PDF 看子 iframe 里的 canvas**
+            // （顶层 iframe 只有壳，textContent 是 0 —— 用它判 PDF 会对着"其实已恢复"报失败）
+            if (book.format === 'PDF' ? countPdfCanvases() > 0 : stageHasText()) return '恢复=ok'
             await wait(200)
           }
           const s = readDocState()
