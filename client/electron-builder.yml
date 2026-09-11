@@ -57,3 +57,25 @@ nsis:
 
 # 说明：暂无品牌图标（用户未提供）→ 使用 electron-builder 默认图标；
 # 待有 .ico 后放到 client/build/icon.ico（electron-builder 会自动取用）。
+#
+# ---------------------------------------------------------------------------
+# 本机网络下的已知问题与两条出路（2026-09-11 实测，见 ../NETWORK.md）
+#
+# electron-builder 打包时要从 GitHub releases 取三个组件：
+#   nsis-3.0.4.1.7z / nsis-resources-3.4.1.7z / winCodeSign-2.6.0.7z
+# 本机 GitHub 直连被墙、只能走本地代理，而代理会在传输中途**静默挂起或掐断**
+# （既不报错也不超时）→ 表现为打包卡住，或 `Client network socket disconnected`
+# / `The server aborted pending request`。Electron 那一步已用 `electronDist` 消除，
+# 剩下这步的出路：
+#
+# 出路一（不依赖 NSIS，任何情况都能出包）：出 **portable 目录 + zip**：
+#   npx electron-builder --win --x64 --dir          # → release/win-unpacked/（可直接跑）
+#   再 Compress-Archive 该目录即可得到便携 zip。
+#
+# 出路二（要 NSIS 安装包）：**本地镜像**——自己把三个组件下到本地，
+#   起一个静态 HTTP 服务，然后把 `ELECTRON_BUILDER_BINARIES_MIRROR` 指过去：
+#     $env:ELECTRON_BUILDER_BINARIES_MIRROR = "http://127.0.0.1:8788/"
+#   （镜像里需同时放扁平与 <name>-<version>/ 两种层级，electron-builder 各版本取法不同。）
+#   注：`release/turead-client-<version>-x64.nsis.7z`（NSIS 载荷）一旦生成，
+#   组件到位后重跑只需几秒即可产出安装包。
+# ---------------------------------------------------------------------------
