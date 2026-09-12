@@ -9,8 +9,6 @@ export interface TocRow {
 }
 
 interface TocPanelProps {
-  /** 展开与否；false = 只剩**挂载线**。默认由 ReaderFeature 置为展开（用户 2026-09-11 定） */
-  open: boolean
   rows: TocRow[]
   onJump: (row: TocRow) => void
   onToggle: () => void
@@ -20,19 +18,16 @@ interface TocPanelProps {
 const VEIL_FALLOFF = 110
 
 /**
- * 目录 = **挂载线 + 垂挂列表**（STYLE.md §5.8）。
+ * 目录垂挂列表（挂载线实体的顶部挂件，线本体在 `ReaderRail`）。
  *
- * 形态（用户 2026-09-11 定）：
- * - 那根细线是**挂载线**（目录的挂载点）。位置：左缘对齐**侧边栏展开时的右缘**（`--sidebar-w`），
- *   宽度受左侧留白夹取 → 默认不侵入正文列（见 styles.css `.toc-mount` / `.toc-list`）。
- * - 展开后条目**自线下方逐条向下**垂挂，左端与线左端对齐；条目容器**完全透明**；
- *   末尾「折疊」按钮与容器**中间对齐**。
+ * 形态（用户 2026-09-11 定，2026-09-12 并入挂载线实体）：
+ * - 条目自挂载线**下方逐条向下**垂挂，左端与线对齐；容器全透明 + 顶端一条引导分割线
+ *   （滚动被可视地截在线上）。
  * - **高亮不是改文字颜色**，而是条目容器上覆盖一层遮罩（`.toc-row__veil`，桌色）：
  *   其不透明度按**条目到鼠标的距离**调整（近 → 揭开，远 → 盖上），过渡交给 CSS（200ms）。
- *   因此条目给足文字强度、明暗全部由遮罩承担，动效才有"随时间过渡"的观感。
- * - 目录**默认展示**；点击条目**不**收起目录，只有「折疊」/`t` 才临时隐藏（ReaderFeature 管状态）。
+ * - 点击条目**不**收起目录，只有「折疊」/`t`/点挂载线才收（ReaderFeature 管状态）。
  */
-export function TocPanel({ open, rows, onJump, onToggle }: TocPanelProps): React.JSX.Element {
+export function TocPanel({ rows, onJump, onToggle }: TocPanelProps): React.JSX.Element {
   const rowsRef = useRef<HTMLDivElement | null>(null)
 
   /**
@@ -65,46 +60,32 @@ export function TocPanel({ open, rows, onJump, onToggle }: TocPanelProps): React
   }
 
   return (
-    <>
-      <button
-        className="toc-mount"
-        aria-label={open ? '收起目錄' : '打開目錄'}
-        aria-expanded={open}
-        title={open ? '收起目錄' : '目錄'}
-        onClick={onToggle}
+    <div className="toc-list">
+      <div
+        className="toc-list__rows"
+        ref={rowsRef}
+        onMouseMove={(e) => paintVeil(e.clientY)}
+        onMouseLeave={() => paintVeil(null)}
       >
-        <span className="toc-mount__line" />
-      </button>
-
-      {open && (
-        <div className="toc-list">
-          <div
-            className="toc-list__rows"
-            ref={rowsRef}
-            onMouseMove={(e) => paintVeil(e.clientY)}
-            onMouseLeave={() => paintVeil(null)}
+        {rows.map((row, i) => (
+          <button
+            key={i}
+            className="toc-row"
+            style={{ paddingLeft: `${row.depth * 14}px` }}
+            disabled={row.chapterDocIndex === undefined}
+            title={row.chapterDocIndex === undefined ? '（無可直達章節）' : '跳轉'}
+            onClick={() => onJump(row)}
           >
-            {rows.map((row, i) => (
-              <button
-                key={i}
-                className="toc-row"
-                style={{ paddingLeft: `${row.depth * 14}px` }}
-                disabled={row.chapterDocIndex === undefined}
-                title={row.chapterDocIndex === undefined ? '（無可直達章節）' : '跳轉'}
-                onClick={() => onJump(row)}
-              >
-                <span className="toc-row__label">{row.label}</span>
-                <span className="toc-row__veil" aria-hidden="true" />
-              </button>
-            ))}
-          </div>
-          <div className="toc-list__fold">
-            <button className="text-action" onClick={onToggle}>
-              折疊
-            </button>
-          </div>
-        </div>
-      )}
-    </>
+            <span className="toc-row__label">{row.label}</span>
+            <span className="toc-row__veil" aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+      <div className="toc-list__fold">
+        <button className="text-action" onClick={onToggle}>
+          折疊
+        </button>
+      </div>
+    </div>
   )
 }

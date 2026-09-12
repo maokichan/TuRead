@@ -23,7 +23,8 @@ import type {
   RenderOptions
 } from '@core/domain/types'
 import type { FeatureProps } from '../types'
-import { TocPanel, type TocRow } from '../../components/TocPanel'
+import type { TocRow } from '../../components/TocPanel'
+import { ReaderRail } from '../../components/ReaderRail'
 import {
   ReaderControls,
   DEFAULT_READER_PARAMS,
@@ -280,23 +281,18 @@ export function ReaderFeature({
         <div className="reader-stage" id="page-area" ref={stageRef} />
       </div>
 
-      {/* 目录 = 挂载线 + 垂挂列表（STYLE.md §5.8；容器全透明） */}
-      {book && toc.length > 0 && (
-        <TocPanel
-          open={tocOpen}
-          rows={toc}
-          onToggle={() => setTocOpen((v) => !v)}
-          onJump={(r) => void jumpChapter(r)}
-        />
-      )}
-
-      {/* 右侧阅读参数（可召唤；默认收起 —— 阅读页零控件，STYLE.md §5.8/§5.9） */}
+      {/* 挂载线实体（STYLE.md §5.8，2026-09-12）：目录顶部垂挂 + 阅读参数底部挂载向上展开，
+          目录折叠时点线展开——两挂件互不干扰又同处一条线 */}
       {book && (
-        <ReaderControls
-          open={controlsOpen}
+        <ReaderRail
+          tocOpen={tocOpen && toc.length > 0}
+          onTocToggle={() => setTocOpen((v) => !v)}
+          tocRows={toc}
+          onTocJump={(r) => void jumpChapter(r)}
+          controlsOpen={controlsOpen}
+          onControlsToggle={() => setControlsOpen((v) => !v)}
           params={params}
-          onToggle={() => setControlsOpen((v) => !v)}
-          onChange={changeParams}
+          onParamsChange={changeParams}
         />
       )}
 

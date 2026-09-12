@@ -71,7 +71,7 @@ export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: 
 
   return (
     <header
-      className="titlebar relative flex h-9 flex-none items-stretch border-b border-[var(--border)] bg-[var(--panel)]"
+      className="titlebar relative flex h-11 flex-none items-stretch border-b border-[var(--border)] bg-[var(--panel)]"
     >
       {/* 左：应用名（拖拽区的一部分，纯文字不拦截） */}
       <div className="flex select-none items-center pl-3 pr-2">

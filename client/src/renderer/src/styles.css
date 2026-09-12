@@ -591,74 +591,41 @@ body {
   left: var(--sidebar-w);
 }
 
-/* ---------- 阅读参数面板（右侧可召唤；STYLE.md §5.8/§5.9）----------
-   与左侧侧边栏召回条同款形态，**镜像到右侧**：默认只有一条贴右缘的窄条，
-   点开才是参数面板。面板与召唤条共用同一几何（右留白内，不侵入纸）。 */
-.reader-controls,
-.reader-controls-toggle {
-  /* 面板宽：右留白之内，且不超过 --reader-panel-w（百分比在"使用处"解析，故声明在此处共享） */
-  --panel-w: clamp(160px, calc((100% - var(--read-width, 760px)) / 2), var(--reader-panel-w, 250px));
-}
-
-.reader-controls-toggle {
+/* ---------- 阅读参数（挂载线底部挂件；2026-09-12 用户定）----------
+   原右侧独立召唤条 + 面板内「收起」废除。参数挂在挂载线（ReaderRail）底部，
+   把手开合、**面板向上展开**；内容统一中间对齐。 */
+.reader-params {
   position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  width: 18px;
-  height: 200px;
-  padding: 0;
-  background: none;
-  border: 0;
-  cursor: pointer;
-}
-
-.reader-controls-toggle::before {
-  content: '';
-  display: block;
-  width: 6px;
-  height: 160px;
-  background: color-mix(in srgb, var(--text) 16%, transparent);
-  border-radius: 3px 0 0 3px;
-  transition: background-color 120ms ease-out;
-}
-
-.reader-controls-toggle:hover::before {
-  background: color-mix(in srgb, var(--text) 32%, transparent);
-}
-
-/* 展开时移到面板左缘 —— 永远贴边且可点 */
-.reader-controls-toggle--open {
-  right: var(--panel-w);
-}
-
-.reader-controls {
-  position: absolute;
-  right: 0;
-  /* 与目录挂载线同一纵向基准，左右对称 */
-  top: var(--toc-line-top, 28px);
-  z-index: 15;
-  display: flex;
-  flex-direction: column;
-  width: var(--panel-w);
-  max-height: 72vh;
+  bottom: 34px; /* 让位常驻把手 */
+  left: var(--sidebar-w, 56px);
+  width: clamp(
+    120px,
+    calc((100% - var(--read-width, 760px)) / 2 - var(--sidebar-w, 56px)),
+    var(--toc-line-w, 220px)
+  );
+  z-index: 16;
+  max-height: 62vh;
   overflow-y: auto;
-  background: none;
   scrollbar-width: none;
+  /* 向上展开的"生根"感：底部一条引导分割线压住把手 */
+  border-bottom: 1px solid color-mix(in srgb, var(--muted) 40%, transparent);
 }
 
-.reader-controls::-webkit-scrollbar {
+.reader-params::-webkit-scrollbar {
   width: 0;
 }
 
-/* 一行参数：小标签 + 文字选项；行间发丝分割线（与设置页的分组语言一致） */
+.reader-controls {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 一行参数：小标签 + 文字选项，**统一中间对齐**（用户 2026-09-12 定）；
+   行间发丝分割线（与设置页的分组语言一致） */
 .reader-controls__field {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 6px;
   padding: 10px 0;
   border-top: 1px solid color-mix(in srgb, var(--muted) 30%, transparent);
@@ -677,25 +644,38 @@ body {
 .reader-controls__options {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 4px 12px;
 }
 
-/* 底部「收起」：与上面一样有引导线（与目录折叠按钮同一语言） */
-.reader-controls__fold {
-  display: flex;
-  justify-content: center;
-  margin-top: 8px;
-  padding-top: 10px;
-  border-top: 1px solid color-mix(in srgb, var(--muted) 40%, transparent);
+/* 挂载线底部的参数把手（常驻；开合共用） */
+.reader-rail__handle {
+  position: absolute;
+  bottom: 0;
+  left: var(--sidebar-w, 56px);
+  width: clamp(
+    120px,
+    calc((100% - var(--read-width, 760px)) / 2 - var(--sidebar-w, 56px)),
+    var(--toc-line-w, 220px)
+  );
+  z-index: 17;
+  padding: 7px 0 9px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  opacity: 0.55;
+  transition: opacity 200ms ease-out, color 120ms ease-out;
+  text-align: center;
 }
 
-.reader-controls__fold .text-action {
-  opacity: 0.5;
-  transition: opacity 200ms ease-out;
-}
-
-.reader-controls__fold .text-action:hover {
+.reader-rail__handle:hover,
+.reader-rail__handle--open {
   opacity: 1;
+  color: var(--text);
 }
 /* ---------- 目录：挂载线 + 垂挂列表（STYLE.md §5.8）----------
    形态（用户 2026-09-11 二次定）：挂载线是**目录的挂载点**，条目自线下方**逐条向下**垂挂，
@@ -704,48 +684,56 @@ body {
    也不占用/遮挡侧边栏的贴缘召回按钮；宽度 = 左侧留白可用宽度（上限 `--toc-line-w`）→ 不侵入正文列。
    高亮：不是改文字颜色，而是**条目容器上覆盖一层遮罩**（`--desk-bg`），
    其不透明度按**条目到鼠标的距离**调整（近 → 揭开，远 → 盖上），并带 200ms 过渡（见 TocPanel）。 */
-.toc-mount,
-.toc-list {
+/* ---------- 挂载线实体（ReaderRail；2026-09-12 用户定）----------
+   原"目录顶部横线"升级为**贯穿全页高的左侧竖线**：目录自顶部垂挂、阅读参数自底部向上展开，
+   两挂件互不干扰又同处一条线；目录折叠时，**点线 = 展开目录**（线的点击职能）。 */
+.reader-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
   left: var(--sidebar-w, 56px);
   width: clamp(
     120px,
     calc((100% - var(--read-width, 760px)) / 2 - var(--sidebar-w, 56px)),
     var(--toc-line-w, 220px)
   );
-}
-
-.toc-mount {
-  position: absolute;
-  top: calc(var(--toc-line-top, 28px) - 16px);
-  z-index: 15;
-  /* 点击判定区放大（用户 2026-09-11 定）：线本身只有 1px，靠上下 padding 撑出 ~34px 高的可点块。
-     线画在 pad 之后 → 视觉位置仍由 --toc-line-top 决定，与列表顶端严格对齐。 */
-  padding: 16px 0 18px;
+  z-index: 14;
+  padding: 0;
   background: none;
   border: 0;
   cursor: pointer;
 }
 
-.toc-mount__line {
+.reader-rail__line {
   display: block;
   width: 100%;
-  border-top: 1px solid var(--muted);
+  height: 100%;
+  border-left: 1px solid var(--muted);
   opacity: 0.34;
   transition: opacity 200ms ease-out;
 }
 
-.toc-mount:hover .toc-mount__line {
+.reader-rail:hover .reader-rail__line {
   opacity: 0.75;
 }
 
-/* 垂挂列表：从挂载线下方开始，宽度与线一致（左端对齐），**全透明** */
+/* 垂挂列表：从挂载线顶部基准下方开始，宽度与线一致（左端对齐），**全透明**；
+   顶端引导分割线并入列表容器（原横线职能，滚动被可视地截在线上） */
 .toc-list {
   position: absolute;
   top: calc(var(--toc-line-top, 28px) + 1px);
+  left: calc(var(--sidebar-w, 56px) + 10px);
+  width: clamp(
+    110px,
+    calc((100% - var(--read-width, 760px)) / 2 - var(--sidebar-w, 56px)),
+    var(--toc-line-w, 220px)
+  );
   z-index: 15;
   display: flex;
   flex-direction: column;
   max-height: 60vh;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--muted) 45%, transparent);
   background: none;
 }
 

@@ -1,10 +1,12 @@
 /**
- * 阅读参数面板（右侧可召唤）—— `STYLE.md` §5.8（阅读页零控件 + 贴缘召唤）/ §5.9（可调参数清单）。
+ * 阅读参数面板内容（挂载线实体的底部挂件，线本体与开合把手在 `ReaderRail`）——
+ * `STYLE.md` §5.8 / §5.9。2026-09-12 用户定：右侧独立召唤条与面板内「收起」按钮废除，
+ * 参数与目录同处一条挂载线，**把手开合、面板向上展开**。
  *
  * 设计口径：
- * - **不是常驻状态栏**：默认收起，只在贴右缘的窄条上点一下才出来（与左侧侧边栏召回条同款形态、镜像到右侧）。
  * - **纯文字选项**（P1：文字即界面）：无边框无底色，选中态靠 `--accent` 色温；每一行 = 小标签 + 若干文字按钮。
- * - **容器全透明**（与目录挂载线同一语言），行间用发丝分割线；底部「收起」上方也有一条引导线。
+ * - **内容统一中间对齐**（用户 2026-09-12 定）：标签与选项都居中。
+ * - **容器全透明**（与目录同一语言），行间用发丝分割线；开合只归挂载线把手，面板内无收起按钮。
  * - 档位只是**呈现**：回调交出的是**数值**（字号 px / 行距倍数 / 段距 px / 纸宽 px / 内边距 px），
  *   缺省档 = 该参数**不注入**（尊重书自带排版）。
  * - 组件是**纯 props**（值 + 回调），状态与持久化归 ReaderFeature —— 也方便样式样张直接复用。
@@ -69,18 +71,11 @@ const READER_WIDTHS: Option<number>[] = [
 ]
 
 interface ReaderControlsProps {
-  open: boolean
   params: ReaderParams
-  onToggle: () => void
   onChange: (patch: Partial<ReaderParams>) => void
 }
 
-export function ReaderControls({
-  open,
-  params,
-  onToggle,
-  onChange
-}: ReaderControlsProps): React.JSX.Element {
+export function ReaderControls({ params, onChange }: ReaderControlsProps): React.JSX.Element {
   /** 一行参数：小标签 + 文字选项（选中态 = accent 色温） */
   const Row = <T,>({
     label,
@@ -110,55 +105,37 @@ export function ReaderControls({
   )
 
   return (
-    <>
-      {/* 贴右缘的召唤条：默认收起；展开时随面板移到面板左缘（与左侧召回条同一逻辑，镜像） */}
-      <button
-        className={`reader-controls-toggle ${open ? 'reader-controls-toggle--open' : ''}`}
-        aria-label={open ? '收起閱讀參數' : '閱讀參數'}
-        aria-expanded={open}
-        title={open ? '收起閱讀參數' : '閱讀參數'}
-        onClick={onToggle}
+    <div className="reader-controls">
+      <Row
+        label="字號"
+        options={FONT_SIZES}
+        value={params.fontSize}
+        onPick={(v) => onChange({ fontSize: v })}
       />
-
-      {open && (
-        <div className="reader-controls">
-          <Row
-            label="字號"
-            options={FONT_SIZES}
-            value={params.fontSize}
-            onPick={(v) => onChange({ fontSize: v })}
-          />
-          <Row
-            label="行距"
-            options={LINE_HEIGHTS}
-            value={params.lineHeight}
-            onPick={(v) => onChange({ lineHeight: v })}
-          />
-          <Row
-            label="段距"
-            options={PARAGRAPH_SPACING}
-            value={params.paragraphSpacing}
-            onPick={(v) => onChange({ paragraphSpacing: v })}
-          />
-          <Row
-            label="紙寬"
-            options={READER_WIDTHS}
-            value={params.readerWidth}
-            onPick={(v) => onChange({ readerWidth: v })}
-          />
-          <Row
-            label="內邊距"
-            options={PAGE_PAD}
-            value={params.pagePadX}
-            onPick={(v) => onChange({ pagePadX: v })}
-          />
-          <div className="reader-controls__fold">
-            <button className="text-action" onClick={onToggle}>
-              收起
-            </button>
-          </div>
-        </div>
-      )}
-    </>
+      <Row
+        label="行距"
+        options={LINE_HEIGHTS}
+        value={params.lineHeight}
+        onPick={(v) => onChange({ lineHeight: v })}
+      />
+      <Row
+        label="段距"
+        options={PARAGRAPH_SPACING}
+        value={params.paragraphSpacing}
+        onPick={(v) => onChange({ paragraphSpacing: v })}
+      />
+      <Row
+        label="紙寬"
+        options={READER_WIDTHS}
+        value={params.readerWidth}
+        onPick={(v) => onChange({ readerWidth: v })}
+      />
+      <Row
+        label="內邊距"
+        options={PAGE_PAD}
+        value={params.pagePadX}
+        onPick={(v) => onChange({ pagePadX: v })}
+      />
+    </div>
   )
 }
