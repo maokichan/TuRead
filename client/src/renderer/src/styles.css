@@ -591,33 +591,24 @@ body {
   left: var(--sidebar-w);
 }
 
-/* ---------- 阅读参数（挂载线底部挂件；2026-09-12 用户定）----------
-   原右侧独立召唤条 + 面板内「收起」废除。参数挂在挂载线（ReaderRail）底部，
-   把手开合、**面板向上展开**；内容统一中间对齐。 */
-.reader-params {
-  position: absolute;
-  bottom: 34px; /* 让位常驻把手 */
-  left: var(--sidebar-w, 56px);
-  width: clamp(
-    120px,
-    calc((100% - var(--read-width, 760px)) / 2 - var(--sidebar-w, 56px)),
-    var(--toc-line-w, 220px)
-  );
-  z-index: 16;
-  max-height: 62vh;
-  overflow-y: auto;
-  scrollbar-width: none;
-  /* 向上展开的"生根"感：底部一条引导分割线压住把手 */
-  border-bottom: 1px solid color-mix(in srgb, var(--muted) 40%, transparent);
-}
-
-.reader-params::-webkit-scrollbar {
-  width: 0;
-}
-
+/* ---------- 阅读参数（挂载线右段垂挂；2026-09-12 用户定，二次纠正定稿）----------
+   原右侧独立召唤条 + 面板内「收起」废除。参数面板挂在横向挂载线**右段下方**，
+   开合 = 点挂载线右段，**折叠 = 向上收回线里**；内容统一中间对齐。 */
 .reader-controls {
+  position: absolute;
+  top: calc(var(--toc-line-top, 28px) + 1px);
+  right: 0;
+  z-index: 16;
   display: flex;
   flex-direction: column;
+  width: clamp(160px, 30vw, var(--reader-panel-w, 250px));
+  max-height: 72vh;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.reader-controls::-webkit-scrollbar {
+  width: 0;
 }
 
 /* 一行参数：小标签 + 文字选项，**统一中间对齐**（用户 2026-09-12 定）；
@@ -648,35 +639,7 @@ body {
   gap: 4px 12px;
 }
 
-/* 挂载线底部的参数把手（常驻；开合共用） */
-.reader-rail__handle {
-  position: absolute;
-  bottom: 0;
-  left: var(--sidebar-w, 56px);
-  width: clamp(
-    120px,
-    calc((100% - var(--read-width, 760px)) / 2 - var(--sidebar-w, 56px)),
-    var(--toc-line-w, 220px)
-  );
-  z-index: 17;
-  padding: 7px 0 9px;
-  background: none;
-  border: 0;
-  cursor: pointer;
-  font-family: var(--font-ui);
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-  opacity: 0.55;
-  transition: opacity 200ms ease-out, color 120ms ease-out;
-  text-align: center;
-}
 
-.reader-rail__handle:hover,
-.reader-rail__handle--open {
-  opacity: 1;
-  color: var(--text);
-}
 /* ---------- 目录：挂载线 + 垂挂列表（STYLE.md §5.8）----------
    形态（用户 2026-09-11 二次定）：挂载线是**目录的挂载点**，条目自线下方**逐条向下**垂挂，
    容器**全透明**。
@@ -684,47 +647,66 @@ body {
    也不占用/遮挡侧边栏的贴缘召回按钮；宽度 = 左侧留白可用宽度（上限 `--toc-line-w`）→ 不侵入正文列。
    高亮：不是改文字颜色，而是**条目容器上覆盖一层遮罩**（`--desk-bg`），
    其不透明度按**条目到鼠标的距离**调整（近 → 揭开，远 → 盖上），并带 200ms 过渡（见 TocPanel）。 */
-/* ---------- 挂载线实体（ReaderRail；2026-09-12 用户定）----------
-   原"目录顶部横线"升级为**贯穿全页高的左侧竖线**：目录自顶部垂挂、阅读参数自底部向上展开，
-   两挂件互不干扰又同处一条线；目录折叠时，**点线 = 展开目录**（线的点击职能）。 */
+/* ---------- 挂载线实体（ReaderRail；2026-09-12 用户定，二次纠正定稿）----------
+   一条**横向**挂载线：自目录段起**延伸整个页面宽度**（左段=目录挂载区、中段=纯线跨过正文上方、
+   右段=参数挂载区）。目录折叠时点左段 = 展开目录；参数面板挂在右段下方，**折叠 = 向上收回线里**。
+   三段 border-top 拼出同一条线；容器不接事件（pointer-events:none），只有两段按钮可点。 */
 .reader-rail {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: var(--toc-line-top, 28px);
   left: var(--sidebar-w, 56px);
+  right: 0;
+  z-index: 14;
+  display: flex;
+  align-items: stretch;
+  height: 30px; /* 点击判定高度：线画在顶缘，向下撑出可点带 */
+  margin-top: -15px; /* 线的视觉位置仍由 --toc-line-top 决定（判定带上下各让一半） */
+  pointer-events: none;
+}
+
+.reader-rail__zone,
+.reader-rail__span {
+  border-top: 1px solid var(--muted);
+  opacity: 0.34;
+  transition: opacity 200ms ease-out;
+}
+
+.reader-rail__zone {
+  pointer-events: auto;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--muted);
+  cursor: pointer;
+}
+
+.reader-rail__zone--toc {
   width: clamp(
     120px,
     calc((100% - var(--read-width, 760px)) / 2 - var(--sidebar-w, 56px)),
     var(--toc-line-w, 220px)
   );
-  z-index: 14;
-  padding: 0;
-  background: none;
-  border: 0;
-  cursor: pointer;
 }
 
-.reader-rail__line {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-left: 1px solid var(--muted);
-  opacity: 0.34;
-  transition: opacity 200ms ease-out;
+.reader-rail__span {
+  flex: 1;
 }
 
-.reader-rail:hover .reader-rail__line {
+.reader-rail__zone--params {
+  width: clamp(160px, 30vw, var(--reader-panel-w, 250px));
+}
+
+.reader-rail__zone:hover {
   opacity: 0.75;
 }
 
-/* 垂挂列表：从挂载线顶部基准下方开始，宽度与线一致（左端对齐），**全透明**；
-   顶端引导分割线并入列表容器（原横线职能，滚动被可视地截在线上） */
+/* 垂挂列表：从挂载线下方开始，宽度与左段一致（左端对齐），**全透明** */
 .toc-list {
   position: absolute;
   top: calc(var(--toc-line-top, 28px) + 1px);
-  left: calc(var(--sidebar-w, 56px) + 10px);
+  left: var(--sidebar-w, 56px);
   width: clamp(
-    110px,
+    120px,
     calc((100% - var(--read-width, 760px)) / 2 - var(--sidebar-w, 56px)),
     var(--toc-line-w, 220px)
   );
@@ -732,8 +714,6 @@ body {
   display: flex;
   flex-direction: column;
   max-height: 60vh;
-  padding-top: 10px;
-  border-top: 1px solid color-mix(in srgb, var(--muted) 45%, transparent);
   background: none;
 }
 
