@@ -8,6 +8,9 @@ import type { TureadBridge } from '@shared/ipc'
 const devBookArg = process.argv.find((a) => a.startsWith('--turead-dev-book='))
 const devBook = devBookArg ? devBookArg.slice('--turead-dev-book='.length) : undefined
 
+const devProbeArg = process.argv.find((a) => a.startsWith('--turead-dev-probe='))
+const devProbe = devProbeArg ? devProbeArg.slice('--turead-dev-probe='.length) : undefined
+
 const bridge: TureadBridge = {
   invoke: (channel, payload) => ipcRenderer.invoke(channel, payload),
   subscribe: (channel, listener) => {
@@ -17,7 +20,8 @@ const bridge: TureadBridge = {
       ipcRenderer.removeListener(channel, wrapped)
     }
   },
-  devBook
+  devBook,
+  devProbe
 }
 
 contextBridge.exposeInMainWorld('turead', bridge)

@@ -15,6 +15,7 @@ import { FEATURES } from './features/registry'
 import type { FeatureHost, FeatureId } from './features/types'
 import { pushLog } from './features/logStore'
 import { runDevSelfCheck } from './dev/selfCheck'
+import { runPdfWidthProbe } from './dev/pdfWidthProbe'
 
 export default function AppShell(): React.JSX.Element {
   const container = useMemo<ServiceContainer>(() => createContainer(window.turead), [])
@@ -73,8 +74,15 @@ export default function AppShell(): React.JSX.Element {
     [container]
   )
 
-  // dev-only：TUREAD_DEV_BOOK 指定书时启动即导入并打开（无头验证渲染链路，实现见 dev/selfCheck.ts）
-  useEffect(() => runDevSelfCheck(container, host), [container, host])
+  // dev-only：TUREAD_DEV_BOOK 指定书时启动即导入并打开（无头验证渲染链路，实现见 dev/selfCheck.ts）；
+  // TUREAD_DEV_PROBE 指定专项探针（实现见 dev/pdfWidthProbe.ts）时优先走探针
+  useEffect(() => {
+    if (window.turead.devProbe === 'pdf-width') {
+      runPdfWidthProbe(container, host)
+      return
+    }
+    return runDevSelfCheck(container, host)
+  }, [container, host])
 
   // 阅读态侧边栏退场（STYLE.md §5.8）：仅 reader 且未被手动钉住时隐藏
   const sidebarVisible = activeFeature !== 'reader' || sidebarPinned

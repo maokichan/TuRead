@@ -40,4 +40,6 @@ export interface TureadBridge {
   subscribe(channel: string, listener: (payload: unknown) => void): () => void
   /** dev-only：TUREAD_DEV_BOOK 环境变量指定的书（启动即打开，用于无头验证渲染链路） */
   devBook?: string
+  /** dev-only：TUREAD_DEV_PROBE 环境变量指定的探针名（如 pdf-width，无头复现专项现象） */
+  devProbe?: string
 }

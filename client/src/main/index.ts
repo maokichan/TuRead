@@ -9,6 +9,7 @@ import { JsonStore } from './store/jsonStore'
 
 function createWindow(): void {
   const devBook = process.env['TUREAD_DEV_BOOK']
+  const devProbe = process.env['TUREAD_DEV_PROBE']
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -20,7 +21,10 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      additionalArguments: devBook ? [`--turead-dev-book=${devBook}`] : []
+      additionalArguments: [
+        ...(devBook ? [`--turead-dev-book=${devBook}`] : []),
+        ...(devProbe ? [`--turead-dev-probe=${devProbe}`] : [])
+      ]
     }
   })
 
@@ -28,7 +32,7 @@ function createWindow(): void {
   // 双保险：应用菜单置空 + 移除本窗口菜单（Windows 下 autoHideMenuBar 按 Alt 仍可能弹出）
   win.removeMenu()
 
-  if (devBook) {
+  if (devBook || devProbe) {
     // dev-only 无头验证：渲染进程打印 TUREAD-TEST-* 标记后自动退出
     // 上限 180s：文字类书（尤其 MOBI/AZW3）找不到正文时会逐章向前扫描，单次可耗 60~120s，
     // 原来 120s 会把「跑得慢」误报成 FAIL（2026-09-11 实测）。

@@ -21,11 +21,18 @@
   - **右侧"模型阅读"容器（预留）**：⚠ 右侧现在已经有阅读参数面板 → 将来模型阅读若也要右侧，
     **先定共存形态**（同侧切换 / 上下分区 / 独立第三区）；原则不变：只占留白，不挤压纸的语义。
   - **同步相关控件**：本产品是同步阅读器，阅读页还需要同步相关控件；**待房间同步打通后再定形态**。
-- [ ] **(用户实测，下个版本修) PDF 在改变纸宽时有预期之外的行为**（2026-09-11 记录）：改变纸宽
-  （`--read-width`，右侧面板的 窄/中/寬 档）后，PDF 的表现与预期不符。
-  待确认与候选方向：PDF 的页面容器/缩放由 kookit 自己按宿主 `element.clientWidth` 计算并落到具体像素
-  （`handleImageSize` / PDF 页容器），改 CSS 变量后**是否触发了重排与重算**需实测；另需确认是否要
-  "改纸宽后对 PDF 重渲染"。修之前先复现并写明现象（对话框/翻页/缩放的哪一项不符预期）。
+- [ ] **(用户实测，下个版本修) PDF 在改变纸宽时有预期之外的行为**（2026-09-11 记录；**2026-09-12 已复现并量化**，
+  探针 `client/src/renderer/src/dev/pdfWidthProbe.ts`，触发 `TUREAD_DEV_PROBE=pdf-width` + `TUREAD_DEV_BOOK`）：
+  - **现象**（样书《机器学习》，scroll 模式）：改 `--read-width` 后宿主列与子 iframe **都**随档位变化
+    （757→917→617），但 PDF 页面 **canvas 钉死在首渲染像素宽（730px，attr 913×964）不重排** ——
+    加宽档（920）：页面不放大、两侧留白变大；窄档（620）：canvas 宽出页面容器
+    （子doc `scrollW=731 > clientW=601`）→ **内容横向溢出被裁**。
+  - **根因**：kookit `PdfRender` 在每页渲染时用 `doc.body.clientWidth` 算缩放（`getPdfScale`），
+    canvas/子 iframe 尺寸落成固定像素；kookit 全库**无 resize 监听**、PdfRender **无公开重排入口**，
+    改宿主 CSS 变量不触发任何重算。文字类不受影响（HTML 天然回流）。
+  - **修法候选**（动手前先定形态）：① 改纸宽后对 PDF 整本重开（走 `open()` 带当前位置，简单但重）；
+    ② 适配器里对可见页调 kookit 内部 `handleRenderPDFChapter(idx, isReload=true)`（轻但依赖内部细节）；
+    ③ PDF 时面板禁用纸宽档位并说明（承认边界）。⚠ 分页模式（single/double）是否同样受影响未测。
 - [ ] **PDF 夜间模式（像素处理）**：PDF 页面是位图，改文字颜色无效 → 对页面 canvas 做
   `getImageData` → 反相/降亮度 → `putImageData`（或容器 `filter: invert` + 色相补偿）；
   扫描版同理。方案已记录在 `client/docs/KOOKIT.md` §7，正式实现单独立项
