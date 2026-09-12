@@ -59,8 +59,10 @@ export function ReaderRail({
         <TocPanel rows={tocRows} onJump={onTocJump} onToggle={onTocToggle} />
       )}
 
-      {/* 右挂件：参数面板（挂在线下方右侧；折叠 = 向上收回线里） */}
-      {controlsOpen && <ReaderControls params={params} onChange={onParamsChange} />}
+      {/* 右挂件：参数面板（挂在线下方右侧；折叠 = 向上收回线里，面板底部「折疊」同目录） */}
+      {controlsOpen && (
+        <ReaderControls params={params} onChange={onParamsChange} onToggle={onControlsToggle} />
+      )}
     </>
   )
 }

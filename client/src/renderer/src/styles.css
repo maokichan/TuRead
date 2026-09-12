@@ -643,6 +643,24 @@ body {
   gap: 4px 12px;
 }
 
+/* 底部「折疊」：与目录列表的折疊同款（居中 + 引导分割线；静息淡、hover 亮） */
+.reader-controls__fold {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--muted) 40%, transparent);
+}
+
+.reader-controls__fold .text-action {
+  opacity: 0.5;
+  transition: opacity 200ms ease-out;
+}
+
+.reader-controls__fold .text-action:hover {
+  opacity: 1;
+}
+
 
 /* ---------- 目录：挂载线 + 垂挂列表（STYLE.md §5.8）----------
    形态（用户 2026-09-11 二次定）：挂载线是**目录的挂载点**，条目自线下方**逐条向下**垂挂，

@@ -6,7 +6,8 @@
  * 设计口径：
  * - **纯文字选项**（P1：文字即界面）：无边框无底色，选中态靠 `--accent` 色温；每一行 = 小标签 + 若干文字按钮。
  * - **内容统一中间对齐**（用户 2026-09-12 定）：标签与选项都居中。
- * - **容器全透明**（与目录同一语言），行间用发丝分割线；开合只归挂载线把手，面板内无收起按钮。
+ * - **容器全透明**（与目录同一语言），行间用发丝分割线；底部「折疊」按钮**与目录同款**
+ *   （居中 + 引导分割线，2026-09-12 用户定）；开合也可点挂载线右段 / `p`。
  * - 档位只是**呈现**：回调交出的是**数值**（字号 px / 行距倍数 / 段距 px / 纸宽 px / 内边距 px），
  *   缺省档 = 该参数**不注入**（尊重书自带排版）。
  * - 组件是**纯 props**（值 + 回调），状态与持久化归 ReaderFeature —— 也方便样式样张直接复用。
@@ -73,9 +74,11 @@ const READER_WIDTHS: Option<number>[] = [
 interface ReaderControlsProps {
   params: ReaderParams
   onChange: (patch: Partial<ReaderParams>) => void
+  /** 折叠面板（底部「折疊」按钮；挂载线右段 / `p` 亦可） */
+  onToggle: () => void
 }
 
-export function ReaderControls({ params, onChange }: ReaderControlsProps): React.JSX.Element {
+export function ReaderControls({ params, onChange, onToggle }: ReaderControlsProps): React.JSX.Element {
   /** 一行参数：小标签 + 文字选项（选中态 = accent 色温） */
   const Row = <T,>({
     label,
@@ -136,6 +139,12 @@ export function ReaderControls({ params, onChange }: ReaderControlsProps): React
         value={params.pagePadX}
         onPick={(v) => onChange({ pagePadX: v })}
       />
+      {/* 底部「折疊」：与目录列表的折疊同款（居中 + 引导分割线，样式类见 styles.css） */}
+      <div className="reader-controls__fold">
+        <button className="text-action" onClick={onToggle}>
+          折疊
+        </button>
+      </div>
     </div>
   )
 }
