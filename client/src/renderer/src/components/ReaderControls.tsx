@@ -1,3 +1,8 @@
+import { useRef } from 'react'
+
+/** 遮罩衰减半径（px）：与 TocPanel 同一口径 */
+const VEIL_FALLOFF = 110
+
 /**
  * 阅读参数面板内容（挂载线实体的底部挂件，线本体与开合把手在 `ReaderRail`）——
  * `STYLE.md` §5.8 / §5.9。2026-09-12 用户定：右侧独立召唤条与面板内「收起」按钮废除，
@@ -5,6 +10,9 @@
  *
  * 设计口径：
  * - **纯文字选项**（P1：文字即界面）：无边框无底色，选中态靠 `--accent` 色温；每一行 = 小标签 + 若干文字按钮。
+ * - **低透明度 = 遮罩按距离**（2026-09-12 用户定：与目录同款）——文字全强度，
+ *   每行盖一层桌色遮罩，不透明度按**行到鼠标的距离**调整（近 → 揭开，远 → 静息），
+ *   不用静态灰字（原 label 用 --muted 的做法废除）。
  * - **内容统一中间对齐**（用户 2026-09-12 定）：标签与选项都居中。
  * - **容器全透明**（与目录同一语言），行间用发丝分割线；底部「折疊」按钮**与目录同款**
  *   （居中 + 引导分割线，2026-09-12 用户定）；开合也可点挂载线右段 / `p`。
@@ -79,6 +87,31 @@ interface ReaderControlsProps {
 }
 
 export function ReaderControls({ params, onChange, onToggle }: ReaderControlsProps): React.JSX.Element {
+  const boxRef = useRef<HTMLDivElement | null>(null)
+
+  /** 遮罩按距离（与 TocPanel.paintVeil 同一机制，读写分离）：近 → 揭开，远 → 静息（--reader-veil-rest） */
+  const paintVeil = (clientY: number | null): void => {
+    const box = boxRef.current
+    if (!box) return
+    const items = Array.from(box.querySelectorAll<HTMLElement>('.reader-controls__field'))
+    if (clientY === null) {
+      for (const el of items) el.style.removeProperty('--reader-veil')
+      return
+    }
+    const rest =
+      Number.parseFloat(getComputedStyle(box).getPropertyValue('--reader-veil-rest')) ||
+      Number.parseFloat(getComputedStyle(box).getPropertyValue('--toc-veil-rest')) ||
+      0.74
+    const measured = items.map((el) => {
+      const r = el.getBoundingClientRect()
+      return { el, center: r.top + r.height / 2 }
+    })
+    for (const { el, center } of measured) {
+      const near = Math.max(0, 1 - Math.abs(clientY - center) / VEIL_FALLOFF)
+      el.style.setProperty('--reader-veil', (rest * (1 - near)).toFixed(3))
+    }
+  }
+
   /** 一行参数：小标签 + 文字选项（选中态 = accent 色温） */
   const Row = <T,>({
     label,
@@ -104,11 +137,17 @@ export function ReaderControls({ params, onChange, onToggle }: ReaderControlsPro
           </button>
         ))}
       </div>
+      <span className="reader-controls__veil" aria-hidden="true" />
     </section>
   )
 
   return (
-    <div className="reader-controls">
+    <div
+      className="reader-controls"
+      ref={boxRef}
+      onMouseMove={(e) => paintVeil(e.clientY)}
+      onMouseLeave={() => paintVeil(null)}
+    >
       <Row
         label="字號"
         options={FONT_SIZES}

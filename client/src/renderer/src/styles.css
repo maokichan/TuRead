@@ -624,6 +624,7 @@ body {
   gap: 6px;
   padding: 10px 0;
   border-top: 1px solid color-mix(in srgb, var(--muted) 30%, transparent);
+  position: relative; /* 遮罩的定位基准 */
 }
 
 .reader-controls__field:first-child {
@@ -631,9 +632,19 @@ body {
   padding-top: 0;
 }
 
+/* 低透明度 = 遮罩按距离（与目录同款，2026-09-12 用户定）：label/选项全强度，明暗全由遮罩承担 */
 .reader-controls__label {
   font-size: 12.5px;
-  color: var(--muted);
+  color: var(--text);
+}
+
+.reader-controls__veil {
+  position: absolute;
+  inset: 0;
+  background: var(--desk-bg);
+  opacity: var(--reader-veil, var(--toc-veil-rest, 0.74));
+  transition: opacity 200ms ease-out;
+  pointer-events: none;
 }
 
 .reader-controls__options {
