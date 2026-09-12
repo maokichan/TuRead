@@ -11,6 +11,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { IPC } from '@shared/ipc'
+import { useKeyIntents } from './useKeyIntents'
 
 interface TitleBarProps {
   activeFeature: string
@@ -40,22 +41,15 @@ export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: 
     return off
   }, [])
 
-  // Ctrl+F 聚焦书库搜索；Esc 清空并移出焦点
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.ctrlKey && (e.key === 'f' || e.key === 'F') && activeFeature === 'library') {
-        e.preventDefault()
-        inputRef.current?.focus()
-        inputRef.current?.select()
-      }
-      if (e.key === 'Escape' && document.activeElement === inputRef.current) {
-        onLibraryQueryChange('')
-        inputRef.current?.blur()
-      }
+  // Ctrl+F 聚焦搜索——走意图层（app.focusSearch，domain/input.ts）；处理函数内分流：仅书库态。
+  // Esc 清空留在输入框自身的 onKeyDown（元素级语义，v2 再入表）
+  useKeyIntents('app', {
+    'app.focusSearch': () => {
+      if (activeFeature !== 'library') return
+      inputRef.current?.focus()
+      inputRef.current?.select()
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [activeFeature, onLibraryQueryChange])
+  })
 
   const control = (
     label: string,
@@ -92,6 +86,12 @@ export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: 
           ref={inputRef}
           value={activeFeature === 'library' ? libraryQuery : undefined}
           onChange={(e) => onLibraryQueryChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              onLibraryQueryChange('')
+              inputRef.current?.blur()
+            }
+          }}
           placeholder={PLACEHOLDERS[activeFeature] ?? PLACEHOLDERS.default}
           aria-label={PLACEHOLDERS[activeFeature] ?? PLACEHOLDERS.default}
           className="titlebar-search h-6 w-[300px] max-w-[40vw] rounded-sm border border-[var(--border)] bg-[var(--bg)] px-2 text-center text-[12.5px] text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:text-left"

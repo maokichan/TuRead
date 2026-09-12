@@ -29,6 +29,7 @@ import {
   DEFAULT_READER_PARAMS,
   type ReaderParams
 } from '../../components/ReaderControls'
+import { useKeyIntents } from '../../components/useKeyIntents'
 
 type ReaderMode = NonNullable<RenderOptions['readerMode']>
 
@@ -246,45 +247,29 @@ export function ReaderFeature({
     [readerMode]
   )
 
-  // 阅读器键盘（STYLE.md §5.8）：Esc 关闭（参数面板开着时先收面板）；←/→/PgUp/PgDn 翻页；
-  // Space 仅分页模式翻页；t 目录开合；p 阅读参数面板开合
-  useEffect(() => {
-    if (activeFeature !== 'reader' || !book) return
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
+  // 阅读器键盘（STYLE.md §5.8）——走键鼠意图层（domain/input.ts，2026-09-12 立机制）：
+  // 绑定见 DEFAULT_BINDINGS.reader.*；处理函数内分流保持原有手感（Esc 先收面板、Space 仅分页模式）。
+  // ⚠ enabled 守卫必须给：功能组件常驻挂载，不设守卫书库里按 t/p 会误触阅读器意图
+  useKeyIntents(
+    'reader',
+    {
+      'reader.back': () => {
         if (controlsOpen) {
           setControlsOpen(false)
           return
         }
         host.closeReader()
-        return
-      }
-      if (e.key === 'ArrowRight' || e.key === 'PageDown') {
-        e.preventDefault()
-        void pageTurn('next')
-        return
-      }
-      if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-        e.preventDefault()
-        void pageTurn('prev')
-        return
-      }
-      if (e.key === ' ' && readerMode !== 'scroll') {
-        e.preventDefault()
-        void pageTurn('next')
-        return
-      }
-      if (e.key === 't' || e.key === 'T') {
-        setTocOpen((v) => !v)
-        return
-      }
-      if (e.key === 'p' || e.key === 'P') {
-        setControlsOpen((v) => !v)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [activeFeature, book, readerMode, host, pageTurn, controlsOpen])
+      },
+      'reader.nextPage': () => void pageTurn('next'),
+      'reader.prevPage': () => void pageTurn('prev'),
+      'reader.spacePage': () => {
+        if (readerMode !== 'scroll') void pageTurn('next')
+      },
+      'reader.toggleToc': () => setTocOpen((v) => !v),
+      'reader.toggleControls': () => setControlsOpen((v) => !v)
+    },
+    activeFeature === 'reader' && !!book
+  )
 
   return (
     <section className="relative h-full select-none">
