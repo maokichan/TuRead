@@ -58,7 +58,9 @@ export function BookTile({
           <FittedTitle text={title} />
         )}
       </div>
-      <span className="line-clamp-2 text-[12.5px] leading-[1.35] text-[var(--muted)] group-hover:text-[var(--text)]">
+      {/* 标题区**定高**（两行）：窗口化渲染（useVirtualRange）需要可计算的行高，
+          单行标题也占两行的位（截断规则 FEATURES §10 待定项不变） */}
+      <span className="line-clamp-2 h-[34px] text-[12.5px] leading-[1.35] text-[var(--muted)] group-hover:text-[var(--text)]">
         {title}
       </span>
     </div>

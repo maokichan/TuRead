@@ -20,6 +20,7 @@ import { BookTile } from '../../components/BookTile'
 import { BookDetailPanel } from '../../components/BookDetailPanel'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { LibraryToolbar } from '../../components/LibraryToolbar'
+import { useVirtualRange } from '../../components/useVirtualRange'
 
 const DEFAULT_SETTINGS: LibrarySettings = { view: 'list', importRecursive: false }
 
@@ -232,6 +233,31 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
   )
 
   const detailBook = books.find((b) => b.id === detailId) ?? null
+
+  // —— 窗口化渲染（2026-09-12）：书库上规模后全量渲染几百条目会卡顿（用户定：不要一次性渲染）——
+  // 只挂载可视区 ± 缓冲条目；列表 stride = 行高 h-16(64) + gap-1(4)；
+  // 网格 stride = 封面(列宽×1.5) + gap-1.5(6) + 标题定高(34) + gap-y-5(20)。
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const listVirtual = useVirtualRange(scrollRef, {
+    itemCount: books.length,
+    stride: 68,
+    resetKey: `list-${view}-${books.length}`
+  })
+  // 网格列数：与原 auto-fill minmax(118px,1fr) + gap-x-4(16) 同口径
+  const gridCols = Math.max(1, Math.floor((listVirtual.width + 16) / (118 + 16)))
+  const gridColW = (listVirtual.width - (gridCols - 1) * 16) / gridCols
+  const gridStride = gridColW * 1.5 + 6 + 34 + 20
+  const gridVirtual = useVirtualRange(scrollRef, {
+    itemCount: books.length,
+    stride: gridStride,
+    perRow: gridCols,
+    resetKey: `grid-${view}-${books.length}`
+  })
+  const onContentScroll = (): void => {
+    listVirtual.onScroll()
+    gridVirtual.onScroll()
+  }
+
   const itemProps = (b: BookRecord): {
     book: BookRecord
     active: boolean
@@ -252,20 +278,31 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
     <section className="flex h-full flex-col gap-3">
       {/* 内容区：抽屉的定位上下文（抽屉只在这里弹出，不覆盖下方状态栏） */}
       <div className="relative min-h-0 flex-1">
-        <div className="h-full overflow-y-auto pr-1">
+        <div ref={scrollRef} onScroll={onContentScroll} className="h-full overflow-y-auto pr-1">
           {books.length === 0 ? (
             <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
               书架为空，点右下角「＋ 导入」添加电子书
             </p>
           ) : view === 'grid' ? (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(118px,1fr))] gap-x-4 gap-y-5">
-              {books.map((b) => (
+            <div
+              className="grid gap-x-4"
+              style={{
+                gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
+                rowGap: 20,
+                paddingTop: gridVirtual.padTop,
+                paddingBottom: gridVirtual.padBottom
+              }}
+            >
+              {books.slice(gridVirtual.sliceStart, gridVirtual.sliceStop).map((b) => (
                 <BookTile key={b.id} {...itemProps(b)} />
               ))}
             </div>
           ) : (
-            <div className="flex flex-col gap-1">
-              {books.map((b) => (
+            <div
+              className="flex flex-col gap-1"
+              style={{ paddingTop: listVirtual.padTop, paddingBottom: listVirtual.padBottom }}
+            >
+              {books.slice(listVirtual.sliceStart, listVirtual.sliceStop).map((b) => (
                 <BookRow key={b.id} {...itemProps(b)} />
               ))}
             </div>
