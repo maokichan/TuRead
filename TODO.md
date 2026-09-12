@@ -86,15 +86,13 @@
   等测量回来才跳回正常列数；列表模式无列数概念故不闪。修法 = 零尺寸测量守卫（隐藏期间保留上次
   实测）。另：挂载线压纸层级同批修正（横线穿过正文的部分被书页盖住，仅左右留白可见；点线左段
   开合目录已实机验证）。
-- [ ] **(高优) 键鼠操作 / 意图层**（2026-09-09 用户定，优先级提上去；**2026-09-12 用户再问"是否是时候"——
-  是**：t/p/Esc/Ctrl+F/F9 候选已散落在各组件的 window keydown 里，快捷键正在累积成新的散落特例，
-  正是该机制要治的病；建议作为数据持久化讨论期的并行结构工作先立骨架）：现有交互语义是散落特例
-  （书库：单击详情 / 双击打开 / Enter 打开 / Space 详情 / Delete 移除，仅 `FEATURES.md` §10 一行提及），
-  色块视图（hover 看原图）、房间、阅读器（目录跳转/翻页/笔记选区）的意图会继续**打架**。
-  方案：**意图（Intent）层 + 键鼠绑定表** —— UI 只发意图（openBook/selectBook/removeBook/
-  changeView/moveFocus/…），键鼠事件统一映射到意图；**一键只归属一个意图**（冲突显式解决），
-  一个意图可有多个绑定。实现建议：`core/domain/input.ts` 纯函数绑定表 + 各 Feature 注册意图，
-  不引入新依赖。范围顺序：书库域先行 → 阅读器 → 房间
+- [ ] **(高优) 键鼠操作 / 意图层**（2026-09-09 用户定；**骨架已落地 2026-09-12**：
+  `core/domain/input.ts` 纯函数绑定表（normalizeKey/resolveIntent/assertNoConflict 一键一意）+
+  `DEFAULT_BINDINGS`（现状键位原样收拢：reader.back/nextPage/prevPage/spacePage/toggleToc/toggleControls、
+  app.focusSearch）+ `useKeyIntents`（ref 装载；常驻挂载组件必须带 enabled 守卫）。
+  Reader/TitleBar 已迁移。**剩余**：① 书库域意图收编（行内键 Enter/Space/Delete 仍元素级；
+  单击详情/双击打开/方向键移焦点）② 色块视图/房间域意图 ③ 用户自定义绑定表（表已是纯数据）
+  ④ 新键（沉浸全屏 F9 候选等）一律走意图层登记。范围顺序：书库域先行 → 阅读器 → 房间
 - [ ] **详情抽屉「描述」块的内容待定**（2026-09-09 用户定）：抽屉底部保留一个满宽负片块占位
   （**无标签**，当前显示「（描述待定）」—— 内容自述性质，见 `STYLE.md` §5.5）。
   显示什么未决定，候选：① `BookMetadata.description`（kookit 解析自带，但 `extractMetadata`

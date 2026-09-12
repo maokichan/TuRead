@@ -2,13 +2,13 @@
 
 > 目的：让下一次会话/模型以最低成本恢复上下文。
 > 阅读顺序：本文件 → `MAP.md`（自动加载）→ `TODO.md` → 各端架构文档（见 MAP）。
-> 更新：2026-09-11（client **阅读器沉浸态收官 v0.4~v0.8** —— 桌/纸、零控件、覆盖式侧边栏、挂载线目录、右侧阅读参数面板；夜间模式自检销案）
+> 更新：2026-09-12（client **v0.1.13 窗口与阅读器交互大版本** —— 无边框窗口/全局搜索/挂载线实体/意图层骨架/离屏解析/窗口化渲染/TXT 修复；数据建模立项 DATA_MODEL v2 待批复）
 
 ## 1. 一句话
 
 TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共同阅读同一本书。
 渲染/解析复用 [kookit](https://github.com/koodo-reader/kookit)（AGPL-3.0，git submodule）；
-同步服务器用 Go，**v0.2.0 已实现**（仓库内 `server/`）；**client v0.1.12**。
+同步服务器用 Go，**v0.2.0 已实现**（仓库内 `server/`）；**client v0.1.13**。
 
 ## 2. 仓库与提交（`D:\PROJECT\TuRead`）
 
@@ -53,6 +53,9 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | 仓库形态 | 单仓库 monorepo（server 可零成本拆出） | `docs/ARCHITECTURE.md` §2 |
 | 开发原则 | **解释优先**；大改前写理由（Rule of Three） | — |
 | 跳转历史（2026-09-09 群聊定案） | **行动树驳回**：注释/跳转会打断线性阅读，但人的体验归根结底是线性的 → 跳转历史用**状态机**（前进/后退栈，undo/redo），不做"世界树/时间树"树状可视化；随笔记/划线落地后实施 | `TODO.md` client；`client/docs/FEATURES.md` §9 |
+| **无边框窗口 + 自绘标题栏（2026-09-12 用户定）** | `frame:false`，不用系统控制键——自绘 min/max/close（主题 token，关闭 hover = `--err` 负片；`win:*` IPC 走 `ipcMain.handle`）。标题栏内嵌**全局搜索栏**（绝对定位几何居中；作用域随功能：书库搜书已接线、阅读器搜书内内容/房间搜房间占位待接线；Ctrl+F 聚焦、Esc 清空） | `client/src/renderer/src/components/TitleBar.tsx`；`FEATURES.md` §11 |
+| **挂载线实体（2026-09-12 用户定，二次纠正定稿）** | 目录（左）与阅读参数（右）同处**一条横向挂载线**：线**延伸整个页面宽度、被书页压着**（纸列 z2 建层，横线仅左右留白可见）；左段可点 = 目录开合，右段可点 = 参数开合，参数面板底部「折疊」与目录同款；**折叠 = 向上收回线里**；参数内容中间对齐、**低透明度 = 遮罩按鼠标距离**（与目录同款，废静态灰字）。原右侧独立召唤条与面板内「收起」废除 | `client/src/renderer/src/components/ReaderRail.tsx`；`STYLE.md` §5.8 |
+| **键鼠意图层机制（2026-09-12 骨架落地）** | 键盘 = **意图**：`core/domain/input.ts` 纯函数绑定表（normalizeKey/resolveIntent/**assertNoConflict 一键一意**）+ `DEFAULT_BINDINGS`（先原样收拢现状键位）+ `useKeyIntents`（ref 装载防过期闭包；**常驻挂载组件必须带 enabled 守卫**）。已迁移：Reader 全部键、TitleBar Ctrl+F。待收编：书库行内键（元素级）、用户自定义表 | `client/src/core/domain/input.ts`；`client/src/renderer/src/components/useKeyIntents.ts` |
 | **数据分层存储（2026-09-12 批复；同日二次批复改为统一 SQLite）** | **v2：单一 SQLite 库文件 = 一份书库**——书籍/阅读状态/书箱/笔记/库级设置全在一个 .db（JSON 的"单文件可携带"理由不成立，SQLite 本身就是单文件）；JSON **退役为引导文件**（极小：已知库注册表 + 当前库路径可配置 + 窗口状态）。**多书库**：多 .db + 库管理（新建/切换/移除引用），每库两种组织并存（真实路径虚拟映射 + 纯书箱）。封面缩略图（400px/q0.82）随库目录。**owner 字段建模预留**（本地 NULL，同步上线回填）；书签进 note 表。建模与 schema 见 `client/docs/DATA_MODEL.md`（收束版）；实施前先做 better-sqlite3 打包 spike | `client/docs/DATA_MODEL.md`；`docs/STATUS.md` §3 |
 | **渲染内核可替换性（2026-09-12 用户提出，架构考量入册）** | kookit（连同 pdfjs 等解析/渲染工具）整体封装在 vendor 单文件 ESM 容器内，UI/应用层**只经端口**（`IRenderService` / `IMetadataExtractor` / `buildKookitConfig` 等收敛点）触达——**未来更换渲染内核 = 重写适配器层，UI/usecases/domain 零改动**。纪律：任何 kookit 专属概念（kookit config 字段、rendition 事件名）不得越过适配器边界上行 | `client/docs/KOOKIT.md`；`client/docs/CONTRACTS.md` §4.1 |
 | **阅读器功能边界判断（2026-09-12 用户定，产品哲学层；同日二次澄清收窄）** | ① **不管理源文件**：阅读器对书籍实体（源文件）不做资产管理——导入=建索引不拷贝、移除=只删索引（现状即如此）；⚠ **不延伸到索引组织层**：容器/书架系统照常演进（2026-09-09 已定案，用户总要用一种方式索引信息），也不依赖/不绑定任何外部管理程序；② **参数控制有必要，但形态克制**：剩余排版参数照常评估落地，形态上坚持召唤式、默认收起、默认暴露集最小，不做 Koodo 式参数墙分散注意力；③ **阅读界面=注意力焦点模式**：不做功能抽屉，不用的功能透明度逐渐提高（淡出）——淡出要慢、召回路径恒定、仅限阅读页。效力高于行业惯例；待吸收进 `STYLE.md` §5.8 | `docs/LANDSCAPE.md` §6 |

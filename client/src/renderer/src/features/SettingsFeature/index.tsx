@@ -65,7 +65,7 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
       // 载入时只应用、不写盘 —— 否则每次启动都产生一次无意义的 JSON 全量重写
       applyThemePref(normalizeThemeSetting(cfg.theme), false)
     })
-    // 只读 readerMode；阅读宽度等**高频显示参数归阅读器右侧面板**（ReaderFeature 拥有，避免两个写者）
+    // 只读 readerMode；阅读宽度等**高频显示参数归阅读器挂载线面板**（ReaderFeature 拥有，避免两个写者）
     void container.store
       .getSetting<{ readerMode?: ReaderMode }>('readerSettings', {})
       .then((cfg) => {
@@ -107,7 +107,7 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
   const changeReaderMode = useCallback(
     (m: ReaderMode) => {
       setReaderMode(m)
-      // 局部更新（原子合并）：readerSettings 由本页与阅读器右侧面板共写，不能整键覆盖
+      // 局部更新（原子合并）：readerSettings 由本页与阅读器挂载线面板共写，不能整键覆盖
       void container.store.patchSetting('readerSettings', { readerMode: m })
     },
     [container]
