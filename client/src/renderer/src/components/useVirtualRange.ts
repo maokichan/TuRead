@@ -43,11 +43,20 @@ export function useVirtualRange(
   const [scrollTop, setScrollTop] = useState(0)
   const [viewport, setViewport] = useState({ w: 0, h: 0 })
 
-  // useLayoutEffect：首帧就量到尺寸，避免网格先按 1 列渲染再跳变
+  // useLayoutEffect：首帧就量到尺寸，避免网格先按 1 列渲染再跳变。
+  // ⚠ 零尺寸守卫（2026-09-12 定位"阅读器→书库闪出第一本封面"）：功能组件隐藏（display:none）
+  // 时 ResizeObserver 会上报 0×0 —— 若照单全收，网格列数归 1，切回书库的**首帧**就用
+  // 单列布局渲染，第一本封面撑满整行闪一下，等测量回来才跳回正常列数（列表模式无列数概念，
+  // 所以只在网格模式出现）。隐藏期间保留上次实测即可。
   useLayoutEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const measure = (): void => setViewport({ w: el.clientWidth, h: el.clientHeight })
+    const measure = (): void => {
+      const w = el.clientWidth
+      const h = el.clientHeight
+      if (w === 0 && h === 0) return
+      setViewport((prev) => (prev.w === w && prev.h === h ? prev : { w, h }))
+    }
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)

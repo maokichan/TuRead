@@ -258,6 +258,10 @@ body {
   width: min(100%, var(--read-width, 760px));
   height: 100%;
   margin: 0 auto;
+  /* 纸列建层压住挂载线（2026-09-12 用户定：挂载线"被书页压着"）——
+     横线在左右留白可见，穿过正文的部分被纸盖住（rail z1 < stage z2 < 目录/参数 z15/16） */
+  position: relative;
+  z-index: 2;
   /* 纸：内容与背景靠**颜色**区分（STYLE.md §5.8 v0.5）—— 纸色填充 + 1px 纸边，
      外面是 --desk-bg 的"桌"。不用圆角（用户 2026-09-11 定：不要"嵌入盒子"） */
   background: var(--page-bg);
@@ -656,7 +660,7 @@ body {
   top: var(--toc-line-top, 28px);
   left: var(--sidebar-w, 56px);
   right: 0;
-  z-index: 14;
+  z-index: 1; /* 桌（z-auto）之上、纸列（z2）之下 —— 线被书页压着 */
   display: flex;
   align-items: stretch;
   height: 30px; /* 点击判定高度：线画在顶缘，向下撑出可点带 */
