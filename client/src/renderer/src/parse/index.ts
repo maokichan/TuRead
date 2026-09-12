@@ -11,6 +11,7 @@
 import { IPC } from '@shared/ipc'
 import type { BookFormat, BookMetadata } from '@core/domain/types'
 import { loadKookit, buildNamespace } from '@core/adapters/render/kookitLoader'
+import { detectTextCharset } from '@core/adapters/render/charset'
 
 interface ParseJob {
   jobId: string
@@ -51,7 +52,8 @@ window.turead.subscribe(IPC.metadataParseJob, (payload) => {
         {
           format: job.format.toUpperCase(),
           readerMode: 'scroll',
-          charset: '',
+          // TXT 渲染路径要求调用方给编码（与主窗口 open() 同一修法，2026-09-12）
+          charset: job.format === 'TXT' ? detectTextCharset(buffer) : '',
           animation: 'none',
           convertChinese: 'no',
           parserRegex: '',

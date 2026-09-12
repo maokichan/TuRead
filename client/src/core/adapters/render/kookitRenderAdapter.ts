@@ -29,6 +29,7 @@ import type {
 } from '@core/domain/types'
 import { loadKookit, buildNamespace } from './kookitLoader'
 import { ensurePdfjs } from './pdfjsSetup'
+import { detectTextCharset } from './charset'
 
 export type ReadBookFile = (path: string) => Promise<ArrayBuffer>
 
@@ -75,6 +76,11 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
       return
     }
     const config = this.toKookitConfig(record.format, options)
+    // TXT 的渲染路径要求调用方提供编码（kookit TxtRender `new TextDecoder(config.charset)`，
+    // 传 '' 直接 RangeError —— 此前 TXT 全格式打不开的根因，2026-09-12）；MD 固定按 UTF-8 读，不在此列
+    if (record.format === 'TXT') {
+      config.charset = detectTextCharset(buffer)
+    }
     const rendition = Kookit.BookHelper.getRendition(buffer, config, buildNamespace(Kookit))
     this.record = record
     this.rendition = rendition

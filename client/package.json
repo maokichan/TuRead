@@ -17,6 +17,7 @@
     "typecheck:preview": "tsc --noEmit -p tsconfig.preview.json"
   },
   "dependencies": {
+    "chardet": "^2.2.0",
     "pdfjs-dist": "^4.8.69",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

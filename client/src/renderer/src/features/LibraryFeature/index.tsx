@@ -24,7 +24,7 @@ import { useVirtualRange } from '../../components/useVirtualRange'
 
 const DEFAULT_SETTINGS: LibrarySettings = { view: 'list', importRecursive: false }
 
-export function LibraryFeature({ container, host, selectedBookId }: FeatureProps): React.JSX.Element {
+export function LibraryFeature({ container, host, selectedBookId, activeFeature }: FeatureProps): React.JSX.Element {
   const [books, setBooks] = useState<BookRecord[]>([])
   const [view, setView] = useState<LibraryView>(DEFAULT_SETTINGS.view)
   const [covers, setCovers] = useState<Record<string, string>>({})
@@ -142,6 +142,13 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
     }, 20000)
     return () => clearTimeout(timer)
   }, [container])
+
+  // 离开书库（进阅读器/设置/房间）时收起详情抽屉：功能组件常驻挂载（状态继承），
+  // 不收的话，从阅读页返回书库会"卡出"上一本详情的封面横在书库里（2026-09-12 用户报告的
+  // "返回书库闪出封面"即此）。openBook 路径早在 v0.1.9 就清了抽屉，这里补齐其余离场路径。
+  useEffect(() => {
+    if (activeFeature !== 'library') setDetailId(null)
+  }, [activeFeature])
 
   /** 切换视图并持久化（**局部更新**：主进程原子合并，不会冲掉设置界面管的 importRecursive） */
   const changeView = useCallback(
