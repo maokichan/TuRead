@@ -219,7 +219,10 @@
 - [ ] **(P3) 自检对"单章书"死等**（2026-09-12 MD 实测暴露）：单章文档（MD/TXT 短文）翻页无下一章，
   扫描循环吃满 waitForTurn(15s)×10 + waitScrollSettle(8s)，180s 超时误报 FAIL——扫描循环应识别
   "位置到末章"提前收尾。
-- [ ] **vitest 引入**：客户端零测试设施；`domain/location.ts` 这类语义模块需要单元断言兜底（组件化前做）
+- [ ] **vitest 引入**：客户端零测试设施；`domain/location.ts` 这类语义模块需要单元断言兜底（组件化前做）。
+  ⚠ 引入时**同步加"分层依赖守卫"单测**（2026-09-12 架构审查结论）：grep 断言 domain 零外部依赖、
+  usecases 只依赖 domain/ports、UI 不 import vendor/adapters——把六边形纪律机器化，不靠人肉复查
+  （本轮 CoverQueue 的依赖倒置就是靠 grep 抓到的）。
 
 ### 远期 · 官方插件
 
