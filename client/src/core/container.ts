@@ -20,6 +20,8 @@ import { IpcStoreAdapter } from '@core/adapters/storage/ipcStoreAdapter'
 import { IpcPickerAdapter } from '@core/adapters/picker/ipcPickerAdapter'
 import { FingerprintService } from '@core/adapters/identity/fingerprint'
 import { KookitRenderAdapter } from '@core/adapters/render/kookitRenderAdapter'
+import { OffscreenMetadataExtractor } from '@core/adapters/render/offscreenMetadataExtractor'
+import type { IMetadataExtractor } from '@core/ports/metadata'
 import { RoomSession } from '@core/usecases/RoomSession'
 import { BookService } from '@core/usecases/BookService'
 import { CoverQueue } from '@core/usecases/CoverQueue'
@@ -53,7 +55,9 @@ export function createContainer(bridge: TureadBridge): ServiceContainer {
 
   const room: IRoomSession = new RoomSession(net, render, identity)
   const books: IBookService = new BookService(identity, store)
-  const covers: ICoverQueue = new CoverQueue(readFile, render, store)
+  // 封面/元数据提取走离屏解析进程（kookit getMetadata 不再占主窗口主线程，2026-09-12）
+  const metadata: IMetadataExtractor = new OffscreenMetadataExtractor(bridge)
+  const covers: ICoverQueue = new CoverQueue(metadata, store)
   const imports: IImportQueue = new ImportQueue(readFile, books)
 
   return { render, net, identity, store, picker, room, books, covers, imports }

@@ -1,11 +1,80 @@
 /**
  * Electron 主进程入口。
  */
-import { app, BrowserWindow, shell, Menu } from 'electron'
+import { app, BrowserWindow, shell, Menu, ipcMain } from 'electron'
 import { join } from 'node:path'
+import type { WebContents } from 'electron'
 import { registerIpc } from './ipc'
 import { WsNetAdapter } from './net/wsNetAdapter'
 import { JsonStore } from './store/jsonStore'
+import { IPC } from '@shared/ipc'
+
+// —— 离屏解析窗口（封面/元数据提取专用，2026-09-12）——
+// 为什么：kookit getMetadata 全书解析（EPUB zip / PDF pdfjs）在主窗口渲染进程跑会把
+// UI 整个饿死（328 本书库实测启动挂死）。隐藏 BrowserWindow = **独立进程**、DOM 齐全
+// （EPUB 解析需 DOMParser，Worker 走不通），kookit 零改动。
+// 协议：主窗口 invoke(parseRequest) → 这里排队/派发 → 解析页 invoke(parseResult) →
+// 按 jobId 回给请求方。解析页就绪（parseReady）前只排队不派发，防早派丢任务。
+let parseWindow: BrowserWindow | null = null
+let parseReady = false
+const parseQueue: Array<{ jobId: string; path: string; format: string }> = []
+const parsePending = new Map<string, { sender: WebContents; job: { jobId: string } }>()
+
+function ensureParseWindow(): BrowserWindow {
+  if (parseWindow && !parseWindow.isDestroyed()) return parseWindow
+  parseReady = false
+  parseWindow = new BrowserWindow({
+    show: false,
+    width: 800,
+    height: 600,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      backgroundThrottling: false // 隐藏窗口默认节流定时器；解析是纯计算不受影响，但关掉保险
+    }
+  })
+  parseWindow.webContents.on('render-process-gone', () => {
+    // 在途任务快速失败（否则请求方只能干等 60s 超时）；未派发的排队任务保留，窗口重建后续派
+    for (const { sender, job } of parsePending.values()) {
+      if (!sender.isDestroyed()) {
+        sender.send(IPC.metadataParseResult, { jobId: job.jobId, error: '解析进程退出' })
+      }
+    }
+    parsePending.clear()
+    parseReady = false
+  })
+  const devUrl = process.env['ELECTRON_RENDERER_URL']
+  if (devUrl) void parseWindow.loadURL(`${devUrl}/parse.html`)
+  else void parseWindow.loadFile(join(__dirname, '../renderer/parse.html'))
+  return parseWindow
+}
+
+function registerMetadataRelay(): void {
+  ipcMain.handle(IPC.metadataParseRequest, (e, job: { jobId: string; path: string; format: string }) => {
+    if (!job?.jobId || !job.path) return
+    parsePending.set(job.jobId, { sender: e.sender, job })
+    if (parseReady && parseWindow && !parseWindow.isDestroyed()) {
+      parseWindow.webContents.send(IPC.metadataParseJob, job)
+    } else {
+      parseQueue.push(job)
+      ensureParseWindow()
+    }
+  })
+  ipcMain.handle(IPC.metadataParseReady, () => {
+    parseReady = true
+    if (!parseWindow || parseWindow.isDestroyed()) return
+    const queued = parseQueue.splice(0)
+    for (const job of queued) parseWindow.webContents.send(IPC.metadataParseJob, job)
+  })
+  ipcMain.handle(IPC.metadataParseResult, (e, payload: { jobId?: string; meta?: unknown; error?: string }) => {
+    if (!payload?.jobId) return
+    const entry = parsePending.get(payload.jobId)
+    parsePending.delete(payload.jobId)
+    if (entry && !entry.sender.isDestroyed()) entry.sender.send(IPC.metadataParseResult, payload)
+  })
+}
 
 function createWindow(): void {
   const devBook = process.env['TUREAD_DEV_BOOK']
@@ -29,6 +98,11 @@ function createWindow(): void {
   })
 
   win.on('ready-to-show', () => win.show())
+  // 主窗口关闭 = 应用退出（离屏解析窗口不计数，否则关掉主窗口后应用挂着不退）
+  win.on('closed', () => {
+    if (parseWindow && !parseWindow.isDestroyed()) parseWindow.destroy()
+    if (process.platform !== 'darwin') app.quit()
+  })
   // 双保险：应用菜单置空 + 移除本窗口菜单（Windows 下 autoHideMenuBar 按 Alt 仍可能弹出）
   win.removeMenu()
 
@@ -81,6 +155,8 @@ void app.whenReady().then(async () => {
       win.webContents.send(channel, payload)
     }
   })
+
+  registerMetadataRelay()
 
   createWindow()
 

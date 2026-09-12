@@ -25,7 +25,13 @@ export const IPC = {
   fsReadFile: 'fs:read-file',
   pickerPickFiles: 'picker:pick-files',
   pickerPickDirectory: 'picker:pick-directory',
-  pickerListEbooks: 'picker:list-ebooks'
+  pickerListEbooks: 'picker:list-ebooks',
+  // 离屏解析（封面/元数据提取专用，2026-09-12）：主窗口 → main（请求）→ 解析窗口（任务）→
+  // main → 主窗口（结果）。jobId 配对；解析页就绪后发 ready，main 才派发（防早派丢任务）
+  metadataParseRequest: 'metadata:parse-request',
+  metadataParseJob: 'metadata:parse-job',
+  metadataParseResult: 'metadata:parse-result',
+  metadataParseReady: 'metadata:parse-ready'
 } as const
 
 /** 可导入的电子书扩展名（对话框过滤 + 目录扫描共用，唯一定义处） */

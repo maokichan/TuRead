@@ -6,13 +6,15 @@
  * "选完文件"变成"卡住不动"；改成导入后串行后台跑，界面立刻可用，进度经事件上报。
  *
  * 编排（用例 = 编排多个能力服务）：
- *   readFile（文件系统）→ IRenderService.getMetadata（kookit 解析）→ makeThumbnail（canvas）
- *   → ILibraryStore.setCover / updateBook（落盘 + 记 coverPath）
+ *   IMetadataExtractor.extractFromFile（离屏解析：kookit getMetadata 在独立进程跑，
+ *   2026-09-12 前是 IRenderService.getMetadata 在主窗口主线程解析 —— 328 本书库把 UI 饿死）
+ *   → makeThumbnail（canvas）→ ILibraryStore.setCover / updateBook（落盘 + 记 coverPath）
  *
- * 纪律：串行（一次一本，避免 N 个大文件同时进内存）；可取消；单本失败不影响其余（事件上报）。
+ * 纪律：串行（一次一本，避免 N 个大文件同时进内存）；可取消；单本失败不影响其余（事件上报，
+ * 且失败落 coverFailed 负缓存，不随启动重试）。
  */
-import type { IRenderService } from '@core/ports/render'
 import type { ILibraryStore } from '@core/ports/store'
+import type { IMetadataExtractor } from '@core/ports/metadata'
 import { TypedEmitter } from '@core/ports/emitter'
 import { makeThumbnail } from '@core/adapters/image/thumbnail'
 
@@ -50,8 +52,7 @@ export class CoverQueue extends TypedEmitter<CoverQueueEvents> implements ICover
   private cancelled = false
 
   constructor(
-    private readFile: (path: string) => Promise<ArrayBuffer>,
-    private render: IRenderService,
+    private extractor: IMetadataExtractor,
     private store: ILibraryStore
   ) {
     super()
@@ -99,8 +100,8 @@ export class CoverQueue extends TypedEmitter<CoverQueueEvents> implements ICover
       }
       this.done++
       this.emit('progress', this.done, this.total)
-      // 让出一拍：解析发生在渲染主线程（kookit getMetadata 同步计算密集），
-      // 这里必须把输入事件的机会留出来，否则批量提取期间 UI 交互完全饿死。
+      // 每本之间让一拍：解析已下放离屏进程（2026-09-12），但保持节拍可让主窗口的
+      // cover-ready 处理（IPC 读封面 + setState）有机会穿插，批量不至于挤爆事件循环。
       await new Promise((r) => setTimeout(r, 0))
     }
     this.running = false
@@ -125,8 +126,7 @@ export class CoverQueue extends TypedEmitter<CoverQueueEvents> implements ICover
     if (book.coverPath) return // 已有封面：跳过（计入 ok，保证进度连续）
     if (book.coverFailed) return // 已判定拿不到封面（负缓存）：跳过，不重复解析
 
-    const buffer = await this.readFile(book.filePath)
-    const metadata = await this.render.getMetadata(buffer, book.format)
+    const metadata = await this.extractor.extractFromFile(book.filePath, book.format)
     if (!metadata.cover) throw new Error('该书没有封面')
 
     const thumb = await makeThumbnail(metadata.cover)

@@ -11,9 +11,7 @@
 import type {
   KookitConfig,
   KookitPosition,
-  KookitRendition,
-  KookitNamespace,
-  KookitRenderClass
+  KookitRendition
 } from '@vendor/kookit.esm'
 import { TypedEmitter } from '@core/ports/emitter'
 import { normalizeLocation } from '@core/domain/location'
@@ -29,6 +27,7 @@ import type {
   ReaderTypography,
   RenderOptions
 } from '@core/domain/types'
+import { loadKookit, buildNamespace } from './kookitLoader'
 import { ensurePdfjs } from './pdfjsSetup'
 
 export type ReadBookFile = (path: string) => Promise<ArrayBuffer>
@@ -36,37 +35,6 @@ export type ReadBookFile = (path: string) => Promise<ArrayBuffer>
 /** 正文溢出的"真伪阈值"（px）：kookit 给文字类 iframe 的 height 留了 +300px 余量，
  *  ≤ 这个量级不算真的需要滚动，滚动条宽度归零（见 refreshScrollAffordance）。 */
 const SCROLL_SLACK_PX = 320
-
-type KookitModule = typeof import('@vendor/kookit.esm')
-
-/** vendor 懒加载（只加载一次）；先注入 pdfjs 再 import vendor（顺序不可反，见文件头注释） */
-let kookitPromise: Promise<KookitModule> | null = null
-function loadKookit(): Promise<KookitModule> {
-  if (!kookitPromise) {
-    kookitPromise = (async () => {
-      await ensurePdfjs()
-      return await import('@vendor/kookit.esm')
-    })()
-  }
-  return kookitPromise
-}
-
-function buildNamespace(Kookit: KookitModule): KookitNamespace {
-  const cls = (c: unknown) => c as KookitRenderClass
-  return {
-    CacheRender: cls(Kookit.CacheRender),
-    EpubRender: cls(Kookit.EpubRender),
-    MobiRender: cls(Kookit.MobiRender),
-    PdfRender: cls(Kookit.PdfRender),
-    PdfTextRender: cls(Kookit.PdfTextRender),
-    TxtRender: cls(Kookit.TxtRender),
-    ComicRender: cls(Kookit.ComicRender),
-    Fb2Render: cls(Kookit.Fb2Render),
-    DocxRender: cls(Kookit.DocxRender),
-    MdRender: cls(Kookit.MdRender),
-    HtmlRender: cls(Kookit.HtmlRender)
-  }
-}
 
 export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> implements IRenderService {
   private readFile: ReadBookFile
