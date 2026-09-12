@@ -14,6 +14,7 @@ import { createContainer, type ServiceContainer } from '@core/container'
 import { FEATURES } from './features/registry'
 import type { FeatureHost, FeatureId } from './features/types'
 import { pushLog } from './features/logStore'
+import { TitleBar } from './components/TitleBar'
 import { runDevSelfCheck } from './dev/selfCheck'
 import { runPdfWidthProbe } from './dev/pdfWidthProbe'
 
@@ -102,8 +103,17 @@ export default function AppShell(): React.JSX.Element {
    */
   const sidebarOverlays = activeFeature === 'reader'
 
+  // 书库搜索词（标题栏搜索栏的单一真相；StatePill 同款 props 下发）
+  const [libraryQuery, setLibraryQuery] = useState('')
+
   return (
-    <div className="relative flex h-screen">
+    <div className="relative flex h-screen flex-col">
+      <TitleBar
+        activeFeature={activeFeature}
+        libraryQuery={libraryQuery}
+        onLibraryQueryChange={setLibraryQuery}
+      />
+      <div className="relative flex min-h-0 flex-1">
       {sidebarVisible && (
         /* 宽度走 --sidebar-w（styles.css 单一来源）：目录挂载线/条目容器的左缘要对齐它的右缘，
            两处硬编码会漂（STYLE.md §5.8） */
@@ -170,11 +180,14 @@ export default function AppShell(): React.JSX.Element {
                 selectedBookId={selectedBookId}
                 readerBookId={readerBookId}
                 activeFeature={activeFeature}
+                libraryQuery={libraryQuery}
+                onLibraryQueryChange={setLibraryQuery}
               />
             </div>
           )
         })}
       </main>
+      </div>
     </div>
   )
 }

@@ -84,6 +84,9 @@ function createWindow(): void {
     height: 800,
     show: false,
     title: 'TuRead',
+    // 无边框（2026-09-12 用户定）：不用系统窗口控制键，自绘标题栏（TitleBar.tsx）——
+    // 拖拽/双击最大化由 -webkit-app-region 提供，右缘控制键经 win:* IPC 调本进程 API
+    frame: false,
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -96,6 +99,15 @@ function createWindow(): void {
       ]
     }
   })
+
+  // 最大化状态广播（自绘控制键要切换 □/❐ 图标）
+  const broadcastMaximized = (is: boolean): void => {
+    for (const w of BrowserWindow.getAllWindows()) {
+      w.webContents.send(IPC.winMaximizedChanged, is)
+    }
+  }
+  win.on('maximize', () => broadcastMaximized(true))
+  win.on('unmaximize', () => broadcastMaximized(false))
 
   win.on('ready-to-show', () => win.show())
   // 主窗口关闭 = 应用退出（离屏解析窗口不计数，否则关掉主窗口后应用挂着不退）
@@ -157,6 +169,18 @@ void app.whenReady().then(async () => {
   })
 
   registerMetadataRelay()
+
+  // 自绘窗口控制键（无边框窗口，2026-09-12）：控制键只操作**发起调用的那个窗口**。
+  // ⚠ 渲染层桥是 invoke（ipcRenderer.invoke）→ 这里必须 ipcMain.handle，用 .on 会报
+  // "No handler registered"（2026-09-12 实测踩坑）
+  ipcMain.handle(IPC.winMinimize, (e) => BrowserWindow.fromWebContents(e.sender)?.minimize())
+  ipcMain.handle(IPC.winMaximizeToggle, (e) => {
+    const w = BrowserWindow.fromWebContents(e.sender)
+    if (!w) return
+    if (w.isMaximized()) w.unmaximize()
+    else w.maximize()
+  })
+  ipcMain.handle(IPC.winClose, (e) => BrowserWindow.fromWebContents(e.sender)?.close())
 
   createWindow()
 

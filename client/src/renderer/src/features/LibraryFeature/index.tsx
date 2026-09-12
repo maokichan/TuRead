@@ -24,7 +24,13 @@ import { useVirtualRange } from '../../components/useVirtualRange'
 
 const DEFAULT_SETTINGS: LibrarySettings = { view: 'list', importRecursive: false }
 
-export function LibraryFeature({ container, host, selectedBookId, activeFeature }: FeatureProps): React.JSX.Element {
+export function LibraryFeature({
+  container,
+  host,
+  selectedBookId,
+  activeFeature,
+  libraryQuery = ''
+}: FeatureProps): React.JSX.Element {
   const [books, setBooks] = useState<BookRecord[]>([])
   const [view, setView] = useState<LibraryView>(DEFAULT_SETTINGS.view)
   const [covers, setCovers] = useState<Record<string, string>>({})
@@ -241,24 +247,36 @@ export function LibraryFeature({ container, host, selectedBookId, activeFeature 
 
   const detailBook = books.find((b) => b.id === detailId) ?? null
 
+  // 书库搜索（标题栏搜索栏，2026-09-12）：标题/路径包含即命中（不分大小写）；
+  // 过滤在窗口化切片**之前**——搜索的是全库，不是当前可视区
+  const q = libraryQuery.trim().toLowerCase()
+  const visibleBooks =
+    q.length > 0
+      ? books.filter(
+          (b) =>
+            (b.metadata.title || '').toLowerCase().includes(q) ||
+            b.filePath.toLowerCase().includes(q)
+        )
+      : books
+
   // —— 窗口化渲染（2026-09-12）：书库上规模后全量渲染几百条目会卡顿（用户定：不要一次性渲染）——
   // 只挂载可视区 ± 缓冲条目；列表 stride = 行高 h-16(64) + gap-1(4)；
   // 网格 stride = 封面(列宽×1.5) + gap-1.5(6) + 标题定高(34) + gap-y-5(20)。
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const listVirtual = useVirtualRange(scrollRef, {
-    itemCount: books.length,
+    itemCount: visibleBooks.length,
     stride: 68,
-    resetKey: `list-${view}-${books.length}`
+    resetKey: `list-${view}-${visibleBooks.length}-${q}`
   })
   // 网格列数：与原 auto-fill minmax(118px,1fr) + gap-x-4(16) 同口径
   const gridCols = Math.max(1, Math.floor((listVirtual.width + 16) / (118 + 16)))
   const gridColW = (listVirtual.width - (gridCols - 1) * 16) / gridCols
   const gridStride = gridColW * 1.5 + 6 + 34 + 20
   const gridVirtual = useVirtualRange(scrollRef, {
-    itemCount: books.length,
+    itemCount: visibleBooks.length,
     stride: gridStride,
     perRow: gridCols,
-    resetKey: `grid-${view}-${books.length}`
+    resetKey: `grid-${view}-${visibleBooks.length}-${q}`
   })
   const onContentScroll = (): void => {
     listVirtual.onScroll()
@@ -290,6 +308,10 @@ export function LibraryFeature({ container, host, selectedBookId, activeFeature 
             <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
               书架为空，点右下角「＋ 导入」添加电子书
             </p>
+          ) : visibleBooks.length === 0 ? (
+            <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
+              没有匹配「{libraryQuery.trim()}」的书
+            </p>
           ) : view === 'grid' ? (
             <div
               className="grid gap-x-4"
@@ -300,7 +322,7 @@ export function LibraryFeature({ container, host, selectedBookId, activeFeature 
                 paddingBottom: gridVirtual.padBottom
               }}
             >
-              {books.slice(gridVirtual.sliceStart, gridVirtual.sliceStop).map((b) => (
+              {visibleBooks.slice(gridVirtual.sliceStart, gridVirtual.sliceStop).map((b) => (
                 <BookTile key={b.id} {...itemProps(b)} />
               ))}
             </div>
@@ -309,7 +331,7 @@ export function LibraryFeature({ container, host, selectedBookId, activeFeature 
               className="flex flex-col gap-1"
               style={{ paddingTop: listVirtual.padTop, paddingBottom: listVirtual.padBottom }}
             >
-              {books.slice(listVirtual.sliceStart, listVirtual.sliceStop).map((b) => (
+              {visibleBooks.slice(listVirtual.sliceStart, listVirtual.sliceStop).map((b) => (
                 <BookRow key={b.id} {...itemProps(b)} />
               ))}
             </div>

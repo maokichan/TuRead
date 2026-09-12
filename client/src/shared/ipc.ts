@@ -31,7 +31,12 @@ export const IPC = {
   metadataParseRequest: 'metadata:parse-request',
   metadataParseJob: 'metadata:parse-job',
   metadataParseResult: 'metadata:parse-result',
-  metadataParseReady: 'metadata:parse-ready'
+  metadataParseReady: 'metadata:parse-ready',
+  // 无边框窗口（2026-09-12）：自绘控制键 → main 调窗口 API；main 广播最大化状态
+  winMinimize: 'win:minimize',
+  winMaximizeToggle: 'win:maximize-toggle',
+  winClose: 'win:close',
+  winMaximizedChanged: 'win:maximized-changed'
 } as const
 
 /** 可导入的电子书扩展名（对话框过滤 + 目录扫描共用，唯一定义处） */

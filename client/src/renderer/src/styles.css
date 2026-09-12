@@ -826,3 +826,14 @@ body {
 .toc-row:disabled .toc-row__label {
   opacity: 0.55;
 }
+
+/* ── 自绘标题栏（无边框窗口，2026-09-12）────────────────────────────
+   整条 = 拖拽区；交互子元素（搜索输入/控制键）必须 no-drag，否则点不到。
+   颜色全走 token（TitleBar.tsx 内），这里只放无法用 Tailwind 表达的 app-region。 */
+.titlebar {
+  -webkit-app-region: drag;
+}
+.titlebar button,
+.titlebar input {
+  -webkit-app-region: no-drag;
+}

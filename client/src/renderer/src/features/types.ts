@@ -45,6 +45,9 @@ export interface FeatureProps {
   readerBookId: string | null
   /** 当前激活的功能组件（v0.1.12：ReaderFeature 用它做沉浸态激活时 applyTheme） */
   activeFeature: FeatureId
+  /** 书库搜索词（自绘标题栏的搜索栏产出，2026-09-12；只有 LibraryFeature 消费） */
+  libraryQuery?: string
+  onLibraryQueryChange?: (q: string) => void
 }
 
 /** 功能组件注册描述 —— 官方插件 = 新增一条 descriptor 注册进 registry。 */
