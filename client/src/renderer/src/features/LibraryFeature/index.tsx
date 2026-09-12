@@ -125,14 +125,21 @@ export function LibraryFeature({ container, host, selectedBookId }: FeatureProps
     }
   }, [container, host, refresh])
 
-  // 存量补封面：老书库里的书没有封面 → 后台补齐（dev 无头自检跳过，保持渲染验证确定性）
+  // 存量补封面：老书库里的书没有封面 → 后台补齐（dev 无头自检跳过，保持渲染验证确定性）。
+  // ⚠ 两条纪律（2026-09-12，"启动即饿死 UI"事故）：
+  // ① **延迟启动**：封面提取的 kookit 解析在渲染主线程上跑，书库一大，启动立刻入队会把
+  //    首屏交互整个饿死（328 本实测挂死）→ 推迟 20s，让应用先可用；
+  // ② **只补没试过的**：coverFailed（负缓存）与已有 coverPath 的都不再入队。
   useEffect(() => {
     if (window.turead.devBook) return
-    void (async () => {
-      const list = await container.books.list()
-      const missing = list.filter((b) => !b.coverPath).map((b) => b.id)
-      if (missing.length > 0) container.covers.enqueue(missing)
-    })()
+    const timer = setTimeout(() => {
+      void (async () => {
+        const list = await container.books.list()
+        const missing = list.filter((b) => !b.coverPath && !b.coverFailed).map((b) => b.id)
+        if (missing.length > 0) container.covers.enqueue(missing)
+      })()
+    }, 20000)
+    return () => clearTimeout(timer)
   }, [container])
 
   /** 切换视图并持久化（**局部更新**：主进程原子合并，不会冲掉设置界面管的 importRecursive） */

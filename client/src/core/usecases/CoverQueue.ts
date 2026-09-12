@@ -88,10 +88,20 @@ export class CoverQueue extends TypedEmitter<CoverQueueEvents> implements ICover
         this.ok++
       } catch (err) {
         this.failed++
+        // 失败落库（负缓存）：永久性失败（无封面/解析失败）不再随每次启动重试，
+        // 否则书库一大，「存量补封面」会把同样的失败书每次启动重新解析一遍（2026-09-12）。
+        try {
+          await this.store.updateBook(id, { coverFailed: true })
+        } catch {
+          /* 落标记失败不影响队列继续 */
+        }
         this.emit('cover-failed', id, (err as Error).message)
       }
       this.done++
       this.emit('progress', this.done, this.total)
+      // 让出一拍：解析发生在渲染主线程（kookit getMetadata 同步计算密集），
+      // 这里必须把输入事件的机会留出来，否则批量提取期间 UI 交互完全饿死。
+      await new Promise((r) => setTimeout(r, 0))
     }
     this.running = false
     this.emit('done', {
@@ -113,6 +123,7 @@ export class CoverQueue extends TypedEmitter<CoverQueueEvents> implements ICover
     const book = await this.store.getBook(id)
     if (!book) throw new Error('书不在书库中')
     if (book.coverPath) return // 已有封面：跳过（计入 ok，保证进度连续）
+    if (book.coverFailed) return // 已判定拿不到封面（负缓存）：跳过，不重复解析
 
     const buffer = await this.readFile(book.filePath)
     const metadata = await this.render.getMetadata(buffer, book.format)

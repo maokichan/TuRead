@@ -94,6 +94,8 @@ interface BookRecord {
   /** 封面缩略图文件名（相对 userData/covers/）；缺省 = 无封面（UI 回落"文字封面"）。
    *  v0.2.6：封面**字节不落 JSON**（一本 ≈200KB data URL × 全量重写会拖垮书库），只存引用 */
   coverPath?: string;
+  /** v0.3.4：封面提取失败负缓存（无内嵌封面/解析失败只试一次）；重试 = 删除本字段 */
+  coverFailed?: boolean;
 }
 
 /** 书库视图（v0.2.6）：瀑布流因缩略图统一比例并入网格，见 FEATURES §10 */
@@ -554,6 +556,7 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.3.4 | 2026-09-12 | **封面失败负缓存**：§2 `BookRecord` 增 `coverFailed?`（永久性失败只试一次，不随启动「存量补封面」重试）。背景：书库 328 本实测，启动补封面把渲染主线程整个饿死（kookit getMetadata 在主线程解析全书）且失败书每次启动反复重解析 | 
 | v0.3.3 | 2026-09-11 | **阅读排版参数契约 + 右侧控件**：§2 增 `ReaderTypography`（fontSize/lineHeight/paragraphSpacing，**缺省 = 不改**）、`ReaderSettings` 扩 `pagePadX/fontSize/lineHeight/paragraphSpacing`；§4.1 `IRenderService` 增 `applyTypography`（与 `applyTheme` 共用同一条 `setStyle` 注入通道，每次重建整份 reader style）。口径：**宿主几何走 CSS 变量（纸宽/内边距），正文排版走注入（字号/行距/段距）**；高频参数入口 = 阅读页**右侧可召唤面板**（`STYLE.md` §5.8/§5.9） |
 | v0.3.2 | 2026-09-11 | **`applyTheme` 语义澄清 + 首个排版参数**：`IRenderService.applyTheme` 的注入内容 = **排版参数（始终）+ 颜色（仅深色）** —— "浅色不注入"只针对颜色；新增纸内边距注入 `body{padding-inline: var(--page-pad-x)}`（注入 body 而非宿主容器：kookit 排版宽度读宿主 `clientWidth`，且 `handleImageSize.getContentWidth` 会扣掉父容器 padding）。可调参数清单见 `STYLE.md` §5.9 |
 | v0.3.1 | 2026-09-11 | **阅读器设置契约（沉浸态二次修订）**：§2 增 `ReaderSettings`（`readerMode` + `readerWidth` —— 正文列宽存 **px 数值**，档位只是设置页呈现，为远期自由调节/按屏幕·字号自适应留余地）；口径见 `STYLE.md` §5.8（全屏的是"纸"不是"正文"、阅读页零控件、目录挂载线）+ §5.9（预留登记）+ `FEATURES.md` §11 |
