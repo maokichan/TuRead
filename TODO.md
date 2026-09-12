@@ -124,10 +124,12 @@
 
 ### 笔记与阅读行为数据
 
-- [ ] **(高优) 笔记/划线实现**（契约已立：`Note` + `IRenderService` 三原语 + 定位系统，链路见
-  `client/docs/RENDER_INTERFACE.md` §5）：① **笔记存储 = SQLite**（2026-09-12 用户批复：笔记预期上万条，
-  高频小写+查询，不用 JSON；书库/阅读状态仍走单一 JSON 文件，见 STATUS §3「数据分层存储」）
-  ② UI 选段 → createNote / renderHighlighters ③ 同步（`room.note` 信封）——v1 后置
+- [ ] **(高优 · 当前主目标) 数据持久化 / 笔记划线落地**（2026-09-12 用户定为主要目标）：
+  建模提案见 `client/docs/DATA_MODEL.md`（**待批复**）——Note(SQLite)/BookRecord(JSON 不动)/
+  Collection 双索引容器(JSON v2) + 与 server works/editions 逐字段对齐 + 存取端口（INoteStore 等）
+  + 五个开放问题（db 配对方式 / better-sqlite3 vs sql.js / 高亮色枚举 / 书签归属 / 智能容器）。
+  契约已立：`Note` + `IRenderService` 三原语 + 定位系统（RENDER_INTERFACE §5）；存储分层见 STATUS §3
+  （2026-09-12 用户批复：笔记预期上万条用 SQLite；书库/阅读状态走单一 JSON 文件）
 - [ ] **跳转历史（状态机）**：阅读跳转（目录/注释/回跳）用**状态机**做前进/后退栈（undo/redo）——
   **行动树已驳回**（2026-09-09 群聊定案：体验归根结底是线性的）；随笔记落地后实施
 - [ ] **「总阅读时间」占位待实现**（2026-09-09 用户定）：抽屉指标行第三格已占位（显示「共 —」，无标签），
