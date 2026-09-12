@@ -46,3 +46,10 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     img.src = src
   })
 }
+
+/** 端口实现（IImageThumbnailer）：同一 canvas 管线，藏在端口后供应用层编排（2026-09-12） */
+export class CanvasThumbnailer {
+  make(dataUrl: string): Promise<ThumbnailResult> {
+    return makeThumbnail(dataUrl)
+  }
+}

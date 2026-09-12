@@ -14,6 +14,7 @@ import type { IRoomSession } from '@core/usecases/RoomSession'
 import type { IBookService } from '@core/usecases/BookService'
 import type { ICoverQueue } from '@core/usecases/CoverQueue'
 import type { IImportQueue } from '@core/usecases/ImportQueue'
+import type { IImageThumbnailer } from '@core/ports/image'
 
 import { IpcNetAdapter } from '@core/adapters/net/ipcNetAdapter'
 import { IpcStoreAdapter } from '@core/adapters/storage/ipcStoreAdapter'
@@ -25,6 +26,7 @@ import type { IMetadataExtractor } from '@core/ports/metadata'
 import { RoomSession } from '@core/usecases/RoomSession'
 import { BookService } from '@core/usecases/BookService'
 import { CoverQueue } from '@core/usecases/CoverQueue'
+import { CanvasThumbnailer } from '@core/adapters/image/thumbnail'
 import { ImportQueue } from '@core/usecases/ImportQueue'
 import { IPC, type TureadBridge } from '@shared/ipc'
 
@@ -57,7 +59,8 @@ export function createContainer(bridge: TureadBridge): ServiceContainer {
   const books: IBookService = new BookService(identity, store)
   // 封面/元数据提取走离屏解析进程（kookit getMetadata 不再占主窗口主线程，2026-09-12）
   const metadata: IMetadataExtractor = new OffscreenMetadataExtractor(bridge)
-  const covers: ICoverQueue = new CoverQueue(metadata, store)
+  const thumbnailer: IImageThumbnailer = new CanvasThumbnailer()
+  const covers: ICoverQueue = new CoverQueue(metadata, thumbnailer, store)
   const imports: IImportQueue = new ImportQueue(readFile, books)
 
   return { render, net, identity, store, picker, room, books, covers, imports }

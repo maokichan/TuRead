@@ -15,8 +15,8 @@
  */
 import type { ILibraryStore } from '@core/ports/store'
 import type { IMetadataExtractor } from '@core/ports/metadata'
+import type { IImageThumbnailer } from '@core/ports/image'
 import { TypedEmitter } from '@core/ports/emitter'
-import { makeThumbnail } from '@core/adapters/image/thumbnail'
 
 export interface CoverSummary {
   total: number
@@ -53,6 +53,7 @@ export class CoverQueue extends TypedEmitter<CoverQueueEvents> implements ICover
 
   constructor(
     private extractor: IMetadataExtractor,
+    private thumbnailer: IImageThumbnailer,
     private store: ILibraryStore
   ) {
     super()
@@ -129,7 +130,7 @@ export class CoverQueue extends TypedEmitter<CoverQueueEvents> implements ICover
     const metadata = await this.extractor.extractFromFile(book.filePath, book.format)
     if (!metadata.cover) throw new Error('该书没有封面')
 
-    const thumb = await makeThumbnail(metadata.cover)
+    const thumb = await this.thumbnailer.make(metadata.cover)
     const coverPath = await this.store.setCover(id, thumb.bytes, thumb.ext)
     await this.store.updateBook(id, { coverPath })
     this.emit('cover-ready', id)

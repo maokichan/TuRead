@@ -1,5 +1,10 @@
 # kookit 逆向文档（渲染引擎黑盒使用指南）
 
+> **可替换性（2026-09-12 定）**：kookit 连同 pdfjs 等被 vendor 单文件容器整体封装，对上层只暴露
+> 端口（`IRenderService` / `IMetadataExtractor`）。**更换渲染内核 = 重写适配器层**，UI/应用层/领域层零改动；
+> kookit 专属概念（config 字段、rendition 事件、`kookitmarker`）不得越过适配器上行。
+
+
 > 归属：**client 专属**。基于 `kookit/` 子模块源码逆向整理：kookit 在做什么、该怎么用、违反什么会翻车。
 > 版本基线：kookit HEAD `6e18465`；产物 `client/src/vendor/kookit.esm.js`（单文件 ESM，
 > 构建配置 `kookit/rollup.turead.config.mjs`，不受 kookit 版本控制）。

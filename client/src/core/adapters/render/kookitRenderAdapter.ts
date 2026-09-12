@@ -27,7 +27,7 @@ import type {
   ReaderTypography,
   RenderOptions
 } from '@core/domain/types'
-import { loadKookit, buildNamespace } from './kookitLoader'
+import { loadKookit, buildNamespace, buildKookitConfig } from './kookitLoader'
 import { ensurePdfjs } from './pdfjsSetup'
 import { detectTextCharset } from './charset'
 
@@ -374,22 +374,21 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     const isDark = options?.theme
       ? isDarkResolvedTheme(options.theme)
       : (options?.isDarkMode ?? false)
-    return {
-      format: format.toUpperCase(),
-      readerMode: options?.readerMode || 'scroll',
-      charset: '',
-      animation: options?.animation || 'none',
-      convertChinese: options?.convertChinese ? 'yes' : 'no',
+    // 字段全集与缺省收敛在 buildKookitConfig（kookitLoader，2026-09-12 去重）；这里只解析宿主关注点
+    return buildKookitConfig(format, {
+      readerMode: options?.readerMode,
+      animation: options?.animation,
+      convertChinese: options?.convertChinese,
       parserRegex: '',
-      isDarkMode: isDark ? 'yes' : 'no',
-      isMobile: 'no',
+      isDarkMode: isDark,
+      isMobile: false,
       password: options?.password || '',
-      isConvertPDF: 'no',
+      isConvertPDF: false,
       // 正文纸色单一来源 = 宿主 --page-bg token（styles.css）；分页模式的折页阴影据此配色
       backgroundColor: options?.backgroundColor || this.readCssVar('--page-bg'),
-      isScannedPDF: options?.isScannedPDF ? 'yes' : 'no',
+      isScannedPDF: options?.isScannedPDF,
       ocrEngine: options?.ocrEngine || ''
-    }
+    })
   }
 
   private toBookLocation(p: KookitPosition): BookLocation {

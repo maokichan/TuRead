@@ -10,7 +10,11 @@
  */
 import { IPC } from '@shared/ipc'
 import type { BookFormat, BookMetadata } from '@core/domain/types'
-import { loadKookit, buildNamespace } from '@core/adapters/render/kookitLoader'
+import {
+  loadKookit,
+  buildNamespace,
+  buildKookitConfig
+} from '@core/adapters/render/kookitLoader'
 import { detectTextCharset } from '@core/adapters/render/charset'
 
 interface ParseJob {
@@ -47,24 +51,13 @@ window.turead.subscribe(IPC.metadataParseJob, (payload) => {
     try {
       const buffer = (await window.turead.invoke(IPC.fsReadFile, job.path)) as ArrayBuffer
       const Kookit = await loadKookit()
+      // 字段全集收敛在 buildKookitConfig（与主窗口 toKookitConfig 同源，2026-09-12 去重）；
+      // TXT 渲染路径要求调用方给编码（与主窗口 open() 同一修法）
       const rendition = Kookit.BookHelper.getRendition(
         buffer,
-        {
-          format: job.format.toUpperCase(),
-          readerMode: 'scroll',
-          // TXT 渲染路径要求调用方给编码（与主窗口 open() 同一修法，2026-09-12）
-          charset: job.format === 'TXT' ? detectTextCharset(buffer) : '',
-          animation: 'none',
-          convertChinese: 'no',
-          parserRegex: '',
-          isDarkMode: 'no',
-          isMobile: 'no',
-          password: '',
-          isConvertPDF: 'no',
-          backgroundColor: 'rgba(255,255,255,1)',
-          isScannedPDF: 'no',
-          ocrEngine: ''
-        },
+        buildKookitConfig(job.format, {
+          charset: job.format === 'TXT' ? detectTextCharset(buffer) : ''
+        }),
         buildNamespace(Kookit)
       )
       const raw = await rendition.getMetadata()

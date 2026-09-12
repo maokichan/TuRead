@@ -15,7 +15,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isZeroLocation } from '@core/domain/location'
 import type { ResolvedTheme } from '@core/domain/theme'
-import type { BookLocation, BookRecord, Chapter, RenderOptions } from '@core/domain/types'
+import type {
+  BookLocation,
+  BookRecord,
+  Chapter,
+  ReaderSettings,
+  RenderOptions
+} from '@core/domain/types'
 import type { FeatureProps } from '../types'
 import { TocPanel, type TocRow } from '../../components/TocPanel'
 import {
@@ -23,16 +29,6 @@ import {
   DEFAULT_READER_PARAMS,
   type ReaderParams
 } from '../../components/ReaderControls'
-
-/** config.json 里 readerSettings 的形状（与 SettingsFeature 共用一个键，**必须原子 patch**） */
-interface ReaderSettingsShape {
-  readerMode?: ReaderMode
-  readerWidth?: number
-  pagePadX?: number
-  fontSize?: number | null
-  lineHeight?: number | null
-  paragraphSpacing?: number | null
-}
 
 type ReaderMode = NonNullable<RenderOptions['readerMode']>
 
@@ -108,7 +104,7 @@ export function ReaderFeature({
 
   // 启动载入阅读参数（缺省 = 不改，尊重书自带排版）
   useEffect(() => {
-    void container.store.getSetting<ReaderSettingsShape>('readerSettings', {}).then((cfg) => {
+    void container.store.getSetting<ReaderSettings>('readerSettings', {}).then((cfg) => {
       const loaded: ReaderParams = {
         fontSize: cfg.fontSize ?? DEFAULT_READER_PARAMS.fontSize,
         lineHeight: cfg.lineHeight ?? DEFAULT_READER_PARAMS.lineHeight,
@@ -172,9 +168,7 @@ export function ReaderFeature({
         // 宿主容器从 display:none 切回后需等一帧再测量/渲染
         await new Promise((r) => requestAnimationFrame(() => r(null)))
         // 布局模式来自「设置」功能组件（readerSettings，重开书生效）
-        const cfg = await container.store.getSetting<{
-          readerMode?: ReaderMode
-        }>('readerSettings', {})
+        const cfg = await container.store.getSetting<ReaderSettings>('readerSettings', {})
         const mode = cfg.readerMode ?? 'scroll'
         setReaderMode(mode)
         await container.render.open(latest, {

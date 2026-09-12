@@ -125,14 +125,19 @@
 ### 笔记与阅读行为数据
 
 - [ ] **(高优) 笔记/划线实现**（契约已立：`Note` + `IRenderService` 三原语 + 定位系统，链路见
-  `client/docs/RENDER_INTERFACE.md` §5）：① `ILibraryStore` 笔记存取（JSON 起步）② UI 选段 →
-  createNote / renderHighlighters ③ 同步（`room.note` 信封）——v1 后置
+  `client/docs/RENDER_INTERFACE.md` §5）：① **笔记存储 = SQLite**（2026-09-12 用户批复：笔记预期上万条，
+  高频小写+查询，不用 JSON；书库/阅读状态仍走单一 JSON 文件，见 STATUS §3「数据分层存储」）
+  ② UI 选段 → createNote / renderHighlighters ③ 同步（`room.note` 信封）——v1 后置
 - [ ] **跳转历史（状态机）**：阅读跳转（目录/注释/回跳）用**状态机**做前进/后退栈（undo/redo）——
   **行动树已驳回**（2026-09-09 群聊定案：体验归根结底是线性的）；随笔记落地后实施
 - [ ] **「总阅读时间」占位待实现**（2026-09-09 用户定）：抽屉指标行第三格已占位（显示「共 —」，无标签），
   功能未实现。需要：① 记录每次阅读会话时长（进入/离开阅读器、切书、应用退出的事件口径）
   ② `BookRecord` 增累计字段（如 `totalReadMs`）+ 迁移 ③ 与 `lastReadAt`/`lastLocation` 一起持久化。
   与「笔记」「统计」同属阅读行为数据，动手前先定模型。
+- [ ] **(P3) 2026-09-12 架构审查登记的下沉项**：① ReaderFeature 的"全数字 = 假目录"过滤是**领域策略**，
+  现在 UI 里——随「自建目录」落地时移入 domain；② 阅读位置的 2s 节流/flush 持久化策略在 ReaderFeature——
+  下沉为 usecase（如 LocationPersistence）；③ `DEFAULT_READER_PARAMS`（控件三态模型）与领域
+  `ReaderSettings` 的 null/undefined 双形状——控件模型留 UI 可接受，换 UI 时收敛。
 - [ ] **(P3) `Note.notes` 类型与 kookit 不匹配**：domain 是 `string`（笔记正文），kookit
   `createOneNote` 期望数组 —— 适配器当前 `notes: note.notes || []` 会**静默丢弃**用户笔记内容
   （笔记功能落地前必须定形状，见 `CONTRACTS.md` §2 Note）
@@ -207,8 +212,10 @@
 - [ ] **(P3) JsonStore 批量导入期间合并写盘**（2026-09-12 摸底结论）：当前"内存为真相 + 每次改动全量
   重写"在当前规模（328 本/175KB）完全无感（单次重写 1-2ms；阅读中每 2s 一次可忽略）；痛点只在
   **批量导入的 O(n²) 写放大**（每导入一本全量重写一次，1000 本 ≈ 累计数百 MB 磁盘写）。
-  低成本修法 = 导入/封面队列期间 debounce 合并（500ms），不必迁 SQLite；迁 SQLite 的触发条件 =
-  笔记/标注上量（高频小写+查询）或书库过万。
+  低成本修法 = 导入/封面队列期间 debounce 合并（500ms）。
+  **存储分层已批复（2026-09-12 用户定）**：书库/阅读状态**保持单一 JSON 文件**（一份文件 = 一份书库，
+  用户可携带、跨平台靠数据文件）；**笔记/标注（预期上万）落地时上 SQLite**（见「笔记与阅读行为数据」组）；
+  远期所有数据以服务器同步为准。详见 `docs/STATUS.md` §3「数据分层存储」。
 - [ ] **(P3) 自检对"单章书"死等**（2026-09-12 MD 实测暴露）：单章文档（MD/TXT 短文）翻页无下一章，
   扫描循环吃满 waitForTurn(15s)×10 + waitScrollSettle(8s)，180s 超时误报 FAIL——扫描循环应识别
   "位置到末章"提前收尾。

@@ -119,6 +119,25 @@ export interface ReaderTypography {
   paragraphSpacing?: number
 }
 
+/**
+ * 阅读器持久化设置（v0.3.1 起契约在 `CONTRACTS.md` §2；2026-09-12 架构审查补立为领域类型）。
+ * 此前该形状只存在于 UI（ReaderFeature 的本地 interface）——契约有、领域无，实体未提升。
+ * 持久化于 config.json 的 `readerSettings` 键；字段缺省 = 不改/用默认（尊重书自带排版）。
+ * ⚠ 运行时值可能为 `null`（控件三态「默認」存的就是 null），读取侧用 `?? 默认值` 兜底。
+ */
+export interface ReaderSettings {
+  /** 布局模式（低频参数，设置页管；重开书生效） */
+  readerMode?: RenderOptions['readerMode']
+  /** 纸宽 px（宿主 token `--read-width`） */
+  readerWidth?: number
+  /** 纸内边距 px（宿主 token `--page-pad-x`） */
+  pagePadX?: number
+  /** 正文排版三件套（语义同 `ReaderTypography`，拍平存储） */
+  fontSize?: number
+  lineHeight?: number
+  paragraphSpacing?: number
+}
+
 /** 阅读渲染配置（领域层友好配置，适配器内部翻译为 kookit config） */
 export interface RenderOptions {
   readerMode: 'single' | 'double' | 'scroll'
