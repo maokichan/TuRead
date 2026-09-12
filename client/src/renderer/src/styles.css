@@ -837,3 +837,7 @@ body {
 .titlebar input {
   -webkit-app-region: no-drag;
 }
+
+.titlebar-search {
+  -webkit-app-region: no-drag;
+}

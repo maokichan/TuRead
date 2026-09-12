@@ -68,6 +68,35 @@ CREATE INDEX idx_notes_book ON notes(book_id, loc_chapter_index);
 - **kind 枚举收拢**：高亮/笔记/书签一张表（书签 = 无摘录无正文的 kind）。
 - 依附关系：`book_id` 悬挂（书被移除索引）→ 级联删（与 server messages 随房间删除同款语义）。
 
+**锚定抽象的现状（2026-09-12 用户问，摸底结论）**：
+- **已抽象**：`BookLocation`（定位系统，CONTRACTS §2.1——key/hint/display 三级 + domain/location.ts
+  归一/比较原语）+ `IRenderService` 笔记三原语（`createNote/removeNote/renderHighlighters`）
+  + `search(keyword)`（**返回形状待定**，CONTRACTS §7）。控制器（UI）调用的是这些端口，**不见 kookit**。
+- **未抽象**：`Note.range` / 本表 `loc_key` 的**编码格式**目前是"引擎选区产物原样存储"（EPUB→CFI 等），
+  没有按格式立规范——即"CFI 有引擎内实现（kookit `libs/cfi.ts`），但没有一个跨格式的锚点接口约定"。
+  **本表把 `loc_key` 定为不透明字符串（适配器生成/解释），格式规范随笔记实现时逐格式立约**
+  （第一批只需要 EPUB-CFI 与 PDF 页锚两种）。
+- **不同格式标记的差异**收敛在 `loc_key` 的编码差异里：EPUB=CFI（重排安全）、PDF=页码+页面内
+  归一化坐标（版式固定）、TXT=章索引+字符偏移（kookit 分章后天然稳定）。上层不解释，重锚由
+  适配器按各自格式实现。
+
+**墨迹/手写（数位板画的内容，2026-09-12 用户问）——`kind='ink'` 扩展**：
+
+```sql
+ALTER TABLE notes ADD COLUMN ink TEXT;  -- 仅 kind='ink' 使用；JSON 编码：
+-- { "pageKey": "<loc_key 同源>", "strokes": [
+--     { "color": "red", "width": 2.0,
+--       "points": [[x,y],[x,y],...] }   -- 归一化坐标（0..1，相对页/版面），与分辨率无关
+-- ] }
+```
+
+- **矢量优先**：归一化点列（相对页面比例）而非位图——体积小、任意缩放重渲、主题无关；
+  复杂印章/图形可回落 `kind='image'` + 字节走 covers 同款旁路存储（`inks/<noteId>.png`，行内只存引用）。
+- **适用边界**：墨迹只在**版式固定**的载体上稳定（PDF/漫画/EPUB 固定版式）——重排流式正文没有
+  稳定几何，EPUB 流内不做墨迹（注册为产品约束）。
+- 端口：`IRenderService` 增 `renderInks(notes)`（适配器在页 canvas 之上叠一层绘制），交互层
+  （笔刷选择/压感）属于阅读器功能，建模层面只关心 points 序列。
+
 ### 2.3 Collection（索引容器）——JSON 侧，新建（双索引形态，2026-09-12 用户定）
 
 ```jsonc
@@ -131,3 +160,7 @@ CREATE INDEX idx_notes_book ON notes(book_id, loc_chapter_index);
 4. **书签要不要进 notes 表**（kind=bookmark）还是独立轻量存储？建议进（同一套锚定与同步）。
 5. **容器是否要支持"智能容器"**（按规则动态收录，如"未读 + 标签=哲学"）——远期，本期只做
    手动引用。
+6. **墨迹的同步体积**：矢量点列可大（数位板高频采样）——同步前是否做抽稀（RDP 简化）？
+   建议存储即抽稀（写入时简化到 ~0.5px 精度），原始笔迹不留。
+7. **节拍（2026-09-12 用户定）**：数据持久化值得讨论的内容还很多，**不急于实施**——本文保持
+   活文档，讨论增量直接补节；实施等建模讨论收敛、开放问题逐条批复后开工。
