@@ -117,10 +117,13 @@ export function LibraryToolbar({
           書庫
         </button>
         {/* 当前层级（右下角，2026-09-13 用户定）：根 = 库名；自建模式路径名 = 書箱名，虚拟映射 = 文件夹名。
-            面包屑也是拖放目标：书/書箱拖到某段 = 移动到该层（资源管理器语义，拖入段高亮提示） */}
-        <div className="ml-auto flex items-center gap-1.5 text-[12px] text-[var(--muted)]">
+            面包屑也是拖放目标：书/書箱拖到某段 = 移动到该层（资源管理器语义，拖入段高亮提示）。
+            **根固定、子节点向右增生**（2026-09-13 用户定）：容器取固定宽度再 ml-auto 推到右侧，
+            内容从左缘（固定）向右生长——路径变深时根的位置不动，不再整体左移。
+            过长的截断/滚动策略暂不做（用户定：先不管）。 */}
+        <div className="ml-auto flex w-[420px] flex-none items-center gap-1.5 overflow-hidden text-[12px] text-[var(--muted)]">
           {crumbs.map((c, i) => (
-            <Crumb key={`${c.label}-${i}`} crumb={c} last={i === crumbs.length - 1} />
+            <Crumb key={`${c.label}-${i}`} crumb={c} index={i} last={i === crumbs.length - 1} />
           ))}
         </div>
       </div>
@@ -128,12 +131,15 @@ export function LibraryToolbar({
   )
 }
 
-/** 面包屑段：可回跳（非末段）+ 拖放目标（书/書箱拖入 = 移动到该层；拖入时高亮提示可放） */
+/** 面包屑段：可回跳（非末段）+ 拖放目标（书/書箱拖入 = 移动到该层；拖入时高亮提示可放）。
+ *  分隔线挂在**段前且 i>0**——根段（i=0）前不许有分隔符，否则根会随路径变深被推右（违背"根固定"） */
 function Crumb({
   crumb,
+  index,
   last
 }: {
   crumb: LibraryToolbarProps['crumbs'][number]
+  index: number
   last: boolean
 }): React.JSX.Element {
   const [dropHover, setDropHover] = useState(false)
@@ -162,7 +168,7 @@ function Crumb({
   const highlight = dropHover ? ' rounded-sm bg-[var(--negative-bg)] px-1 text-[var(--negative-text)]' : ''
   return (
     <span className={`flex min-w-0 items-center gap-1.5${highlight}`} {...dropProps}>
-      {!last && <span className="opacity-50">/</span>}
+      {index > 0 && <span className="opacity-50">/</span>}
       {last ? (
         <span className="max-w-[220px] truncate" title={crumb.label}>
           {crumb.label}

@@ -248,10 +248,20 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
   `ContextMenu` 支持一层子菜单）。同层原地放 = 无操作（parentId 没变不打库）。
   右键空白处（自建模式）→「新建書箱」= 立即建出「新建書箱」并直接进入行内更名。
   状态栏右端显示**当前层级**面包屑（根 = 库名；自建模式路径名 = 書箱名；虚拟映射 = 文件夹名），可点回跳。
+  **面包屑根固定（2026-09-13 用户定）**：容器改**固定宽度**（`w-[420px]` + `ml-auto`，内容从左往右流）
+  —— 根（库名）位置锚死、子节点向右增生（原实现宽度随内容，路径变深会整体左移）；过长处理暂不做（TODO）。
+  **层级后退/前进（2026-09-13 用户定，对齐文件资源管理器）**：历史栈在 `LibraryFeature`
+  （`histRef` = stack + idx，条目 = 位置 **+ 整条面包屑**，后退/前进一起还原）；
+  `enterContainer` / `enterFolder` / `goToLevel` 全走 `pushEntry`（新导航截断"前进"分支），
+  移动/导入等 `commitNav` 是原地重载**不入栈**；切库广播时历史重置为根。
+  两个出口：**标题栏后退/前进按钮**（左缘 = 侧边栏右缘 `var(--sidebar-w)`，仅书库态渲染，不可用禁用）
+  与**鼠标侧键**（XButton1/2，仅书库态接管并 `preventDefault` 压掉 Chromium 默认历史导航）；
+  跨兄弟组件经模块总线 `features/libraryNavBus.ts`（TitleBar 与 LibraryFeature 是 AppShell 兄弟，
+  props 穿 Shell 不值当 —— `logStore` 先例；TitleBar 用 `useSyncExternalStore` 订阅可用性）。
   两种模式（建库时二选一，见 `DATA_MODEL.md` §1/`CONTRACTS.md` v0.3.7）：
   ① **虛擬映射**：跟踪唯一真实文件夹（建库即递归扫描导入），层级 = 真实文件夹树，"書箱"即文件夹；
   ② **自建書箱**：空库起步，用户自建書箱树。
-  ⚠ 书架内容区 `select-none`（2026-09-13 用户定：键鼠标准化=清出原生选择/拖动干扰，为新增键鼠交互留位）。
+  ⚠ **文字选择 = 阅读正文专属**（2026-09-13 用户定，全局规则见 §11）。
 - **抽屉位置纪律**（2026-09-08 定，2026-09-09 补）：**状态栏之上是内容区，抽屉只在内容区弹出** —— 抽屉由内容区容器
   `relative` 定位为 `absolute inset-y-0 right-0`（宽 **280px**），**不覆盖底部状态栏**。
   **外壳完全透明**（无边框/无阴影/无底色）→ 下层书库内容从文字块之间透出来；
@@ -316,6 +326,14 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 **控件（v0.4：阅读页零控件）**
 - **阅读页上没有任何栏**：书名/页码/上一页/下一页/目录/关闭都**不常驻、也不做"浮现栏"**。
 - **退出**：`Esc`；鼠标路径 = 贴缘按钮召回侧边栏 → 「書」。
+- **全局禁选（2026-09-13 用户定，宿主级规则）**：**文字选择 = 阅读正文专属**——除阅读页正文外，
+  宿主 UI 任何内容都不响应按住鼠标拖选（`styles.css` `body{user-select:none}`；`input/textarea` 豁免，
+  更名/搜索/新建命名仍可选中复制）。正文在 kookit **iframe（独立 document）**内，天然不受宿主规则影响，
+  选择能力原样保留。原 `LibraryFeature` 内容区的局部 `select-none` 因此删除（被全局覆盖，冗余）。
+- **标题栏：书库层级后退/前进（2026-09-13 用户定）**：标题栏左段（左缘 = `var(--sidebar-w)`，
+  与左侧边栏右缘对齐）在 `activeFeature === 'library'` 时渲染**后退/前进**两个按钮，不可用时禁用
+  （opacity-30）；历史栈与还原语义在 §10「层级后退/前进」。放在标题栏的收益是"书库态才有意义"，
+  因此按钮随功能态出现，不占其他功能的标题栏。
 - **沉浸全屏（2026-09-13 落地）**：`F11`（意图 `reader.toggleFullscreen`，意图层裁决）或设置开关
   「進入閱讀器時進入全屏」（默认关，`appearance.readerFullscreen`）= OS 级全屏 + **标题栏整条退场**
   （`TitleBar` 订阅 `win:fullscreen-changed` 返回 null；全屏态无拖拽区，找回 = `F11`/`Esc`）。

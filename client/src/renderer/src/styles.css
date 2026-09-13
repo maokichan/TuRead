@@ -248,6 +248,15 @@ body {
   font-family: var(--font-ui);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
+  /* 文字选择 = 阅读正文专属（2026-09-13 用户定）：宿主 UI 一律不响应按住拖选；
+     正文在 kookit iframe（独立 document）不受此规则影响，选择行为原样保留。 */
+  user-select: none;
+}
+
+/* 输入类豁免：输入框内的文本要能选中/复制（更名/搜索/新建命名等） */
+input,
+textarea {
+  user-select: text;
 }
 
 /* ---------- kookit 硬编码契约（KOOKIT.md §5）: 宿主容器必须可滚动、iframe 不设 height:100% ----------

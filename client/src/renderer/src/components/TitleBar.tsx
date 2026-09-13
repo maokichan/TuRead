@@ -9,8 +9,9 @@
  * 桥的使用：`window.turead` 在此直接使用是**文档化的例外**（窗口镶边属于 Shell，
  * 不是功能组件能力；与 dev/selfCheck 的 devBook 同级）。
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { IPC } from '@shared/ipc'
+import { libraryNavBus } from '../features/libraryNavBus'
 import { useKeyIntents } from './useKeyIntents'
 
 interface TitleBarProps {
@@ -50,6 +51,10 @@ export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: 
     })
     return off
   }, [])
+
+  // 书库层级后退/前进（2026-09-13 用户定：资源管理器逻辑）：历史栈在 LibraryFeature，
+  // 经 libraryNavBus 到达；状态（可否后退/前进）用外部 store 订阅
+  const navState = useSyncExternalStore(libraryNavBus.subscribe, libraryNavBus.getState)
 
   // Ctrl+F 聚焦搜索——走意图层（app.focusSearch，domain/input.ts）；处理函数内分流：仅书库态。
   // Esc 清空留在输入框自身的 onKeyDown（元素级语义，v2 再入表）
@@ -96,6 +101,36 @@ export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: 
       <div className="flex select-none items-center pl-3 pr-2">
         <span className="text-[13px] tracking-wide text-[var(--muted)]">TuRead</span>
       </div>
+
+      {/* 后退/前进（2026-09-13 用户定，资源管理器逻辑）：只服务书库层级导航（历史栈在 LibraryFeature）。
+          左缘 = var(--sidebar-w) 与左侧边栏右缘对齐；无历史可用时禁用。
+          no-drag 由 styles.css `.titlebar button` 全局给出，点击不被拖拽区吞掉。 */}
+      {activeFeature === 'library' && (
+        <div className="absolute inset-y-0 flex items-stretch" style={{ left: 'var(--sidebar-w)' }}>
+          <button
+            aria-label="後退"
+            title="後退"
+            onClick={() => libraryNavBus.back()}
+            disabled={!navState.canBack}
+            className="flex w-11 items-center justify-center text-[var(--muted)] transition-colors hover:bg-[var(--panel-2)] hover:text-[var(--text)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--muted)]"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+              <path d="M8 1.5L3.5 6L8 10.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+            </svg>
+          </button>
+          <button
+            aria-label="前進"
+            title="前進"
+            onClick={() => libraryNavBus.forward()}
+            disabled={!navState.canForward}
+            className="flex w-11 items-center justify-center text-[var(--muted)] transition-colors hover:bg-[var(--panel-2)] hover:text-[var(--text)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--muted)]"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+              <path d="M4 1.5L8.5 6L4 10.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* 中：全局搜索栏（2026-09-12 用户定：搜索按功能域分作用域）。
           **绝对定位到整条标题栏的几何中心**——flex 流里左右两段宽度不等会把"居中"挤歪。 */}

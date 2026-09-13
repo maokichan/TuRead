@@ -28,6 +28,7 @@ import type { LibraryLevelQuery } from '@core/ports/store'
 import { IPC } from '@shared/ipc'
 import type { FeatureProps } from '../types'
 import { forgetCover, getCoverUrl } from '../coverCache'
+import { libraryNavBus } from '../libraryNavBus'
 import { BookRow } from '../../components/BookRow'
 import { BookTile } from '../../components/BookTile'
 import { ContainerItem } from '../../components/ContainerItem'
@@ -47,6 +48,9 @@ type LevelItem =
   | { kind: 'book'; book: BookRecord }
 
 type TrailEntry = { label: string; containerId: string | null; folder: string | null }
+
+/** 导航历史条目：位置（与 navRef 同形状）+ 到该位置的整条面包屑（后退/前进要一起还原） */
+type NavEntry = { containerId: string | null; folder: string | null; trail: TrailEntry[] }
 
 type CtxMenuState = { x: number; y: number; items: ContextMenuItem[] }
 
@@ -77,6 +81,12 @@ export function LibraryFeature({
   })
   const [navKey, setNavKey] = useState(0)
   const [trail, setTrail] = useState<TrailEntry[]>([])
+  /** 导航历史（资源管理器语义，2026-09-13 用户定）：stack + 当前下标；面包屑整条随条目存取 */
+  const histRef = useRef<{ stack: NavEntry[]; idx: number }>({
+    stack: [{ containerId: null, folder: null, trail: [] }],
+    idx: 0
+  })
+  const [navPos, setNavPos] = useState({ idx: 0, len: 1 })
   const [libMode, setLibMode] = useState<'source' | 'virtual'>('virtual')
   const [rootPath, setRootPath] = useState<string | undefined>(undefined)
   const [libName, setLibName] = useState('')
@@ -93,6 +103,72 @@ export function LibraryFeature({
     navRef.current = next
     setNavKey((k) => k + 1)
   }, [])
+
+  /** 应用历史条目（后退/前进走这里）：位置 + 面包屑一起还原并触发重载；不进历史栈 */
+  const applyEntry = useCallback((entry: NavEntry): void => {
+    navRef.current = { containerId: entry.containerId, folder: entry.folder }
+    setTrail(entry.trail)
+    setNavKey((k) => k + 1)
+  }, [])
+
+  /** 新导航 = 截断"前进"分支后入栈（从历史中间跳新位置，前进作废——资源管理器语义） */
+  const pushEntry = useCallback(
+    (entry: NavEntry): void => {
+      const h = histRef.current
+      h.stack = h.stack.slice(0, h.idx + 1)
+      h.stack.push(entry)
+      h.idx = h.stack.length - 1
+      setNavPos({ idx: h.idx, len: h.stack.length })
+      applyEntry(entry)
+    },
+    [applyEntry]
+  )
+
+  /** 后退 / 前进（标题栏按钮与鼠标侧键共用；标题栏经 libraryNavBus 到达这里） */
+  const goBack = useCallback((): void => {
+    const h = histRef.current
+    if (h.idx <= 0) return
+    h.idx -= 1
+    setNavPos({ idx: h.idx, len: h.stack.length })
+    applyEntry(h.stack[h.idx])
+  }, [applyEntry])
+
+  const goForward = useCallback((): void => {
+    const h = histRef.current
+    if (h.idx >= h.stack.length - 1) return
+    h.idx += 1
+    setNavPos({ idx: h.idx, len: h.stack.length })
+    applyEntry(h.stack[h.idx])
+  }, [applyEntry])
+
+  const canBack = navPos.idx > 0
+  const canForward = navPos.idx < navPos.len - 1
+
+  // 标题栏后退/前进按钮（AppShell 兄弟组件，props 不值当穿 Shell → 模块总线）
+  useEffect(() => {
+    libraryNavBus.register(
+      { back: () => goBack(), forward: () => goForward() },
+      { canBack, canForward }
+    )
+    return () => libraryNavBus.unregister()
+  }, [goBack, goForward, canBack, canForward])
+
+  // 鼠标侧键（资源管理器语义）：XButton1 = 后退 / XButton2 = 前进，仅书库功能态接管。
+  // preventDefault 压掉 Chromium 侧键默认的"历史导航"（渲染层历史为空，防意外行为）。
+  useEffect(() => {
+    if (activeFeature !== 'library') return
+    const onMouseDown = (e: MouseEvent): void => {
+      if (e.button === 3) {
+        e.preventDefault()
+        goBack()
+      } else if (e.button === 4) {
+        e.preventDefault()
+        goForward()
+      }
+    }
+    window.addEventListener('mousedown', onMouseDown)
+    return () => window.removeEventListener('mousedown', onMouseDown)
+  }, [activeFeature, goBack, goForward])
 
   /**
    * 加载当前层级（模式/根路径随当前库解析；快速导航时用序号丢弃过期结果）。
@@ -155,6 +231,8 @@ export function LibraryFeature({
       setFolders([])
       navRef.current = { containerId: null, folder: null }
       setTrail([])
+      histRef.current = { stack: [{ containerId: null, folder: null, trail: [] }], idx: 0 }
+      setNavPos({ idx: 0, len: 1 })
       setRenamingContainerId(null)
       setActiveContainerId(null)
       setCtxMenu(null)
@@ -350,33 +428,46 @@ export function LibraryFeature({
     [host]
   )
 
-  // —— 层级导航（资源管理器式：書箱/文件夹单击进入，面包屑回跳）——
+  // —— 层级导航（资源管理器式：書箱/文件夹单击进入，面包屑回跳；每次导航进历史栈）——
   const enterContainer = useCallback(
-    (c: BookContainer) => {
-      setTrail((t) => [...t, { label: c.name, containerId: c.id, folder: null }])
-      commitNav({ containerId: c.id, folder: null })
-    },
-    [commitNav]
-  )
-  const enterFolder = useCallback(
-    (name: string, path: string) => {
-      setTrail((t) => [...t, { label: name, containerId: null, folder: path }])
-      commitNav({ containerId: null, folder: path })
-    },
-    [commitNav]
-  )
-  /** 面包屑回跳：depth = trail 下标（-1 = 根层） */
-  const goToLevel = useCallback(
-    (depth: number) => {
-      const t = depth < 0 ? [] : trail.slice(0, depth + 1)
-      const last = t[t.length - 1]
-      setTrail(t)
-      commitNav({
-        containerId: last?.containerId ?? null,
-        folder: last?.folder ?? null
+    (c: BookContainer): void => {
+      pushEntry({
+        containerId: c.id,
+        folder: null,
+        trail: [
+          ...histRef.current.stack[histRef.current.idx].trail,
+          { label: c.name, containerId: c.id, folder: null }
+        ]
       })
     },
-    [trail, commitNav]
+    [pushEntry]
+  )
+  const enterFolder = useCallback(
+    (name: string, path: string): void => {
+      pushEntry({
+        containerId: null,
+        folder: path,
+        trail: [
+          ...histRef.current.stack[histRef.current.idx].trail,
+          { label: name, containerId: null, folder: path }
+        ]
+      })
+    },
+    [pushEntry]
+  )
+  /** 面包屑回跳：depth = trail 下标（-1 = 根层）；也是一次导航（进历史栈，可前进回来） */
+  const goToLevel = useCallback(
+    (depth: number): void => {
+      const cur = histRef.current.stack[histRef.current.idx]
+      const t = depth < 0 ? [] : cur.trail.slice(0, depth + 1)
+      const last = t[t.length - 1]
+      pushEntry({
+        containerId: last?.containerId ?? null,
+        folder: last?.folder ?? null,
+        trail: t
+      })
+    },
+    [pushEntry]
   )
 
   /**
@@ -732,7 +823,7 @@ export function LibraryFeature({
           ref={scrollRef}
           onScroll={onContentScroll}
           onContextMenu={onContentContextMenu}
-          className="h-full select-none overflow-y-auto pr-1"
+          className="h-full overflow-y-auto pr-1"
         >
           {levelItems.length === 0 ? (
             <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
