@@ -2,7 +2,9 @@
 
 > 目的：让下一次会话/模型以最低成本恢复上下文。
 > 阅读顺序：本文件 → `MAP.md`（自动加载）→ `TODO.md` → 各端架构文档（见 MAP）。
-> 更新：2026-09-13（**client v0.1.14**：沉浸全屏 / iframe 事件桥 / 分页滚轮翻页 / 参数面板默认展开+布局模式进面板 / 空目录占位 / PDF 纸宽填充 / SQLite spike 全绿 / 定位转换机制提案）
+> 更新：2026-09-13（**client v0.1.14 · tag 后五连增补（⑨~⑬，同版本未发版）**：SQLite 单库落地 + 一次性迁移器 /
+> 多书库（config.json=引导文件）+ 書庫管理弹窗 / 书库双模式（虚拟映射+自建書箱）+ 资源管理器式层级浏览 /
+> 書箱交互按资源管理器语义重做（实机验证）/ Esc 分流纠正 + 搜索栏两修。**下一步主线见 §5 交接快照**）
 
 ## 1. 一句话
 
@@ -99,3 +101,40 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 - go 沙箱下 telemetry 报错是噪音；`GOPROXY=https://goproxy.cn,direct`；`go build` 把 GOCACHE 指到工作区
 - 测试：`go test ./...`（白盒在源码旁）+ `server/test/e2e/`（黑盒走 HTTP/WS）
 - kookit 子模块的 `CLAUDE.md` 规则：**禁止在其仓库内 git commit / push**
+
+## 6. 交接快照（2026-09-13 会话末，网络波动中断交接用）
+
+**工作区状态**：全部已提交（最新 `82e52176`），无未提交改动（kookit 子模块的 `m` 是其自身工作树噪音，勿动）。
+版本仍为 **client v0.1.14 未发版**（tag `client-v0.1.14` 之后的改动 = STATUS §4 的增补 ⑨~⑬，一次发版时合并叙述）。
+
+**本轮（2026-09-13 下午）落成的主线，全部实机/探针验证过**：
+1. **存储层换代**：JsonStore → `SqliteStore`（DATA_MODEL §2 schema 全量建表）+ one-shot 迁移器
+   （library/config.json → turead.db，`.migrated` 留档）；用户实机已迁移完成（327 本）。
+2. **多书库**：`config.json` = 引导文件（库注册表+当前库 id），一库一 .db；
+   `LibraryManager`（主进程）+ `library-changed` 广播；書庫管理弹窗（Obsidian 风格：切换/新建/更名/所在文件夾）。
+3. **书库双模式 + 层级浏览**：建库二选一（虛擬映射=唯一根文件夹+递归扫描导入 / 自建書箱=空库）；
+   资源管理器式浏览（書箱/文件夹与书籍同外观、双击进入、当前层级面包屑可回跳）；
+   **書箱 = 一等条目**（单击选中/双击进入/F2 更名/右键菜单/拖书入箱=移动，computer-use 实机全链路验证过）；
+   拖外部文件进窗 = 导入当前库（`webUtils.getPathForFile`）。
+4. **交互纠偏**：Esc 不再收参数面板；标题栏搜索栏加大且去 Ctrl+F 提示、修复点击穿透；
+   书架 `select-none`（键鼠标准化）。
+
+**下一步（按 TODO 优先级，动手前先与用户对齐）**：
+- **「可见性与追踪」讨论**（用户点名要参与）：虚拟映射的书被外部增删改/在 TuRead 内移除后怎么办——
+  快照/惰性重扫/fs watch 三档 + "丢失书"的呈现语义。开局材料在 TODO 该条目。
+- 书籍右键是否加「移動到…」（拖拽已覆盖移动）；書箱排序（container_books.sort 已建模未接 UI）；
+- 笔记/划线落地（持久化主目标的下半场：Note 实体+TextAnchor+定位转换机制，契约均已立）；
+- 库管理完善（移除引用的 UI/确认流程、库目录可配置）；**迁移器退役**（发版滚一轮后删）。
+- 悬而未决的旧账：分页模式交互用户复测仍异常（待复现细节）；「重开书偶发空白」两处候选均已埋日志待复现。
+
+**验证工具链（本轮新增，回归全靠它们）**：
+- `TUREAD_USER_DATA=<目录>` 环境变量 = 独立 userData（**验证永远用它，别碰真实书库**；
+  快照材料：把真实 userData 的 `library.json.migrated`/`config.json.migrated` 拷进临时目录改名回 `.json` 即可模拟老用户）。
+- `TUREAD_DEV_PROBE=library` + `TUREAD_DEV_BOOK=<书>` = 多库/書箱无头探针（16 断言）；
+  `TUREAD_DEV_BOOK=<书>` 单跑 = 渲染自检；`TUREAD_DEV_SQLITE=1` = 原生模块 spike。
+- UI 交互验证：computer-use 真实点击（本轮实机验证的方法：启动 dev → list_apps 找窗口 → 坐标右键/element 点击）。
+- 换 Electron 版本后须 `npm run rebuild:sqlite`；打包仍走代理（README/NETWORK.md）。
+
+**关键对象速查**：`LibraryManager`（主进程库管理器，引导文件读写）｜`SqliteStore`（一库一实例，
+close 后可 init 重开——切库会来回开关）｜`store:*` IPC 一律打「当前库」｜切库信号 = main 广播
+`store:library-changed`（AppShell 清选中/阅读器，LibraryFeature 重载）｜契约版本 v0.3.7（CONTRACTS §8）。
