@@ -22,12 +22,16 @@ export const IPC = {
   storeSetCover: 'store:set-cover',
   storeGetCover: 'store:get-cover',
   storeRemoveCover: 'store:remove-cover',
-  // 多书库（2026-09-13）：库列表/新建/切换；main 在切换成功后广播 library-changed
-  // （含发起方——渲染层统一以广播为"当前库已变"的信号，重载各自状态）
+  // 多书库（2026-09-13）：库列表/新建/切换/更名（管理弹窗，Obsidian 仓库管理页风格）；
+  // main 在切换/新建成功后广播 library-changed（含发起方——渲染层统一以广播为
+  // "当前库已变"的信号，重载各自状态；更名不改当前库，不广播，弹窗自行刷新列表）
   storeListLibraries: 'store:list-libraries',
   storeCreateLibrary: 'store:create-library',
   storeSwitchLibrary: 'store:switch-library',
+  storeRenameLibrary: 'store:rename-library',
   storeLibraryChanged: 'store:library-changed',
+  // 在系统文件管理器中显示文件（库管理弹窗：「所在文件夾」）
+  fsShowInFolder: 'fs:show-in-folder',
   fsReadFile: 'fs:read-file',
   pickerPickFiles: 'picker:pick-files',
   pickerPickDirectory: 'picker:pick-directory',

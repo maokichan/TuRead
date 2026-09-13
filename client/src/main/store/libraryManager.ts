@@ -145,6 +145,17 @@ export class LibraryManager {
     return entry
   }
 
+  /** 更名（显示名；文件名/路径不变——dbPath 与可改的显示名解耦）。不切库、不广播。 */
+  async renameLibrary(id: string, name: string): Promise<LibraryEntry> {
+    const entry = this.bootstrap!.libraries.find((l) => l.id === id)
+    if (!entry) throw new Error(`書庫不存在：${id}`)
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('書庫名不能為空')
+    entry.name = trimmed
+    await this.writeBootstrap(this.bootstrap!)
+    return entry
+  }
+
   /** 移除**引用**（不删 .db / 封面文件——引用模型，与"移除书=只删索引"同语义；最后一个库不可移除） */
   async removeLibrary(id: string): Promise<void> {
     const libs = this.bootstrap!.libraries

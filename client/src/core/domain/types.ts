@@ -103,10 +103,12 @@ export interface LibrarySettings {
 /**
  * 书库条目（多书库，2026-09-13 立项）。一个条目 = 一份书库（一个 .db + 封面目录）；
  * 注册表（哪些库存在、当前是哪个）由主进程的引导文件持有（config.json，DATA_MODEL §1）。
+ * `dbPath` 随列表返回，仅供展示/「所在文件夾」揭示（路径管理在主进程，渲染层不可指定路径）。
  */
 export interface LibraryEntry {
   id: string
   name: string
+  dbPath?: string
 }
 
 /**

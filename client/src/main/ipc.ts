@@ -1,7 +1,7 @@
 /**
  * IPC 注册（主进程）：把 net / store / 文件选择适配器桥接到渲染进程。
  */
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, dialog, BrowserWindow, shell } from 'electron'
 import { promises as fs } from 'node:fs'
 import type { Dirent } from 'node:fs'
 import { extname, join } from 'node:path'
@@ -67,6 +67,17 @@ export function registerIpc(
     const entry = await libraries.switchLibrary(id)
     send(IPC.storeLibraryChanged, entry)
     return { id: entry.id, name: entry.name }
+  })
+  ipcMain.handle(IPC.storeRenameLibrary, async (_e, p: { id: string; name: string }) => {
+    const entry = await libraries.renameLibrary(p.id, p.name)
+    return { id: entry.id, name: entry.name }
+  })
+  // 库管理弹窗「所在文件夾」：在系统文件管理器里高亮库文件（路径来自引导文件，不接受任意路径）
+  ipcMain.handle(IPC.fsShowInFolder, (_e, p: { libraryId: string }) => {
+    const entry = libraries.listLibraries().libraries.find((l) => l.id === p.libraryId)
+    if (!entry) return false
+    shell.showItemInFolder(entry.dbPath)
+    return true
   })
 
   ipcMain.handle(IPC.fsReadFile, async (_e, path: string) => {

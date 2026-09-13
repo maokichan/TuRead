@@ -41,4 +41,6 @@ export interface ILibraryStore {
   createLibrary(name?: string): Promise<LibraryEntry>
   /** 切换当前库；main 随后广播 library-changed */
   switchLibrary(id: string): Promise<void>
+  /** 更名（显示名，文件路径不变；不切库、不广播） */
+  renameLibrary(id: string, name: string): Promise<LibraryEntry>
 }

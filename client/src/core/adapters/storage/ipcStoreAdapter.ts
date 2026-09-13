@@ -65,4 +65,8 @@ export class IpcStoreAdapter implements ILibraryStore {
   async switchLibrary(id: string): Promise<void> {
     await this.bridge.invoke(IPC.storeSwitchLibrary, id)
   }
+
+  async renameLibrary(id: string, name: string): Promise<LibraryEntry> {
+    return (await this.bridge.invoke(IPC.storeRenameLibrary, { id, name })) as LibraryEntry
+  }
 }

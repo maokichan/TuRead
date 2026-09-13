@@ -20,6 +20,7 @@ import { BookRow } from '../../components/BookRow'
 import { BookTile } from '../../components/BookTile'
 import { BookDetailPanel } from '../../components/BookDetailPanel'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { LibraryManagerDialog } from '../../components/LibraryManagerDialog'
 import { LibraryToolbar } from '../../components/LibraryToolbar'
 import { useVirtualRange } from '../../components/useVirtualRange'
 
@@ -40,6 +41,8 @@ export function LibraryFeature({
   const [coverProgress, setCoverProgress] = useState<{ done: number; total: number } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<BookRecord | null>(null)
   const [skipDeleteNotice, setSkipDeleteNotice] = useState(false)
+  /** 書庫管理弹窗（2026-09-13 用户立项：Obsidian 仓库管理页风格） */
+  const [managerOpen, setManagerOpen] = useState(false)
   /** 本批导入成功的书 id（done 时一次性交给封面队列） */
   const importedIdsRef = useRef<string[]>([])
 
@@ -376,15 +379,38 @@ export function LibraryFeature({
         importing={importing}
         onCancelImport={() => container.imports.cancel()}
         coverProgress={coverProgress}
-        listLibraries={() => container.store.listLibraries()}
-        onSwitchLibrary={(id) => void container.store.switchLibrary(id)}
-        onCreateLibrary={() =>
-          void container.store
-            .createLibrary()
-            .then((l) => host.pushLog(`已新建書庫：${l.name}`))
-            .catch((err) => host.pushLog(`新建書庫失败：${(err as Error).message}`))
-        }
+        onOpenManager={() => setManagerOpen(true)}
       />
+
+      {managerOpen && (
+        <LibraryManagerDialog
+          onClose={() => setManagerOpen(false)}
+          listLibraries={() => container.store.listLibraries()}
+          onSwitch={async (id) => {
+            try {
+              await container.store.switchLibrary(id)
+            } catch (err) {
+              host.pushLog(`切换書庫失败：${(err as Error).message}`)
+            }
+          }}
+          onCreate={async (name) => {
+            try {
+              const l = await container.store.createLibrary(name)
+              host.pushLog(`已新建書庫：${l.name}`)
+            } catch (err) {
+              host.pushLog(`新建書庫失败：${(err as Error).message}`)
+            }
+          }}
+          onRename={async (id, name) => {
+            try {
+              const l = await container.store.renameLibrary(id, name)
+              host.pushLog(`書庫已更名：${l.name}`)
+            } catch (err) {
+              host.pushLog(`更名失败：${(err as Error).message}`)
+            }
+          }}
+        />
+      )}
 
       {pendingDelete && (
         <ConfirmDialog

@@ -60,6 +60,14 @@ export function runLibraryProbe(container: ServiceContainer, host: FeatureHost):
       )
       assert((await container.books.list()).length === 1, '新库可独立导入同一本书')
 
+      // ③b 更名（显示名，路径不变；不切库）
+      await container.store.renameLibrary(created.id, '測試改名')
+      const renamed = await container.store.listLibraries()
+      assert(
+        renamed.libraries.find((l) => l.id === created.id)?.name === '測試改名',
+        '新库可更名'
+      )
+
       // ④ 切回默认库：书单恢复（顺带验证"关过的库能重开"——切库会 close/init 往返）
       await container.store.switchLibrary(base.currentId)
       await wait(300)
