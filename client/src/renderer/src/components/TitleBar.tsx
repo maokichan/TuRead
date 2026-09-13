@@ -113,7 +113,7 @@ export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: 
           }}
           placeholder={PLACEHOLDERS[activeFeature] ?? PLACEHOLDERS.default}
           aria-label={PLACEHOLDERS[activeFeature] ?? PLACEHOLDERS.default}
-          className="titlebar-search h-7 w-[420px] max-w-[46vw] rounded-sm border border-[var(--border)] bg-[var(--bg)] px-2.5 text-center text-[13px] text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:text-left"
+          className="titlebar-search pointer-events-auto h-7 w-[420px] max-w-[46vw] rounded-sm border border-[var(--border)] bg-[var(--bg)] px-2.5 text-center text-[13px] text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:text-left"
         />
       </div>
 

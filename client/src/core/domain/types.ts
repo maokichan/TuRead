@@ -93,11 +93,20 @@ export interface BookRecord {
 /** 书库视图（列表 / 网格；瀑布流因缩略图统一比例已并入网格，见 FEATURES §10） */
 export type LibraryView = 'list' | 'grid'
 
-/** 书库设置（持久化于 config.json 的 librarySettings 键） */
+/** 书库设置（持久化于当前库 settings 表的 librarySettings 键；随库走） */
 export interface LibrarySettings {
   view: LibraryView
   /** 导入文件夹时是否包含子目录（false = 只导入此节点；true = 此节点及所有子节点） */
   importRecursive: boolean
+}
+
+/**
+ * 书库条目（多书库，2026-09-13 立项）。一个条目 = 一份书库（一个 .db + 封面目录）；
+ * 注册表（哪些库存在、当前是哪个）由主进程的引导文件持有（config.json，DATA_MODEL §1）。
+ */
+export interface LibraryEntry {
+  id: string
+  name: string
 }
 
 /**

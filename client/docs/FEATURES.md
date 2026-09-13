@@ -303,7 +303,8 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 - **沉浸全屏（2026-09-13 落地）**：`F11`（意图 `reader.toggleFullscreen`，意图层裁决）或设置开关
   「進入閱讀器時進入全屏」（默认关，`appearance.readerFullscreen`）= OS 级全屏 + **标题栏整条退场**
   （`TitleBar` 订阅 `win:fullscreen-changed` 返回 null；全屏态无拖拽区，找回 = `F11`/`Esc`）。
-  `Esc` 分流：先收参数面板 → 再退全屏 → 再退阅读器；**离开阅读器自动还原窗口**（全屏只属于阅读态）。
+  `Esc` 分流（**2026-09-13 用户纠正**：参数面板是常伴工具，Esc 顺手收面板是错误设计，面板开合只归挂载线）
+  = 全屏先退全屏 → 否则退出阅读器；**离开阅读器自动还原窗口**（全屏只属于阅读态）。
   状态由 main 在 `enter/leave-full-screen` 广播，渲染层只订阅跟随（`win:*` IPC 与 TitleBar 同为 Shell 镶边级例外）。
 - **iframe 事件桥（2026-09-13，`components/iframeBridge.ts`）**：kookit 正文渲染在 iframe 里，
   焦点进书页后键盘/滚轮事件落在 iframe document 上**到不了宿主 window**（文档边界）——

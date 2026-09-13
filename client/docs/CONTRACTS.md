@@ -101,6 +101,14 @@ interface BookRecord {
 /** 书库视图（v0.2.6）：瀑布流因缩略图统一比例并入网格，见 FEATURES §10 */
 type LibraryView = 'list' | 'grid';
 
+/** 书库条目（多书库 v0.3.5，2026-09-13 立项）：一个条目 = 一份书库（一个 .db + 封面目录）。
+ *  注册表（有哪些库、当前是哪个）由主进程引导文件持有（config.json，DATA_MODEL §1）——
+ *  引导文件不再存任何书库数据。 */
+interface LibraryEntry {
+  id: string;
+  name: string;
+}
+
 /** 书库设置（持久化于 config.json 的 librarySettings 键） */
 interface LibrarySettings {
   view: LibraryView;
@@ -386,6 +394,13 @@ interface ILibraryStore {
   setCover(bookId: string, bytes: ArrayBuffer, ext: string): Promise<string>;
   getCover(bookId: string): Promise<ArrayBuffer | null>;
   removeCover(bookId: string): Promise<void>;
+  // —— 多书库（v0.3.5，2026-09-13）——
+  /** 库列表 + 当前库 id */
+  listLibraries(): Promise<{ libraries: LibraryEntry[]; currentId: string }>;
+  /** 新建空库（缺省名自动编号）并**切换**过去；main 随后广播 library-changed（重载信号以此为准） */
+  createLibrary(name?: string): Promise<LibraryEntry>;
+  /** 切换当前库；main 随后广播 library-changed */
+  switchLibrary(id: string): Promise<void>;
 }
 ```
 
@@ -557,6 +572,7 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.3.5 | 2026-09-13 | **多书库契约**：§2 增 `LibraryEntry`；§4.4 `ILibraryStore` 增 `listLibraries` / `createLibrary` / `switchLibrary`。口径：一个条目 = 一份 .db 书库；`config.json` 降级为**引导文件**（库注册表 + 当前库 id，DATA_MODEL §1）；切换/新建成功后 main 广播 `library-changed`，渲染层各 Feature 以广播为"当前库已变"信号重载自己的状态（选中/阅读器由 AppShell 清理）。设置（主题/阅读参数）**随库走**（存于各库 settings 表） |
 | v0.3.4 | 2026-09-12 | **封面失败负缓存**：§2 `BookRecord` 增 `coverFailed?`（永久性失败只试一次，不随启动「存量补封面」重试）。背景：书库 328 本实测，启动补封面把渲染主线程整个饿死（kookit getMetadata 在主线程解析全书）且失败书每次启动反复重解析 | 
 | v0.3.3 | 2026-09-11 | **阅读排版参数契约 + 右侧控件**：§2 增 `ReaderTypography`（fontSize/lineHeight/paragraphSpacing，**缺省 = 不改**）、`ReaderSettings` 扩 `pagePadX/fontSize/lineHeight/paragraphSpacing`；§4.1 `IRenderService` 增 `applyTypography`（与 `applyTheme` 共用同一条 `setStyle` 注入通道，每次重建整份 reader style）。口径：**宿主几何走 CSS 变量（纸宽/内边距），正文排版走注入（字号/行距/段距）**；高频参数入口 = 阅读页**右侧可召唤面板**（`STYLE.md` §5.8/§5.9） |
 | v0.3.2 | 2026-09-11 | **`applyTheme` 语义澄清 + 首个排版参数**：`IRenderService.applyTheme` 的注入内容 = **排版参数（始终）+ 颜色（仅深色）** —— "浅色不注入"只针对颜色；新增纸内边距注入 `body{padding-inline: var(--page-pad-x)}`（注入 body 而非宿主容器：kookit 排版宽度读宿主 `clientWidth`，且 `handleImageSize.getContentWidth` 会扣掉父容器 padding）。可调参数清单见 `STYLE.md` §5.9 |

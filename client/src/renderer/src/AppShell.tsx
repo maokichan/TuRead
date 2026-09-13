@@ -10,6 +10,7 @@
  * - dev 无头自检已移出（见 dev/selfCheck.ts）—— shell 只做组合与共享态。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { IPC } from '@shared/ipc'
 import { createContainer, type ServiceContainer } from '@core/container'
 import { FEATURES } from './features/registry'
 import type { FeatureHost, FeatureId } from './features/types'
@@ -18,6 +19,7 @@ import { TitleBar } from './components/TitleBar'
 import { runDevSelfCheck } from './dev/selfCheck'
 import { runPdfWidthProbe } from './dev/pdfWidthProbe'
 import { runPagedInteractProbe } from './dev/pagedInteractProbe'
+import { runLibraryProbe } from './dev/libraryProbe'
 
 export default function AppShell(): React.JSX.Element {
   const container = useMemo<ServiceContainer>(() => createContainer(window.turead), [])
@@ -94,8 +96,25 @@ export default function AppShell(): React.JSX.Element {
       runPagedInteractProbe(container, host)
       return
     }
+    if (window.turead.devProbe === 'library') {
+      runLibraryProbe(container, host)
+      return
+    }
     return runDevSelfCheck(container, host)
   }, [container, host])
+
+  // 切换书库（2026-09-13）：旧库的 bookId 在新库无意义 → 清选中与阅读器状态。
+  // 若正在阅读，closeReader 顺带回到书库（LibraryFeature 同步收到广播重载书单）
+  useEffect(() => {
+    const off = window.turead.subscribe(IPC.storeLibraryChanged, () => {
+      selectedBookIdRef.current = null
+      setSelectedBookId(null)
+      readerBookIdRef.current = null
+      setReaderBookId(null)
+      setActiveFeature('library')
+    })
+    return off
+  }, [])
 
   // 阅读态侧边栏退场（STYLE.md §5.8）：仅 reader 且未被手动钉住时隐藏
   const sidebarVisible = activeFeature !== 'reader' || sidebarPinned

@@ -22,6 +22,12 @@ export const IPC = {
   storeSetCover: 'store:set-cover',
   storeGetCover: 'store:get-cover',
   storeRemoveCover: 'store:remove-cover',
+  // 多书库（2026-09-13）：库列表/新建/切换；main 在切换成功后广播 library-changed
+  // （含发起方——渲染层统一以广播为"当前库已变"的信号，重载各自状态）
+  storeListLibraries: 'store:list-libraries',
+  storeCreateLibrary: 'store:create-library',
+  storeSwitchLibrary: 'store:switch-library',
+  storeLibraryChanged: 'store:library-changed',
   fsReadFile: 'fs:read-file',
   pickerPickFiles: 'picker:pick-files',
   pickerPickDirectory: 'picker:pick-directory',

@@ -26,9 +26,10 @@ export interface SqliteStoreOptions {
   /** 库文件绝对路径（<库名>.db；多书库时代每个 .db 一份书库） */
   dbPath: string
   coversDir: string
-  /** 旧 JSON 的位置（仅迁移器读取；缺失 = 全新安装，直接建空库） */
-  legacyLibraryPath: string
-  legacyConfigPath: string
+  /** 旧 JSON 的位置（仅迁移器读取；缺省 = 无旧数据可迁，直接建空库。
+   *  只有从旧版 JSON 升级上来的"默认库"才带这两个字段，新建书库不带） */
+  legacyLibraryPath?: string
+  legacyConfigPath?: string
 }
 
 /** 与 DATA_MODEL §2 一致的建表语句（IF NOT EXISTS：老库升级安全）。
@@ -135,10 +136,12 @@ export class SqliteStore {
     await this.migrateLegacyIfPresent()
   }
 
-  /** 应用退出时关闭句柄（WAL checkpoint 随之落盘） */
+  /** 应用退出/切库时关闭句柄（WAL checkpoint 随之落盘）。
+   *  ⚠ close 后允许 init() 重开（initPromise 清零）—— 多库切换会来回开关同一个库。 */
   close(): void {
     this.db?.close()
     this.db = null
+    this.initPromise = null
   }
 
   // ————— 迁移器（DATA_MODEL §5 开放问题 2）：library.json / config.json → 本库，one-shot —————
@@ -151,15 +154,23 @@ export class SqliteStore {
   private async migrateLegacyIfPresent(): Promise<void> {
     const migrated = this.db.prepare('SELECT value FROM meta WHERE key = ?').get(META_MIGRATED)
     if (migrated) return
-    if (!existsSync(this.opts.legacyLibraryPath) && !existsSync(this.opts.legacyConfigPath)) {
+    if (!this.opts.legacyLibraryPath && !this.opts.legacyConfigPath) {
+      this.db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run(META_MIGRATED, 'fresh')
+      return
+    }
+    const libPath = this.opts.legacyLibraryPath
+    const cfgPath = this.opts.legacyConfigPath
+    if ((!libPath || !existsSync(libPath)) && (!cfgPath || !existsSync(cfgPath))) {
       this.db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run(META_MIGRATED, 'fresh')
       return
     }
 
-    const library = await readJson<{ books?: BookRecord[]; settings?: Record<string, unknown> }>(
-      this.opts.legacyLibraryPath
-    )
-    const config = await readJson<{ settings?: Record<string, unknown> }>(this.opts.legacyConfigPath)
+    const library = libPath
+      ? await readJson<{ books?: BookRecord[]; settings?: Record<string, unknown> }>(libPath)
+      : null
+    const config = cfgPath
+      ? await readJson<{ settings?: Record<string, unknown> }>(cfgPath)
+      : null
 
     const books = Array.isArray(library?.books) ? library.books : []
     const settings = { ...(library?.settings ?? {}), ...(config?.settings ?? {}) }
@@ -185,7 +196,9 @@ export class SqliteStore {
 
     await renameAside(this.opts.legacyLibraryPath)
     await renameAside(this.opts.legacyConfigPath)
-    console.log(`[store] 已迁移旧书库进 SQLite：${books.length} 本书 + ${Object.keys(settings).length} 个设置键（旧文件改名 .migrated 留档）`)
+    console.log(
+      `[store] 已迁移旧书库进 SQLite：${books.length} 本书 + ${Object.keys(settings).length} 个设置键（旧文件改名 .migrated 留档）`
+    )
   }
 
   // ————— ILibraryStore —————
@@ -397,8 +410,8 @@ async function readJson<T>(path: string): Promise<T | null> {
   }
 }
 
-/** 旧文件改名留档（.migrated 后缀）；缺失/失败不阻塞迁移 */
-async function renameAside(path: string): Promise<void> {
-  if (!existsSync(path)) return
+/** 旧文件改名留档（.migrated 后缀）；缺失/已留档/失败不阻塞迁移 */
+async function renameAside(path?: string): Promise<void> {
+  if (!path || !existsSync(path) || path.endsWith('.migrated')) return
   await fs.rename(path, `${path}.migrated`).catch(() => undefined)
 }

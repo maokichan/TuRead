@@ -152,8 +152,19 @@
   ② **`SqliteStore` 主进程适配器落地**（替代 JsonStore，schema 按 DATA_MODEL §2 全量建表，
   containers/notes 表先立未接 UI）③ **one-shot 迁移器**（library.json/config.json → turead.db，
   meta 表标记防复活，旧文件改名 `.migrated` 留档；独立 userData 下 327 本实测迁移 + 自检全绿，
-  二次启动不重复迁移）→ **下一步 = 书箱（containers）实体与 UI、多书库管理（config.json 降级引导文件）**。
-  契约已立：`Note` + `IRenderService` 三原语 + 定位系统（RENDER_INTERFACE §5）
+  二次启动不重复迁移）④ **多书库落地**（`LibraryManager`：config.json = 引导文件只存库注册表 +
+  当前库 id；一库一 .db；底部状态栏「書庫」菜单切换/新建，`library` 探针 7 断言全过）
+  → **下一步 = 书箱（containers）实体与 UI、库管理完善（重命名/移除引用/库目录可配置）**。
+  契约已立：`Note` + `LibraryEntry`（CONTRACTS v0.3.5）+ `IRenderService` 三原语 + 定位系统（RENDER_INTERFACE §5）
+- [ ] **(切库遗留，低优) 各 Feature 的设置缓存不随切库热更新**：库级设置随库走（settings 表），
+  但 ReaderFeature 的 `autoFullscreenRef` 等只在挂载/激活时读一次；切到主题不同的库后
+  主题/阅读参数要到下次相关交互才生效。做法候选：切库广播后各 Feature 重读自己关心的键。
+- [ ] **(用户定，下个版本) 迁移器退役**：迁移器是**临时工具**——只为"从 JSON 时代的旧安装升级"
+  存在；引导文件确立后新安装不再产生大 JSON。待用户发版滚动一个版本后（旧用户都升过一遍），
+  删除 `SqliteStore` 的迁移分支与 `LibraryEntry.legacy*Path` 字段（SQLite 探针/`rebuild:sqlite` 保留）。
+- [ ] **(书库管理完善，随书箱 UI 一起)**：书库**重命名**、**移除引用**（协议已支持：`removeLibrary`，
+  UI 菜单未放——先定交互：菜单直删 vs 进管理面板）、**库目录可配置**（引导文件指向即读，
+  封面随库目录 = 数据+外观一起携带）、新建库时**自定义命名**（现为自动编号「書庫 N」）
 - [ ] **跳转历史（状态机）**：阅读跳转（目录/注释/回跳）用**状态机**做前进/后退栈（undo/redo）——
   **行动树已驳回**（2026-09-09 群聊定案：体验归根结底是线性的）；随笔记落地后实施
 - [ ] **「总阅读时间」占位待实现**（2026-09-09 用户定）：抽屉指标行第三格已占位（显示「共 —」，无标签），

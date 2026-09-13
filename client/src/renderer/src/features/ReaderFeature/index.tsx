@@ -358,16 +358,14 @@ export function ReaderFeature({
   }, [book, readerMode, turnByWheel])
 
   // 阅读器键盘（STYLE.md §5.8）——走键鼠意图层（domain/input.ts，2026-09-12 立机制）：
-  // 绑定见 DEFAULT_BINDINGS.reader.*；处理函数内分流保持原有手感（Esc 先收面板、Space 仅分页模式）。
+  // 绑定见 DEFAULT_BINDINGS.reader.*；Space 仅分页模式。
+  // Esc 分流（2026-09-13 用户纠正）：**不收参数面板**——面板是常伴工具，被 Esc 顺手收掉是错误设计；
+  // Esc 只做两件事：全屏先退全屏，否则退出阅读器。面板开合只归挂载线（p 键 / 点线）。
   // ⚠ enabled 守卫必须给：功能组件常驻挂载，不设守卫书库里按 t/p 会误触阅读器意图
   useKeyIntents(
     'reader',
     {
       'reader.back': () => {
-        if (controlsOpen) {
-          setControlsOpen(false)
-          return
-        }
         if (fullscreen) {
           void window.turead.invoke(IPC.winSetFullScreen, false)
           return

@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import type { WebContents } from 'electron'
 import { registerIpc } from './ipc'
 import { WsNetAdapter } from './net/wsNetAdapter'
-import { SqliteStore } from './store/sqliteStore'
+import { LibraryManager } from './store/libraryManager'
 import { IPC } from '@shared/ipc'
 
 // dev-only：独立 userData（TUREAD_USER_DATA=<目录>）—— 无头自检/迁移验证不污染真实书库。
@@ -179,17 +179,12 @@ void app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
 
   const net = new WsNetAdapter()
-  // 单一 SQLite 库文件 = 一份书库（DATA_MODEL.md v2，2026-09-13 落地）；
-  // 旧 library.json/config.json 由迁移器在 init 内 one-shot 迁入并改名留档
-  const store = new SqliteStore({
-    dbPath: join(app.getPath('userData'), 'turead.db'),
-    coversDir: join(app.getPath('userData'), 'covers'),
-    legacyLibraryPath: join(app.getPath('userData'), 'library.json'),
-    legacyConfigPath: join(app.getPath('userData'), 'config.json')
-  })
-  await store.init()
+  // 多书库（2026-09-13 用户立项）：config.json 降级为**引导文件**（库注册表 + 当前库），
+  // 每个 .db = 一份书库（SqliteStore）；旧 JSON 的 one-shot 迁移在默认库首启时自动进行
+  const libraries = new LibraryManager(app.getPath('userData'))
+  await libraries.init()
 
-  registerIpc(net, store, (channel, payload) => {
+  registerIpc(net, libraries, (channel, payload) => {
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send(channel, payload)
     }
@@ -214,8 +209,8 @@ void app.whenReady().then(async () => {
 
   createWindow()
 
-  // WAL checkpoint 随 close 落盘：库句柄在退出前收掉（store 在本闭包内）
-  app.on('will-quit', () => store.close())
+  // WAL checkpoint 随 close 落盘：当前库的句柄在退出前收掉
+  app.on('will-quit', () => libraries.current.close())
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

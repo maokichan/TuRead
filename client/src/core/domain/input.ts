@@ -83,13 +83,13 @@ export function assertNoConflict(table: KeyBindingTable): void {
  */
 export const DEFAULT_BINDINGS: KeyBindingTable = {
   // —— 阅读器（ReaderFeature 注册处理）——
-  'reader.back': ['escape'], // 处理函数内分流：参数面板开着先收面板 → 全屏先退全屏 → 否则关阅读器
+  'reader.back': ['escape'], // 全屏先退全屏，否则退出阅读器（2026-09-13 用户定：Esc 不收参数面板——面板是常伴工具）
   'reader.nextPage': ['arrowright', 'pagedown'],
   'reader.prevPage': ['arrowleft', 'pageup'],
   'reader.spacePage': [' '], // 仅分页模式翻页（scroll 模式 Space 归滚动，处理函数内分流）
   'reader.toggleToc': ['t'],
   'reader.toggleControls': ['p'],
-  'reader.toggleFullscreen': ['f11'], // 沉浸全屏（2026-09-13）；Esc 分流见 reader.back 注释
+  'reader.toggleFullscreen': ['f11'], // 沉浸全屏（2026-09-13）
   // —— 全局 ——
   'app.focusSearch': ['ctrl+f'] // 处理函数内分流：仅书库态聚焦标题栏搜索
 }

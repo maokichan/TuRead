@@ -1,9 +1,10 @@
 /**
- * ILibraryStore 适配器（渲染进程侧）—— IPC 桥，转发到主进程的 JsonStore（JSON 文件持久化）。
- * 接口保持存储无关；后续换 better-sqlite3 只需替换主进程实现，本桥不变。
+ * ILibraryStore 适配器（渲染进程侧）—— IPC 桥，转发到主进程的 LibraryManager/SqliteStore
+ * （SQLite 单库持久化，多库下所有 store:* 打到「当前库」）。
+ * 接口保持存储无关；本桥不感知库切换——切库以 main 广播的 library-changed 为准。
  */
-import type { ILibraryStore } from '@core/ports/store'
-import type { BookRecord } from '@core/domain/types'
+import type { ILibraryStore, LibraryListResult } from '@core/ports/store'
+import type { BookRecord, LibraryEntry } from '@core/domain/types'
 import { IPC, type TureadBridge } from '@shared/ipc'
 
 export class IpcStoreAdapter implements ILibraryStore {
@@ -51,5 +52,17 @@ export class IpcStoreAdapter implements ILibraryStore {
 
   async removeCover(bookId: string): Promise<void> {
     await this.bridge.invoke(IPC.storeRemoveCover, bookId)
+  }
+
+  async listLibraries(): Promise<LibraryListResult> {
+    return (await this.bridge.invoke(IPC.storeListLibraries)) as LibraryListResult
+  }
+
+  async createLibrary(name?: string): Promise<LibraryEntry> {
+    return (await this.bridge.invoke(IPC.storeCreateLibrary, name)) as LibraryEntry
+  }
+
+  async switchLibrary(id: string): Promise<void> {
+    await this.bridge.invoke(IPC.storeSwitchLibrary, id)
   }
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { LibraryEntry } from '@core/domain/types'
 import type { LibraryView } from '@core/domain/types'
 
 interface LibraryToolbarProps {
@@ -11,6 +12,10 @@ interface LibraryToolbarProps {
   onCancelImport: () => void
   /** 后台封面提取进度（null = 空闲） */
   coverProgress: { done: number; total: number } | null
+  /** 书库列表（打开菜单时现取；2026-09-13 用户立项：導入右边的「書庫」入口） */
+  listLibraries: () => Promise<{ libraries: LibraryEntry[]; currentId: string }>
+  onSwitchLibrary: (id: string) => void
+  onCreateLibrary: () => void
 }
 
 /** 视图名（繁体，配源流明体字栈）：按钮显示的是**当前**视图 */
@@ -36,7 +41,10 @@ export function LibraryToolbar({
   onImportFolder,
   importing,
   onCancelImport,
-  coverProgress
+  coverProgress,
+  listLibraries,
+  onSwitchLibrary,
+  onCreateLibrary
 }: LibraryToolbarProps): React.JSX.Element {
   const [flashing, setFlashing] = useState(false)
   /** 按钮上显示的文字（跟随动画节奏，落后于 view 约 260ms） */
@@ -100,6 +108,12 @@ export function LibraryToolbar({
             className="text-action text-action--primary text-action--lg"
           />
         )}
+        <LibraryMenu
+          listLibraries={listLibraries}
+          onSwitch={onSwitchLibrary}
+          onCreate={onCreateLibrary}
+          className="text-action text-action--lg"
+        />
       </div>
     </footer>
   )
@@ -154,6 +168,83 @@ function ImportMenu({
             className="block w-full text-left text-[13px] text-[var(--muted)] hover:text-[var(--text)]"
           >
             导入文件夹…
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * 書庫菜单（2026-09-13 用户立项）：導入右边的文字按钮，点开 = 库列表（当前库标「當前」）+
+ * 「新建書庫…」。切换/新建的**完成信号**是 main 广播的 library-changed（LibraryFeature 监听后
+ * 重载书单），这里只发起。打开菜单时现取库列表（库可能随时在别处被建/切）。
+ */
+function LibraryMenu({
+  listLibraries,
+  onSwitch,
+  onCreate,
+  className
+}: {
+  listLibraries: () => Promise<{ libraries: LibraryEntry[]; currentId: string }>
+  onSwitch: (id: string) => void
+  onCreate: () => void
+  className: string
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [libs, setLibs] = useState<{ libraries: LibraryEntry[]; currentId: string } | null>(null)
+  const boxRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDocClick = (e: MouseEvent): void => {
+      if (!boxRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [open])
+
+  const toggle = (): void => {
+    if (!open) void listLibraries().then(setLibs)
+    setOpen((v) => !v)
+  }
+
+  return (
+    <div ref={boxRef} className="relative">
+      <button onClick={toggle} className={className} title="切换 / 新建书库">
+        書庫
+      </button>
+      {open && (
+        <div className="absolute bottom-full left-0 z-10 mb-2 flex w-40 flex-col items-start gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] p-2.5 shadow-lg">
+          {(libs?.libraries ?? []).map((l) => {
+            const isCurrent = l.id === libs?.currentId
+            return (
+              <button
+                key={l.id}
+                disabled={isCurrent}
+                onClick={() => {
+                  setOpen(false)
+                  onSwitch(l.id)
+                }}
+                className={`block w-full text-left text-[13px] ${
+                  isCurrent
+                    ? 'text-[var(--text)]'
+                    : 'text-[var(--muted)] hover:text-[var(--text)]'
+                }`}
+              >
+                {l.name}
+                {isCurrent && '　當前'}
+              </button>
+            )
+          })}
+          <button
+            onClick={() => {
+              setOpen(false)
+              onCreate()
+            }}
+            className="block w-full text-left text-[13px] text-[var(--muted)] hover:text-[var(--text)]"
+          >
+            新建書庫…
           </button>
         </div>
       )}

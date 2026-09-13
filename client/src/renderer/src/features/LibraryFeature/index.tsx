@@ -12,7 +12,8 @@
  * `relative` 定位，因此不覆盖底部状态栏。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { BookRecord, LibrarySettings, LibraryView } from '@core/domain/types'
+import type { BookRecord, LibraryEntry, LibrarySettings, LibraryView } from '@core/domain/types'
+import { IPC } from '@shared/ipc'
 import type { FeatureProps } from '../types'
 import { forgetCover, getCoverUrl } from '../coverCache'
 import { BookRow } from '../../components/BookRow'
@@ -63,6 +64,24 @@ export function LibraryFeature({
       .then((s) => setSkipDeleteNotice(s.skip === true))
     void refresh()
   }, [container, refresh])
+
+  // 切换书库（2026-09-13 用户立项）：main 广播 library-changed = "当前库已变"的唯一信号——
+  // store:* IPC 已打到新库，这里重载书单与库级设置（视图/删除提示随库走）、收起详情抽屉。
+  // 选中与阅读器状态由 AppShell 清理（旧库的 bookId 在新库无意义）
+  useEffect(() => {
+    const off = window.turead.subscribe(IPC.storeLibraryChanged, (payload) => {
+      const entry = payload as LibraryEntry
+      setDetailId(null)
+      setBooks([])
+      setCovers({})
+      void container.store
+        .getSetting<LibrarySettings>('librarySettings', DEFAULT_SETTINGS)
+        .then((s) => setView(s.view === 'grid' ? 'grid' : 'list'))
+      void refresh()
+      host.pushLog(`已切换到書庫：${entry.name}`)
+    })
+    return off
+  }, [container, host, refresh])
 
   // 封面提取事件 → 进度 / 单本就绪 / 失败日志
   useEffect(() => {
@@ -357,6 +376,14 @@ export function LibraryFeature({
         importing={importing}
         onCancelImport={() => container.imports.cancel()}
         coverProgress={coverProgress}
+        listLibraries={() => container.store.listLibraries()}
+        onSwitchLibrary={(id) => void container.store.switchLibrary(id)}
+        onCreateLibrary={() =>
+          void container.store
+            .createLibrary()
+            .then((l) => host.pushLog(`已新建書庫：${l.name}`))
+            .catch((err) => host.pushLog(`新建書庫失败：${(err as Error).message}`))
+        }
       />
 
       {pendingDelete && (

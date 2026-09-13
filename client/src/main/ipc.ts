@@ -9,16 +9,21 @@ import { EBOOK_EXTENSIONS, IPC } from '@shared/ipc'
 import type { HttpRequestOptions } from '@core/ports/net'
 import type { NetConfig, MessageEnvelope, BookRecord } from '@core/domain/types'
 import { WsNetAdapter } from './net/wsNetAdapter'
-import { SqliteStore } from './store/sqliteStore'
+import { LibraryManager } from './store/libraryManager'
+import type { SqliteStore } from './store/sqliteStore'
 
 const EBOOK_EXT_SET = new Set<string>(EBOOK_EXTENSIONS)
 const EBOOK_FILTER = [{ name: '电子书', extensions: [...EBOOK_EXTENSIONS] }]
 
 export function registerIpc(
   net: WsNetAdapter,
-  store: SqliteStore,
+  libraries: LibraryManager,
   send: (channel: string, payload: unknown) => void
 ): void {
+  // 多库下 store:* 一律打到「当前库」——switchLibrary 换掉 manager 内部的当前句柄即可，
+  // 这些 handler 不需要感知库的切换
+  const store = (): SqliteStore => libraries.current
+
   net.on('message', (env) => send(IPC.netMessage, env))
   net.on('connection-changed', (state) => send(IPC.netConnectionChanged, state))
 
@@ -28,28 +33,41 @@ export function registerIpc(
   ipcMain.handle(IPC.netRequest, (_e, opts: HttpRequestOptions) => net.request(opts))
   ipcMain.handle(IPC.netGetMemberId, () => net.getMemberId())
 
-  ipcMain.handle(IPC.storeAddBook, (_e, record: BookRecord) => store.addBook(record))
+  ipcMain.handle(IPC.storeAddBook, (_e, record: BookRecord) => store().addBook(record))
   ipcMain.handle(IPC.storeUpdateBook, (_e, p: { id: string; patch: Partial<BookRecord> }) =>
-    store.updateBook(p.id, p.patch)
+    store().updateBook(p.id, p.patch)
   )
-  ipcMain.handle(IPC.storeGetBook, (_e, id: string) => store.getBook(id))
-  ipcMain.handle(IPC.storeListBooks, () => store.listBooks())
-  ipcMain.handle(IPC.storeRemoveBook, (_e, id: string) => store.removeBook(id))
+  ipcMain.handle(IPC.storeGetBook, (_e, id: string) => store().getBook(id))
+  ipcMain.handle(IPC.storeListBooks, () => store().listBooks())
+  ipcMain.handle(IPC.storeRemoveBook, (_e, id: string) => store().removeBook(id))
   ipcMain.handle(
     IPC.storeGetSetting,
-    (_e, p: { key: string; fallback: unknown }) => store.getSetting(p.key, p.fallback)
+    (_e, p: { key: string; fallback: unknown }) => store().getSetting(p.key, p.fallback)
   )
   ipcMain.handle(IPC.storeSetSetting, (_e, p: { key: string; value: unknown }) =>
-    store.setSetting(p.key, p.value)
+    store().setSetting(p.key, p.value)
   )
   ipcMain.handle(IPC.storePatchSetting, (_e, p: { key: string; patch: Record<string, unknown> }) =>
-    store.patchSetting(p.key, p.patch)
+    store().patchSetting(p.key, p.patch)
   )
   ipcMain.handle(IPC.storeSetCover, (_e, p: { bookId: string; bytes: ArrayBuffer; ext: string }) =>
-    store.setCover(p.bookId, p.bytes, p.ext)
+    store().setCover(p.bookId, p.bytes, p.ext)
   )
-  ipcMain.handle(IPC.storeGetCover, (_e, bookId: string) => store.getCover(bookId))
-  ipcMain.handle(IPC.storeRemoveCover, (_e, bookId: string) => store.removeCover(bookId))
+  ipcMain.handle(IPC.storeGetCover, (_e, bookId: string) => store().getCover(bookId))
+  ipcMain.handle(IPC.storeRemoveCover, (_e, bookId: string) => store().removeCover(bookId))
+
+  // 多书库：列表 / 新建（随即切换）/ 切换——成功后广播 library-changed（渲染层各自重载）
+  ipcMain.handle(IPC.storeListLibraries, () => libraries.listLibraries())
+  ipcMain.handle(IPC.storeCreateLibrary, async (_e, name?: string) => {
+    const entry = await libraries.createLibrary(name)
+    send(IPC.storeLibraryChanged, entry)
+    return { id: entry.id, name: entry.name }
+  })
+  ipcMain.handle(IPC.storeSwitchLibrary, async (_e, id: string) => {
+    const entry = await libraries.switchLibrary(id)
+    send(IPC.storeLibraryChanged, entry)
+    return { id: entry.id, name: entry.name }
+  })
 
   ipcMain.handle(IPC.fsReadFile, async (_e, path: string) => {
     const buf = await fs.readFile(path)
