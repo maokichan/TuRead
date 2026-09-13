@@ -29,7 +29,7 @@ const PLACEHOLDERS: Record<string, string> = {
   default: '搜索…'
 }
 
-export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: TitleBarProps): React.JSX.Element | null {
+export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: TitleBarProps): React.JSX.Element {
   const [maximized, setMaximized] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -78,12 +78,18 @@ export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: 
     </button>
   )
 
-  // 全屏：整条退场（hooks 已全部执行完，此处提前返回是安全的）
-  if (fullscreen) return null
-
+  // 全屏：整条平滑收起（2026-09-13 用户定：加过渡动画，替代瞬间消失/出现的闪烁感）。
+  // 高度 44→0 的过渡同时回收布局空间；不用 return null（那是一帧跳变，正是闪烁来源）
   return (
     <header
       className="titlebar relative flex h-11 flex-none items-stretch border-b border-[var(--border)] bg-[var(--panel)]"
+      style={{
+        height: fullscreen ? 0 : undefined,
+        opacity: fullscreen ? 0 : 1,
+        borderBottomWidth: fullscreen ? 0 : undefined,
+        overflow: 'hidden',
+        transition: 'height 240ms ease-out, opacity 180ms ease-out'
+      }}
     >
       {/* 左：应用名（拖拽区的一部分，纯文字不拦截） */}
       <div className="flex select-none items-center pl-3 pr-2">

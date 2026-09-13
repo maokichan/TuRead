@@ -86,7 +86,7 @@
      --toc-line-w 同时是**挂载线长度**与**条目容器宽度上限**（都受左侧留白夹取）；
      --toc-veil-rest = 静息遮罩不透明度（越大越淡、越"退场"）；--toc-line-top = 挂载线纵向位置。 */
   --toc-line-w: 220px;
-  --toc-line-top: 28px;
+  --toc-line-top: 44px;
   --toc-veil-rest: 0.74;
   /* 右侧阅读参数面板宽度上限（实际宽度还会被右留白夹取，见 .reader-controls） */
   --reader-panel-w: 250px;

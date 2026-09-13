@@ -14,9 +14,11 @@
     "dist:dir": "electron-vite build && electron-builder --win --x64 --dir",
     "style": "vite --config tools/style-gallery/vite.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "typecheck:preview": "tsc --noEmit -p tsconfig.preview.json"
+    "typecheck:preview": "tsc --noEmit -p tsconfig.preview.json",
+    "rebuild:sqlite": "cd node_modules/better-sqlite3 && npx prebuild-install -r electron -t 33.4.11"
   },
   "dependencies": {
+    "better-sqlite3": "^12.11.1",
     "chardet": "^2.2.0",
     "pdfjs-dist": "^4.8.69",
     "react": "^19.1.0",
@@ -26,6 +28,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.13.14",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",

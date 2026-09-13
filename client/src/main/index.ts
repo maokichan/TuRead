@@ -160,6 +160,15 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(async () => {
+  // dev-only spike（DATA_MODEL 开放问题 1）：TUREAD_DEV_SQLITE=1 时验证 better-sqlite3
+  // 在 Electron 主进程的连通性，跑完即退，不创建窗口、不进应用（结论回写 DATA_MODEL.md）
+  if (process.env['TUREAD_DEV_SQLITE'] === '1') {
+    const { runSqliteSpike } = await import('./dev/sqliteSpike')
+    await runSqliteSpike()
+    app.exit(Number(process.exitCode) || 0)
+    return
+  }
+
   // 去掉 Electron 自带菜单栏（File/Edit/...），应用内统一由侧边栏功能组件导航
   Menu.setApplicationMenu(null)
 

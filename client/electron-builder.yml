@@ -25,11 +25,14 @@ files:
   # 已被 Vite 打进 bundle）→ 不进包：它是原生模块，带上只会拖体积并触发原生重建。
   - '!node_modules/canvas/**'
 
-# 不重建原生模块：我们运行时**没有**需要编译的原生依赖
-# （`ws`/`spark-md5` 纯 JS；kookit 与 pdfjs 都在渲染进程由 Vite 打包）。
-# 若开启，electron-builder 会对 node_modules 里的原生模块逐个 rebuild ——
+# 不重建原生模块：运行时唯一的原生依赖 better-sqlite3 用**预编译 Electron ABI 二进制**
+# （dev 安装后跑 `prebuild-install -r electron -t <electron 版本>` 取得，见 DATA_MODEL.md spike 结论），
+# 打包时只需带上并解出 asar（原生 .node 不能从 asar 内加载）。
+# 若开启 npmRebuild，electron-builder 会对 node_modules 里的原生模块逐个 rebuild ——
 # 本机缺少 cairo/GTK 的头文件，`canvas` 会直接编译失败（2026-09-11 实测）。
 npmRebuild: false
+asarUnpack:
+  - '**/node_modules/better-sqlite3/**'
 
 # 用**本地已解包的 Electron 发行版**，避免从 GitHub 下载 Electron。
 # 为什么必须这么做（2026-09-11 实测）：本机 GitHub 直连被墙、只能走本地代理，而代理会在下载中途
