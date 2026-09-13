@@ -257,8 +257,9 @@
   ② **OFL 全文未随包**（源流明体要求保留许可声明；`assets/fonts/NOTICE.md` 已自标"待补"）
   ③ 第三方声明（kookit AGPL / Electron / React / pdfjs / Tailwind… 的版权与许可）也应随发行物。
   做法：取 **AGPL-3.0 与 OFL 1.1 官方全文**（走本机代理用 Node 取，**不要手抄**）→ 仓库根放 `LICENSE`，
-  字体目录放 `OFL.txt`，让 `electron-builder` 把它们打进安装包（`extraResources` 或 `files`）。
-  ⚠ 现状：`npm run dist` 产出的安装包**不含许可文件** —— 内部/自用可以，**对外发行前必须补**。
+  字体目录放 `OFL.txt`，让 `electron-builder` 把它们打进发行物（`extraResources` 或 `files`）。
+  ⚠ 现状：`npm run dist` 产出的**免安装便携版**（v0.1.15 起的发行形态，用户 2026-09-14 定）**不含许可文件**
+  —— 内部/自用可以，**对外发行前必须补**（**正式对外发版 = 出 NSIS 安装包**，许可随包同步生效）。
 - [ ] **(P2) 「重开书偶发空白」（2026-09-11 dev 自检实测，间歇 ~1/3 次）**：自检的「恢复」断言
   （`closeReader()` → 点侧边栏「阅读」）有时回来后**没有正文**：实测证据 = 宿主 `#page-area` 节点**没换**
   （`节点同一=y`）、面板在（`stage=yes`）、但 **iframe 数 0**、`render.getPosition()` 全零
