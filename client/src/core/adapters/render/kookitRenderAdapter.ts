@@ -238,28 +238,39 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   }
 
   async next(): Promise<void> {
-    await this.rendition?.next()
+    await this.requireRendition('next').next()
   }
 
   async prev(): Promise<void> {
-    await this.rendition?.prev()
+    await this.requireRendition('prev').prev()
   }
 
   async goToPage(page: number): Promise<void> {
-    await this.rendition?.goToPage(page)
+    await this.requireRendition('goToPage').goToPage(page)
   }
 
   async goToPercentage(percentage: number): Promise<void> {
-    await this.rendition?.goToPercentage(percentage)
+    await this.requireRendition('goToPercentage').goToPercentage(percentage)
   }
 
   /** 目录跳转：透传 kookit goToChapterDocIndex（按渲染节号直达章节起点；PDF=页码） */
   async goToChapter(chapterDocIndex: number): Promise<void> {
-    await this.rendition?.goToChapterDocIndex(chapterDocIndex)
+    await this.requireRendition('goToChapter').goToChapterDocIndex(chapterDocIndex)
   }
 
   async goToPosition(location: BookLocation): Promise<void> {
-    await this.rendition?.goToPosition(JSON.stringify(location))
+    await this.requireRendition('goToPosition').goToPosition(JSON.stringify(location))
+  }
+
+  /**
+   * 导航方法的未打开守卫（TODO「适配器方法静默 no-op」销案，2026-09-13）：
+   * 与 renderTo 同口径——**未 open 即抛错**，调用方（UI/自检/用例）能明确收到"什么都没发生"
+   * 的失败，而不是把静默 no-op 当成功吞掉。getPosition/getProgress/getChapter 例外：
+   * 它们是查询，返回零值是文档化语义（CONTRACTS §4.1）。
+   */
+  private requireRendition(method: string): KookitRendition {
+    if (!this.rendition) throw new Error(`渲染未打开：${method}（先调 open）`)
+    return this.rendition
   }
 
   getPosition(): BookLocation {

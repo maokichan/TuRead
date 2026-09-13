@@ -6,8 +6,14 @@ import { join } from 'node:path'
 import type { WebContents } from 'electron'
 import { registerIpc } from './ipc'
 import { WsNetAdapter } from './net/wsNetAdapter'
-import { JsonStore } from './store/jsonStore'
+import { SqliteStore } from './store/sqliteStore'
 import { IPC } from '@shared/ipc'
+
+// dev-only：独立 userData（TUREAD_USER_DATA=<目录>）—— 无头自检/迁移验证不污染真实书库。
+// 必须在任何 getPath('userData') 之前执行（store 初始化、Chromium 缓存路径都跟随它）
+if (process.env['TUREAD_USER_DATA']) {
+  app.setPath('userData', process.env['TUREAD_USER_DATA'])
+}
 
 // —— 离屏解析窗口（封面/元数据提取专用，2026-09-12）——
 // 为什么：kookit getMetadata 全书解析（EPUB zip / PDF pdfjs）在主窗口渲染进程跑会把
@@ -173,10 +179,13 @@ void app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
 
   const net = new WsNetAdapter()
-  const store = new JsonStore({
-    libraryPath: join(app.getPath('userData'), 'library.json'),
-    configPath: join(app.getPath('userData'), 'config.json'),
-    coversDir: join(app.getPath('userData'), 'covers')
+  // 单一 SQLite 库文件 = 一份书库（DATA_MODEL.md v2，2026-09-13 落地）；
+  // 旧 library.json/config.json 由迁移器在 init 内 one-shot 迁入并改名留档
+  const store = new SqliteStore({
+    dbPath: join(app.getPath('userData'), 'turead.db'),
+    coversDir: join(app.getPath('userData'), 'covers'),
+    legacyLibraryPath: join(app.getPath('userData'), 'library.json'),
+    legacyConfigPath: join(app.getPath('userData'), 'config.json')
   })
   await store.init()
 
@@ -204,6 +213,9 @@ void app.whenReady().then(async () => {
   )
 
   createWindow()
+
+  // WAL checkpoint 随 close 落盘：库句柄在退出前收掉（store 在本闭包内）
+  app.on('will-quit', () => store.close())
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

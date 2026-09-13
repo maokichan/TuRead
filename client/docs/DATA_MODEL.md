@@ -30,7 +30,11 @@ config.json          ← 引导文件（极小，app 级）：已知库注册表
 spike 脚本 `src/main/dev/sqliteSpike.ts`，触发 `TUREAD_DEV_SQLITE=1`）。原生路线成立，**wasm 兜底不需要**。
 ⚠ 换 Electron 版本时须重跑 `npm run rebuild:sqlite`（v13 若恢复 electron prebuild 可升级）。
 
-## 2. schema v2（统一库，草案）
+## 2. schema v2（统一库，**已落地 2026-09-13**，实现 = `src/main/store/sqliteStore.ts`）
+
+> 相对初稿的两处增补（其余与批复稿一致）：books 加 `metadata` 列（完整 BookMetadata JSON，
+> title 列是其规范化投影——当前元数据只有文件名推导的标题，标准化立项后可能扩字段，先无损落库）；
+> 加 `meta` 表（迁移标记等库级簿记，不属于业务 schema）。
 
 ```sql
 PRAGMA journal_mode = WAL;
@@ -43,8 +47,11 @@ CREATE TABLE books (
     cover_path TEXT, cover_failed INTEGER NOT NULL DEFAULT 0,
     work_protocol TEXT, work_code TEXT,                  -- 标准化产出（可空）
     last_read_at INTEGER, last_location TEXT,            -- BookLocation JSON
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    metadata TEXT NOT NULL DEFAULT '{}'                  -- 完整 BookMetadata JSON（title 列的投影来源）
 );
+-- 迁移/簿记标记（key-value）：migrated_v1 = 'json'|'fresh'，防"迁移后删光书 → 从留档 JSON 复活"
+CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 -- 书箱（Collection 的产品标准名，用户定）——两种组织并存
 CREATE TABLE containers (
     id TEXT PRIMARY KEY,
@@ -155,8 +162,11 @@ bookRefs[] 引用（数组序=用户排序）}`。不变量：无环 / 悬挂引
 1. ~~better-sqlite3 vs sql.js~~ **已解（2026-09-13 spike 全绿，见 §1）**：走 better-sqlite3@12 原生 +
    prebuild（electron-v130）+ asarUnpack。待办收敛为一件小事：新机器 `npm install` 后须手动
    `npm run rebuild:sqlite`（脚手架已备），不做 postinstall（失败会挂安装，且需代理）。
-2. **迁移**：现有 userData 的 `library.json` → 新库 one-shot 迁移器（books/lastLocation/covers 平移）；
-   config.json 降级为引导文件的字段取舍。
+2. ~~迁移~~ **已落地（2026-09-13）**：init 内 one-shot 迁移器（`sqliteStore.ts`）——
+   books 全量（事务）+ settings（config.json；旧格式 library.json 内嵌 settings 也收）→
+   meta 表写标记（防删光书后从留档复活）→ 旧文件改名 `library.json.migrated` / `config.json.migrated`
+   留档（回退旧版客户端即可还原）。独立 userData 实测：327 本 + 3 设置键迁移、自检全绿、
+   二次启动不重复迁移。config.json 降级引导文件（库注册表/窗口状态）随**多书库**落地再做。
 3. **高亮色的语义集合**是否就这四色（红黄绿蓝）？
 4. **墨迹同步体积**：存储即抽稀（~0.5px）是否可接受，还是保留原始笔迹。
 5. **书箱排序交互**：拖拽排序何时做（先数组序存储、UI 后补）。

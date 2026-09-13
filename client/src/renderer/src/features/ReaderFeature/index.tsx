@@ -270,10 +270,17 @@ export function ReaderFeature({
   const pageTurn = useCallback(
     async (dir: 'next' | 'prev') => {
       if (!book || opening) return
-      if (dir === 'next') await container.render.next()
-      else await container.render.prev()
+      try {
+        if (dir === 'next') await container.render.next()
+        else await container.render.prev()
+      } catch (err) {
+        // 适配器导航方法未打开即抛错（2026-09-13 销案"静默 no-op"）：落到日志里，
+        // "重开书偶发空白"这类 rendition 丢失能在这里现形，而不是无声失败
+        host.pushLog(`翻页失败：${(err as Error).message}`)
+        console.warn('[reader] pageTurn 失败', err)
+      }
     },
-    [container, book, opening]
+    [container, book, opening, host]
   )
 
   /** 目录跳转：透传到渲染层 goToChapter（chapterDocIndex 标尺）。

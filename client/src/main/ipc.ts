@@ -9,14 +9,14 @@ import { EBOOK_EXTENSIONS, IPC } from '@shared/ipc'
 import type { HttpRequestOptions } from '@core/ports/net'
 import type { NetConfig, MessageEnvelope, BookRecord } from '@core/domain/types'
 import { WsNetAdapter } from './net/wsNetAdapter'
-import { JsonStore } from './store/jsonStore'
+import { SqliteStore } from './store/sqliteStore'
 
 const EBOOK_EXT_SET = new Set<string>(EBOOK_EXTENSIONS)
 const EBOOK_FILTER = [{ name: '电子书', extensions: [...EBOOK_EXTENSIONS] }]
 
 export function registerIpc(
   net: WsNetAdapter,
-  store: JsonStore,
+  store: SqliteStore,
   send: (channel: string, payload: unknown) => void
 ): void {
   net.on('message', (env) => send(IPC.netMessage, env))

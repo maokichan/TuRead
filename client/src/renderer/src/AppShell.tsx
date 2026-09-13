@@ -40,12 +40,19 @@ export default function AppShell(): React.JSX.Element {
         setActiveFeature(id)
         if (id === 'reader' && !readerBookIdRef.current) {
           void (async () => {
-            const last = await container.books.getLastRead()
-            if (last && !readerBookIdRef.current) {
-              selectedBookIdRef.current = last.id
-              setSelectedBookId(last.id)
-              readerBookIdRef.current = last.id
-              setReaderBookId(last.id)
+            // ⚠ 这个异步分支必须自己兜错：它是"重开书偶发空白"排查（TODO P2）登记的
+            // 无 catch 候选 —— getLastRead 失败（存储损坏/IPC 异常）会变成静默空白阅读器
+            try {
+              const last = await container.books.getLastRead()
+              if (last && !readerBookIdRef.current) {
+                selectedBookIdRef.current = last.id
+                setSelectedBookId(last.id)
+                readerBookIdRef.current = last.id
+                setReaderBookId(last.id)
+              }
+            } catch (err) {
+              pushLog(`恢复上次阅读失败：${(err as Error).message}`)
+              console.warn('[shell] getLastRead 失败', err)
             }
           })()
         }

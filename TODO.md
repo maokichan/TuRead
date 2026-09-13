@@ -61,8 +61,6 @@
     先只做**状态切换瞬间**的短模糊，滚动路径不加。
   - **形态待定**（动手前先定）：哪些动作算"大状态"（布局模式/主题切换/进出阅读器）；
     定向模糊是切换瞬间效果还是常驻"聚焦模式"（对齐注意力焦点哲学：淡出要慢、召回恒定，LANDSCAPE §6.1）。
-- [ ] **(P3) 适配器方法静默 no-op**：`next/prev/goTo*/search` 用 `this.rendition?.` 可选链，
-  未 open 时静默返回（`renderTo` 却是抛错）—— 调用方无法区分"成功"与"什么都没发生"
 
 ### PDF 专区（2026-09-13 开设：PDF 是位图载体，凡"重排/缩放/旋转/反相"都绕不开 kookit PdfRender 的固定像素渲染，集中登记）
 
@@ -150,8 +148,11 @@
   改为**统一 SQLite**）：建模与 schema 见 `client/docs/DATA_MODEL.md`（收束版 v2）——
   单一 .db = 一份书库（books/书箱/notes/阅读状态/库级设置），JSON 退役为引导文件（库注册表+路径可配置）；
   **多书库**（库管理/切换）；书箱（容器标准名）双组织并存；笔记 owner 字段预留；书签入 note 表。
-  **better-sqlite3 spike 已全绿（2026-09-13，dev + 打包产物双验证，见 DATA_MODEL §1/开放问题 1）
-  → 下一步 = 迁移器（library.json → .db one-shot）+ `ILibraryStore` 的 sqlite 适配器**。
+  **已落（2026-09-13）**：① better-sqlite3 spike 全绿（dev + 打包产物双验证，见 DATA_MODEL §1）
+  ② **`SqliteStore` 主进程适配器落地**（替代 JsonStore，schema 按 DATA_MODEL §2 全量建表，
+  containers/notes 表先立未接 UI）③ **one-shot 迁移器**（library.json/config.json → turead.db，
+  meta 表标记防复活，旧文件改名 `.migrated` 留档；独立 userData 下 327 本实测迁移 + 自检全绿，
+  二次启动不重复迁移）→ **下一步 = 书箱（containers）实体与 UI、多书库管理（config.json 降级引导文件）**。
   契约已立：`Note` + `IRenderService` 三原语 + 定位系统（RENDER_INTERFACE §5）
 - [ ] **跳转历史（状态机）**：阅读跳转（目录/注释/回跳）用**状态机**做前进/后退栈（undo/redo）——
   **行动树已驳回**（2026-09-09 群聊定案：体验归根结底是线性的）；随笔记落地后实施
@@ -227,7 +228,8 @@
   且**无任何 renderer 报错**。候选原因：① `AppShell.navigate('reader')` 里 `books.getLastRead()` 的
   异步分支与 `closeReader` 竞态（该分支**没有 catch**）② `KookitRenderAdapter.open` 的代次守卫把重开作废
   （已在命中处补 `console.warn`，下次复现即可判定）。
-  排查入口：`dev/selfCheck.ts` 的「恢复」断言（失败信息已带应用日志尾）。
+  **2026-09-13 进展**：候选①的 catch 已补（失败会 pushLog + console.warn，现形不再静默）；
+  导航方法"未打开即抛错"也已落地（pageTurn 失败进日志）——两者下次复现时都有痕迹可判。
 - [ ] **自检的时序脆弱与目录抖动**（2026-09-11 记录，本轮排查副产品）：
   ① 文字类 **scroll 模式下 `waitScrollSettle` 常吃满 12s**（宿主 `scrollTop` 长时间不停稳）→
   逐章扫描最坏 ~150s，会把"跑得慢"误报成 FAIL（已把 dev 超时 120s→180s 兜底，根因未查）。
@@ -242,13 +244,6 @@
 - [ ] **(P2) 导入的整文件 IPC 传输待优化**（封面离屏化余债，2026-09-12）：指纹只哈希 192KB 采样，
   但文件得整个读进渲染层（`IBookPicker.readFile` → ArrayBuffer 过桥）——大文件夹导入慢的根源。
   候选：指纹/入库在主进程直读文件（渲染层只传路径）。
-- [ ] **(P3) JsonStore 批量导入期间合并写盘**（2026-09-12 摸底结论）：当前"内存为真相 + 每次改动全量
-  重写"在当前规模（328 本/175KB）完全无感（单次重写 1-2ms；阅读中每 2s 一次可忽略）；痛点只在
-  **批量导入的 O(n²) 写放大**（每导入一本全量重写一次，1000 本 ≈ 累计数百 MB 磁盘写）。
-  低成本修法 = 导入/封面队列期间 debounce 合并（500ms）。
-  **存储分层已批复（2026-09-12 用户定）**：书库/阅读状态**保持单一 JSON 文件**（一份文件 = 一份书库，
-  用户可携带、跨平台靠数据文件）；**笔记/标注（预期上万）落地时上 SQLite**（见「笔记与阅读行为数据」组）；
-  远期所有数据以服务器同步为准。详见 `docs/STATUS.md` §3「数据分层存储」。
 - [ ] **(P3) 自检对"单章书"死等**（2026-09-12 MD 实测暴露）：单章文档（MD/TXT 短文）翻页无下一章，
   扫描循环吃满 waitForTurn(15s)×10 + waitScrollSettle(8s)，180s 超时误报 FAIL——扫描循环应识别
   "位置到末章"提前收尾。

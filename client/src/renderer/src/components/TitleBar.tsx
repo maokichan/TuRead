@@ -19,13 +19,14 @@ interface TitleBarProps {
   onLibraryQueryChange: (q: string) => void
 }
 
-/** 全局搜索的作用域占位（2026-09-12 用户定：书库搜书 / 阅读器搜书内内容 / 房间搜房间与服务器）。
+/** 全局搜索的作用域占位（2026-09-12 用户定：书库搜书 / 阅读器搜书内内容 / 房间搜房间与服务器；
+ *  2026-09-13 用户定：不展示快捷键提示——快捷键属于说明书，不属于界面）。
  *  书库过滤已实装（LibraryFeature）；阅读器=IRenderService.search（返回形状 CONTRACTS §7 待定）、
  *  房间=搜房间列表/服务器书目——两者只有占位与回车事件，后端接线见 TODO「全局搜索接线」。 */
 const PLACEHOLDERS: Record<string, string> = {
-  library: '搜索書庫…（標題 / 路徑）　Ctrl+F',
-  reader: '搜索本書內容…　Ctrl+F（未接線）',
-  room: '搜索房間 / 服務器書目…　Ctrl+F（未接線）',
+  library: '搜索書庫…（標題 / 路徑）',
+  reader: '搜索本書內容…（未接線）',
+  room: '搜索房間 / 服務器書目…（未接線）',
   default: '搜索…'
 }
 
@@ -112,7 +113,7 @@ export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: 
           }}
           placeholder={PLACEHOLDERS[activeFeature] ?? PLACEHOLDERS.default}
           aria-label={PLACEHOLDERS[activeFeature] ?? PLACEHOLDERS.default}
-          className="titlebar-search h-6 w-[300px] max-w-[40vw] rounded-sm border border-[var(--border)] bg-[var(--bg)] px-2 text-center text-[12.5px] text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:text-left"
+          className="titlebar-search h-7 w-[420px] max-w-[46vw] rounded-sm border border-[var(--border)] bg-[var(--bg)] px-2.5 text-center text-[13px] text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:text-left"
         />
       </div>
 
