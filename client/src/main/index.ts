@@ -109,6 +109,15 @@ function createWindow(): void {
   win.on('maximize', () => broadcastMaximized(true))
   win.on('unmaximize', () => broadcastMaximized(false))
 
+  // 全屏状态广播（沉浸全屏：标题栏退场、Esc 分流都要跟随真实状态，见 TitleBar/ReaderFeature）
+  const broadcastFullScreen = (is: boolean): void => {
+    for (const w of BrowserWindow.getAllWindows()) {
+      w.webContents.send(IPC.winFullScreenChanged, is)
+    }
+  }
+  win.on('enter-full-screen', () => broadcastFullScreen(true))
+  win.on('leave-full-screen', () => broadcastFullScreen(false))
+
   win.on('ready-to-show', () => win.show())
   // 主窗口关闭 = 应用退出（离屏解析窗口不计数，否则关掉主窗口后应用挂着不退）
   win.on('closed', () => {
@@ -181,6 +190,9 @@ void app.whenReady().then(async () => {
     else w.maximize()
   })
   ipcMain.handle(IPC.winClose, (e) => BrowserWindow.fromWebContents(e.sender)?.close())
+  ipcMain.handle(IPC.winSetFullScreen, (e, v: boolean) =>
+    BrowserWindow.fromWebContents(e.sender)?.setFullScreen(v === true)
+  )
 
   createWindow()
 

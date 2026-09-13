@@ -31,6 +31,7 @@ import {
   type ReaderParams
 } from '../../components/ReaderControls'
 import { useKeyIntents } from '../../components/useKeyIntents'
+import { IPC } from '@shared/ipc'
 
 type ReaderMode = NonNullable<RenderOptions['readerMode']>
 
@@ -66,6 +67,10 @@ export function ReaderFeature({
   const [params, setParams] = useState<ReaderParams>(DEFAULT_READER_PARAMS)
   /** 布局模式改动 = 重开书（kookit config 只在 open 时消费）；tick 触发打开 effect 重跑 */
   const [reopenTick, setReopenTick] = useState(0)
+  /** 沉浸全屏状态（跟随 main 广播的真实状态；切换经 win:* IPC，Shell 镶边级例外，同 TitleBar） */
+  const [fullscreen, setFullscreen] = useState(false)
+  /** 进入阅读器自动全屏（设置开关，默认关；appearance.readerFullscreen，SettingsFeature 写） */
+  const autoFullscreenRef = useRef(false)
   const paramsRef = useRef<ReaderParams>(DEFAULT_READER_PARAMS)
   const stageRef = useRef<HTMLDivElement | null>(null)
   const lastSavedAtRef = useRef(0)
@@ -216,6 +221,34 @@ export function ReaderFeature({
     }
   }, [readerBookId, reopenTick, container, host, flushLastLocation])
 
+  // 沉浸全屏（2026-09-13）：
+  // - F11（reader.toggleFullscreen）随时切换；
+  // - 设置开关（appearance.readerFullscreen）= 进入阅读器自动全屏，默认关；
+  // - **离开阅读器自动还原窗口**（全屏只属于阅读态，不遗留到书库/设置）；
+  // - main 在 enter/leave-full-screen 时广播真实状态，这里只订阅跟随。
+  useEffect(() => {
+    const off = window.turead.subscribe(IPC.winFullScreenChanged, (payload) => {
+      setFullscreen(payload === true)
+    })
+    return off
+  }, [])
+
+  useEffect(() => {
+    void container.store
+      .getSetting<{ readerFullscreen?: boolean }>('appearance', {})
+      .then((cfg) => {
+        autoFullscreenRef.current = cfg.readerFullscreen === true
+      })
+  }, [container])
+
+  useEffect(() => {
+    if (activeFeature === 'reader' && readerBookId && autoFullscreenRef.current) {
+      void window.turead.invoke(IPC.winSetFullScreen, true)
+    } else if (activeFeature !== 'reader') {
+      void window.turead.invoke(IPC.winSetFullScreen, false)
+    }
+  }, [activeFeature, readerBookId])
+
   // 激活到阅读器时热更新主题（设置里改主题后返回阅读器不重开书也生效，STYLE.md §3.4）
   useEffect(() => {
     if (activeFeature !== 'reader') return
@@ -273,6 +306,10 @@ export function ReaderFeature({
           setControlsOpen(false)
           return
         }
+        if (fullscreen) {
+          void window.turead.invoke(IPC.winSetFullScreen, false)
+          return
+        }
         host.closeReader()
       },
       'reader.nextPage': () => void pageTurn('next'),
@@ -281,7 +318,10 @@ export function ReaderFeature({
         if (readerMode !== 'scroll') void pageTurn('next')
       },
       'reader.toggleToc': () => setTocOpen((v) => !v),
-      'reader.toggleControls': () => setControlsOpen((v) => !v)
+      'reader.toggleControls': () => setControlsOpen((v) => !v),
+      'reader.toggleFullscreen': () => {
+        void window.turead.invoke(IPC.winSetFullScreen, !fullscreen)
+      }
     },
     activeFeature === 'reader' && !!book
   )

@@ -29,14 +29,23 @@ const PLACEHOLDERS: Record<string, string> = {
   default: '搜索…'
 }
 
-export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: TitleBarProps): React.JSX.Element {
+export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: TitleBarProps): React.JSX.Element | null {
   const [maximized, setMaximized] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
   // 最大化状态跟随（main 在 maximize/unmaximize 时广播）
   useEffect(() => {
     const off = window.turead.subscribe(IPC.winMaximizedChanged, (payload) => {
       setMaximized(payload === true)
+    })
+    return off
+  }, [])
+
+  // 全屏状态跟随（沉浸全屏，2026-09-13）：全屏时整条标题栏退场（不留拖拽区，找回 = F11/Esc）
+  useEffect(() => {
+    const off = window.turead.subscribe(IPC.winFullScreenChanged, (payload) => {
+      setFullscreen(payload === true)
     })
     return off
   }, [])
@@ -68,6 +77,9 @@ export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: 
       {glyph}
     </button>
   )
+
+  // 全屏：整条退场（hooks 已全部执行完，此处提前返回是安全的）
+  if (fullscreen) return null
 
   return (
     <header

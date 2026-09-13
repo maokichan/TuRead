@@ -36,7 +36,10 @@ export const IPC = {
   winMinimize: 'win:minimize',
   winMaximizeToggle: 'win:maximize-toggle',
   winClose: 'win:close',
-  winMaximizedChanged: 'win:maximized-changed'
+  winMaximizedChanged: 'win:maximized-changed',
+  // 沉浸全屏（2026-09-13）：渲染层（阅读器/标题栏）请求切换 OS 全屏；main 广播状态回渲染层
+  winSetFullScreen: 'win:set-fullscreen',
+  winFullScreenChanged: 'win:fullscreen-changed'
 } as const
 
 /** 可导入的电子书扩展名（对话框过滤 + 目录扫描共用，唯一定义处） */

@@ -44,6 +44,7 @@ function applyDataTheme(pref: ThemePreference): void {
 export function SettingsFeature({ container }: FeatureProps): React.JSX.Element {
   const [themePref, setThemePref] = useState<ThemePreference>({ tone: 'solid', mode: 'system' })
   const [importRecursive, setImportRecursive] = useState(false)
+  const [readerFullscreen, setReaderFullscreen] = useState(false)
   const [logs, setLogs] = useState<string[]>([])
   const themePrefRef = useRef<ThemePreference>({ tone: 'solid', mode: 'system' })
 
@@ -54,9 +55,10 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
 
   // 启动载入已持久化设置；跟随系统时监听系统深浅色切换
   useEffect(() => {
-    void container.store.getSetting<{ theme?: unknown }>('appearance', {}).then((cfg) => {
+    void container.store.getSetting<{ theme?: unknown; readerFullscreen?: boolean }>('appearance', {}).then((cfg) => {
       // 载入时只应用、不写盘 —— 否则每次启动都产生一次无意义的 JSON 全量重写
       applyThemePref(normalizeThemeSetting(cfg.theme), false)
+      setReaderFullscreen(cfg.readerFullscreen === true)
     })
     void container.store
       .getSetting<LibrarySettings>('librarySettings', DEFAULT_LIBRARY)
@@ -76,7 +78,8 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
       themePrefRef.current = pref
       setThemePref(pref)
       applyDataTheme(pref)
-      if (persist) void container.store.setSetting('appearance', { theme: pref })
+      // patchSetting（原子合并）：appearance 键下还有 readerFullscreen 等字段，不能整键覆盖
+      if (persist) void container.store.patchSetting('appearance', { theme: pref })
     },
     [container]
   )
@@ -96,6 +99,14 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
       const next = !prev
       // 局部更新：主进程原子合并，避免与书库侧写同一键时互相覆盖
       void container.store.patchSetting('librarySettings', { importRecursive: next })
+      return next
+    })
+  }, [container])
+
+  const toggleReaderFullscreen = useCallback(() => {
+    setReaderFullscreen((prev) => {
+      const next = !prev
+      void container.store.patchSetting('appearance', { readerFullscreen: next })
       return next
     })
   }, [container])
@@ -139,6 +150,21 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
             ))}
           </div>
         </div>
+      </Field>
+
+      <Field
+        title="閱讀器"
+        hint="沉浸全屏：進入閱讀器時自動全屏（默認關；F11 亦可隨時切換），離開閱讀器自動還原窗口。排版與佈局參數在閱讀器的掛載線面板裏（STYLE.md §5.9）。"
+      >
+        <label className="flex cursor-pointer items-center gap-2 text-[13px]">
+          <input
+            type="checkbox"
+            checked={readerFullscreen}
+            onChange={toggleReaderFullscreen}
+            className="h-3.5 w-3.5 accent-[var(--accent)]"
+          />
+          進入閱讀器時進入全屏
+        </label>
       </Field>
 
       <Field
