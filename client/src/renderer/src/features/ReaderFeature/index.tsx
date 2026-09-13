@@ -31,6 +31,7 @@ import {
   type ReaderParams
 } from '../../components/ReaderControls'
 import { useKeyIntents } from '../../components/useKeyIntents'
+import { bridgeIframeDocuments } from '../../components/iframeBridge'
 import { IPC } from '@shared/ipc'
 
 type ReaderMode = NonNullable<RenderOptions['readerMode']>
@@ -281,19 +282,60 @@ export function ReaderFeature({
   )
 
   /**
+   * 滚轮翻页（分页模式，2026-09-13 用户定：默认键盘、不提供按钮控件，鼠标滚轮可翻页，像 koodo）。
+   * 触控板/平滑滚轮一次手势发一串小 delta → 短窗内累积、过阈值翻一页，随后冷却窗防止连翻。
+   * scroll 模式不适用（原生滚动）。返回是否已接管（接管方据此 preventDefault）。
+   */
+  const wheelState = useRef({ accum: 0, lastAt: 0, turnedAt: 0 })
+  const turnByWheel = useCallback(
+    (deltaY: number): boolean => {
+      if (readerMode === 'scroll') return false
+      const now = Date.now()
+      const st = wheelState.current
+      if (now - st.lastAt > 200) st.accum = 0 // 新手势：丢弃上一手势残留
+      st.lastAt = now
+      st.accum += deltaY
+      if (Math.abs(st.accum) >= 80 && now - st.turnedAt > 350) {
+        void pageTurn(st.accum > 0 ? 'next' : 'prev')
+        st.accum = 0
+        st.turnedAt = now
+      }
+      return true
+    },
+    [readerMode, pageTurn]
+  )
+
+  /**
    * 滚轮转发：正文列之外是留白（全屏纸），滚轮落在留白上时把位移交给正文列 ——
    * 否则鼠标停在两侧就没反应（STYLE.md §5.8）。列内部的滚轮由浏览器原生处理，
-   * 这里必须跳过，不然会双倍滚动。
+   * 这里必须跳过，不然会双倍滚动。分页模式改走滚轮翻页（留白与 iframe 两路都接）。
    */
   const onPaperWheel = useCallback(
     (e: React.WheelEvent<HTMLDivElement>): void => {
-      if (readerMode !== 'scroll') return
-      if ((e.target as HTMLElement).closest('.reader-stage')) return
-      const stage = stageRef.current
-      if (stage) stage.scrollTop += e.deltaY
+      if (readerMode === 'scroll') {
+        if ((e.target as HTMLElement).closest('.reader-stage')) return
+        const stage = stageRef.current
+        if (stage) stage.scrollTop += e.deltaY
+        return
+      }
+      turnByWheel(e.deltaY)
     },
-    [readerMode]
+    [readerMode, turnByWheel]
   )
+
+  // 分页模式的滚轮翻页：滚轮事件落在正文 iframe 里不会冒泡到宿主文档（文档边界），
+  // 对同源 iframe 文档挂桥接监听（同 useKeyIntents 的按键桥，iframeBridge.ts）。
+  // scroll 模式不挂——iframe 内原生滚动自管，拦截反而破坏阅读。
+  useEffect(() => {
+    if (!book || readerMode === 'scroll') return
+    const onWheel = (e: WheelEvent): void => {
+      if (turnByWheel(e.deltaY)) e.preventDefault()
+    }
+    return bridgeIframeDocuments((doc) => {
+      doc.addEventListener('wheel', onWheel, { passive: false })
+      return () => doc.removeEventListener('wheel', onWheel)
+    })
+  }, [book, readerMode, turnByWheel])
 
   // 阅读器键盘（STYLE.md §5.8）——走键鼠意图层（domain/input.ts，2026-09-12 立机制）：
   // 绑定见 DEFAULT_BINDINGS.reader.*；处理函数内分流保持原有手感（Esc 先收面板、Space 仅分页模式）。

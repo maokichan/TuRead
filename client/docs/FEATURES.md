@@ -305,6 +305,13 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
   （`TitleBar` 订阅 `win:fullscreen-changed` 返回 null；全屏态无拖拽区，找回 = `F11`/`Esc`）。
   `Esc` 分流：先收参数面板 → 再退全屏 → 再退阅读器；**离开阅读器自动还原窗口**（全屏只属于阅读态）。
   状态由 main 在 `enter/leave-full-screen` 广播，渲染层只订阅跟随（`win:*` IPC 与 TitleBar 同为 Shell 镶边级例外）。
+- **iframe 事件桥（2026-09-13，`components/iframeBridge.ts`）**：kookit 正文渲染在 iframe 里，
+  焦点进书页后键盘/滚轮事件落在 iframe document 上**到不了宿主 window**（文档边界）——
+  点进书页后 F11/Esc 失灵的根因。桥对同源 iframe 文档挂同一套监听（MutationObserver 追踪懒加载章节），
+  按键从此**只看当前界面、不看焦点**（用户定：实现无状态）；输入类目标让位。
+- **分页模式滚轮翻页（2026-09-13 用户定）**：默认键盘、不提供按钮控件，鼠标滚轮可翻页（像 koodo）。
+  留白走宿主 `onWheel`、正文走 iframe 桥（滚轮同样被文档边界挡住）；平滑滚轮短窗累积 + 过阈值翻一页
+  + 冷却窗防连翻；scroll 模式不拦（iframe 内原生滚动自管）。
 - **翻页**：键盘 `←/→` `Space(分页模式)` `PgUp/PgDn` + 鼠标点击左右 1/3 区域（仅分页模式）；scroll 模式滚轮。
 - **显示设计**：**参数项全部在挂载线右段下方**（字号/行距/段距/纸宽/内边距/佈局），**默认展开**
   （2026-09-13 用户定：参数是阅读的常伴工具，不每次伸手召唤；折叠 = 向上收回线里，重开书回到展示态）。
