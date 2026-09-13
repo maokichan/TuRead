@@ -1,11 +1,17 @@
 # TuRead 客户端发行版打包配置（electron-builder）
 #
-# 范围（用户 2026-09-11 定）：**只出 64 位 Windows**（NSIS 安装包），不出 mac/linux。
+# 范围（用户 2026-09-11 定）：**只出 64 位 Windows**，不出 mac/linux。
+# 发行形态（**用户 2026-09-14 定：出便携版**）：当前**不是正式版本** → 优先**免安装**发行物，
+#   不出 NSIS 安装包。`npm run dist` 产出：
+#     release/TuRead-<version>-win-x64-portable.exe   （免安装自解压单体，双击即用）
+#     release/win-unpacked/                            （同一份应用的目录形态，可直接跑）
+#   ⚠ NSIS 目标已移除：安装包涉及写注册表/开始菜单/卸载项，属"正式版"语义；将来要出正式版时
+#   再把 `nsis` 加回 `win.target`（配置块仍保留在下方，随时可复用）。
 # 产物目录 = `client/release/`（已 gitignore：产物不进仓库）。
 # 用法：`npm run dist`（先 electron-vite build，再 electron-builder）。
 #
-# 环境前提（见 `../NETWORK.md`）：electron-builder 需要从 GitHub 拉 Electron 发行版与
-# winCodeSign/NSIS 等二进制 → 必须走本地代理（Node 的 TLS 走 OpenSSL，故用环境变量即可）：
+# 环境前提（见 `../NETWORK.md`）：electron-builder 需要从 GitHub 拉 Electron 发行版等二进制
+# → 必须走本地代理（Node 的 TLS 走 OpenSSL，故用环境变量即可）：
 #   $env:HTTP_PROXY = "http://127.0.0.1:7897"; $env:HTTPS_PROXY = "http://127.0.0.1:7897"
 # （npmmirror 在本机不可达，不能用它当镜像。）
 
@@ -44,11 +50,20 @@ electronDist: node_modules/electron/dist
 
 win:
   target:
-    - target: nsis
+    # 便携（免安装）优先——用户 2026-09-14 定：非正式版本给免安装版最合适。
+    - target: portable
       arch:
         - x64
-  artifactName: TuRead-${version}-win-x64-setup.${ext}
+  artifactName: TuRead-${version}-win-x64-portable.${ext}
 
+# 便携版行为：双击即自解压到临时目录运行，不落地安装、不碰注册表。
+portable:
+  artifactName: TuRead-${version}-win-x64-portable.${ext}
+  unpackDirName: TuRead
+  requestExecutionLevel: user
+
+# NSIS 安装包（**当前不在 win.target 里**，正式版发版时再加回）：
+# 安装包涉及写注册表 / 开始菜单 / 卸载项，属"正式版"语义 —— 用户 2026-09-14 定当前只出便携版。
 nsis:
   oneClick: false
   perMachine: false
@@ -64,18 +79,17 @@ nsis:
 # ---------------------------------------------------------------------------
 # 本机网络下的已知问题与两条出路（2026-09-11 实测，见 ../NETWORK.md）
 #
-# electron-builder 打包时要从 GitHub releases 取三个组件：
+# ⚠ 现状（2026-09-14）：**便携版不涉及 NSIS，下面这段只对"将来出正式版安装包"有效**。
+#   JS 目标走的是 electron-builder 内置的 `portable` 逻辑，不需要从 GitHub 取
+#   nsis / nsis-resources / winCodeSign 组件 → 便携版打包不受本机网络影响（实测直接成功）。
+#
+# 若将来加回 NSIS 安装包，仍会遇到下列问题：electron-builder 要从 GitHub releases 取三个组件：
 #   nsis-3.0.4.1.7z / nsis-resources-3.4.1.7z / winCodeSign-2.6.0.7z
 # 本机 GitHub 直连被墙、只能走本地代理，而代理会在传输中途**静默挂起或掐断**
 # （既不报错也不超时）→ 表现为打包卡住，或 `Client network socket disconnected`
-# / `The server aborted pending request`。Electron 那一步已用 `electronDist` 消除，
-# 剩下这步的出路：
+# / `The server aborted pending request`。Electron 那一步已用 `electronDist` 消除，剩下这步的出路：
 #
-# 出路一（不依赖 NSIS，任何情况都能出包）：出 **portable 目录 + zip**：
-#   npx electron-builder --win --x64 --dir          # → release/win-unpacked/（可直接跑）
-#   再 Compress-Archive 该目录即可得到便携 zip。
-#
-# 出路二（要 NSIS 安装包）：**本地镜像**——自己把三个组件下到本地，
+# 出路（要 NSIS 安装包）：**本地镜像**——自己把三个组件下到本地，
 #   起一个静态 HTTP 服务，然后把 `ELECTRON_BUILDER_BINARIES_MIRROR` 指过去：
 #     $env:ELECTRON_BUILDER_BINARIES_MIRROR = "http://127.0.0.1:8788/"
 #   （镜像里需同时放扁平与 <name>-<version>/ 两种层级，electron-builder 各版本取法不同。）

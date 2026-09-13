@@ -12,6 +12,7 @@
     "start": "electron-vite preview",
     "dist": "electron-vite build && electron-builder --win --x64",
     "dist:dir": "electron-vite build && electron-builder --win --x64 --dir",
+    "pack:portable": "npm run dist && pwsh -NoProfile -Command \"Compress-Archive -Path release/win-unpacked -DestinationPath release/TuRead-$((Get-Content package.json -Raw | ConvertFrom-Json).version)-win-x64-portable.zip -Force\"",
     "style": "vite --config tools/style-gallery/vite.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "typecheck:preview": "tsc --noEmit -p tsconfig.preview.json",

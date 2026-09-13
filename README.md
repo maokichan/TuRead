@@ -37,10 +37,18 @@ npm run dev            # 开发（Electron + HMR）
 npm run typecheck      # 类型检查（node + web 两个 project；样张另有 typecheck:preview）
 npm run style          # 浏览器里的样式样张（改 styles.css 秒级看效果，不用起 Electron）
 npm run dist           # 打包发行版 → release/（见下）
+npm run pack:portable  # 打便携 zip（在 dist 产物上再打包 win-unpacked/）
 ```
 
-**发行版范围**：**只出 64 位 Windows**（NSIS 安装包，用户 2026-09-11 定），配置在
-`client/electron-builder.yml`；产物 `client/release/TuRead-<version>-win-x64-setup.exe`（`release/` 已 gitignore）。
+**发行版范围与形态**：**只出 64 位 Windows**（用户 2026-09-11 定），当前出**免安装便携版**
+（用户 2026-09-14 定：非正式版本给免安装版最合适），配置在 `client/electron-builder.yml`：
+
+- 产物 `client/release/TuRead-<version>-win-x64-portable.exe`（免安装自解压单体，双击即用）
+  + `release/win-unpacked/`（同一份应用的目录形态，可直接跑）+ `TuRead-<version>-win-x64-portable.zip`
+  （`npm run pack:portable`，整目录可拷贝分发）；
+- **不出 NSIS 安装包**（写注册表/开始菜单/卸载项属"正式版"语义；配置块留在 yml 里备用，
+  正式发版时把 `nsis` 加回 `win.target`）；
+- `release/` 已 gitignore（产物不进仓库）。
 
 打包前置（本机网络，详见 `NETWORK.md`）：electron-builder 要从 GitHub 拉 Electron 发行版与 NSIS 组件，
 本机 GitHub 直连被墙 → **构建前设代理**（Node 的 TLS 走 OpenSSL，环境变量即可）：
