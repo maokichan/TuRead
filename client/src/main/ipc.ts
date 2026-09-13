@@ -106,6 +106,9 @@ export function registerIpc(
   ipcMain.handle(IPC.storeListBooksAtLevel, (_e, q: LibraryLevelQuery) =>
     store().listBooksAtLevel(q)
   )
+  ipcMain.handle(IPC.storeMoveBook, (_e, p: { bookId: string; containerId: string | null }) =>
+    store().moveBookToContainer(p.bookId, p.containerId)
+  )
   // 虚拟映射模式的层级浏览：列子目录（不递归，名称+绝对路径，稳定排序）
   ipcMain.handle(IPC.fsListDirectories, async (_e, dir: string) => {
     const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => [])

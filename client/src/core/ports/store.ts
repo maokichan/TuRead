@@ -68,4 +68,9 @@ export interface ILibraryStore {
   removeContainer(id: string): Promise<void>
   /** 按层级取书（口径见 LibraryLevelQuery） */
   listBooksAtLevel(query: LibraryLevelQuery): Promise<BookRecord[]>
+  /**
+   * 移动书到書箱（2026-09-13 用户定：资源管理器语义 = **移动**，单亲归属——
+   * 清掉旧归属再落到新書箱；containerId=null = 移回根层/移出書箱）。
+   */
+  moveBookToContainer(bookId: string, containerId: string | null): Promise<void>
 }

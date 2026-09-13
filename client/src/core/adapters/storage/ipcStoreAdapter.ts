@@ -100,4 +100,8 @@ export class IpcStoreAdapter implements ILibraryStore {
   async listBooksAtLevel(query: LibraryLevelQuery): Promise<BookRecord[]> {
     return (await this.bridge.invoke(IPC.storeListBooksAtLevel, query)) as BookRecord[]
   }
+
+  async moveBookToContainer(bookId: string, containerId: string | null): Promise<void> {
+    await this.bridge.invoke(IPC.storeMoveBook, { bookId, containerId })
+  }
 }

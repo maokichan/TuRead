@@ -45,9 +45,10 @@ type LevelItem =
   | { kind: 'container'; container: BookContainer }
   | { kind: 'folder'; name: string; path: string }
   | { kind: 'book'; book: BookRecord }
-  | { kind: 'new' } // 新建書箱的行内输入位（置顶渲染）
 
 type TrailEntry = { label: string; containerId: string | null; folder: string | null }
+
+type CtxMenuState = { x: number; y: number; items: Array<{ label: string; onClick: () => void }> }
 
 export function LibraryFeature({
   container,
@@ -81,9 +82,11 @@ export function LibraryFeature({
   const [libName, setLibName] = useState('')
   const [containers, setContainers] = useState<BookContainer[]>([])
   const [folders, setFolders] = useState<Array<{ name: string; path: string }>>([])
-  const [creatingContainer, setCreatingContainer] = useState(false)
-  const [containerNameDraft, setContainerNameDraft] = useState('')
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+  /** 行内更名中的書箱（资源管理器 F2 语义：Enter/失焦提交，不用 Esc） */
+  const [renamingContainerId, setRenamingContainerId] = useState<string | null>(null)
+  /** 选中的書箱（资源管理器单击选中；F2/Delete 作用于它） */
+  const [activeContainerId, setActiveContainerId] = useState<string | null>(null)
+  const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null)
   const loadSeq = useRef(0)
 
   const commitNav = useCallback((next: { containerId: string | null; folder: string | null }) => {
@@ -152,7 +155,8 @@ export function LibraryFeature({
       setFolders([])
       navRef.current = { containerId: null, folder: null }
       setTrail([])
-      setCreatingContainer(false)
+      setRenamingContainerId(null)
+      setActiveContainerId(null)
       setCtxMenu(null)
       void container.store
         .getSetting<LibrarySettings>('librarySettings', DEFAULT_SETTINGS)
@@ -375,30 +379,147 @@ export function LibraryFeature({
     [trail, commitNav]
   )
 
-  /** 新建書箱（自建模式；建在当前层之下） */
-  const commitCreateContainer = useCallback(async (): Promise<void> => {
-    const name = containerNameDraft.trim()
-    if (!name) return
-    try {
-      await container.store.createContainer({ parentId: navRef.current.containerId, name })
-      setCreatingContainer(false)
-      setContainerNameDraft('')
-      commitNav(navRef.current) // 原地重载（容器列表多一项）
-      host.pushLog(`已新建書箱：${name}`)
-    } catch (err) {
-      host.pushLog(`新建書箱失败：${(err as Error).message}`)
-    }
-  }, [container, host, commitNav])
+  /**
+   * 書箱操作（资源管理器语义，2026-09-13 用户定）：
+   * 新建 = 立即建出「新建書箱」并进入行内更名；更名 = F2/右键 → Enter/失焦提交（**不用 Esc**）；
+   * 移除 = Delete/右键（有子書箱时后端拒绝并日志）；拖书入箱 = 移动（单亲归属）。
+   */
+  const createContainerHere = useCallback(
+    async (parentId: string | null): Promise<void> => {
+      try {
+        const c = await container.store.createContainer({ parentId, name: '新建書箱' })
+        setRenamingContainerId(c.id)
+        commitNav(navRef.current) // 原地重载（容器列表多一项）
+      } catch (err) {
+        host.pushLog(`新建書箱失败：${(err as Error).message}`)
+      }
+    },
+    [container, host, commitNav]
+  )
 
-  /** 右键空白处（仅自建模式）：新建書箱。条目上的右键留给条目（移动/重命名等后续登记） */
+  const commitContainerRename = useCallback(
+    async (id: string, name: string): Promise<void> => {
+      setRenamingContainerId(null)
+      try {
+        await container.store.renameContainer(id, name)
+        commitNav(navRef.current) // 面包屑/列表同步新名
+      } catch (err) {
+        host.pushLog(`更名失败：${(err as Error).message}`)
+      }
+    },
+    [container, host, commitNav]
+  )
+
+  const removeContainerById = useCallback(
+    async (id: string): Promise<void> => {
+      try {
+        await container.store.removeContainer(id)
+        if (activeContainerId === id) setActiveContainerId(null)
+        commitNav(navRef.current)
+        host.pushLog('已移除書箱（其成员书回到上一层）')
+      } catch (err) {
+        host.pushLog(`移除書箱失败：${(err as Error).message}`)
+      }
+    },
+    [container, host, commitNav, activeContainerId]
+  )
+
+  const moveBook = useCallback(
+    async (bookId: string, targetId: string | null): Promise<void> => {
+      const book = books.find((b) => b.id === bookId)
+      try {
+        await container.store.moveBookToContainer(bookId, targetId)
+        commitNav(navRef.current)
+        const where =
+          targetId === null
+            ? '上一層'
+            : (await container.store.listContainers(navRef.current.containerId)).find(
+                (c) => c.id === targetId
+              )?.name ?? '書箱'
+        host.pushLog(`已移动《${book?.metadata.title ?? bookId}》到 ${where}`)
+      } catch (err) {
+        host.pushLog(`移动失败：${(err as Error).message}`)
+      }
+    },
+    [books, container, host, commitNav]
+  )
+
+  /** 書箱键盘（资源管理器语义）：Enter 进入；F2 更名；Delete 移除。
+   *  ⚠ 更名中的条目不响应条目级键盘——Enter 归输入框（提交更名），不能同时"进入"書箱 */
+  const containerKeyDown = useCallback(
+    (c: BookContainer) => (e: React.KeyboardEvent): void => {
+      if (renamingContainerId === c.id) return
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        enterContainer(c)
+      } else if (e.key === 'f2' || e.key === 'F2') {
+        e.preventDefault()
+        setRenamingContainerId(c.id)
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        void removeContainerById(c.id)
+      }
+    },
+    [renamingContainerId, enterContainer, removeContainerById]
+  )
+
+  /** 内容区右键：書箱 = 新建子書箱/更名/移除；书 = 打开/详情/移除；空白（自建）= 新建書箱 */
   const onContentContextMenu = useCallback(
     (e: React.MouseEvent): void => {
+      const target = e.target as HTMLElement
+      const containerEl = target.closest<HTMLElement>('[data-container-id]')
+      if (containerEl) {
+        e.preventDefault()
+        const c = containers.find((x) => x.id === containerEl.dataset.containerId)
+        if (!c) return
+        setActiveContainerId(c.id)
+        setCtxMenu({
+          x: e.clientX,
+          y: e.clientY,
+          items: [
+            { label: '新建子書箱', onClick: () => void createContainerHere(c.id) },
+            { label: '更名', onClick: () => setRenamingContainerId(c.id) },
+            { label: '移除', onClick: () => void removeContainerById(c.id) }
+          ]
+        })
+        return
+      }
+      const bookEl = target.closest<HTMLElement>('[data-book-id]')
+      if (bookEl) {
+        e.preventDefault()
+        const b = books.find((x) => x.id === bookEl.dataset.bookId)
+        if (!b) return
+        setCtxMenu({
+          x: e.clientX,
+          y: e.clientY,
+          items: [
+            { label: '打開', onClick: () => openBook(b.id) },
+            { label: '詳情', onClick: () => openDetail(b.id) },
+            { label: '從書庫移除', onClick: () => requestDelete(b) }
+          ]
+        })
+        return
+      }
       if (libMode !== 'virtual') return
-      if ((e.target as HTMLElement).closest('[role="button"]')) return
       e.preventDefault()
-      setCtxMenu({ x: e.clientX, y: e.clientY })
+      setCtxMenu({
+        x: e.clientX,
+        y: e.clientY,
+        items: [
+          { label: '新建書箱', onClick: () => void createContainerHere(navRef.current.containerId) }
+        ]
+      })
     },
-    [libMode]
+    [
+      containers,
+      books,
+      libMode,
+      createContainerHere,
+      removeContainerById,
+      openBook,
+      openDetail,
+      requestDelete
+    ]
   )
 
   const detailBook = books.find((b) => b.id === detailId) ?? null
@@ -414,9 +535,8 @@ export function LibraryFeature({
         )
       : books
 
-  // 当前层条目 = 書箱/文件夹在前、书在后；新建输入位置顶
+  // 当前层条目 = 書箱/文件夹在前、书在后
   const levelItems: LevelItem[] = [
-    ...(creatingContainer ? ([{ kind: 'new' }] as LevelItem[]) : []),
     ...containers.map((container) => ({ kind: 'container' as const, container })),
     ...folders.map((f) => ({ kind: 'folder' as const, name: f.name, path: f.path })),
     ...visibleBooks.map((book) => ({ kind: 'book' as const, book }))
@@ -451,7 +571,37 @@ export function LibraryFeature({
     coverUrl: covers[b.id] ?? null,
     onDetail: () => openDetail(b.id),
     onOpen: () => openBook(b.id),
-    onDelete: () => requestDelete(b)
+    onDelete: () => requestDelete(b),
+    // 页面内拖拽源（书 → 書箱 移动）：数据走 dataTransfer，路径真实 id
+    draggable: true,
+    onDragStartBook: (e: React.DragEvent) => {
+      e.dataTransfer.setData('text/turead-book-id', b.id)
+      e.dataTransfer.effectAllowed = 'move'
+    }
+  })
+
+  const containerProps = (c: BookContainer) => ({
+    containerId: c.id,
+    name: c.name,
+    active: c.id === activeContainerId,
+    renaming: c.id === renamingContainerId,
+    onOpen: () => enterContainer(c),
+    onSelect: () => {
+      setActiveContainerId(c.id)
+      setDetailId(null)
+    },
+    onKeyDown: containerKeyDown(c),
+    onContextMenu: (e: React.MouseEvent) => {
+      // 让内容区统一右键处理（菜单按 data-container-id 定位条目）
+      onContentContextMenu(e)
+    },
+    onRenameCommit: (name: string) => void commitContainerRename(c.id, name),
+    onDropBook: (bookId: string) => void moveBook(bookId, c.id)
+  })
+
+  const folderProps = (f: { name: string; path: string }) => ({
+    name: f.name,
+    onOpen: () => enterFolder(f.name, f.path)
   })
 
   const renderLevelItem = (it: LevelItem): React.JSX.Element => {
@@ -459,48 +609,9 @@ export function LibraryFeature({
       case 'book':
         return <BookTile key={it.book.id} {...itemProps(it.book)} />
       case 'container':
-        return (
-          <ContainerItem
-            key={`c-${it.container.id}`}
-            view="grid"
-            name={it.container.name}
-            onOpen={() => enterContainer(it.container)}
-          />
-        )
+        return <ContainerItem key={`c-${it.container.id}`} view="grid" {...containerProps(it.container)} />
       case 'folder':
-        return (
-          <ContainerItem
-            key={`f-${it.path}`}
-            view="grid"
-            name={it.name}
-            onOpen={() => enterFolder(it.name, it.path)}
-          />
-        )
-      case 'new':
-        return (
-          <div
-            key="new-container"
-            className="flex aspect-[2/3] w-full items-center rounded-lg border border-[var(--accent)] bg-[var(--panel-2)] p-2"
-          >
-            <input
-              autoFocus
-              value={containerNameDraft}
-              placeholder="書箱名稱"
-              onChange={(e) => setContainerNameDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void commitCreateContainer()
-                if (e.key === 'Escape') {
-                  setCreatingContainer(false)
-                  setContainerNameDraft('')
-                }
-              }}
-              onBlur={() => {
-                if (!containerNameDraft.trim()) setCreatingContainer(false)
-              }}
-              className="h-7 w-full rounded-sm border border-[var(--border)] bg-[var(--bg)] px-2 text-center text-[12.5px] text-[var(--text)] outline-none focus:border-[var(--accent)]"
-            />
-          </div>
-        )
+        return <ContainerItem key={`f-${it.path}`} view="grid" {...folderProps(it)} />
     }
   }
 
@@ -509,52 +620,28 @@ export function LibraryFeature({
       case 'book':
         return <BookRow key={it.book.id} {...itemProps(it.book)} />
       case 'container':
-        return (
-          <ContainerItem
-            key={`c-${it.container.id}`}
-            view="list"
-            name={it.container.name}
-            onOpen={() => enterContainer(it.container)}
-          />
-        )
+        return <ContainerItem key={`c-${it.container.id}`} view="list" {...containerProps(it.container)} />
       case 'folder':
-        return (
-          <ContainerItem
-            key={`f-${it.path}`}
-            view="list"
-            name={it.name}
-            onOpen={() => enterFolder(it.name, it.path)}
-          />
-        )
-      case 'new':
-        return (
-          <div key="new-container" className="flex h-16 items-center rounded-lg border border-[var(--accent)] bg-[var(--panel-2)] px-3">
-            <input
-              autoFocus
-              value={containerNameDraft}
-              placeholder="書箱名稱"
-              onChange={(e) => setContainerNameDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void commitCreateContainer()
-                if (e.key === 'Escape') {
-                  setCreatingContainer(false)
-                  setContainerNameDraft('')
-                }
-              }}
-              onBlur={() => {
-                if (!containerNameDraft.trim()) setCreatingContainer(false)
-              }}
-              className="h-7 w-full rounded-sm border border-[var(--border)] bg-[var(--bg)] px-2 text-[13px] text-[var(--text)] outline-none focus:border-[var(--accent)]"
-            />
-          </div>
-        )
+        return <ContainerItem key={`f-${it.path}`} view="list" {...folderProps(it)} />
     }
   }
 
-  // 面包屑（状态栏右端"当前层级"）：根 = 库名，其后是書箱名（自建）/ 文件夹名（虚拟映射）
+  // 面包屑（状态栏右端"当前层级"）：根 = 库名，其后是書箱名（自建）/ 文件夹名（虚拟映射）。
+  // 面包屑也是拖放目标：书拖到某段 = 移动到该层（根段 = 移出書箱，仅自建模式）
   const crumbs = [
-    { label: libName || '書庫', onGo: () => goToLevel(-1) },
-    ...trail.map((t, i) => ({ label: t.label, onGo: () => goToLevel(i) }))
+    {
+      label: libName || '書庫',
+      onGo: () => goToLevel(-1),
+      onDropBook: libMode === 'virtual' ? (id: string) => void moveBook(id, null) : undefined
+    },
+    ...trail.map((t, i) => ({
+      label: t.label,
+      onGo: () => goToLevel(i),
+      onDropBook:
+        libMode === 'virtual' && t.containerId
+          ? (id: string) => void moveBook(id, t.containerId)
+          : undefined
+    }))
   ]
   const insideVirtual = libMode === 'virtual' && trail.length > 0
 
@@ -566,7 +653,7 @@ export function LibraryFeature({
           ref={scrollRef}
           onScroll={onContentScroll}
           onContextMenu={onContentContextMenu}
-          className="h-full overflow-y-auto pr-1"
+          className="h-full select-none overflow-y-auto pr-1"
         >
           {levelItems.length === 0 ? (
             <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
@@ -613,12 +700,7 @@ export function LibraryFeature({
         )}
 
         {ctxMenu && (
-          <ContextMenu
-            x={ctxMenu.x}
-            y={ctxMenu.y}
-            items={[{ label: '新建書箱', onClick: () => setCreatingContainer(true) }]}
-            onClose={() => setCtxMenu(null)}
-          />
+          <ContextMenu x={ctxMenu.x} y={ctxMenu.y} items={ctxMenu.items} onClose={() => setCtxMenu(null)} />
         )}
       </div>
 

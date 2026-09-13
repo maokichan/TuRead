@@ -363,8 +363,23 @@ export class SqliteStore {
     this.db.prepare('DELETE FROM containers WHERE id = ?').run(id)
   }
 
-  async listBooksAtLevel(query: LibraryLevelQuery): Promise<BookRecord[]> {
-    if (query.folder != null) {
+  /**
+   * 移动书到書箱（资源管理器语义 = 移动，单亲归属）：清掉旧归属再落到新書箱；
+   * containerId=null = 移回根层。
+   */
+  async moveBookToContainer(bookId: string, containerId: string | null): Promise<void> {
+    const tx = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM container_books WHERE book_id = ?').run(bookId)
+      if (containerId) {
+        this.db
+          .prepare('INSERT OR REPLACE INTO container_books (container_id, book_id, sort) VALUES (?, ?, 0)')
+          .run(containerId, bookId)
+      }
+    })
+    tx()
+  }
+
+  async listBooksAtLevel(query: LibraryLevelQuery): Promise<BookRecord[]> {    if (query.folder != null) {
       // 虚拟映射：直接位于该文件夹的书（子文件夹的书属于子层级）
       const rows = this.db.prepare('SELECT * FROM books ORDER BY created_at').all()
       const base = query.folder.replace(/[\\/]+$/, '')

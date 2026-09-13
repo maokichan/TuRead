@@ -8,6 +8,9 @@ interface BookTileProps {
   onDetail: () => void
   onOpen: () => void
   onDelete: () => void
+  /** 页面内拖拽（书 → 書箱 移动，2026-09-13 用户定：资源管理器语义） */
+  draggable?: boolean
+  onDragStartBook?: (e: React.DragEvent) => void
 }
 
 /**
@@ -21,7 +24,9 @@ export function BookTile({
   coverUrl,
   onDetail,
   onOpen,
-  onDelete
+  onDelete,
+  draggable,
+  onDragStartBook
 }: BookTileProps): React.JSX.Element {
   const title = book.metadata.title || '未命名'
   return (
@@ -29,8 +34,11 @@ export function BookTile({
       role="button"
       tabIndex={0}
       title={title}
+      data-book-id={book.id}
       onClick={onDetail}
       onDoubleClick={onOpen}
+      onDragStart={onDragStartBook}
+      draggable={draggable}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           e.preventDefault()

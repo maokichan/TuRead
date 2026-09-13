@@ -74,6 +74,21 @@ export function runLibraryProbe(container: ServiceContainer, host: FeatureHost):
       assert(subs.length === 1 && subs[0].name === '測試書箱', '根层可新建書箱')
       const rootBooks = await container.store.listBooksAtLevel({ containerId: null })
       assert(rootBooks.length === 1, `根层取书=未入箱的书（实际 ${rootBooks.length}）`)
+      // 移动语义：书入箱后根层为空、箱内有一本；移出后还原
+      await container.store.moveBookToContainer(rootBooks[0].id, c1.id)
+      assert(
+        (await container.store.listBooksAtLevel({ containerId: null })).length === 0,
+        '书入箱后根层为空'
+      )
+      assert(
+        (await container.store.listBooksAtLevel({ containerId: c1.id })).length === 1,
+        '箱内取书=1'
+      )
+      await container.store.moveBookToContainer(rootBooks[0].id, null)
+      assert(
+        (await container.store.listBooksAtLevel({ containerId: null })).length === 1,
+        '移回根层后还原'
+      )
       await container.store.renameContainer(c1.id, '改名書箱')
       assert(
         (await container.store.listContainers(null))[0]?.name === '改名書箱',

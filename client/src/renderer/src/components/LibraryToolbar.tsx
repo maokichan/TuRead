@@ -14,8 +14,9 @@ interface LibraryToolbarProps {
   /** 打开書庫管理弹窗（2026-09-13 用户立项：Obsidian 仓库管理页风格，见 LibraryManagerDialog） */
   onOpenManager: () => void
   /** 当前层级面包屑（2026-09-13 用户定：书架右下角显示"当前层级"，相对各模式根；
-   *  末段 = 当前层不可点，其余可点回跳） */
-  crumbs: Array<{ label: string; onGo: () => void }>
+   *  末段 = 当前层不可点，其余可点回跳；把书拖到面包屑段 = 移动到该层
+   *  （containerId=null 的根段 = 移出書箱回根层）） */
+  crumbs: Array<{ label: string; onGo: () => void; onDropBook?: (bookId: string) => void }>
 }
 
 /** 视图名（繁体，配源流明体字栈）：按钮显示的是**当前**视图 */
@@ -110,26 +111,42 @@ export function LibraryToolbar({
         <button onClick={onOpenManager} className="text-action text-action--lg" title="切换 / 新建 / 更名書庫">
           書庫
         </button>
-        {/* 当前层级（右下角，2026-09-13 用户定）：根 = 库名；自建模式路径名 = 書箱名，虚拟映射 = 文件夹名 */}
+        {/* 当前层级（右下角，2026-09-13 用户定）：根 = 库名；自建模式路径名 = 書箱名，虚拟映射 = 文件夹名。
+            面包屑也是拖放目标：书拖到某段 = 移动到该层（资源管理器语义） */}
         <div className="ml-auto flex items-center gap-1.5 text-[12px] text-[var(--muted)]">
-          {crumbs.map((c, i) => (
-            <span key={`${c.label}-${i}`} className="flex min-w-0 items-center gap-1.5">
-              {i > 0 && <span className="opacity-50">/</span>}
-              {i === crumbs.length - 1 ? (
-                <span className="max-w-[220px] truncate" title={c.label}>
-                  {c.label}
-                </span>
-              ) : (
-                <button
-                  onClick={c.onGo}
-                  className="max-w-[160px] truncate hover:text-[var(--text)]"
-                  title={c.label}
-                >
-                  {c.label}
-                </button>
-              )}
-            </span>
-          ))}
+          {crumbs.map((c, i) => {
+            const dropProps = c.onDropBook
+              ? {
+                  onDragOver: (e: React.DragEvent): void => {
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                  },
+                  onDrop: (e: React.DragEvent): void => {
+                    e.preventDefault()
+                    const id = e.dataTransfer.getData('text/turead-book-id')
+                    if (id) c.onDropBook?.(id)
+                  }
+                }
+              : {}
+            return (
+              <span key={`${c.label}-${i}`} className="flex min-w-0 items-center gap-1.5" {...dropProps}>
+                {i > 0 && <span className="opacity-50">/</span>}
+                {i === crumbs.length - 1 ? (
+                  <span className="max-w-[220px] truncate" title={c.label}>
+                    {c.label}
+                  </span>
+                ) : (
+                  <button
+                    onClick={c.onGo}
+                    className="max-w-[160px] truncate hover:text-[var(--text)]"
+                    title={c.label}
+                  >
+                    {c.label}
+                  </button>
+                )}
+              </span>
+            )
+          })}
         </div>
       </div>
     </footer>
