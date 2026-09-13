@@ -1,8 +1,8 @@
 /**
  * preload：通过 contextBridge 暴露最小桥接口 `window.turead`（invoke + subscribe）。
- * 渲染进程的 core 适配器经由它访问主进程能力（WS/REST、JSON 存储）。
+ * 渲染进程的 core 适配器经由它访问主进程能力（WS/REST、SQLite 存储、文件系统）。
  */
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { TureadBridge } from '@shared/ipc'
 
 const devBookArg = process.argv.find((a) => a.startsWith('--turead-dev-book='))
@@ -20,6 +20,8 @@ const bridge: TureadBridge = {
       ipcRenderer.removeListener(channel, wrapped)
     }
   },
+  // 拖拽导入：Electron ≥29 移除了 File.path，真实磁盘路径只能经 preload 的 webUtils 取
+  getPathForFile: (file) => webUtils.getPathForFile(file),
   devBook,
   devProbe
 }

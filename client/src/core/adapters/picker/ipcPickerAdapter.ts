@@ -23,4 +23,11 @@ export class IpcPickerAdapter implements IBookPicker {
   async readFile(path: string): Promise<ArrayBuffer> {
     return (await this.bridge.invoke(IPC.fsReadFile, path)) as ArrayBuffer
   }
+
+  async listSubdirectories(dir: string): Promise<Array<{ name: string; path: string }>> {
+    return (await this.bridge.invoke(IPC.fsListDirectories, dir)) as Array<{
+      name: string
+      path: string
+    }>
+  }
 }

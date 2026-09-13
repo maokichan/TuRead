@@ -4,11 +4,19 @@
  * 骨架阶段实现：主进程 JSON 文件存储（userData/library.json）——只存文件路径 + 文件信息，够用且诚实；
  * 演进：无缝换成 better-sqlite3（koodo-reader 同款），接口不变。
  */
-import type { BookRecord, LibraryEntry } from '@core/domain/types'
+import type { BookContainer, BookRecord, LibraryEntry } from '@core/domain/types'
 
 export interface LibraryListResult {
   libraries: LibraryEntry[]
   currentId: string
+}
+
+/** 层级浏览的取书口径（2026-09-13 用户定：书架 = 资源管理器式层级）。
+ *  containerId=null（且无 folder）= 根层 = 不属于任何書箱的书；
+ *  containerId=某書箱 = 其成员；folder=绝对路径 = 直接位于该文件夹的书（虚拟映射模式）。 */
+export interface LibraryLevelQuery {
+  containerId?: string | null
+  folder?: string
 }
 
 export interface ILibraryStore {
@@ -37,10 +45,27 @@ export interface ILibraryStore {
   // ————— 多书库（2026-09-13 立项；一个条目 = 一份 .db 书库，注册表在主进程引导文件）—————
   /** 库列表 + 当前库 id */
   listLibraries(): Promise<LibraryListResult>
-  /** 新建空库（缺省名自动编号）并**切换**过去；main 随后广播 library-changed（重载信号以此为准） */
-  createLibrary(name?: string): Promise<LibraryEntry>
+  /** 新建库并**切换**过去（2026-09-13 用户定：建库必须二选一模式——source 必须给 rootPath；
+   *  缺省名自动编号）。main 随后广播 library-changed（重载信号以此为准） */
+  createLibrary(
+    name?: string,
+    mode?: 'source' | 'virtual',
+    rootPath?: string
+  ): Promise<LibraryEntry>
   /** 切换当前库；main 随后广播 library-changed */
   switchLibrary(id: string): Promise<void>
   /** 更名（显示名，文件路径不变；不切库、不广播） */
   renameLibrary(id: string, name: string): Promise<LibraryEntry>
+
+  // ————— 書箱 / 层级浏览（2026-09-13 用户定：书架 = 资源管理器式，書箱 = 文件夹）—————
+  /** 当前层级的子書箱（parentId=null = 根层）；虚拟映射模式的"文件夹"不落库、不在此列 */
+  listContainers(parentId: string | null): Promise<BookContainer[]>
+  /** 新建書箱（virtual；parentId=null = 建在根层） */
+  createContainer(params: { parentId: string | null; name: string }): Promise<BookContainer>
+  /** 書箱更名 */
+  renameContainer(id: string, name: string): Promise<void>
+  /** 移除書箱（含其成员关系；**有子書箱时拒绝**——先清空子级，防误删整棵子树） */
+  removeContainer(id: string): Promise<void>
+  /** 按层级取书（口径见 LibraryLevelQuery） */
+  listBooksAtLevel(query: LibraryLevelQuery): Promise<BookRecord[]>
 }

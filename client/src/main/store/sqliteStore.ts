@@ -19,7 +19,9 @@
 import { promises as fs } from 'node:fs'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import type { BookRecord, BookLocation } from '@core/domain/types'
+import { randomUUID } from 'node:crypto'
+import type { BookContainer, BookRecord, BookLocation } from '@core/domain/types'
+import type { LibraryLevelQuery } from '@core/ports/store'
 import { normalizeLocation } from '@core/domain/location'
 
 export interface SqliteStoreOptions {
@@ -35,6 +37,7 @@ export interface SqliteStoreOptions {
 /** 与 DATA_MODEL §2 一致的建表语句（IF NOT EXISTS：老库升级安全）。
  *  containers/notes 本期未接 UI，表先立（schema 已批复，笔记/书箱落地即用）。 */
 const SCHEMA_SQL = `
+PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
 CREATE TABLE IF NOT EXISTS books (
     id TEXT PRIMARY KEY,
@@ -314,6 +317,76 @@ export class SqliteStore {
     const record = await this.getBook(bookId)
     if (!record?.coverPath) return
     await fs.rm(join(this.opts.coversDir, record.coverPath), { force: true })
+  }
+
+  // ————— 書箱 / 层级浏览（DATA_MODEL §2 containers 表；虚拟映射模式不落库、不经这里）—————
+
+  async listContainers(parentId: string | null): Promise<BookContainer[]> {
+    const rows = this.db
+      .prepare('SELECT * FROM containers WHERE parent_id IS ? ORDER BY sort, name')
+      .all(parentId)
+    return rows.map(
+      (r: Record<string, unknown>) =>
+        ({
+          id: r.id as string,
+          parentId: (r.parent_id as string | null) ?? null,
+          kind: r.kind as BookContainer['kind'],
+          name: r.name as string
+        }) satisfies BookContainer
+    )
+  }
+
+  async createContainer(params: { parentId: string | null; name: string }): Promise<BookContainer> {
+    const name = params.name.trim()
+    if (!name) throw new Error('書箱名不能為空')
+    const id = randomUUID()
+    this.db
+      .prepare(
+        'INSERT INTO containers (id, parent_id, kind, name, paths, collapsed, sort) VALUES (?, ?, ?, ?, NULL, 0, 0)'
+      )
+      .run(id, params.parentId, 'virtual', name)
+    return { id, parentId: params.parentId, kind: 'virtual', name }
+  }
+
+  async renameContainer(id: string, name: string): Promise<void> {
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('書箱名不能為空')
+    this.db.prepare('UPDATE containers SET name = ? WHERE id = ?').run(trimmed, id)
+  }
+
+  async removeContainer(id: string): Promise<void> {
+    const children = this.db
+      .prepare('SELECT COUNT(*) AS c FROM containers WHERE parent_id = ?')
+      .get(id) as { c: number }
+    if (children.c > 0) throw new Error('書箱仍有子書箱，先清空子级再移除')
+    // container_books 由外键级联清理（PRAGMA foreign_keys=ON，SCHEMA_SQL 顶部）
+    this.db.prepare('DELETE FROM containers WHERE id = ?').run(id)
+  }
+
+  async listBooksAtLevel(query: LibraryLevelQuery): Promise<BookRecord[]> {
+    if (query.folder != null) {
+      // 虚拟映射：直接位于该文件夹的书（子文件夹的书属于子层级）
+      const rows = this.db.prepare('SELECT * FROM books ORDER BY created_at').all()
+      const base = query.folder.replace(/[\\/]+$/, '')
+      return rows
+        .map(fromRow)
+        .filter((b: BookRecord) => dirname(b.filePath).replace(/[\\/]+$/, '') === base)
+    }
+    if (query.containerId) {
+      const rows = this.db
+        .prepare(
+          'SELECT b.* FROM books b JOIN container_books cb ON cb.book_id = b.id WHERE cb.container_id = ? ORDER BY cb.sort'
+        )
+        .all(query.containerId)
+      return rows.map(fromRow)
+    }
+    // 根层：不属于任何書箱的书
+    const rows = this.db
+      .prepare(
+        'SELECT * FROM books WHERE id NOT IN (SELECT book_id FROM container_books) ORDER BY created_at'
+      )
+      .all()
+    return rows.map(fromRow)
   }
 }
 

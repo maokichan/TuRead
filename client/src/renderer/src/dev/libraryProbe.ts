@@ -68,6 +68,27 @@ export function runLibraryProbe(container: ServiceContainer, host: FeatureHost):
         '新库可更名'
       )
 
+      // ③c 書箱 CRUD + 层级取书（自建模式核心链路）
+      const c1 = await container.store.createContainer({ parentId: null, name: '測試書箱' })
+      const subs = await container.store.listContainers(null)
+      assert(subs.length === 1 && subs[0].name === '測試書箱', '根层可新建書箱')
+      const rootBooks = await container.store.listBooksAtLevel({ containerId: null })
+      assert(rootBooks.length === 1, `根层取书=未入箱的书（实际 ${rootBooks.length}）`)
+      await container.store.renameContainer(c1.id, '改名書箱')
+      assert(
+        (await container.store.listContainers(null))[0]?.name === '改名書箱',
+        '書箱可更名'
+      )
+      await container.store.removeContainer(c1.id)
+      assert((await container.store.listContainers(null)).length === 0, '空書箱可移除')
+
+      // ③d 虚拟映射建库：mode/rootPath 必须持久化（初始扫描导入是弹窗层职责，不在此探针）
+      const srcDir = devBook.replace(/[\\/][^\\/]+$/, '')
+      await container.store.createLibrary('映射庫', 'source', srcDir)
+      const withSource = await container.store.listLibraries()
+      const srcEntry = withSource.libraries.find((l) => l.mode === 'source')
+      assert(srcEntry?.rootPath === srcDir, '虚拟映射库的 mode/rootPath 持久化')
+
       // ④ 切回默认库：书单恢复（顺带验证"关过的库能重开"——切库会 close/init 往返）
       await container.store.switchLibrary(base.currentId)
       await wait(300)
@@ -76,11 +97,11 @@ export function runLibraryProbe(container: ServiceContainer, host: FeatureHost):
 
       // ⑤ 引导文件语义：config.json 只有注册表，书库数据在 .db（由 main 保证，这里只验 IPC 面）
       const final = await container.store.listLibraries()
-      assert(final.libraries.length === 2, `库注册表两条目（实际 ${final.libraries.length}）`)
+      assert(final.libraries.length === 3, `库注册表三个条目（实际 ${final.libraries.length}）`)
 
       if (failed) throw new Error('存在 FAIL 断言')
       ok(
-        `多库切换 OK：新建(${created.name})→空库→独立导入→切回(书单恢复)；注册表=${final.libraries
+        `多库切换 OK：新建(${created.name})→空库→独立导入→書箱CRUD→映射库→切回(书单恢复)；注册表=${final.libraries
           .map((l) => l.name)
           .join('/')}`
       )

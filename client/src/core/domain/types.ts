@@ -104,11 +104,29 @@ export interface LibrarySettings {
  * 书库条目（多书库，2026-09-13 立项）。一个条目 = 一份书库（一个 .db + 封面目录）；
  * 注册表（哪些库存在、当前是哪个）由主进程的引导文件持有（config.json，DATA_MODEL §1）。
  * `dbPath` 随列表返回，仅供展示/「所在文件夾」揭示（路径管理在主进程，渲染层不可指定路径）。
+ * `mode`（2026-09-13 用户定）：**建库时必须二选一**——
+ *   'source'  虚拟映射：跟踪**唯一一个**真实文件夹（rootPath），书架照搬其文件树（默认含子文件夹）；
+ *   'virtual' 自建書箱：从零开始的空库，用户自建書箱树管理书籍。
+ * 旧版迁移上来的默认库无 mode → 按 'virtual' 处理（全部书在根层）。
  */
 export interface LibraryEntry {
   id: string
   name: string
   dbPath?: string
+  mode?: 'source' | 'virtual'
+  rootPath?: string
+}
+
+/**
+ * 書箱/容器（DATA_MODEL §2 containers 表的领域形状）。
+ * virtual = 用户自建書箱（container_books 挂成员，数组序 = 用户排序）；
+ * source = 虚拟映射（不落库行，按 rootPath 动态派生——所以本类型只承载 virtual 的行）。
+ */
+export interface BookContainer {
+  id: string
+  parentId: string | null
+  kind: 'source' | 'virtual'
+  name: string
 }
 
 /**

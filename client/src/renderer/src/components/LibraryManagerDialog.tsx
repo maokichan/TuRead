@@ -16,8 +16,10 @@ interface LibraryManagerDialogProps {
   onClose: () => void
   listLibraries: () => Promise<{ libraries: LibraryEntry[]; currentId: string }>
   onSwitch: (id: string) => Promise<void>
-  onCreate: (name: string) => Promise<void>
+  onCreate: (name: string, mode: 'source' | 'virtual', rootPath?: string) => Promise<void>
   onRename: (id: string, name: string) => Promise<void>
+  /** 虚拟映射建库时选择跟踪的根文件夹（系统对话框；取消 = null） */
+  onPickDirectory: () => Promise<string | null>
 }
 
 export function LibraryManagerDialog({
@@ -25,15 +27,18 @@ export function LibraryManagerDialog({
   listLibraries,
   onSwitch,
   onCreate,
-  onRename
+  onRename,
+  onPickDirectory
 }: LibraryManagerDialogProps): React.JSX.Element {
   const [libs, setLibs] = useState<{ libraries: LibraryEntry[]; currentId: string } | null>(null)
   /** 行内更名的目标库 id（null = 无） */
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
-  /** 新建行的开合与草稿 */
+  /** 新建行的开合与草稿（2026-09-13 用户定：建库必须二选一模式） */
   const [creating, setCreating] = useState(false)
   const [createDraft, setCreateDraft] = useState('')
+  const [createMode, setCreateMode] = useState<'source' | 'virtual'>('virtual')
+  const [createRoot, setCreateRoot] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLibs(await listLibraries())
@@ -67,9 +72,12 @@ export function LibraryManagerDialog({
   }
 
   const commitCreate = async (): Promise<void> => {
-    await onCreate(createDraft)
+    if (!createDraft.trim()) return
+    if (createMode === 'source' && !createRoot) return
+    await onCreate(createDraft, createMode, createRoot ?? undefined)
     setCreating(false)
     setCreateDraft('')
+    setCreateRoot(null)
     await refresh()
   }
 
@@ -173,26 +181,76 @@ export function LibraryManagerDialog({
             )
           })}
 
-          {/* 新建行（行内输入命名，确认后即建即切） */}
+          {/* 新建行：命名 + 模式二选一（2026-09-13 用户定）+
+              虚拟映射时选择跟踪的唯一根文件夹；确认后即建即切（source 由调用方初始扫描导入） */}
           {creating ? (
-            <div className="flex items-center gap-2 pt-3">
+            <div className="flex flex-col gap-2 pt-3">
               <input
                 autoFocus
                 value={createDraft}
                 placeholder="新書庫名稱"
                 onChange={(e) => setCreateDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void commitCreate()
-                  if (e.key === 'Escape') setCreating(false)
-                }}
                 className="h-7 w-full rounded-sm border border-[var(--border)] bg-[var(--bg)] px-2 text-[13px] text-[var(--text)] outline-none focus:border-[var(--accent)]"
               />
-              <button onClick={() => void commitCreate()} className="text-action text-action--primary">
-                建立
-              </button>
-              <button onClick={() => setCreating(false)} className="text-action">
-                取消
-              </button>
+              <div className="flex items-start gap-6">
+                <label className="flex cursor-pointer items-start gap-1.5 text-[12px] text-[var(--muted)]">
+                  <input
+                    type="radio"
+                    checked={createMode === 'source'}
+                    onChange={() => setCreateMode('source')}
+                    className="mt-0.5 h-3.5 w-3.5 accent-[var(--accent)]"
+                  />
+                  <span>
+                    虛擬映射
+                    <span className="block text-[11px] opacity-75">
+                      照搬一個真實文件夾的樹（含子文件夾）
+                    </span>
+                  </span>
+                </label>
+                <label className="flex cursor-pointer items-start gap-1.5 text-[12px] text-[var(--muted)]">
+                  <input
+                    type="radio"
+                    checked={createMode === 'virtual'}
+                    onChange={() => setCreateMode('virtual')}
+                    className="mt-0.5 h-3.5 w-3.5 accent-[var(--accent)]"
+                  />
+                  <span>
+                    自建書箱
+                    <span className="block text-[11px] opacity-75">空書庫，自建書箱管理書籍</span>
+                  </span>
+                </label>
+              </div>
+              {createMode === 'source' && (
+                <div className="flex items-center gap-3 text-[12px]">
+                  <button
+                    onClick={async () => setCreateRoot(await onPickDirectory())}
+                    className="text-action"
+                  >
+                    選擇文件夾…
+                  </button>
+                  <span className="truncate text-[var(--muted)]" title={createRoot ?? ''}>
+                    {createRoot ?? '（未選擇——建庫後即掃描導入其中的電子書）'}
+                  </span>
+                </div>
+              )}
+              <div className="flex gap-5">
+                <button
+                  onClick={() => void commitCreate()}
+                  disabled={!createDraft.trim() || (createMode === 'source' && !createRoot)}
+                  className="text-action text-action--primary disabled:opacity-40"
+                >
+                  建立
+                </button>
+                <button
+                  onClick={() => {
+                    setCreating(false)
+                    setCreateRoot(null)
+                  }}
+                  className="text-action"
+                >
+                  取消
+                </button>
+              </div>
             </div>
           ) : (
             <button

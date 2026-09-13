@@ -575,6 +575,7 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.3.7 | 2026-09-13 | **书库双模式 + 层级浏览**：§2 `LibraryEntry` 增 `mode?`('source'\|'virtual'，**建库二选一**)与 `rootPath?`（虚拟映射跟踪的唯一真实文件夹）、增 `BookContainer`；§4.4 增書箱 CRUD（`listContainers`/`createContainer`/`renameContainer`/`removeContainer`）与 `listBooksAtLevel`（层级取书：containerId=null=根层未入箱书 / folder=虚拟映射当前文件夹）；§4.5 `IBookPicker` 增 `listSubdirectories`；桥增 `getPathForFile`（拖拽导入取真实路径，Electron ≥29 移除 File.path）。口径：**资源管理器式层级**——書箱/文件夹与书籍外观相似、单击进入，当前层级 = 状态栏右端面包屑；虚拟映射不落 containers 行（按 rootPath 动态派生） |
 | v0.3.6 | 2026-09-13 | **書庫管理弹窗**：§2 `LibraryEntry` 增 `dbPath?`（仅供展示/揭示）；§4.4 增 `renameLibrary(id, name)`（显示名，路径不变，不切库不广播）。UI 入口 = 状态栏「書庫」→ 管理弹窗（Obsidian 仓库管理页风格：列表/切换/新建/更名/所在文件夾），替换原下拉菜单 |
 | v0.3.5 | 2026-09-13 | **多书库契约**：§2 增 `LibraryEntry`；§4.4 `ILibraryStore` 增 `listLibraries` / `createLibrary` / `switchLibrary`。口径：一个条目 = 一份 .db 书库；`config.json` 降级为**引导文件**（库注册表 + 当前库 id，DATA_MODEL §1）；切换/新建成功后 main 广播 `library-changed`，渲染层各 Feature 以广播为"当前库已变"信号重载自己的状态（选中/阅读器由 AppShell 清理）。设置（主题/阅读参数）**随库走**（存于各库 settings 表） |
 | v0.3.4 | 2026-09-12 | **封面失败负缓存**：§2 `BookRecord` 增 `coverFailed?`（永久性失败只试一次，不随启动「存量补封面」重试）。背景：书库 328 本实测，启动补封面把渲染主线程整个饿死（kookit getMetadata 在主线程解析全书）且失败书每次启动反复重解析 | 

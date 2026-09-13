@@ -3,8 +3,8 @@
  * （SQLite 单库持久化，多库下所有 store:* 打到「当前库」）。
  * 接口保持存储无关；本桥不感知库切换——切库以 main 广播的 library-changed 为准。
  */
-import type { ILibraryStore, LibraryListResult } from '@core/ports/store'
-import type { BookRecord, LibraryEntry } from '@core/domain/types'
+import type { ILibraryStore, LibraryListResult, LibraryLevelQuery } from '@core/ports/store'
+import type { BookContainer, BookRecord, LibraryEntry } from '@core/domain/types'
 import { IPC, type TureadBridge } from '@shared/ipc'
 
 export class IpcStoreAdapter implements ILibraryStore {
@@ -58,8 +58,16 @@ export class IpcStoreAdapter implements ILibraryStore {
     return (await this.bridge.invoke(IPC.storeListLibraries)) as LibraryListResult
   }
 
-  async createLibrary(name?: string): Promise<LibraryEntry> {
-    return (await this.bridge.invoke(IPC.storeCreateLibrary, name)) as LibraryEntry
+  async createLibrary(
+    name?: string,
+    mode?: 'source' | 'virtual',
+    rootPath?: string
+  ): Promise<LibraryEntry> {
+    return (await this.bridge.invoke(IPC.storeCreateLibrary, {
+      name,
+      mode,
+      rootPath
+    })) as LibraryEntry
   }
 
   async switchLibrary(id: string): Promise<void> {
@@ -68,5 +76,28 @@ export class IpcStoreAdapter implements ILibraryStore {
 
   async renameLibrary(id: string, name: string): Promise<LibraryEntry> {
     return (await this.bridge.invoke(IPC.storeRenameLibrary, { id, name })) as LibraryEntry
+  }
+
+  async listContainers(parentId: string | null): Promise<BookContainer[]> {
+    return (await this.bridge.invoke(IPC.storeListContainers, parentId)) as BookContainer[]
+  }
+
+  async createContainer(params: {
+    parentId: string | null
+    name: string
+  }): Promise<BookContainer> {
+    return (await this.bridge.invoke(IPC.storeCreateContainer, params)) as BookContainer
+  }
+
+  async renameContainer(id: string, name: string): Promise<void> {
+    await this.bridge.invoke(IPC.storeRenameContainer, { id, name })
+  }
+
+  async removeContainer(id: string): Promise<void> {
+    await this.bridge.invoke(IPC.storeRemoveContainer, id)
+  }
+
+  async listBooksAtLevel(query: LibraryLevelQuery): Promise<BookRecord[]> {
+    return (await this.bridge.invoke(IPC.storeListBooksAtLevel, query)) as BookRecord[]
   }
 }

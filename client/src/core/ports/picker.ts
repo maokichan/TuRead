@@ -21,4 +21,9 @@ export interface IBookPicker {
   listEbooks(dir: string, recursive: boolean): Promise<string[]>
   /** 读文件字节（导入用）—— 同属"本地文件能力"，放这里以彻底消除 UI 直用 IPC 桥的例外 */
   readFile(path: string): Promise<ArrayBuffer>
+  /**
+   * 列出目录下的**子目录**（不递归，名称 + 绝对路径，稳定排序）。
+   * 虚拟映射模式（2026-09-13）：书架照搬真实文件夹树，层级浏览用。
+   */
+  listSubdirectories(dir: string): Promise<Array<{ name: string; path: string }>>
 }

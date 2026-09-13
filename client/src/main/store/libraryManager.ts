@@ -25,6 +25,10 @@ export interface LibraryEntry {
   name: string
   dbPath: string
   coversDir: string
+  /** 书库模式（2026-09-13 用户定：建库二选一）。缺省按 virtual 处理（旧版迁移库） */
+  mode?: 'source' | 'virtual'
+  /** 虚拟映射模式跟踪的唯一真实文件夹 */
+  rootPath?: string
   /** 旧 JSON 路径（只有默认库在升级首启时带；迁移完成前每次启动都要给迁移器看到） */
   legacyLibraryPath?: string
   legacyConfigPath?: string
@@ -128,16 +132,28 @@ export class LibraryManager {
     return entry
   }
 
-  /** 新建库（空库；文件名用随机 id，与可改的显示名解耦）并切换过去 */
-  async createLibrary(name?: string): Promise<LibraryEntry> {
+  /**
+   * 新建库（2026-09-13 用户定：**建库必须二选一模式**）并切换过去：
+   *  - source（虚拟映射）：必须给 rootPath——跟踪唯一一个真实文件夹，书架照搬其文件树；
+   *  - virtual（自建書箱）：空库，用户自建書箱树。
+   * 文件名用随机 id，与可改的显示名解耦。
+   */
+  async createLibrary(
+    name?: string,
+    mode: 'source' | 'virtual' = 'virtual',
+    rootPath?: string
+  ): Promise<LibraryEntry> {
     const existing = this.bootstrap!.libraries
     const autoName = name?.trim() || `書庫 ${existing.length + 1}`
+    if (mode === 'source' && !rootPath) throw new Error('虛擬映射書庫必須指定跟蹤的文件夾')
     const id = `lib-${randomBytes(4).toString('hex')}`
     const entry: LibraryEntry = {
       id,
       name: autoName,
       dbPath: join(this.userDataDir, `${id}.db`),
-      coversDir: join(this.userDataDir, 'covers', id)
+      coversDir: join(this.userDataDir, 'covers', id),
+      mode,
+      rootPath: mode === 'source' ? rootPath : undefined
     }
     this.bootstrap!.libraries.push(entry)
     await this.writeBootstrap(this.bootstrap!)

@@ -10,7 +10,7 @@
  * - dev 无头自检已移出（见 dev/selfCheck.ts）—— shell 只做组合与共享态。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { IPC } from '@shared/ipc'
+import { EBOOK_EXTENSIONS, IPC } from '@shared/ipc'
 import { createContainer, type ServiceContainer } from '@core/container'
 import { FEATURES } from './features/registry'
 import type { FeatureHost, FeatureId } from './features/types'
@@ -20,6 +20,8 @@ import { runDevSelfCheck } from './dev/selfCheck'
 import { runPdfWidthProbe } from './dev/pdfWidthProbe'
 import { runPagedInteractProbe } from './dev/pagedInteractProbe'
 import { runLibraryProbe } from './dev/libraryProbe'
+
+const EBOOK_EXT_SET = new Set<string>(EBOOK_EXTENSIONS)
 
 export default function AppShell(): React.JSX.Element {
   const container = useMemo<ServiceContainer>(() => createContainer(window.turead), [])
@@ -137,8 +139,64 @@ export default function AppShell(): React.JSX.Element {
   // 书库搜索词（标题栏搜索栏的单一真相；StatePill 同款 props 下发）
   const [libraryQuery, setLibraryQuery] = useState('')
 
+  // 拖拽导入（2026-09-13 用户定）：外部文件拖进窗口 → 导入**当前书库**（进 ImportQueue，
+  // 指纹去重/进度/失败上报全部走既有链路）。非电子书扩展名直接忽略并日志说明。
+  // ⚠ Electron 必须全局 preventDefault dragover/drop，否则系统会用窗口导航打开文件。
+  const [dragOver, setDragOver] = useState(false)
+  const dragDepth = useRef(0)
+  useEffect(() => {
+    const hasFiles = (e: DragEvent): boolean =>
+      Array.from(e.dataTransfer?.types ?? []).includes('Files')
+    const onDragEnter = (e: DragEvent): void => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      dragDepth.current += 1
+      setDragOver(true)
+    }
+    const onDragOver = (e: DragEvent): void => {
+      if (hasFiles(e)) e.preventDefault()
+    }
+    const onDragLeave = (e: DragEvent): void => {
+      if (!hasFiles(e)) return
+      dragDepth.current = Math.max(0, dragDepth.current - 1)
+      if (dragDepth.current === 0) setDragOver(false)
+    }
+    const onDrop = (e: DragEvent): void => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      dragDepth.current = 0
+      setDragOver(false)
+      const files = Array.from(e.dataTransfer?.files ?? [])
+      const paths = files
+        .map((f) => window.turead.getPathForFile(f))
+        .filter((p) => EBOOK_EXT_SET.has(p.split('.').pop()?.toLowerCase() ?? ''))
+      if (paths.length === 0) {
+        pushLog('拖入的文件没有可导入的电子书格式')
+        return
+      }
+      container.imports.enqueue(paths)
+      pushLog(`拖入导入：${paths.length} 本（加入当前書庫）`)
+    }
+    window.addEventListener('dragenter', onDragEnter)
+    window.addEventListener('dragover', onDragOver)
+    window.addEventListener('dragleave', onDragLeave)
+    window.addEventListener('drop', onDrop)
+    return () => {
+      window.removeEventListener('dragenter', onDragEnter)
+      window.removeEventListener('dragover', onDragOver)
+      window.removeEventListener('dragleave', onDragLeave)
+      window.removeEventListener('drop', onDrop)
+    }
+  }, [container])
+
   return (
     <div className="relative flex h-screen flex-col">
+      {dragOver && (
+        /* 拖拽提示（pointer-events-none：不挡 drop 事件，drop 在 window 层处理） */
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <span className="text-[15px] text-[var(--text)]">鬆開以導入到當前書庫</span>
+        </div>
+      )}
       <TitleBar
         activeFeature={activeFeature}
         libraryQuery={libraryQuery}

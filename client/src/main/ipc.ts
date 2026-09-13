@@ -11,6 +11,7 @@ import type { NetConfig, MessageEnvelope, BookRecord } from '@core/domain/types'
 import { WsNetAdapter } from './net/wsNetAdapter'
 import { LibraryManager } from './store/libraryManager'
 import type { SqliteStore } from './store/sqliteStore'
+import type { LibraryLevelQuery } from '@core/ports/store'
 
 const EBOOK_EXT_SET = new Set<string>(EBOOK_EXTENSIONS)
 const EBOOK_FILTER = [{ name: '电子书', extensions: [...EBOOK_EXTENSIONS] }]
@@ -58,11 +59,21 @@ export function registerIpc(
 
   // 多书库：列表 / 新建（随即切换）/ 切换——成功后广播 library-changed（渲染层各自重载）
   ipcMain.handle(IPC.storeListLibraries, () => libraries.listLibraries())
-  ipcMain.handle(IPC.storeCreateLibrary, async (_e, name?: string) => {
-    const entry = await libraries.createLibrary(name)
-    send(IPC.storeLibraryChanged, entry)
-    return { id: entry.id, name: entry.name }
-  })
+  ipcMain.handle(
+    IPC.storeCreateLibrary,
+    async (
+      _e,
+      p?: { name?: string; mode?: 'source' | 'virtual'; rootPath?: string } | string
+    ) => {
+      // 兼容旧调用（直接传字符串 name）
+      const name = typeof p === 'string' ? p : p?.name
+      const mode = typeof p === 'string' ? 'virtual' : p?.mode
+      const rootPath = typeof p === 'string' ? undefined : p?.rootPath
+      const entry = await libraries.createLibrary(name, mode, rootPath)
+      send(IPC.storeLibraryChanged, entry)
+      return { id: entry.id, name: entry.name }
+    }
+  )
   ipcMain.handle(IPC.storeSwitchLibrary, async (_e, id: string) => {
     const entry = await libraries.switchLibrary(id)
     send(IPC.storeLibraryChanged, entry)
@@ -72,12 +83,36 @@ export function registerIpc(
     const entry = await libraries.renameLibrary(p.id, p.name)
     return { id: entry.id, name: entry.name }
   })
-  // 库管理弹窗「所在文件夾」：在系统文件管理器里高亮库文件（路径来自引导文件，不接受任意路径）
+  // 在系统文件管理器中显示文件（库管理弹窗「所在文件夾」）：路径来自引导文件，不接受任意路径
   ipcMain.handle(IPC.fsShowInFolder, (_e, p: { libraryId: string }) => {
     const entry = libraries.listLibraries().libraries.find((l) => l.id === p.libraryId)
     if (!entry) return false
     shell.showItemInFolder(entry.dbPath)
     return true
+  })
+
+  // 書箱/层级浏览（store:* 打到当前库）
+  ipcMain.handle(IPC.storeListContainers, (_e, parentId: string | null) =>
+    store().listContainers(parentId)
+  )
+  ipcMain.handle(
+    IPC.storeCreateContainer,
+    (_e, p: { parentId: string | null; name: string }) => store().createContainer(p)
+  )
+  ipcMain.handle(IPC.storeRenameContainer, (_e, p: { id: string; name: string }) =>
+    store().renameContainer(p.id, p.name)
+  )
+  ipcMain.handle(IPC.storeRemoveContainer, (_e, id: string) => store().removeContainer(id))
+  ipcMain.handle(IPC.storeListBooksAtLevel, (_e, q: LibraryLevelQuery) =>
+    store().listBooksAtLevel(q)
+  )
+  // 虚拟映射模式的层级浏览：列子目录（不递归，名称+绝对路径，稳定排序）
+  ipcMain.handle(IPC.fsListDirectories, async (_e, dir: string) => {
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => [])
+    return entries
+      .filter((it) => it.isDirectory() && !it.name.startsWith('.'))
+      .map((it) => ({ name: it.name, path: join(dir, it.name) }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
   })
 
   ipcMain.handle(IPC.fsReadFile, async (_e, path: string) => {

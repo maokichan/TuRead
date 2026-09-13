@@ -30,8 +30,16 @@ export const IPC = {
   storeSwitchLibrary: 'store:switch-library',
   storeRenameLibrary: 'store:rename-library',
   storeLibraryChanged: 'store:library-changed',
+  // 書箱/层级浏览（2026-09-13 用户定：书架 = 资源管理器式，書箱 = 文件夹）
+  storeListContainers: 'store:list-containers',
+  storeCreateContainer: 'store:create-container',
+  storeRenameContainer: 'store:rename-container',
+  storeRemoveContainer: 'store:remove-container',
+  storeListBooksAtLevel: 'store:list-books-at-level',
   // 在系统文件管理器中显示文件（库管理弹窗：「所在文件夾」）
   fsShowInFolder: 'fs:show-in-folder',
+  // 列目录子目录（虚拟映射模式的层级浏览）
+  fsListDirectories: 'fs:list-directories',
   fsReadFile: 'fs:read-file',
   pickerPickFiles: 'picker:pick-files',
   pickerPickDirectory: 'picker:pick-directory',
@@ -62,6 +70,8 @@ export const EBOOK_EXTENSIONS = [
 export interface TureadBridge {
   invoke(channel: string, payload?: unknown): Promise<unknown>
   subscribe(channel: string, listener: (payload: unknown) => void): () => void
+  /** 拖拽导入（2026-09-13）：Electron ≥29 移除 File.path，取真实路径须经 preload 的 webUtils */
+  getPathForFile(file: File): string
   /** dev-only：TUREAD_DEV_BOOK 环境变量指定的书（启动即打开，用于无头验证渲染链路） */
   devBook?: string
   /** dev-only：TUREAD_DEV_PROBE 环境变量指定的探针名（如 pdf-width，无头复现专项现象） */
