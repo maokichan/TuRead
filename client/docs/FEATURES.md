@@ -161,7 +161,7 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
   **连接是房间组件的一部分**，顶部可折叠「服务器连接」卡片 + 大厅[列表/创建/选房] + 会话[成员/聊天]；进入后 `host.openReader` 状态继承）、
   `SettingsFeature`（**全局设置**：外观主题 **四套色彩取向**（`dark` / `light` / `sepia-light` / `sepia-dark`，
   `data-theme` 应用到 `<html>`）+ `system` 跟随系统（`matchMedia` 解析并监听，只在暗色/亮色之间切换）
-  + 阅读器布局模式 scroll/single/double 持久化 + **导入（含子文件夹）** + 诊断日志页）。
+  + 沉浸全屏开关（「進入閱讀器時進入全屏」，默认关；2026-09-13 起。阅读排版/布局参数已全部移入阅读器参数面板）+ **导入（含子文件夹）** + 诊断日志页）。
 - **颜色标准化（设计 token）**：所有颜色一律走 `styles.css` 的语义 token
   （`--bg/--panel/--panel-2/--border/--border-soft/--text/--muted/--accent(-soft/-strong/-ring)/--on-accent/`
   `--ok/--warn/--err(+ -border)/--input-bg/--badge-bg/--log-bg/--log-text/--page-bg/--page-text/`

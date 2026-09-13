@@ -111,7 +111,8 @@ interface LibrarySettings {
 /**
  * 阅读器设置（持久化于 config.json 的 readerSettings 键）—— v0.3.1。
  * ⚠ 这些是**呈现/排版参数**，不是"阅读页控件"：阅读页零控件（`STYLE.md` §5.8），
- *   参数一律在「设置」功能组件里改。
+ *   参数一律在阅读器**挂载线参数面板**改（2026-09-13 起：布局模式也移入面板，
+ *   `readerSettings` 的唯一写者 = 面板；设置页只留沉浸全屏开关）。
  */
 interface ReaderSettings {
   readerMode: 'single' | 'double' | 'scroll';

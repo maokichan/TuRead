@@ -91,25 +91,34 @@ CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 PDF=页+归一化坐标、TXT=章+偏移），适配器生成/解释；**同步不需要统一编码**（指纹标定保证
 对端同一 edition → 同一解释器）。kookit 有 CFI 实现（`libs/cfi.ts`），第一批只做 EPUB-CFI + PDF 页锚。
 
-**3.1.1 定位 IR 设计提案（2026-09-13 用户提出，术语与分层待批复）**
+**3.1.1 定位转换机制（2026-09-13 用户提出并批复；原拟名"定位 IR"弃用——太编译器背景）**
 
-动机：用户提出参考 Readium 的设计做"中间表示"，把各格式定位信息抽象掉，降低笔记层复杂度。
-**采纳**，术语与分层提案如下：
+动机：用户提出参考 Readium 的设计做中间表示，把各格式定位信息抽象掉，降低笔记层复杂度。
+**采纳**，术语与分层（已批复）：
 
-- **机制名：定位 IR**（定位中间表示）。领域实体沿既定命名：进度级 = `BookLocation`（已立），
-  选区级 = `TextAnchor`（统一锚点，本提案主体）。
+- **机制名：定位转换机制**。领域实体沿既定命名：进度级 = `BookLocation`（已立），
+  选区级 = `TextAnchor`（统一锚点）。
 - **两层结构**（关键决策：**统一信封 + 引擎原生载荷**，不做"通用定位语言"让引擎来回翻译——
   翻译有损会破坏选区 round-trip；Readium 同款取舍）：
   - **归一化层（Norm）**——跨格式可比的语义字段：`chapterIndex` / `progression`(0~1) /
-    `quote{exact, prefix, suffix}`（划线原文及前后文，= 重锚的兜底线索）。**笔记层/存储/同步只看这层**；
+    `quote{exact, prefix, suffix}`。**笔记层/存储/同步只看这层**；
   - **引擎载荷层（Fragment）**——`engine` 标识 + 不透明编码串（EPUB=CFI、PDF=页+坐标、TXT=章+偏移）。
     **只有适配器解释**；`anchor_key` 落库即本层串。
-- **原语**（接口即 IR，实现在适配器）：`fromSelection` / `resolveToView` / `compare`（Norm 层比较 +
-  Fragment 精确比较两级）/ `remeasure`（Fragment 失效 → 按 quote 重找） / `display`。
+- **原语**（接口即机制，实现在适配器）：`fromSelection` / `resolveToView` / `compare` /
+  `remeasure` / `display`。
 - **换渲染内核的爆炸半径**：重写适配器的载荷生成/解释 + 跑一次 `remeasure` 迁移；
-  **IR 实体、notes 表、笔记 UI、同步协议零改动**——这就是"统一接口，不统一编码"的落地形态。
-- 待批复点：① 术语（定位 IR / 统一锚点 / Norm+Fragment 分层命名）② quote 是否进 notes 表
-  作为一等列（现 schema 的 `anchor_hint` 可承载，或拆三列）③ compare 的两级比较次序。
+  **锚点实体、notes 表、笔记 UI、同步协议零改动**——"统一接口，不统一编码"的落地形态。
+
+**已批复的三个细则（2026-09-13）**：
+① **quote 的归属**：quote = 划线时刻的**书籍原文快照**（exact/prefix/suffix）——它本质是书的
+   一部分，是**定位证据**，不是笔记内容 → **归锚点侧，不归 note 侧**。落库映射：quote.exact =
+   notes 表 `excerpt` 列（列语义更正为"划线原文快照（锚点证据）"）；prefix/suffix 并入
+   `anchor_hint`（JSON）。用户批注内容只住 `body` 列。
+② **compare 次序：先 Fragment 后 Norm**——Fragment 相等 = 同一位置（同 edition 同引擎下
+   权威精确、O(1) 串比较，直接判同）；Fragment 不等/缺失/跨引擎 → 降级 Norm
+   （chapterIndex/progression 排序 + quote 相似度）做粗判与重锚选路，产出 strong/weak 强弱标注。
+   先精确后模糊，避免文本比较的歧义成本污染精确路径。
+③ 分层命名沿用 Norm / Fragment。
 
 **3.2 Note 实体 v2（趁未落库定稿）**
 `kind`('highlight'|'note'|'bookmark'|'ink') / `anchor{chapterIndex,key,hint}`（取代原
