@@ -56,18 +56,9 @@
 
 ### PDF 专区（2026-09-13 开设：PDF 是位图载体，凡"重排/缩放/旋转/反相"都绕不开 kookit PdfRender 的固定像素渲染，集中登记）
 
-- [ ] **(用户实测，下个版本修) PDF 改纸宽 canvas 不重排**（2026-09-11 记录；**2026-09-12 已复现并量化**，
-  探针 `client/src/renderer/src/dev/pdfWidthProbe.ts`，触发 `TUREAD_DEV_PROBE=pdf-width` + `TUREAD_DEV_BOOK`）：
-  - **现象**（样书《机器学习》，scroll 模式）：改 `--read-width` 后宿主列与子 iframe **都**随档位变化
-    （757→917→617），但 PDF 页面 **canvas 钉死在首渲染像素宽（730px，attr 913×964）不重排** ——
-    加宽档（920）：页面不放大、两侧留白变大；窄档（620）：canvas 宽出页面容器
-    （子doc `scrollW=731 > clientW=601`）→ **内容横向溢出被裁**。
-  - **根因**：kookit `PdfRender` 在每页渲染时用 `doc.body.clientWidth` 算缩放（`getPdfScale`），
-    canvas/子 iframe 尺寸落成固定像素；kookit 全库**无 resize 监听**、PdfRender **无公开重排入口**，
-    改宿主 CSS 变量不触发任何重算。文字类不受影响（HTML 天然回流）。
-  - **修法候选**（动手前先定形态）：① 改纸宽后对 PDF 整本重开（走 `open()` 带当前位置，简单但重）；
-    ② 适配器里对可见页调 kookit 内部 `handleRenderPDFChapter(idx, isReload=true)`（轻但依赖内部细节）；
-    ③ PDF 时面板禁用纸宽档位并说明（承认边界）。
+> 已解决：PDF 改纸宽 = 填充（2026-09-13，原地重开方案，见 `docs/STATUS.md` 决策）；
+> 量化存档在探针 `dev/pdfWidthProbe.ts`。PDF 专区其余条目见下。
+
 - [ ] **(2026-09-13 用户立项) PDF 页面旋转**：扫描版 PDF 常有整本/成段页面被旋转（横排内容竖放），
   阅读器应提供旋转能力（±90°）。技术现实与修法候选：
   - kookit `PdfRender` canvas 固定像素、无公开重排入口（与上条同根）；pdf.js 页面渲染支持 rotate

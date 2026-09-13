@@ -118,8 +118,18 @@ export function ReaderFeature({
           .patchSetting('readerSettings', { readerMode: patch.readerMode })
           .then(() => setReopenTick((t) => t + 1))
       }
+      // PDF 改纸宽 = 整页重开填充（2026-09-13 用户定：纸宽变了 PDF 应当跟着缩放填充）。
+      // kookit PdfRender 用渲染时刻的 clientWidth 定 canvas 像素、无重排入口（PDF 专区原首条），
+      // CSS 变量改宽度不会触发重算 —— 原地重开（flushLastLocation 已保位置）是唯一可靠路径。
+      if (
+        book?.format === 'PDF' &&
+        patch.readerWidth !== undefined &&
+        patch.readerWidth !== prev.readerWidth
+      ) {
+        setReopenTick((t) => t + 1)
+      }
     },
-    [container, applyParams]
+    [container, applyParams, book]
   )
 
   // 启动载入阅读参数（缺省 = 不改，尊重书自带排版）
@@ -306,12 +316,15 @@ export function ReaderFeature({
   )
 
   /**
-   * 滚轮转发：正文列之外是留白（全屏纸），滚轮落在留白上时把位移交给正文列 ——
-   * 否则鼠标停在两侧就没反应（STYLE.md §5.8）。列内部的滚轮由浏览器原生处理，
-   * 这里必须跳过，不然会双倍滚动。分页模式改走滚轮翻页（留白与 iframe 两路都接）。
+   * 滚轮（整个阅读器区接管，含左右点击翻页带——那两条带压在纸面上方，挂在纸上会漏）。
+   * - scroll 模式：正文列之外是留白，滚轮落在留白上把位移转给正文列（STYLE.md §5.8）；
+   *   目录/参数面板内部让位（列表自己滚）。
+   * - 分页模式（single/double）：滚轮翻页（2026-09-13 用户定：默认键盘、无按钮控件，像 koodo）。
+   *   正文 iframe 内部的滚轮走 iframe 桥（下方 effect），这里只管宿主文档一侧。
    */
-  const onPaperWheel = useCallback(
-    (e: React.WheelEvent<HTMLDivElement>): void => {
+  const onReaderWheel = useCallback(
+    (e: React.WheelEvent<HTMLElement>): void => {
+      if ((e.target as HTMLElement).closest('.toc-list, .reader-controls')) return
       if (readerMode === 'scroll') {
         if ((e.target as HTMLElement).closest('.reader-stage')) return
         const stage = stageRef.current
@@ -369,10 +382,10 @@ export function ReaderFeature({
   )
 
   return (
-    <section className="relative h-full select-none">
-      {/* 全屏纸（纸色铺满内容区，退场多余信息）+ 滚轮转发；
-          正文列是它的子元素（宿主容器 = 正文列，见 styles.css .reader-stage） */}
-      <div className="reader-paper absolute inset-0" onWheel={onPaperWheel}>
+    <section className="relative h-full select-none" onWheel={onReaderWheel}>
+      {/* 全屏纸（纸色铺满内容区）；正文列是它的子元素（宿主容器 = 正文列，见 styles.css .reader-stage）。
+          滚轮接管在整个 section 上（含左右点击翻页带），见 onReaderWheel 注释 */}
+      <div className="reader-paper absolute inset-0">
         {/* 正文列：id 是 kookit 硬编码契约；列宽 = --read-width（设置写入）→ 决定一行多长 */}
         <div className="reader-stage" id="page-area" ref={stageRef} />
       </div>

@@ -17,6 +17,7 @@ import { pushLog } from './features/logStore'
 import { TitleBar } from './components/TitleBar'
 import { runDevSelfCheck } from './dev/selfCheck'
 import { runPdfWidthProbe } from './dev/pdfWidthProbe'
+import { runPagedInteractProbe } from './dev/pagedInteractProbe'
 
 export default function AppShell(): React.JSX.Element {
   const container = useMemo<ServiceContainer>(() => createContainer(window.turead), [])
@@ -76,10 +77,14 @@ export default function AppShell(): React.JSX.Element {
   )
 
   // dev-only：TUREAD_DEV_BOOK 指定书时启动即导入并打开（无头验证渲染链路，实现见 dev/selfCheck.ts）；
-  // TUREAD_DEV_PROBE 指定专项探针（实现见 dev/pdfWidthProbe.ts）时优先走探针
+  // TUREAD_DEV_PROBE 指定专项探针（实现见 dev/pdfWidthProbe.ts / dev/pagedInteractProbe.ts）时优先走探针
   useEffect(() => {
     if (window.turead.devProbe === 'pdf-width') {
       runPdfWidthProbe(container, host)
+      return
+    }
+    if (window.turead.devProbe === 'paged-interact') {
+      runPagedInteractProbe(container, host)
       return
     }
     return runDevSelfCheck(container, host)
