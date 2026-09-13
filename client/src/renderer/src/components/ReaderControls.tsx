@@ -31,14 +31,19 @@ export interface ReaderParams {
   pagePadX: number
   /** 纸宽 px（宿主 token --read-width） */
   readerWidth: number
+  /** 布局模式（kookit 渲染配置，**改 = 重开书生效**）。2026-09-13 用户定：从设置页移入参数栏（单一写者） */
+  readerMode: ReaderModeValue
 }
+
+export type ReaderModeValue = 'single' | 'double' | 'scroll'
 
 export const DEFAULT_READER_PARAMS: ReaderParams = {
   fontSize: null,
   lineHeight: null,
   paragraphSpacing: null,
   pagePadX: 44,
-  readerWidth: 760
+  readerWidth: 760,
+  readerMode: 'scroll'
 }
 
 interface Option<T> {
@@ -77,6 +82,12 @@ const READER_WIDTHS: Option<number>[] = [
   { value: 620, label: '窄' },
   { value: 760, label: '中' },
   { value: 920, label: '寬' }
+]
+
+const READER_MODES: Option<ReaderModeValue>[] = [
+  { value: 'scroll', label: '滾動' },
+  { value: 'single', label: '單頁' },
+  { value: 'double', label: '雙頁' }
 ]
 
 interface ReaderControlsProps {
@@ -177,6 +188,12 @@ export function ReaderControls({ params, onChange, onToggle }: ReaderControlsPro
         options={PAGE_PAD}
         value={params.pagePadX}
         onPick={(v) => onChange({ pagePadX: v })}
+      />
+      <Row
+        label="佈局"
+        options={READER_MODES}
+        value={params.readerMode}
+        onPick={(v) => onChange({ readerMode: v })}
       />
       {/* 底部「折疊」：与目录列表的折疊同款（居中 + 引导分割线，样式类见 styles.css） */}
       <div className="reader-controls__fold">

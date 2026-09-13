@@ -761,6 +761,19 @@ body {
   width: 0;
 }
 
+/* 空目录占位（2026-09-13 用户定）：没有目录索引的书也垂挂一行说明——
+   让"本书没有目录"可见，不静默消失。静息淡度与「折疊」同口径（0.5）。 */
+.toc-list__empty {
+  padding: 4px 10px 4px 0;
+  font-family: var(--font-serif-cn);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  opacity: 0.5;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
 /* 折叠按钮：与目录条目容器**中间对齐**；静息也保持淡（与条目同一个"退场"口径）。
    ⚠ 与条目区之间必须有**一条引导分割线**（用户 2026-09-11 定）：没有它，条目滚到边界时
    "像是凭空出现/消失"；有了它，滚动被可视地截在线上。 */

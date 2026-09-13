@@ -67,6 +67,7 @@ export function TocPanel({ rows, onJump, onToggle }: TocPanelProps): React.JSX.E
         onMouseMove={(e) => paintVeil(e.clientY)}
         onMouseLeave={() => paintVeil(null)}
       >
+        {rows.length === 0 && <div className="toc-list__empty">本書沒有目錄索引</div>}
         {rows.map((row, i) => (
           <button
             key={i}

@@ -1,8 +1,10 @@
 /**
  * 功能组件：设置（SettingsFeature）
- * 职责：全局设置（外观主题 / 阅读器布局模式 / **导入行为**）+ 诊断日志（原日志栏移入此处）。
- * 设置经 ILibraryStore 持久化（key: appearance / readerSettings / librarySettings）；
+ * 职责：全局设置（外观主题 / **导入行为**）+ 诊断日志（原日志栏移入此处）。
+ * 设置经 ILibraryStore 持久化（key: appearance / librarySettings）；
  * 主题以 `data-theme` 应用到 <html>，CSS 语义 token 见 styles.css。
+ * ⚠ 阅读器参数已全部收编：高频显示参数与布局模式都在**阅读参数面板**（ReaderFeature 拥有
+ * readerSettings 的唯一写者；2026-09-13 布局模式也移出本页）。
  *
  * 主题模型（2026-09-11 规正，权威 core/domain/theme.ts）：**2 主题 × 2 模式**。
  * 主题（取向）= 純色（黑灰白）｜羊皮紙（暖棕）；模式 = 深｜淺｜跟隨系統（在所选主题内解析）。
@@ -10,7 +12,7 @@
  * resolved 值（styles.css 的 data-theme）：dark=纯色·深 / light=纯色·浅 / sepia-light=羊皮纸·浅 / sepia-dark=羊皮纸·深。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { LibrarySettings, RenderOptions } from '@core/domain/types'
+import type { LibrarySettings } from '@core/domain/types'
 import {
   normalizeThemeSetting,
   resolveThemePreference,
@@ -20,8 +22,6 @@ import {
 } from '@core/domain/theme'
 import type { FeatureProps } from '../types'
 import { subscribeLog } from '../logStore'
-
-type ReaderMode = NonNullable<RenderOptions['readerMode']>
 
 const TONES: { value: ThemeTone; label: string }[] = [
   { value: 'solid', label: '純色' },
@@ -34,12 +34,6 @@ const MODES: { value: ThemeModeSetting; label: string }[] = [
   { value: 'system', label: '跟隨系統' }
 ]
 
-const READER_MODES: { value: ReaderMode; label: string }[] = [
-  { value: 'scroll', label: '滾動' },
-  { value: 'single', label: '單頁' },
-  { value: 'double', label: '雙頁' }
-]
-
 const DEFAULT_LIBRARY: LibrarySettings = { view: 'list', importRecursive: false }
 
 function applyDataTheme(pref: ThemePreference): void {
@@ -49,7 +43,6 @@ function applyDataTheme(pref: ThemePreference): void {
 
 export function SettingsFeature({ container }: FeatureProps): React.JSX.Element {
   const [themePref, setThemePref] = useState<ThemePreference>({ tone: 'solid', mode: 'system' })
-  const [readerMode, setReaderMode] = useState<ReaderMode>('scroll')
   const [importRecursive, setImportRecursive] = useState(false)
   const [logs, setLogs] = useState<string[]>([])
   const themePrefRef = useRef<ThemePreference>({ tone: 'solid', mode: 'system' })
@@ -65,12 +58,6 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
       // 载入时只应用、不写盘 —— 否则每次启动都产生一次无意义的 JSON 全量重写
       applyThemePref(normalizeThemeSetting(cfg.theme), false)
     })
-    // 只读 readerMode；阅读宽度等**高频显示参数归阅读器挂载线面板**（ReaderFeature 拥有，避免两个写者）
-    void container.store
-      .getSetting<{ readerMode?: ReaderMode }>('readerSettings', {})
-      .then((cfg) => {
-        if (cfg.readerMode) setReaderMode(cfg.readerMode)
-      })
     void container.store
       .getSetting<LibrarySettings>('librarySettings', DEFAULT_LIBRARY)
       .then((cfg) => setImportRecursive(cfg.importRecursive === true))
@@ -102,15 +89,6 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
   const changeMode = useCallback(
     (mode: ThemeModeSetting) => applyThemePref({ ...themePrefRef.current, mode }),
     [applyThemePref]
-  )
-
-  const changeReaderMode = useCallback(
-    (m: ReaderMode) => {
-      setReaderMode(m)
-      // 局部更新（原子合并）：readerSettings 由本页与阅读器挂载线面板共写，不能整键覆盖
-      void container.store.patchSetting('readerSettings', { readerMode: m })
-    },
-    [container]
   )
 
   const toggleImportRecursive = useCallback(() => {
@@ -155,26 +133,6 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
                 key={m.value}
                 onClick={() => changeMode(m.value)}
                 className={themePref.mode === m.value ? segActive : segIdle}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </Field>
-
-      <Field
-        title="閱讀器"
-        hint="佈局模式重開書生效。**高頻的顯示設計（字號/行距/段距/紙寬/內邊距）在閱讀器裏**——貼右緣的召喚條，不必回設置頁（見 STYLE.md §5.9 的可調參數清單）。"
-      >
-        <div className="flex flex-wrap items-center gap-5">
-          <div className="flex items-center gap-3">
-            <span className="text-[12px] text-[var(--muted)]">佈局</span>
-            {READER_MODES.map((m) => (
-              <button
-                key={m.value}
-                onClick={() => changeReaderMode(m.value)}
-                className={readerMode === m.value ? segActive : segIdle}
               >
                 {m.label}
               </button>

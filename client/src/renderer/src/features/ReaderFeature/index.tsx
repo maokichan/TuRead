@@ -60,9 +60,12 @@ export function ReaderFeature({
   /** 目录垂挂列表开关（TocPanel）。**默认展示**（用户 2026-09-11 定）：只有当用户主动
    *  「折疊」/`t` 时才临时隐藏；点条目跳转**不**改变它，且不持久化（重开书回到展示态）。 */
   const [tocOpen, setTocOpen] = useState(true)
-  /** 右侧阅读参数面板（默认收起：阅读页零控件，STYLE.md §5.8） */
-  const [controlsOpen, setControlsOpen] = useState(false)
+  /** 右侧阅读参数面板。**默认展开**（2026-09-13 用户定，废 v0.1.12 的"默认收起"）：
+   *  折叠是临时动作（「折疊」/点挂载线右段/`p`），重开书回到展示态。 */
+  const [controlsOpen, setControlsOpen] = useState(true)
   const [params, setParams] = useState<ReaderParams>(DEFAULT_READER_PARAMS)
+  /** 布局模式改动 = 重开书（kookit config 只在 open 时消费）；tick 触发打开 effect 重跑 */
+  const [reopenTick, setReopenTick] = useState(0)
   const paramsRef = useRef<ReaderParams>(DEFAULT_READER_PARAMS)
   const stageRef = useRef<HTMLDivElement | null>(null)
   const lastSavedAtRef = useRef(0)
@@ -86,10 +89,11 @@ export function ReaderFeature({
     [container]
   )
 
-  /** 改参数：先应用（当场生效）再原子落库（readerSettings 与 SettingsFeature 共用一个键） */
+  /** 改参数：先应用（当场生效）再原子落库（readerSettings；设置页不再写此键，本面板是唯一写者） */
   const changeParams = useCallback(
     (patch: Partial<ReaderParams>) => {
-      const next = { ...paramsRef.current, ...patch }
+      const prev = paramsRef.current
+      const next = { ...prev, ...patch }
       paramsRef.current = next
       setParams(next)
       applyParams(next)
@@ -98,8 +102,16 @@ export function ReaderFeature({
         pagePadX: next.pagePadX,
         fontSize: next.fontSize,
         lineHeight: next.lineHeight,
-        paragraphSpacing: next.paragraphSpacing
+        paragraphSpacing: next.paragraphSpacing,
+        readerMode: next.readerMode
       })
+      // 布局模式是 kookit 渲染配置（open 时消费）→ 落库后重开书（STYLE §5.9 #9）
+      if (patch.readerMode !== undefined && patch.readerMode !== prev.readerMode) {
+        setReaderMode(patch.readerMode)
+        void container.store
+          .patchSetting('readerSettings', { readerMode: patch.readerMode })
+          .then(() => setReopenTick((t) => t + 1))
+      }
     },
     [container, applyParams]
   )
@@ -112,10 +124,12 @@ export function ReaderFeature({
         lineHeight: cfg.lineHeight ?? DEFAULT_READER_PARAMS.lineHeight,
         paragraphSpacing: cfg.paragraphSpacing ?? DEFAULT_READER_PARAMS.paragraphSpacing,
         pagePadX: cfg.pagePadX ?? DEFAULT_READER_PARAMS.pagePadX,
-        readerWidth: cfg.readerWidth ?? DEFAULT_READER_PARAMS.readerWidth
+        readerWidth: cfg.readerWidth ?? DEFAULT_READER_PARAMS.readerWidth,
+        readerMode: cfg.readerMode ?? DEFAULT_READER_PARAMS.readerMode
       }
       paramsRef.current = loaded
       setParams(loaded)
+      setReaderMode(loaded.readerMode)
       applyParams(loaded)
     })
   }, [container, applyParams])
@@ -169,7 +183,7 @@ export function ReaderFeature({
         if (!latest || cancelled) return
         // 宿主容器从 display:none 切回后需等一帧再测量/渲染
         await new Promise((r) => requestAnimationFrame(() => r(null)))
-        // 布局模式来自「设置」功能组件（readerSettings，重开书生效）
+        // 布局模式来自 readerSettings（阅读参数面板是唯一写者，重开书生效）
         const cfg = await container.store.getSetting<ReaderSettings>('readerSettings', {})
         const mode = cfg.readerMode ?? 'scroll'
         setReaderMode(mode)
@@ -200,7 +214,7 @@ export function ReaderFeature({
       // 关书 / 切书 / 卸载：先落位置再让下一次 effect（或 render.close）动渲染状态
       flushLastLocation()
     }
-  }, [readerBookId, container, host, flushLastLocation])
+  }, [readerBookId, reopenTick, container, host, flushLastLocation])
 
   // 激活到阅读器时热更新主题（设置里改主题后返回阅读器不重开书也生效，STYLE.md §3.4）
   useEffect(() => {
@@ -285,7 +299,7 @@ export function ReaderFeature({
           目录折叠时点线展开——两挂件互不干扰又同处一条线 */}
       {book && (
         <ReaderRail
-          tocOpen={tocOpen && toc.length > 0}
+          tocOpen={tocOpen}
           onTocToggle={() => setTocOpen((v) => !v)}
           tocRows={toc}
           onTocJump={(r) => void jumpChapter(r)}

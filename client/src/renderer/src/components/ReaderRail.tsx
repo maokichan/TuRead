@@ -54,10 +54,9 @@ export function ReaderRail({
         />
       </div>
 
-      {/* 左挂件：目录垂挂列表（挂在线下方） */}
-      {tocOpen && tocRows.length > 0 && (
-        <TocPanel rows={tocRows} onJump={onTocJump} onToggle={onTocToggle} />
-      )}
+      {/* 左挂件：目录垂挂列表（挂在线下方）。无目录索引的书也垂挂占位说明（2026-09-13 用户定：
+          "本书没有目录索引"要可见，不静默消失——目录打不开的根因才不会被当成挂载线坏了） */}
+      {tocOpen && <TocPanel rows={tocRows} onJump={onTocJump} onToggle={onTocToggle} />}
 
       {/* 右挂件：参数面板（挂在线下方右侧；折叠 = 向上收回线里，面板底部「折疊」同目录） */}
       {controlsOpen && (
