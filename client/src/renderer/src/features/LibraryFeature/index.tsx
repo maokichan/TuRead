@@ -31,7 +31,7 @@ import { forgetCover, getCoverUrl } from '../coverCache'
 import { BookRow } from '../../components/BookRow'
 import { BookTile } from '../../components/BookTile'
 import { ContainerItem } from '../../components/ContainerItem'
-import { ContextMenu } from '../../components/ContextMenu'
+import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
 import { BookDetailPanel } from '../../components/BookDetailPanel'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { LibraryManagerDialog } from '../../components/LibraryManagerDialog'
@@ -48,7 +48,7 @@ type LevelItem =
 
 type TrailEntry = { label: string; containerId: string | null; folder: string | null }
 
-type CtxMenuState = { x: number; y: number; items: Array<{ label: string; onClick: () => void }> }
+type CtxMenuState = { x: number; y: number; items: ContextMenuItem[] }
 
 export function LibraryFeature({
   container,
@@ -382,7 +382,8 @@ export function LibraryFeature({
   /**
    * 書箱操作（资源管理器语义，2026-09-13 用户定）：
    * 新建 = 立即建出「新建書箱」并进入行内更名；更名 = F2/右键 → Enter/失焦提交（**不用 Esc**）；
-   * 移除 = Delete/右键（有子書箱时后端拒绝并日志）；拖书入箱 = 移动（单亲归属）。
+   * 移除 = Delete/右键（有子書箱时后端拒绝并日志）；拖书入箱 = 移动（单亲归属）；
+   * 書箱本身可拖（拖箱入箱 / 拖到面包屑段）；书与書箱右键「移動到」= 上層/根層/兄弟書箱。
    */
   const createContainerHere = useCallback(
     async (parentId: string | null): Promise<void> => {
@@ -433,15 +434,35 @@ export function LibraryFeature({
         const where =
           targetId === null
             ? '上一層'
-            : (await container.store.listContainers(navRef.current.containerId)).find(
-                (c) => c.id === targetId
-              )?.name ?? '書箱'
+            : (containers.find((c) => c.id === targetId)?.name ??
+              trail.find((t) => t.containerId === targetId)?.label ??
+              '書箱')
         host.pushLog(`已移动《${book?.metadata.title ?? bookId}》到 ${where}`)
       } catch (err) {
         host.pushLog(`移动失败：${(err as Error).message}`)
       }
     },
-    [books, container, host, commitNav]
+    [books, containers, trail, container, host, commitNav]
+  )
+
+  /**
+   * 移动書箱（资源管理器"剪切文件夹"语义）：拖箱入箱 / 拖到面包屑段。
+   * 同层原地放 = 无操作（ parentId 没变就不打数据库也不刷日志）；成环由后端拒绝并日志。
+   */
+  const moveContainerHere = useCallback(
+    async (containerId: string, targetParentId: string | null, targetLabel: string): Promise<void> => {
+      const c = containers.find((x) => x.id === containerId)
+      if (!c) return
+      if (c.parentId === targetParentId) return
+      try {
+        await container.store.moveContainer(containerId, targetParentId)
+        commitNav(navRef.current)
+        host.pushLog(`已移动書箱「${c.name}」到「${targetLabel}」`)
+      } catch (err) {
+        host.pushLog(`移动書箱失败：${(err as Error).message}`)
+      }
+    },
+    [containers, container, host, commitNav]
   )
 
   /** 書箱键盘（资源管理器语义）：Enter 进入；F2 更名；Delete 移除。
@@ -463,7 +484,46 @@ export function LibraryFeature({
     [renamingContainerId, enterContainer, removeContainerById]
   )
 
-  /** 内容区右键：書箱 = 新建子書箱/更名/移除；书 = 打开/详情/移除；空白（自建）= 新建書箱 */
+  /** 「移動到」子菜单（自建模式）：上一層（父层，可出書箱）+ 根層（跳层）+ 当前层各兄弟書箱 */
+  const parentOfCurrent = trail.length >= 2 ? (trail[trail.length - 2].containerId ?? null) : null
+  const parentLabel = trail.length >= 2 ? (trail[trail.length - 2]?.label ?? '上一層') : '根層'
+  const bookMoveChildren = (b: BookRecord): ContextMenuItem[] => {
+    if (libMode !== 'virtual') return []
+    const children: ContextMenuItem[] = []
+    if (navRef.current.containerId) {
+      children.push({
+        label: parentOfCurrent === null ? '上一層（到根層）' : `上一層（${parentLabel}）`,
+        onClick: () => void moveBook(b.id, parentOfCurrent)
+      })
+      if (parentOfCurrent !== null) {
+        children.push({ label: '根層', onClick: () => void moveBook(b.id, null) })
+      }
+    }
+    for (const c of containers) {
+      children.push({ label: c.name, onClick: () => void moveBook(b.id, c.id) })
+    }
+    return children
+  }
+  const containerMoveChildren = (c: BookContainer): ContextMenuItem[] => {
+    if (libMode !== 'virtual') return []
+    const children: ContextMenuItem[] = []
+    if (navRef.current.containerId) {
+      children.push({
+        label: parentOfCurrent === null ? '上一層（到根層）' : `上一層（${parentLabel}）`,
+        onClick: () => void moveContainerHere(c.id, parentOfCurrent, parentLabel)
+      })
+      if (parentOfCurrent !== null) {
+        children.push({ label: '根層', onClick: () => void moveContainerHere(c.id, null, libName || '書庫') })
+      }
+    }
+    for (const sib of containers) {
+      if (sib.id === c.id) continue
+      children.push({ label: sib.name, onClick: () => void moveContainerHere(c.id, sib.id, sib.name) })
+    }
+    return children
+  }
+
+  /** 内容区右键：書箱 = 新建子書箱/更名/移動到/移除；书 = 打开/詳情/移動到/移除；空白（自建）= 新建書箱 */
   const onContentContextMenu = useCallback(
     (e: React.MouseEvent): void => {
       const target = e.target as HTMLElement
@@ -473,12 +533,14 @@ export function LibraryFeature({
         const c = containers.find((x) => x.id === containerEl.dataset.containerId)
         if (!c) return
         setActiveContainerId(c.id)
+        const moveChildren = containerMoveChildren(c)
         setCtxMenu({
           x: e.clientX,
           y: e.clientY,
           items: [
             { label: '新建子書箱', onClick: () => void createContainerHere(c.id) },
             { label: '更名', onClick: () => setRenamingContainerId(c.id) },
+            ...(moveChildren.length > 0 ? [{ label: '移動到', children: moveChildren }] : []),
             { label: '移除', onClick: () => void removeContainerById(c.id) }
           ]
         })
@@ -489,12 +551,14 @@ export function LibraryFeature({
         e.preventDefault()
         const b = books.find((x) => x.id === bookEl.dataset.bookId)
         if (!b) return
+        const moveChildren = bookMoveChildren(b)
         setCtxMenu({
           x: e.clientX,
           y: e.clientY,
           items: [
             { label: '打開', onClick: () => openBook(b.id) },
             { label: '詳情', onClick: () => openDetail(b.id) },
+            ...(moveChildren.length > 0 ? [{ label: '移動到', children: moveChildren }] : []),
             { label: '從書庫移除', onClick: () => requestDelete(b) }
           ]
         })
@@ -514,11 +578,14 @@ export function LibraryFeature({
       containers,
       books,
       libMode,
+      trail,
       createContainerHere,
       removeContainerById,
       openBook,
       openDetail,
-      requestDelete
+      requestDelete,
+      moveBook,
+      moveContainerHere
     ]
   )
 
@@ -596,7 +663,13 @@ export function LibraryFeature({
       onContentContextMenu(e)
     },
     onRenameCommit: (name: string) => void commitContainerRename(c.id, name),
-    onDropBook: (bookId: string) => void moveBook(bookId, c.id)
+    onDropBook: (bookId: string) => void moveBook(bookId, c.id),
+    // 書箱也是拖拽源（资源管理器"剪切文件夹"）：拖箱入箱 / 拖到面包屑段 = 移动
+    onDragStart: (e: React.DragEvent) => {
+      e.dataTransfer.setData('text/turead-container-id', c.id)
+      e.dataTransfer.effectAllowed = 'move'
+    },
+    onDropContainer: (id: string) => void moveContainerHere(id, c.id, c.name)
   })
 
   const folderProps = (f: { name: string; path: string }) => ({
@@ -627,12 +700,14 @@ export function LibraryFeature({
   }
 
   // 面包屑（状态栏右端"当前层级"）：根 = 库名，其后是書箱名（自建）/ 文件夹名（虚拟映射）。
-  // 面包屑也是拖放目标：书拖到某段 = 移动到该层（根段 = 移出書箱，仅自建模式）
+  // 面包屑也是拖放目标：书/書箱拖到某段 = 移动到该层（根段 = 移出書箱，仅自建模式）
   const crumbs = [
     {
       label: libName || '書庫',
       onGo: () => goToLevel(-1),
-      onDropBook: libMode === 'virtual' ? (id: string) => void moveBook(id, null) : undefined
+      onDropBook: libMode === 'virtual' ? (id: string) => void moveBook(id, null) : undefined,
+      onDropContainer:
+        libMode === 'virtual' ? (id: string) => void moveContainerHere(id, null, libName || '書庫') : undefined
     },
     ...trail.map((t, i) => ({
       label: t.label,
@@ -640,6 +715,10 @@ export function LibraryFeature({
       onDropBook:
         libMode === 'virtual' && t.containerId
           ? (id: string) => void moveBook(id, t.containerId)
+          : undefined,
+      onDropContainer:
+        libMode === 'virtual' && t.containerId
+          ? (id: string) => void moveContainerHere(id, t.containerId, t.label)
           : undefined
     }))
   ]

@@ -404,6 +404,20 @@ interface ILibraryStore {
   switchLibrary(id: string): Promise<void>;
   /** 更名（显示名，文件路径不变；不切库、不广播） */
   renameLibrary(id: string, name: string): Promise<LibraryEntry>;
+  // —— 書箱 / 层级浏览（v0.3.7，2026-09-13；虚拟映射模式的"文件夹"不落库、不经这里）——
+  /** 当前层级的子書箱（parentId=null = 根层） */
+  listContainers(parentId: string | null): Promise<BookContainer[]>;
+  /** 新建書箱（parentId=null = 根层） */
+  createContainer(params: { parentId: string | null; name: string }): Promise<BookContainer>;
+  renameContainer(id: string, name: string): Promise<void>;
+  /** 移除書箱（有子書箱时拒绝——先清空子级，防误删整棵子树） */
+  removeContainer(id: string): Promise<void>;
+  /** 按层级取书：containerId=null=根层未入箱书 / containerId=某書箱=其成员 / folder=虚拟映射当前文件夹 */
+  listBooksAtLevel(query: { containerId?: string | null; folder?: string }): Promise<BookRecord[]>;
+  /** 移动书到書箱（单亲归属；containerId=null = 移回根层） */
+  moveBookToContainer(bookId: string, containerId: string | null): Promise<void>;
+  /** v0.3.8：移动書箱（parentId=null = 移回根层）；目标是自己或自己的后代时拒绝（防成环） */
+  moveContainer(id: string, parentId: string | null): Promise<void>;
 }
 ```
 
@@ -576,6 +590,7 @@ interface ServiceContainer {
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v0.3.7 | 2026-09-13 | **书库双模式 + 层级浏览**：§2 `LibraryEntry` 增 `mode?`('source'\|'virtual'，**建库二选一**)与 `rootPath?`（虚拟映射跟踪的唯一真实文件夹）、增 `BookContainer`；§4.4 增書箱 CRUD（`listContainers`/`createContainer`/`renameContainer`/`removeContainer`）与 `listBooksAtLevel`（层级取书：containerId=null=根层未入箱书 / folder=虚拟映射当前文件夹）；§4.5 `IBookPicker` 增 `listSubdirectories`；桥增 `getPathForFile`（拖拽导入取真实路径，Electron ≥29 移除 File.path）。口径：**资源管理器式层级**——書箱/文件夹与书籍外观相似、单击进入，当前层级 = 状态栏右端面包屑；虚拟映射不落 containers 行（按 rootPath 动态派生） |
+| v0.3.8 | 2026-09-13 | **書箱移动**：§4.4 增 `moveContainer(id, parentId)`（资源管理器"剪切文件夹"语义；parentId=null = 移回根层；目标是自己或自己的后代时拒绝防成环）——支撑拖箱入箱 / 拖到面包屑段 / 右键「移動到」。§4.4 代码块补齐 v0.3.7 漏登的書箱方法（文档债务） |
 | v0.3.6 | 2026-09-13 | **書庫管理弹窗**：§2 `LibraryEntry` 增 `dbPath?`（仅供展示/揭示）；§4.4 增 `renameLibrary(id, name)`（显示名，路径不变，不切库不广播）。UI 入口 = 状态栏「書庫」→ 管理弹窗（Obsidian 仓库管理页风格：列表/切换/新建/更名/所在文件夾），替换原下拉菜单 |
 | v0.3.5 | 2026-09-13 | **多书库契约**：§2 增 `LibraryEntry`；§4.4 `ILibraryStore` 增 `listLibraries` / `createLibrary` / `switchLibrary`。口径：一个条目 = 一份 .db 书库；`config.json` 降级为**引导文件**（库注册表 + 当前库 id，DATA_MODEL §1）；切换/新建成功后 main 广播 `library-changed`，渲染层各 Feature 以广播为"当前库已变"信号重载自己的状态（选中/阅读器由 AppShell 清理）。设置（主题/阅读参数）**随库走**（存于各库 settings 表） |
 | v0.3.4 | 2026-09-12 | **封面失败负缓存**：§2 `BookRecord` 增 `coverFailed?`（永久性失败只试一次，不随启动「存量补封面」重试）。背景：书库 328 本实测，启动补封面把渲染主线程整个饿死（kookit getMetadata 在主线程解析全书）且失败书每次启动反复重解析 | 

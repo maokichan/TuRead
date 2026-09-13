@@ -37,6 +37,7 @@ export const IPC = {
   storeRemoveContainer: 'store:remove-container',
   storeListBooksAtLevel: 'store:list-books-at-level',
   storeMoveBook: 'store:move-book',
+  storeMoveContainer: 'store:move-container',
   // 在系统文件管理器中显示文件（库管理弹窗：「所在文件夾」）
   fsShowInFolder: 'fs:show-in-folder',
   // 列目录子目录（虚拟映射模式的层级浏览）

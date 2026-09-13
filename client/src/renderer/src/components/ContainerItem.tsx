@@ -20,6 +20,10 @@ interface ContainerItemProps {
   onRenameCommit?: (name: string) => void
   /** 页面内拖拽目标：书拖到書箱上 = 移动进此書箱 */
   onDropBook?: (bookId: string) => void
+  /** 页面内拖拽目标：書箱拖到書箱上 = 移动为此書箱的子書箱 */
+  onDropContainer?: (containerId: string) => void
+  /** 拖拽源（書箱条目才有；文件夹条目不拖——真实文件系统不动） */
+  onDragStart?: (e: React.DragEvent) => void
 }
 
 /**
@@ -38,7 +42,9 @@ export function ContainerItem({
   onKeyDown,
   onContextMenu,
   onRenameCommit,
-  onDropBook
+  onDropBook,
+  onDropContainer,
+  onDragStart
 }: ContainerItemProps): React.JSX.Element {
   const [dropHover, setDropHover] = useState(false)
   /** 更名草稿（组件内自持；提交 = Enter 或失焦，空值 = 保留原名） */
@@ -60,22 +66,28 @@ export function ContainerItem({
     if (renaming) onRenameCommit?.(draft.trim() || name)
   }
 
-  const dragHandlers = onDropBook
-    ? {
-        onDragOver: (e: React.DragEvent): void => {
-          e.preventDefault()
-          e.dataTransfer.dropEffect = 'move'
-          setDropHover(true)
-        },
-        onDragLeave: (): void => setDropHover(false),
-        onDrop: (e: React.DragEvent): void => {
-          e.preventDefault()
-          setDropHover(false)
-          const id = e.dataTransfer.getData('text/turead-book-id')
-          if (id) onDropBook(id)
+  const dragHandlers =
+    onDropBook || onDropContainer
+      ? {
+          onDragOver: (e: React.DragEvent): void => {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'move'
+            setDropHover(true)
+          },
+          onDragLeave: (): void => setDropHover(false),
+          onDrop: (e: React.DragEvent): void => {
+            e.preventDefault()
+            setDropHover(false)
+            const bookId = e.dataTransfer.getData('text/turead-book-id')
+            if (bookId) {
+              onDropBook?.(bookId)
+              return
+            }
+            const containerId = e.dataTransfer.getData('text/turead-container-id')
+            if (containerId) onDropContainer?.(containerId)
+          }
         }
-      }
-    : {}
+      : {}
 
   if (view === 'grid') {
     return (
@@ -89,7 +101,8 @@ export function ContainerItem({
       onDoubleClick={onOpen}
       onKeyDown={onKeyDown}
       onContextMenu={onContextMenu}
-      draggable={!renaming}
+      draggable={!renaming && !!onDragStart}
+      onDragStart={onDragStart}
       {...dragHandlers}
       className={`group flex cursor-pointer flex-col gap-1.5 ${dropHover ? 'opacity-80' : ''}`}
     >
@@ -139,7 +152,8 @@ export function ContainerItem({
       onDoubleClick={onOpen}
       onKeyDown={onKeyDown}
       onContextMenu={onContextMenu}
-      draggable={!renaming}
+      draggable={!renaming && !!onDragStart}
+      onDragStart={onDragStart}
       {...dragHandlers}
       className={`relative h-16 cursor-pointer overflow-hidden rounded-lg border transition-colors ${
         active

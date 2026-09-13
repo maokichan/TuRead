@@ -379,6 +379,27 @@ export class SqliteStore {
     tx()
   }
 
+  /**
+   * 移动書箱到另一个書箱下（资源管理器语义 = 移动；parentId=null = 移回根层）。
+   * 沿目标祖先链上行查环：目标是自己或自己的后代时拒绝（树不许成环）。
+   */
+  async moveContainer(id: string, parentId: string | null): Promise<void> {
+    if (id === parentId) throw new Error('不能把書箱移进它自己')
+    if (parentId !== null) {
+      const exists = this.db.prepare('SELECT 1 FROM containers WHERE id = ?').get(parentId)
+      if (!exists) throw new Error('目标書箱不存在')
+      let cursor: string | null = parentId
+      while (cursor !== null) {
+        if (cursor === id) throw new Error('不能把書箱移进它自己的子書箱')
+        const row = this.db
+          .prepare('SELECT parent_id FROM containers WHERE id = ?')
+          .get(cursor) as { parent_id: string | null } | undefined
+        cursor = row?.parent_id ?? null
+      }
+    }
+    this.db.prepare('UPDATE containers SET parent_id = ? WHERE id = ?').run(parentId, id)
+  }
+
   async listBooksAtLevel(query: LibraryLevelQuery): Promise<BookRecord[]> {    if (query.folder != null) {
       // 虚拟映射：直接位于该文件夹的书（子文件夹的书属于子层级）
       const rows = this.db.prepare('SELECT * FROM books ORDER BY created_at').all()

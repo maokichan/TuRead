@@ -73,4 +73,9 @@ export interface ILibraryStore {
    * 清掉旧归属再落到新書箱；containerId=null = 移回根层/移出書箱）。
    */
   moveBookToContainer(bookId: string, containerId: string | null): Promise<void>
+  /**
+   * 移动書箱到另一个書箱下（资源管理器"剪切文件夹"语义；parentId=null = 移回根层）。
+   * 目标是自己或自己的后代时拒绝——树不许成环。
+   */
+  moveContainer(id: string, parentId: string | null): Promise<void>
 }

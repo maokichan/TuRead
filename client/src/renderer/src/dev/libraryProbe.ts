@@ -97,6 +97,30 @@ export function runLibraryProbe(container: ServiceContainer, host: FeatureHost):
       await container.store.removeContainer(c1.id)
       assert((await container.store.listContainers(null)).length === 0, '空書箱可移除')
 
+      // ③c+ 書箱移动（moveContainer）：拖箱入箱的后端语义——入箱 / 防成环 / 移回根层
+      const pa = await container.store.createContainer({ parentId: null, name: '移動父箱' })
+      const child = await container.store.createContainer({ parentId: pa.id, name: '子箱' })
+      const other = await container.store.createContainer({ parentId: null, name: '旁箱' })
+      await container.store.moveContainer(other.id, child.id)
+      const childSubs = await container.store.listContainers(child.id)
+      assert(childSubs.length === 1 && childSubs[0].id === other.id, '書箱可移入另一个書箱')
+      let cycleRejected = false
+      try {
+        await container.store.moveContainer(pa.id, child.id) // pa 是 child 的祖先
+      } catch {
+        cycleRejected = true
+      }
+      assert(cycleRejected, '移进自己的后代被拒绝（防成环）')
+      await container.store.moveContainer(other.id, null)
+      assert(
+        (await container.store.listContainers(null)).find((c) => c.id === other.id) != null,
+        '書箱可移回根层'
+      )
+      await container.store.removeContainer(child.id)
+      await container.store.removeContainer(pa.id)
+      await container.store.removeContainer(other.id)
+      assert((await container.store.listContainers(null)).length === 0, '移动断言清理干净')
+
       // ③d 虚拟映射建库：mode/rootPath 必须持久化（初始扫描导入是弹窗层职责，不在此探针）
       const srcDir = devBook.replace(/[\\/][^\\/]+$/, '')
       await container.store.createLibrary('映射庫', 'source', srcDir)

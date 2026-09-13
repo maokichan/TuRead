@@ -104,4 +104,8 @@ export class IpcStoreAdapter implements ILibraryStore {
   async moveBookToContainer(bookId: string, containerId: string | null): Promise<void> {
     await this.bridge.invoke(IPC.storeMoveBook, { bookId, containerId })
   }
+
+  async moveContainer(id: string, parentId: string | null): Promise<void> {
+    await this.bridge.invoke(IPC.storeMoveContainer, { id, parentId })
+  }
 }
