@@ -20,6 +20,26 @@
 
 依赖注入：构造 `new KookitRenderAdapter(readFile)`，`readFile: (path) => Promise<ArrayBuffer>` —— 封装层不碰 IPC/Electron。
 
+> **⚠ 「谁在画」——一条容易记错的边界（2026-09-14 用户询问后写清）**
+>
+> 现在的分工是：**我们把渲染整个交给 kookit，我们只提供容器 + 注入样式 + 调用引擎原语。**
+> 具体地，**不是**我们负责的部分：
+> - **正文排版**（分章、分页、滚动态、列宽）：kookit 的渲染类（`GeneralRender` / `PdfRender`…）。
+> - **高亮的绘制**：kookit 的 `highlightRange` 把命中的文本节点**包成行内 `<span class="kookit-note">`**。
+>   这是**有意**的取舍（bundle 内注释即写明）：行内 span 是文档流的一部分 → **内容重排时自动跟着走**，
+>   不会错位；而"绝对定位的覆盖层"会因 `::after`、翻译、重排而失准。
+> - **高亮的创建/删除**：也是 kookit（`createOneNote` / `removeOneNote` / `renderHighlighters`）——
+>   我们只把载荷（JSON 字符串 range + `"background-#hex"` 色 + 字符串批注）喂进去。
+>
+> **我们真正拥有的**：宿主容器 `#page-area` 与其几何、宿主 CSS token、注入书文档的那份样式
+> （`buildReaderCss`：纸内边距 / 排版参数 / 深色配色 / **`::selection`**）、挂载线与各面板、
+> 右键菜单、以及**锚点的语义层**（`TextAnchor` / 定位转换机制）。
+>
+> **什么时候才需要"我们自己的覆盖层"**：当标记**锚在几何而非内容流**时。当前唯一的这类东西是
+> **墨迹（`kind='ink'`）** —— 矢量笔画脱离版面坐标无意义，布局引擎管不了，必须我们自己铺一层画
+> （`DATA_MODEL.md` §3.3 的"覆盖层位图缓存"就是这个意思，**不是**要替换正文渲染）。
+> 另两种会逼出覆盖层的情形：kookit 画不出的视觉（页边标记、跨页连线等）、以及将来换渲染内核。
+
 ---
 
 ## 2. 生命周期
@@ -76,24 +96,56 @@
 
 ## 5. 笔记/高亮（位置相关能力的完整链路）
 
+> **状态（2026-09-14）**：本节描述的链路**已落地**（文字类；PDF 第二批）。契约 = CONTRACTS §2（Note v2 +
+> 选区级锚点层）与 §4.1（引擎侧原语）；建模 = `DATA_MODEL.md` §3.1/§3.1.1。
+> 实现 = `domain/anchor.ts`（纯函数）+ `kookitRenderAdapter.ts`（引擎侧）。**逆向事实以本节为准。**
+
 **为什么在单体内**（详见 `KOOKIT.md` §2 讨论）：选区落在 kookit 渲染的 iframe 内部文档，
-外层无法访问内部节点；`range` 是格式相关序列化（EPUB→rangy 字符偏移、PDF→页码+视口坐标），
-只有引擎能生成与回显。封装层暴露三个原语：
+外层无法访问内部节点；载荷是格式相关序列化（文字类→**rangy 字符偏移**、PDF→页码+视口坐标），
+只有引擎能生成与回显。封装层暴露的原语（**已实现**）：
 
 ```
-UI 选段（iframe 内用户选中）→ 引擎生成 range（createOneNote 前，内部 getNotePosition/getHightlightCoords）
-→ Note 落库（外层 store，含 location + range）
-→ 重开书 renderHighlighters(notes) 回显
-→ removeNote(key) 删除
+引擎侧（适配器）                          纯函数侧（domain/anchor.ts）
+getSelectionAnchor()  ← fromSelection     normalizeAnchor / compareAnchor
+resolveAnchor(a)      ← resolveToView     anchorStrengthOf / quoteSimilarity
+remeasureAnchor(a)    ← remeasure         describeAnchor
+                                          anchorToColumns / columnsToAnchor（落库映射）
 ```
 
-**Note 字段语义**（领域类型 `Note`，CONTRACTS §2）：
-- `location: BookLocation` —— 位置锚点（跨版本兜底 + 同步用）
-- `range: string` —— 引擎内部序列化（EPUB：rangy 字符偏移；PDF：页码+坐标）—— **重开回显的精确依据**
+完整链路（文字类）：
+
+```
+UI 选段（iframe 内用户选中，适配器在书文档上听 mouseup/keyup）
+→ 适配器发 'selection-changed'（带 TextAnchor）→ UI 弹色板
+→ 用例层包成 Note（id/时间戳）→ ILibraryStore.addNote（notes 表）
+→ 重开书 / 每章 rendered 后 → renderHighlighters(notes 按当前节过滤) 回显
+→ removeNote(id) 删除
+```
+
+**锚点三层证据**（`TextAnchor`，CONTRACTS §2）：
+- `norm.chapterIndex` —— 章（PDF = 页码）；**跨格式可比层**
+- `norm.progression` —— 章内进度（**按字符位置**算，与排版无关；改字号/行距不漂移）
+- `norm.quote.{exact,prefix,suffix}` —— 划线原文快照 + 前后文（**锚点证据，非笔记内容**）→
+  `exact` 落 `excerpt` 列，前后文并入 `anchor_hint` JSON
+- `fragment.{engine,key}` —— **引擎精确载荷**：`engine='kookit-rangy'`，
+  `key` = `JSON.stringify(getHightlightCoords())` 的 rangy 序列化字符范围 → 落 `anchor_key` 列
 - `bookId` —— 关联本地 BookRecord；书可重下/替换，笔记不丢
 
-**持久化**：笔记是**书外数据**，存 `ILibraryStore`（JSON 起步，未来 sqlite），
+**四条实测硬约束**（`note` 探针全绿验证，改动前先读）：
+1. `createOneNote` / `renderHighlighters` 都做 `JSON.parse(item.range)` → **载荷必须是 JSON 字符串**。
+2. kookit 颜色要 `"background-#RRGGBB"` 形态（`buildHighlightStyleForType` 按 `-` 切分）；
+   传裸 hex 会 switch 无命中而**静默不显色**。⚠ 高亮 span 长在**书的 iframe** 里 →
+   宿主 CSS 变量不跨文档继承，颜色必须由适配器解析成具体值再内联（不能用 `var()`）。
+3. `renderHighlighters` **只对当前已渲染的那一节生效**（文字类只有一个 iframe）→ 适配器按
+   `renderedChapter` 过滤；**调用方须在每次 `rendered` 后重调**（换章 = 换 document）。
+4. kookit 内部 `notes.reverse()` **原地改入参** → 适配器必须传**拷贝**。
+
+**持久化**：笔记是**书外数据**，存 `ILibraryStore`（notes 表；一库一 .db），
 不写进电子书文件；同步（v1 明确排除）将来在用例层加 `room.note` 信封广播。
+
+**重锚（remeasure）的诚实边界**：kookit 搜索（`getSearchResult`）返回 `{excerpt, cfi}`，`cfi` 是含
+`chapterDocIndex` 的 JSON 串，**没有字符偏移** → 重锚只能重建到**章级**，产出**弱锚点**
+（`fragment = null`）。这不是缺陷：弱锚点仍可回跳，用户在该处重新划线即可升级为强锚点。
 
 **多端一致性警告（PDF 场景）**：见 `KOOKIT.md` §8.2 —— OCR 文本化的 range/text 跨引擎不一致，
 PDF 笔记优先走坐标（页码+视口坐标），text 兜底仅在同 OCR 引擎族内有效。

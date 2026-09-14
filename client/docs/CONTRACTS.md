@@ -178,17 +178,76 @@ interface Chapter {
   subitems?: Chapter[];
 }
 
-/** 笔记/划线（v1 可选实现，接口先立；range 为格式相关序列化，与 kookit 对齐） */
+/* ————— 定位转换机制：选区级锚点（v0.3.9；DATA_MODEL §3.1/§3.1.1 已批复）—————
+ * 两层：归一化层 Norm（跨格式可比，笔记层/存储/同步**只看这层**）
+ *     + 引擎载荷层 Fragment（engine 标识 + 不透明编码串，**只有适配器解释**）。
+ * 纯函数权威 = `core/domain/anchor.ts`；引擎侧原语（fromSelection/resolveToView/remeasure）
+ * 在渲染适配器。⚠ 与进度级 BookLocation 的分工：「读到哪」≠「标在哪」。 */
+interface AnchorQuote {        // 划线时刻的书籍原文快照 —— 定位证据，不归 Note 侧（§3.1.1 ①）
+  exact: string                // 选中原文（权威在此；notes 表 excerpt 列只是投影）
+  prefix: string               // 选区前文（重锚消歧）→ 并入 notes 表 anchor_hint JSON
+  suffix: string
+}
+interface AnchorNorm {
+  chapterIndex: number         // 章（kookit 分节）序号；PDF = 页码（= notes 表 chapter_index）
+  progression: number          // 章内进度 0~1（粗排序/粗回跳，不作精确判定）
+  quote: AnchorQuote
+}
+interface AnchorFragment {
+  engine: string               // 载荷来源（文字类 'kookit-rangy'；PDF 'kookit-pdf-rect'）
+  key: string                  // 不透明编码串 = notes 表 anchor_key（逐字节原样存，不套壳）
+}
+interface TextAnchor {
+  norm: AnchorNorm
+  fragment: AnchorFragment | null   // null = 只能粗回跳 + 靠 quote 重锚
+}
+type AnchorMatch = 'exact' | 'strong' | 'weak' | 'unrelated'   // compareAnchor 的强弱标注
+
+/**
+ * 笔记种类。
+ *
+ * ⚠ **已定决策（2026-09-14 用户定，记录在此以防将来反复）**：
+ * **「笔记/批注」与「划线」是同一个东西** —— 用户原话："即便是笔记/批注，也仍然是需要有对应的
+ * 划线的啊，某一个笔记还是要关乎于某个内容的"；并判定**不做"纯批注"**（只有标记点、没有底色的
+ * 那种形态）"没有太多必要"。
+ * 含义：**一条笔记必然带划线**（锚点 = 一段正文范围），它的"文字内容"是**可选**的（`body` 可空）。
+ * 即：`body` 有值 ≈ 俗称"批注"，`body` 为空 ≈ 俗称"划线"，**但它们是同一个实体，不是两个**。
+ *
+ * 因此 `kind` 的**应然语义是"载体类型"**（承载方式真正不同的东西），**不是"创建来路"**：
+ * - `highlight` —— 锚在一段正文范围上（**当前唯一的笔记形态**；带不带 `body` 都是它）；
+ * - `bookmark` —— 标一个位置，但**无文本范围**（"读到哪"而非"标在哪"，尚无 UI）；
+ * - `ink` —— 锚在几何画布的矢量墨迹（脱离版面坐标无意义，见 DATA_MODEL §3.3）；
+ * - ~~`note`~~ —— **本值已定退役**：它原本表达"批注"，但批注既然就是"带正文的划线"，
+ *   再留一个值只会造成"同内容两个名字"（先划线后补正文的 = `highlight`，直接用「加批註」建的
+ *   = `note`，两者内容一模一样却类型不同 —— 标签取决于**历史**而非**当前状态**，是坏模型）。
+ *
+ * ⚠ **代码尚未改（用户定：概念先记档，具体修改另议）**：当前实现仍会写入 `kind='note'`
+ * （见 `ReaderFeature.createMark`），UI 也仍有「標記」/「加批註」两个命令。
+ * **收敛计划**（待用户批准后执行）：① `NoteKind` 去掉 `'note'`；② 交互层不再有两个命令
+ * （统一为"标记 + 可选正文"）；③ 呈现只按**有无 `body`** 区分（有 → 带批注图标，kookit 亦据此
+ * 渲染 `isNote` 与 hover tooltip）；④ 迁移：现存 `kind='note'` 的行改判为 `highlight`。
+ */
+type NoteKind = 'highlight' | 'note' | 'bookmark' | 'ink'
+type NoteColor = 'red' | 'yellow' | 'green' | 'blue'   // **语义名**，UI 按主题 token 渲染，库内无 hex
+
+/**
+ * 笔记/划线 v2（v0.3.9 收拢；**v1 形状退役**）。
+ * v1（key/location/range/text/notes）三处错位：①「读到哪」与「标在哪」混在一个 location
+ * ② 引擎载荷与语义不分层 ③ `notes` 与 kookit 同名字段撞车（kookit 的 notes = 批注正文）。
+ * 更名对照：key→id、location+range→anchor、text→anchor.norm.quote.exact、notes→body。
+ * ⚠ **不含 excerpt 字段**：notes 表的 excerpt 列是 `anchor.norm.quote.exact` 的投影。
+ */
 interface Note {
-  key: string;
-  bookId: string;
-  location: BookLocation;
-  range: string;             // 格式相关：EPUB→CFI，PDF→页码+坐标，等
-  color: string;
-  text: string;              // 选中文本
-  notes?: string;
-  createdAt: number;
-  updatedAt: number;
+  id: string                   // uuid（同步主键）
+  bookId: string
+  owner?: string | null        // 成员 token；本地笔记 null（同步上线后回填）
+  kind: NoteKind
+  anchor: TextAnchor
+  color?: NoteColor
+  body: string                 // 用户批注正文（只有这里住批注内容）
+  ink?: string                 // kind='ink'：InkStroke[] JSON
+  createdAt: number
+  updatedAt: number
 }
 
 /** 聊天消息（v0.1.5 起 server 支持；追加日志模型，历史经 REST 拉取） */
@@ -274,6 +333,33 @@ interface EventEmitter<Events extends Record<string, Listener>> {
 interface RenderServiceEvents {
   rendered: (chapterDocIndex: number) => void;
   'location-changed': (location: BookLocation) => void;
+  /** v0.3.10：正文选区变化（有选区给锚点，清空给 null）；**v0.3.11 补 `rect`**。
+   *  为什么由适配器发：选区落在**书的 iframe 内文档**里，事件跨不过文档边界（同 iframeBridge 的根因），
+   *  UI 无法自行观测 —— 观测必须发生在能碰到书文档的那一层。
+   *  `rect` = **宿主视口坐标**下的选区矩形（适配器换算好）：色板据此摆放，
+   *  UI 不必知道 iframe 的位置与内部滚动。 */
+  'selection-changed': (selection: RenderSelection | null) => void;
+  /** v0.3.12：阅读区右键 —— **新建标记/批注与编辑既有笔记的主入口**（用户定）。
+   *  由适配器发：右键落在正文 iframe 里宿主收不到；"有没有点在笔记上"只有书文档知道。
+   *  坐标已换算成宿主视口坐标；`anchor` 无选区时为 null；`noteId` 命中已有笔记时给出。 */
+  'context-menu': (request: RenderContextMenuRequest) => void;
+  /** v0.3.12：点击了某条高亮（= kookit `handleNoteClick`，取 `event.target.dataset.key`）。
+   *  `x`/`y` 由适配器**量元素矩形**得出（kookit 该回调只给 `{target}`，没有鼠标坐标）。 */
+  'note-clicked': (payload: { noteId: string; x?: number; y?: number }) => void;
+}
+
+/** v0.3.11：选区信息（锚点 + 宿主视口矩形）。 */
+interface RenderSelection {
+  anchor: TextAnchor;
+  rect: { x: number; y: number; width: number; height: number };
+}
+
+/** v0.3.12：阅读区右键请求。 */
+interface RenderContextMenuRequest {
+  x: number;
+  y: number;
+  anchor: TextAnchor | null;
+  noteId?: string;
 }
 
 interface IRenderService extends EventEmitter<RenderServiceEvents> {
@@ -306,9 +392,26 @@ interface IRenderService extends EventEmitter<RenderServiceEvents> {
   getProgress(): { totalPage: number; currentPage: number };
   getChapter(): Chapter[];
   search(keyword: string): Promise<unknown>;       // 形状待定
-  createNote(note: Note): Promise<void>;
-  removeNote(key: string): Promise<void>;
+  // ————— v0.3.10：定位转换机制的**引擎侧原语**（纯函数部分在 core/domain/anchor.ts）—————
+  /** `fromSelection`：取当前正文选区为统一锚点（无选区 / 本轮未支持格式 → null）。只读、不落库 */
+  getSelectionAnchor(): Promise<TextAnchor | null>;
+  /** `resolveToView`：跳到锚点（笔记面板点击 / 房间同步回跳）。Fragment 可解→精确，缺失→章级。
+   *  revealNoteId 给值时把该条高亮元素滚进视野（面板点击的精确落点，不依赖 Fragment 解算） */
+  resolveAnchor(anchor: TextAnchor, opts?: { revealNoteId?: string }): Promise<boolean>;
+  /** `remeasure`：Fragment 失效后按 quote 找回。⚠ kookit 搜索只给「章 + 块文本」不给字符偏移
+   *  → 产出**一定是弱锚点**（fragment=null，章级）；找不到 → null */
+  remeasureAnchor(anchor: TextAnchor): Promise<TextAnchor | null>;
+  /** v0.3.11：清掉正文里的选区。**必须由适配器提供** —— 选区在书文档里，
+   *  宿主 `document.getSelection()` 清不掉它（不清则浏览器自带选区高亮会盖住我们画的高亮）。
+   *  清完同时广播 `selection-changed = null`，UI 不必自己记得收起色板 */
+  clearSelection(): void;
+  createNote(note: Note): Promise<void>;      // v0.3.9：要求 anchor.fragment 就位，否则**抛错**（不静默 no-op）
+  removeNote(noteId: string): Promise<void>;  // v0.3.9：按 Note.id（旧参数名 key 随 v1 退役）
   renderHighlighters(notes: Note[]): Promise<void>;
+  // ⚠ v0.3.9 语义约束：**只对"当前已渲染的那一节"生效** —— kookit 文字类只有一个 iframe
+  // （GeneralRender.getIframe() = #page-area 下第一个 iframe），renderHighlighters 在该 document 上
+  // 按字符偏移重锚，跨节笔记会错位/抛错。故适配器按当前节过滤，调用方须在每次 `rendered` 后重调
+  // （换章 = 换 document）。传入数组是拷贝（kookit 内部 notes.reverse() 原地改入参）。
 }
 ```
 
@@ -589,6 +692,10 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.3.12 | 2026-09-14 | **右键成为标记/批注主入口（用户定）+ 批注落地**：① §4.1 增 `'context-menu'`（`RenderContextMenuRequest{x,y,anchor,noteId}` —— 适配器换算坐标并判定"是否点在笔记上"）与 `'note-clicked'`（点击高亮回调；`x/y` 由**量元素矩形**得出，因 kookit 该回调只给 `{target}` 无鼠标坐标）。两个事件都**必须**在适配器发（右键/点击若落在正文 iframe 内，宿主收不到，同 iframeBridge 根因）。② **UI 形态**（用户定）：右键菜单与批注面板统一为**"挂载线形态"** —— 光标处弹一条横向 1px 线、功能项自线下方生长，**摒弃圆角/阴影/卡片底**；**形态全站统一、语义按域不同**（书库 = 文件管理／阅读器 = 标记·批注）。③ **删 `SelectionPalette`**：选色板被右键菜单取代（"新建无论是高亮还是批注，最好的方法还是右键"），避免两个入口语义重叠；`selection-changed` 保留（决定菜单「新建」是否可用 + 键盘流程定位）。④ **批注**：`NoteComposer` 为**受控组件**（正文 state 由 ReaderFeature 持有 —— 以便键盘意图能**从外部提交当前输入**）；`kind` 记录**创建来路**（选色 → `highlight`／写批注 → `note`），编辑正文不改 kind。⑤ **键盘接口预留**：`DEFAULT_BINDINGS` 增 `reader.markSelection` / `annotateSelection` / `composerCommit` / `composerCancel` —— **键位故意留空**，行为已就位，待配键方案定下后只填表。⑥ **侧键**：阅读器内 `XButton1/2` = 翻页（与书库域的后退/前进**按功能态分工**；同一物理键跨域语义不同是用户明确要求）。⑦ **逆向补充**（KOOKIT §5 #14/#15）：`handleNoteClick` 是 `doc.body` 上的 capture 委托且**要求 `mousedown` 与 `click` 坐标相差 ≤ 5px**（防拖选误触）→ 只在"点"而非"拖"时触发；桌面端**无任何 kookit 右键处理**（触屏/右键接线是死代码），右键槽位自由 |
+| v0.3.11 | 2026-09-14 | **笔记 UI 接线（Stage 4 收口）+ 一处 kookit 逆向更正**：① §4.1 `selection-changed` 载荷改为 `RenderSelection`（锚点 + **宿主视口坐标矩形**，适配器换算好 —— UI 不必知道 iframe 位置与内部滚动）；新增 `clearSelection()`（选区在书文档里，宿主清不掉；清完同时广播 null 让 UI 收起色板）。② **逆向事实更正（重要，坑号 KOOKIT §5#13）**：kookit **文字类**（`GeneralRender`）触发的是 `this.trigger("rendered")` —— **不带章号**；只有 `PdfRender` 带 `[chapterDocIndex]`。此前按"事件带章号"实现 → 文字类得到 `undefined`，而 `undefined === null` 为假、又不触发任何告警 → `renderHighlighters` 的章节过滤**静默 0 命中**（高亮永不出现、日志干净）。现改为以**位置**为权威（`getPosition().chapterDocIndex`，见 `resolveRenderedChapter`），并在 `location-changed` 时自愈纠正 |
+| v0.3.10 | 2026-09-14 | **笔记引擎侧原语 + notes 存储接通**：§4.1 增 `RenderServiceEvents['selection-changed']`（选区事件由适配器发 —— 选区在书的 iframe 内文档里，事件跨不过文档边界，UI 无法自行观测）与三个引擎侧原语 `getSelectionAnchor`（`fromSelection`）/ `resolveAnchor(anchor, {revealNoteId})`（`resolveToView`）/ `remeasureAnchor`（`remeasure`）。**口径**：① `resolveToView` 本轮精度 = **章级**（`chapterDocIndex`，PDF 即页码），`revealNoteId` 再补"滚到该高亮元素"的精确落点（不依赖 Fragment 解算 → 弱锚点笔记也能看到落点）；② `remeasure` **只能产弱锚点** —— kookit 搜索（`getSearchResult`）返回 `{excerpt, cfi}`，`cfi` 是含 `chapterDocIndex` 的 JSON 串，**没有字符偏移**，故 `fragment=null`、`progression=0`（不假装精确）；③ §4.4 `ILibraryStore` 增笔记 CRUD（`listNotes(bookId, chapterIndex?)` / `addNote` / `updateNote(id, patch)` / `removeNote(id)`，`NotePatch` 白名单式），**`anchor` 更新时三列 + `excerpt` 必须一起重写**（`excerpt` 是 `quote.exact` 的投影，不许两处各写各的），`updatedAt` 由存储层统一盖戳；④ `id`/`createdAt`/`updatedAt` 由**调用方**给全（`id` 是同步主键，须跨端稳定，存储层不代生成） |
+| v0.3.9 | 2026-09-14 | **笔记/划线契约收拢（Note v2 + 选区级锚点层）**：§2 增 `TextAnchor`（两层：Norm `chapterIndex`/`progression`/`quote{exact,prefix,suffix}` + Fragment `engine`/`key`）、`AnchorQuote`/`AnchorNorm`/`AnchorFragment`/`AnchorMatch`/`NoteKind`/`NoteColor`；`Note` 收拢为 v2（`id`/`owner`/`kind`/`anchor`/`color`/`body`/`ink`），**v1 形状（key/location/range/text/notes）退役**，更名对照见 §2。纯函数权威 = 新增 `core/domain/anchor.ts`。§4.1 `removeNote(key)`→`removeNote(noteId)`，并补三条语义约束（`createNote` 无载荷抛错 / `renderHighlighters` 只对当前已渲染节生效 / 传拷贝因 kookit 原地 reverse）。**逆向事实更正**：kookit 文字类笔记载荷**不是 CFI 而是 rangy 字符范围**（`getHightlightCoords()` = `rangy.getSelection(iframe).saveCharacterRanges(doc.body)[0]`，`createOneNote`/`renderHighlighters` 均 `JSON.parse(item.range)`）—— `DATA_MODEL.md` §3.1 原写"EPUB=CFI"与实现不符，已按实现记为 `engine='kookit-rangy'`。颜色契约更正：kookit 要 `"<styleType>-#RRGGBB"` 串（`buildHighlightStyleForType` 按 `-` 切分），传裸 hex 会让 switch 无命中而**静默不显色** |
 | v0.3.7 | 2026-09-13 | **书库双模式 + 层级浏览**：§2 `LibraryEntry` 增 `mode?`('source'\|'virtual'，**建库二选一**)与 `rootPath?`（虚拟映射跟踪的唯一真实文件夹）、增 `BookContainer`；§4.4 增書箱 CRUD（`listContainers`/`createContainer`/`renameContainer`/`removeContainer`）与 `listBooksAtLevel`（层级取书：containerId=null=根层未入箱书 / folder=虚拟映射当前文件夹）；§4.5 `IBookPicker` 增 `listSubdirectories`；桥增 `getPathForFile`（拖拽导入取真实路径，Electron ≥29 移除 File.path）。口径：**资源管理器式层级**——書箱/文件夹与书籍外观相似、单击进入，当前层级 = 状态栏右端面包屑；虚拟映射不落 containers 行（按 rootPath 动态派生） |
 | v0.3.8 | 2026-09-13 | **書箱移动**：§4.4 增 `moveContainer(id, parentId)`（资源管理器"剪切文件夹"语义；parentId=null = 移回根层；目标是自己或自己的后代时拒绝防成环）——支撑拖箱入箱 / 拖到面包屑段 / 右键「移動到」。§4.4 代码块补齐 v0.3.7 漏登的書箱方法（文档债务） |
 | v0.3.6 | 2026-09-13 | **書庫管理弹窗**：§2 `LibraryEntry` 增 `dbPath?`（仅供展示/揭示）；§4.4 增 `renameLibrary(id, name)`（显示名，路径不变，不切库不广播）。UI 入口 = 状态栏「書庫」→ 管理弹窗（Obsidian 仓库管理页风格：列表/切换/新建/更名/所在文件夾），替换原下拉菜单 |

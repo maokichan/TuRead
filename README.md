@@ -4,13 +4,13 @@
 
 - **渲染**：基于 [kookit](https://github.com/koodo-reader/kookit)（Koodo Reader 的核心渲染引擎，AGPL-3.0，git submodule）
 - **服务端**：Go 同步服务器（房间 / 书籍标定 / 电子版分发 / 位置广播 / 聊天），**v0.2.0 已实现**
-- **客户端**：Electron 桌面应用，**v0.1.15**——本地阅读全流程（四格式渲染 / 书架 / 目录与位置恢复 / 沉浸态阅读器：全屏 + 挂载线 + 滚轮翻页）+ **书架层级化**（多书库 / 双模式 / 資源管理器式书箱与后退前进）+ 六边形架构与契约（`client/docs/`）+ SQLite 单库存储（`SqliteStore` + 一次性迁移器）
+- **客户端**：Electron 桌面应用，**v0.1.16**——本地阅读全流程（四格式渲染 / 书架 / 目录与位置恢复 / 沉浸态阅读器：全屏 + 挂载线 + 滚轮翻页）+ **书架层级化**（多书库 / 双模式 / 資源管理器式书箱与后退前进）+ **笔记与划线**（右键「挂载线」菜单 / 批注 / 笔记面板 / 重开书自动回挂）+ 六边形架构与契约（`client/docs/`）+ SQLite 单库存储（`SqliteStore` + 一次性迁移器）+ 单测与分层依赖守卫（`npm test`）
 
 ## 仓库结构
 
 ```
 TuRead/
-├── client/    # Electron 客户端（v0.1.15；契约/架构/FEATURES/STYLE 见 client/docs/）
+├── client/    # Electron 客户端（v0.1.16；契约/架构/FEATURES/STYLE 见 client/docs/）
 ├── server/    # Go 同步服务器（v0.2.0；独立 Go module，文档见 server/docs/）
 ├── kookit/    # 渲染引擎（唯一复用的上游代码，git submodule）
 ├── docs/      # 共同文档（书籍标定 / 仓库布局）
@@ -34,11 +34,17 @@ go build -o turead-server ./cmd/server
 cd client
 npm install
 npm run dev            # 开发（Electron + HMR）
-npm run typecheck      # 类型检查（node + web 两个 project；样张另有 typecheck:preview）
+npm test               # 单元测试（vitest：领域层语义断言 + 分层依赖守卫）
+npm run typecheck      # 类型检查（node + web + test 三个 project；样张另有 typecheck:preview）
 npm run style          # 浏览器里的样式样张（改 styles.css 秒级看效果，不用起 Electron）
 npm run dist           # 打包发行版 → release/（见下）
 npm run pack:portable  # 打便携 zip（在 dist 产物上再打包 win-unpacked/）
 ```
+
+> 两类验证设施**互补不替代**（2026-09-14）：`npm test` 单测验**判据**（纯逻辑，秒级）；
+> `TUREAD_DEV_PROBE` 探针验**链路**（真渲染/iframe/Electron，需放宽沙箱跑）。
+> ⚠ `npm test` 与 `npm run dev` 都经 esbuild 走管道 stdio —— 受限文件沙箱下 spawn `EPERM`，
+> 需在放宽模式下执行（同 `npm run dev` 的既有约束）。
 
 **发行版范围与形态**：**只出 64 位 Windows**（用户 2026-09-11 定），当前出**免安装便携版**
 （用户 2026-09-14 定：非正式版本给免安装版最合适），配置在 `client/electron-builder.yml`：

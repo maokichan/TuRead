@@ -102,6 +102,43 @@ GeneralRender (GeneralRender.ts，事件基类)
 11. **`record()` 有动画等待**：`animation !== "none" && isMobile !== "yes"` 时 sleep(1000)。
 12. **`getPosition()` 的数值字段是 string**（`tempLocation` 原样返回）——域层一律经
     `normalizeLocation` 归一为 number（CONTRACTS §2.1）。
+13. **`rendered` 事件的载荷是"看运气"的**（2026-09-14 逆向 + `note` 探针实测，坑「静默型」）：
+    - **文字类（`GeneralRender`，EPUB/MOBI/AZW3/AZW/TXT/MD/FB2/DOCX/HTML 全走它）**：
+      `this.trigger("rendered")` —— **不带任何参数**（多处，如 goToChapter 尾、next/prev 尾）；
+    - **`PdfRender`**：`this.trigger("rendered", [chapterDocIndex])` —— **带章号**。
+    后果：若按"事件带章号"实现，文字类会拿到 `undefined`。**这个 `undefined` 极毒**——
+    它既不等于 `null`，也不触发任何告警，表现为下游"按章过滤"条件恒不成立而**静默 0 命中**
+    （实翻车现场：高亮永远不出现，日志干净，排查极难）。
+    **正确做法**：一律以**位置**为权威 —— `getPosition().chapterDocIndex`
+    （kookit 多数渲染路径在 `trigger("rendered")` 前已 `yield this.record()`，tempLocation 就绪）。
+    实现见 `kookitRenderAdapter.resolveRenderedChapter()`；事件真给数字（PDF）时用事件值省一次读取。
+14. **笔记/高亮契约（文字类）**（2026-09-14 逆向，`note` 探针验证）：
+    - 载荷 = **rangy 序列化字符范围**（不是 CFI）：`getHightlightCoords()` =
+      `rangy.getSelection(iframe).saveCharacterRanges(doc.body)[0]`；无选区返回 `undefined`。
+    - `createOneNote(item)` 读 `item.{range,color,key,notes}`，其中 **`range` 是 JSON 字符串**
+      （内部 `JSON.parse`）、**`notes` 是字符串**（`item.notes !== ""` 判"是否带批注"）。
+    - `renderHighlighters(notes, cb)` 同款解析；**开头 `notes.reverse()` 是原地改入参**（传拷贝）；
+      且**只作用于"当前那一节的 document"**（`getDocument()` = `#page-area` 下第一个 iframe）——
+      跨节笔记必须由调用方先过滤，换章后必须重挂。
+    - 颜色要 **`"background-#RRGGBB"`** 形态（`buildHighlightStyleForType` 按 `-` 切分；
+      传裸 hex 会让 switch 无命中而**静默不显色**），且内部再包成 `rgba(色, 0.8)` 叠在正文上
+      → **深色主题必须给低亮度色**，否则浅色块配浅色字必然糊掉。
+    - **点击高亮回调（`handleNoteClick`）是"委托 + 配对"的**（2026-09-14 逆向，`note` 探针验证）：
+      它在 **`doc.body` 上以 capture 挂一个 `click`**（`doc.body.__kookitDelegated` 一次性标记），
+      逻辑 = `e.target.closest('.kookit-note[data-key]')` → `handleNoteClick({ target })`；
+      ⚠ **前置条件：`mousedown` 与 `click` 坐标相差 ≤ 5px**（防拖选误触）——
+      `if (Math.abs(e.clientX - delegateDownX) > 5 || …) return`，`delegateDownX/Y` 由同文档
+      的 `mousedown` 写入（初值 0）。三点含义：
+      ① 回调**只在"点"而非"拖"时触发**；② 回调参数是 `{ target }`（**只有元素、没有鼠标坐标**）
+      → 要坐标得自己 `getBoundingClientRect()` 量（适配器即这么做）；
+      ③ 合成事件测它必须**成对派发且坐标一致**，否则 kookit 直接 return（**静默**，不报错）。
+      另：hover 时会读 `data-note-content` 弹 tooltip（`showNoteTooltip`）—— 所以**带批注的笔记
+      在书里 hover 就能看到正文**，这是 kookit 自带能力，不需要我们实现。
+15. **`contextmenu` 在桌面端是空的**（2026-09-14 逆向）：本包内 `oncontextmenu` 只有两处赋值，
+    都在 `addAndroidTouchEvent` / `addAppleTouchEvent` 里，而它们的唯一调用者 `addTouchEvent()`
+    **全包只有定义、没有调用点**（`TouchEvent` 全包 5 处，均为定义或定义体内）→ 整条触屏/右键
+    接线是**死代码**。**结论：桌面端书文档上没有任何 kookit 右键处理，右键槽位可自由使用**
+    （Electron 默认也不弹原生菜单）。我们因此把"新建标记/批注"的主入口放在右键。
 
 ## 6. 位置 / 进度语义（kookit 侧）
 
