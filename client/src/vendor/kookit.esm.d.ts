@@ -61,6 +61,21 @@ export interface KookitRendition {
   doSearch(keyword: string): Promise<unknown>
   getDocument(): Document | null
   getIframe(): HTMLIFrameElement | null
+  /**
+   * 反查（2026-09-14，逆向依据 `client/docs/KOOKIT.md` §7；笔记/划线落地所需）：
+   * 取当前选区为 **rangy 序列化字符范围**。
+   * ⚠ 两条硬约束（实测自 bundle 实现）：
+   *  ① 返回值是**对象**，`createOneNote`/`renderHighlighters` 都做 `JSON.parse(item.range)`
+   *    → 调用方必须 `JSON.stringify` 后才符合 range 契约；
+   *  ② 无选区时返回 `undefined`（内部 `saveCharacterRanges(doc.body)[0]` 为空数组取值）。
+   * PDF 类的同名方法签名不同（`getHightlightCoords(chapterDocIndex)` → 页+坐标）。
+   */
+  getHightlightCoords(chapterDocIndex?: number): Promise<unknown>
+  /**
+   * 反查：读当前选区位置并写入内部 `tempLocation`，返回该位置（kookit 位置形状）。
+   * 无选区（或取不到 selectedElement）时返回 `undefined` —— 调用方必须判空。
+   */
+  getNotePosition(): Promise<KookitPosition | undefined>
 }
 
 export interface KookitNamespace {

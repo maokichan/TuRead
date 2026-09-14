@@ -38,6 +38,11 @@ export const IPC = {
   storeListBooksAtLevel: 'store:list-books-at-level',
   storeMoveBook: 'store:move-book',
   storeMoveContainer: 'store:move-container',
+  // 笔记/划线（2026-09-14）：笔记是**书外数据**，存笔记表（DATA_MODEL §2 notes），不写进电子书文件
+  storeListNotes: 'store:list-notes',
+  storeAddNote: 'store:add-note',
+  storeUpdateNote: 'store:update-note',
+  storeRemoveNote: 'store:remove-note',
   // 在系统文件管理器中显示文件（库管理弹窗：「所在文件夾」）
   fsShowInFolder: 'fs:show-in-folder',
   // 列目录子目录（虚拟映射模式的层级浏览）

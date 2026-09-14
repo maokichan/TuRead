@@ -113,6 +113,20 @@
      用途：详情抽屉的字段文字（仅此一处，STYLE.md §5.2）。 */
   --negative-bg: var(--text);
   --negative-text: var(--bg);
+  /* 笔记/划线四色（2026-09-14，STYLE.md §3.4）——**语义内容标记色**（同 --ok/--warn/--err 的性质：
+     表达内容状态，不做装饰）。四套取向**各给一组**（不派生：深浅纸上同一色不可用）。
+     ⚠ 深色取向必须用**低亮度高饱和**：kookit 对非 PDF 高亮统一渲染为
+     `background: rgba(<该值>, 0.8)` 并叠在 **--page-text 之上** —— 浅色块配浅色字必然糊掉。
+     取值口径：纯色·深 = 冷调压暗；羊皮纸·深 = 暖调压暗。 */
+  --note-yellow: #6b5a1f;
+  --note-green: #2f5a3a;
+  --note-blue: #2c4a70;
+  --note-red: #6b3230;
+  /* 选区（2026-09-14，STYLE.md §3.4）——默认选区是系统蓝，与"纯色取向不引入色相"直接冲突。
+     只给背景、不给前景色：做成**低饱和淡扫**而非反色块（阅读更温和，也不用担心深色纸上配错正文色）。
+     ⚠ 书文档里的 `::selection` 由适配器读本 token 后**内联注入**（宿主 CSS 不跨文档边界）；
+     宿主侧（输入框等可选区域）用下方全局 `::selection` 规则。 */
+  --selection-bg: rgba(216, 219, 224, 0.3);
 }
 
 [data-theme='light'] {
@@ -152,6 +166,13 @@
   --scrollbar: #c3c8cc;
   --flash-bg: #1b1d1f;
   --flash-text: #f2f3f5;
+  /* 笔记/划线四色：纯色·浅 = 经典荧光笔（浅底深字） */
+  --note-yellow: #ffe9a3;
+  --note-green: #c6ead0;
+  --note-blue: #c8dcf5;
+  --note-red: #f8ccc6;
+  /* 选区：纯色·浅 = 中性灰（不引入色相，同本主题取向） */
+  --selection-bg: rgba(27, 29, 31, 0.2);
 }
 
 [data-theme='sepia-light'] {
@@ -190,6 +211,13 @@
   --scrollbar: #c2ae86;
   --flash-bg: #2a2118;
   --flash-text: #f7f1e3;
+  /* 笔记/划线四色：羊皮纸·浅 = 暖调、略降饱和（贴合米色纸，不刺眼） */
+  --note-yellow: #f2dd9e;
+  --note-green: #cfe0b8;
+  --note-blue: #cad6e0;
+  --note-red: #eec4b4;
+  /* 选区：羊皮纸·浅 = 暖调淡扫（贴合米色纸） */
+  --selection-bg: rgba(122, 86, 32, 0.26);
 }
 
 [data-theme='sepia-dark'] {
@@ -228,6 +256,13 @@
   --scrollbar: #3d3428;
   --flash-bg: var(--text);
   --flash-text: var(--bg);
+  /* 笔记/划线四色：羊皮纸·深 = 暖调压暗（同 --note-* 的深色取向口径，见 :root 注释） */
+  --note-yellow: #6a5620;
+  --note-green: #3d5433;
+  --note-blue: #33465e;
+  --note-red: #66352c;
+  /* 选区：羊皮纸·深 = 暖调提亮（低饱和，不刺眼） */
+  --selection-bg: rgba(230, 220, 201, 0.28);
 }
 
 * {
@@ -257,6 +292,13 @@ body {
 input,
 textarea {
   user-select: text;
+}
+
+/* 选区配色（STYLE.md §3.4）：宿主侧可选区域（输入框等）也走主题 token，不再是系统蓝。
+   正文 iframe 内的 `::selection` 走另一条路 —— 适配器读同一 token 后**内联注入**书文档
+   （宿主 CSS 不跨文档边界，见 kookitRenderAdapter.buildReaderCss ④）。 */
+::selection {
+  background: var(--selection-bg);
 }
 
 /* ---------- kookit 硬编码契约（KOOKIT.md §5）: 宿主容器必须可滚动、iframe 不设 height:100% ----------
@@ -764,9 +806,7 @@ textarea {
   flex: 1;
   overflow-y: auto;
   scrollbar-width: none;
-}
-
-.toc-list__rows::-webkit-scrollbar {
+}.toc-list__rows::-webkit-scrollbar {
   width: 0;
 }
 
@@ -848,6 +888,221 @@ textarea {
 
 .toc-row:disabled .toc-row__label {
   opacity: 0.55;
+}
+
+/* ── 右键菜单：挂载线形态（2026-09-14 用户定，全站统一）────────────────
+   摒弃圆角/阴影/卡片底：右键处弹一条横向挂载线，功能项自线下方逐条向下生长 ——
+   与阅读器挂载线实体（.reader-rail + 目录垂挂）同一套语汇（STYLE.md §3.4：
+   内容与背景靠颜色区分）。**语义按域不同**（书库=文件管理 / 阅读器=标记批注），形态统一。 */
+.context-menu__rail {
+  width: 100%;
+  height: 1px;
+  background: var(--border);
+}
+
+.context-menu__items {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding-top: 4px;
+  min-width: 176px;
+}
+
+.context-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 2px 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-serif-cn);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.context-menu__item:hover {
+  color: var(--text);
+}
+
+/* 色块 = 功能信息（这条是什么色），非装饰 —— STYLE.md §5.2 例外⑤ 口径 */
+.context-menu__swatch {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--border-soft);
+}
+
+.context-menu__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 子菜单：挂在父项右侧，同样无圆角无阴影（改用左侧 1px 挂载线 + 缩进表达层级） */
+.context-menu__sub {
+  position: absolute;
+  left: 100%;
+  top: -4px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding-left: 8px;
+  min-width: 160px;
+  border-left: 1px solid var(--border-soft);
+  background: var(--bg);
+}
+
+/* ── 批注输入（挂载线形态，2026-09-14）────────────────────────────
+   与右键菜单同语汇：一条横线 + 自线下方生长的输入区，无圆角无阴影。
+   输入框用 1px --border 描边（STYLE.md §5.2 例外①：可输入区域必须可见）。 */
+.note-composer__rail {
+  width: 100%;
+  height: 1px;
+  background: var(--border);
+}
+
+.note-composer__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 4px;
+  width: 272px;
+}
+
+.note-composer__title {
+  font-family: var(--font-serif-cn);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.note-composer__input {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+  font-family: var(--font-serif-cn);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+
+.note-composer__input:focus {
+  border-color: var(--accent);
+}
+
+.note-composer__actions {
+  display: flex;
+  gap: 12px;
+}
+
+.note-composer__remove {
+  color: var(--err);
+}
+
+/* ── 左挂件内容开关（目錄 / 筆記，2026-09-14）──────────────────────
+   两格都是文字（STYLE.md §5.1）；当前格用 --accent（与全站"当前选中"同一语汇）。
+   放在挂载线下方、列表上方，占位不参与滚动。 */
+.left-tabs {
+  display: flex;
+  gap: 12px;
+  padding: 0 0 4px 0;
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 4px;
+}
+
+.left-tabs__tab {
+  font-family: var(--font-serif-cn);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.left-tabs__tab--on {
+  color: var(--accent);
+}
+
+/* ── 笔记行（NotesPanel，2026-09-14）──────────────────────────────
+   与目录行同一退场口径：文字给足强度，明暗由距离遮罩承担（这里不写遮罩，
+   笔记是可数的少量条目，不需要目录那种"长列表降噪"）。 */
+.note-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+/* 色块 = 功能信息（这条是什么色），非装饰 —— STYLE.md §5.2 例外⑤ 口径。
+   1px 边沿用 --border-soft 让浅色取向在浅纸上也有轮廓。 */
+.note-row__mark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--border-soft);
+  transform: translateY(-1px);
+}
+
+.note-row__label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  font-family: var(--font-serif-cn);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.note-row__text {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-row__where {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.note-row__remove {
+  flex: none;
+  font-family: var(--font-serif-cn);
+  font-size: 11px;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+
+.note-row:hover .note-row__remove {
+  opacity: 1;
+}
+
+.note-row__remove:hover {
+  color: var(--err);
 }
 
 /* ── 自绘标题栏（无边框窗口，2026-09-12）────────────────────────────

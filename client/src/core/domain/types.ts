@@ -197,17 +197,98 @@ export interface Chapter {
   subitems?: Chapter[]
 }
 
-/** 笔记/划线（v1 可选实现，接口先立；range 为格式相关序列化，与 kookit 对齐） */
-export interface Note {
+/* ————— 定位转换机制：选区级锚点（DATA_MODEL §3.1 / §3.1.1，已批复）—————
+ *
+ * 两层结构（关键决策：**统一信封 + 引擎原生载荷**，不做"通用定位语言"让引擎来回翻译——
+ * 翻译有损会破坏选区 round-trip；Readium 同款取舍）：
+ *   - **归一化层（Norm）** 跨格式可比的语义字段 —— 笔记层/存储/同步**只看这层**；
+ *   - **引擎载荷层（Fragment）** engine 标识 + 不透明编码串 —— **只有适配器能生成/解释**。
+ * 原语（接口即机制）：纯函数在 `./anchor.ts`，引擎侧（fromSelection/resolveToView/remeasure）
+ * 在渲染适配器。
+ * 与进度级 `BookLocation` 的分工：**"读到哪"是进度语义、"标在哪"是选区语义，不是同一个物**。
+ */
+
+/** 划线时刻的书籍原文快照 —— **定位证据，不是笔记内容**（故归锚点侧、不归 Note 侧，§3.1.1 ①） */
+export interface AnchorQuote {
+  /** 选中原文（权威在本字段；notes 表 `excerpt` 列只是它的投影） */
+  exact: string
+  /** 选区前文（重锚消歧用；并入 notes 表 `anchor_hint` JSON） */
+  prefix: string
+  /** 选区后文 */
+  suffix: string
+}
+
+/** 归一化层（Norm）—— 跨格式可比的语义字段 */
+export interface AnchorNorm {
+  /** 章（kookit 分节）序号；PDF 下 = 页码（= notes 表 `chapter_index` 列） */
+  chapterIndex: number
+  /** 章内相对进度 0~1（**粗**排序/粗回跳用；不参与精确位置判定） */
+  progression: number
+  quote: AnchorQuote
+}
+
+/** 引擎载荷层（Fragment）—— 不透明编码串，跨引擎不可解释 */
+export interface AnchorFragment {
+  /** 载荷来源标识（文字类 `'kookit-rangy'`；PDF `'kookit-pdf-rect'`）——换内核时据此选解释器 */
+  engine: string
+  /** 编码串（文字类 = rangy 序列化字符范围的 JSON；PDF = 页码+归一化坐标）。
+   *  = notes 表 `anchor_key` 列，落库即本层串：**逐字节原样存**、不套壳不加前缀——
+   *  适配器解码时不必先剥包装，避免转义事故 */
   key: string
+}
+
+/** 选区级统一锚点（统一信封：Norm 恒在，Fragment 可缺） */
+export interface TextAnchor {
+  norm: AnchorNorm
+  /** null = 无引擎载荷（只能粗回跳 + 靠 quote 重锚） */
+  fragment: AnchorFragment | null
+}
+
+/** 两锚点的关系强度（`compareAnchor` 的产物；§3.1.1 ② 的"强弱标注"） */
+export type AnchorMatch =
+  /** Fragment 相等 —— 同 edition 同引擎下权威精确（O(1) 串比较，直接判同） */
+  | 'exact'
+  /** 同章 + quote 高度相符（可回跳；位置可能有小幅偏移） */
+  | 'strong'
+  /** 仅同章/粗粒度相符（只能跳到大概位置） */
+  | 'weak'
+  /** 不同章（或不可比） */
+  | 'unrelated'
+
+/** 笔记种类（DATA_MODEL §2 `notes.kind` 四枚举；书签入本表已批复 §4 决定 6） */
+export type NoteKind = 'highlight' | 'note' | 'bookmark' | 'ink'
+
+/** 高亮色**语义名**（不是 hex）：UI 按主题 token 渲染，库内不存颜色字面量（`STYLE.md` 视觉语汇纪律） */
+export type NoteColor = 'red' | 'yellow' | 'green' | 'blue'
+
+/**
+ * 笔记/划线 v2（2026-09-14 按 DATA_MODEL §3.1.1/§3.2 收拢，**v1 形状退役**）。
+ *
+ * v1（`key`/`location`/`range`/`text`/`notes`）的三处错位：
+ * ① "读到哪"与"标在哪"混在一个 `location`；② 引擎载荷与语义不分层（`range` 裸挂）；
+ * ③ `notes` 与 kookit 的同名字段撞车（kookit 的 `notes` 语义是**批注正文**）。
+ * 更名对照：`key→id`、`location`+`range`→`anchor`、`text→anchor.norm.quote.exact`、`notes→body`。
+ *
+ * ⚠ **本类型不含 `excerpt` 字段**：notes 表的 `excerpt` 列是 `anchor.norm.quote.exact` 的
+ * **投影**（§3.1.1 ①：quote 归锚点侧），领域层只留一处权威，避免两处同值漂移。
+ */
+export interface Note {
+  /** uuid（同步主键） */
+  id: string
   bookId: string
-  location: BookLocation
-  /** 格式相关：EPUB→CFI，PDF→页码+坐标，等 */
-  range: string
-  color: string
-  /** 选中文本 */
-  text: string
-  notes?: string
+  /** 成员 token；**本地笔记为 null/缺省**（同步上线后回填，DATA_MODEL §4 决定 5 预留） */
+  owner?: string | null
+  kind: NoteKind
+  /** 选区级锚点（"标在哪"） */
+  anchor: TextAnchor
+  /** 语义色名；bookmark/ink 可缺省 */
+  color?: NoteColor
+  /** 用户批注正文（**只有这里住批注内容**）—— v1 的 `notes` 更名而来。
+   *  ⚠ kookit `createOneNote` 用它判定"是否带批注"且当字符串用（`item.notes !== ""`）：
+   *  传给引擎时必须是 **string**（2026-09-14 逆向核实，见 `KOOKIT.md`） */
+  body: string
+  /** `kind='ink'`：InkStroke[] JSON；其余缺省（墨迹与划线的本质差异见 DATA_MODEL §3.3） */
+  ink?: string
   createdAt: number
   updatedAt: number
 }

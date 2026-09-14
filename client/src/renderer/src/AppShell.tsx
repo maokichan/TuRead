@@ -20,6 +20,7 @@ import { runDevSelfCheck } from './dev/selfCheck'
 import { runPdfWidthProbe } from './dev/pdfWidthProbe'
 import { runPagedInteractProbe } from './dev/pagedInteractProbe'
 import { runLibraryProbe } from './dev/libraryProbe'
+import { runNoteProbe } from './dev/noteProbe'
 
 const EBOOK_EXT_SET = new Set<string>(EBOOK_EXTENSIONS)
 
@@ -100,6 +101,10 @@ export default function AppShell(): React.JSX.Element {
     }
     if (window.turead.devProbe === 'library') {
       runLibraryProbe(container, host)
+      return
+    }
+    if (window.turead.devProbe === 'note') {
+      runNoteProbe(container, host)
       return
     }
     return runDevSelfCheck(container, host)

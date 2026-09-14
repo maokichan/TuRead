@@ -12,6 +12,8 @@ interface TocPanelProps {
   rows: TocRow[]
   onJump: (row: TocRow) => void
   onToggle: () => void
+  /** 顶部插槽（挂载线左挂件的「目錄 / 筆記」开关，由 ReaderRail 生成并与 NotesPanel 共用） */
+  header?: React.ReactNode
 }
 
 /** 遮罩衰减半径（px）：鼠标距离条目中心超过它 → 完全盖上 */
@@ -27,7 +29,7 @@ const VEIL_FALLOFF = 110
  *   其不透明度按**条目到鼠标的距离**调整（近 → 揭开，远 → 盖上），过渡交给 CSS（200ms）。
  * - 点击条目**不**收起目录，只有「折疊」/`t`/点挂载线才收（ReaderFeature 管状态）。
  */
-export function TocPanel({ rows, onJump, onToggle }: TocPanelProps): React.JSX.Element {
+export function TocPanel({ rows, onJump, onToggle, header }: TocPanelProps): React.JSX.Element {
   const rowsRef = useRef<HTMLDivElement | null>(null)
 
   /**
@@ -61,6 +63,7 @@ export function TocPanel({ rows, onJump, onToggle }: TocPanelProps): React.JSX.E
 
   return (
     <div className="toc-list">
+      {header}
       <div
         className="toc-list__rows"
         ref={rowsRef}

@@ -1,6 +1,6 @@
 {
   "name": "turead-client",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "TuRead 客户端：多人房间共读阅读器",
   "author": "TuRead",
   "main": "./out/main/index.js",
@@ -14,7 +14,9 @@
     "dist:dir": "electron-vite build && electron-builder --win --x64 --dir",
     "pack:portable": "npm run dist && pwsh -NoProfile -Command \"Compress-Archive -Path release/win-unpacked -DestinationPath release/TuRead-$((Get-Content package.json -Raw | ConvertFrom-Json).version)-win-x64-portable.zip -Force\"",
     "style": "vite --config tools/style-gallery/vite.config.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.test.json",
     "typecheck:preview": "tsc --noEmit -p tsconfig.preview.json",
     "rebuild:sqlite": "cd node_modules/better-sqlite3 && npx prebuild-install -r electron -t 33.4.11"
   },
@@ -41,6 +43,7 @@
     "electron-vite": "^3.1.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "vitest": "^3.2.7"
   }
 }

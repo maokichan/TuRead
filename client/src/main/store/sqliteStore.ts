@@ -20,9 +20,10 @@ import { promises as fs } from 'node:fs'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { BookContainer, BookRecord, BookLocation } from '@core/domain/types'
-import type { LibraryLevelQuery } from '@core/ports/store'
+import type { BookContainer, BookRecord, BookLocation, Note } from '@core/domain/types'
+import type { LibraryLevelQuery, NotePatch } from '@core/ports/store'
 import { normalizeLocation } from '@core/domain/location'
+import { anchorToColumns, columnsToAnchor } from '@core/domain/anchor'
 
 export interface SqliteStoreOptions {
   /** 库文件绝对路径（<库名>.db；多书库时代每个 .db 一份书库） */
@@ -423,6 +424,119 @@ export class SqliteStore {
       )
       .all()
     return rows.map(fromRow)
+  }
+
+  // ————— 笔记/划线（DATA_MODEL §2 notes 表；锚点落库映射走 domain/anchor.ts，勿在此另立一套）—————
+
+  async listNotes(bookId: string, chapterIndex?: number): Promise<Note[]> {
+    const rows =
+      chapterIndex === undefined
+        ? this.db
+            .prepare('SELECT * FROM notes WHERE book_id = ? ORDER BY chapter_index, id')
+            .all(bookId)
+        : this.db
+            .prepare(
+              'SELECT * FROM notes WHERE book_id = ? AND chapter_index = ? ORDER BY chapter_index, id'
+            )
+            .all(bookId, chapterIndex)
+    return rows.map(fromNoteRow).sort(compareNotes)
+  }
+
+  async addNote(note: Note): Promise<void> {
+    const cols = anchorToColumns(note.anchor)
+    this.db
+      .prepare(
+        `INSERT INTO notes
+           (id, book_id, owner, kind, chapter_index, anchor_key, anchor_hint, color, excerpt, body, ink, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        note.id,
+        note.bookId,
+        note.owner ?? null,
+        note.kind,
+        cols.chapterIndex,
+        cols.anchorKey,
+        cols.anchorHint,
+        note.color ?? null,
+        note.anchor.norm.quote.exact, // excerpt 列 = quote.exact 的投影（§3.1.1 ①）
+        note.body,
+        note.ink ?? null,
+        note.createdAt,
+        note.updatedAt
+      )
+  }
+
+  /**
+   * 局部更新。两条**必须由存储层统一保证**的一致性：
+   * ① `anchor` 给了 → 三个锚点列**一起**重写（含 `excerpt`）—— 否则 quote 与 anchor_key 会脱节，
+   *    而 `excerpt` 是 `anchor.norm.quote.exact` 的投影，绝不允许两处各写各的；
+   * ② `updated_at` 一律由本方法盖时间戳，调用方不必（也不该）自己维护。
+   */
+  async updateNote(id: string, patch: NotePatch): Promise<void> {
+    const sets: string[] = []
+    const args: unknown[] = []
+    if (patch.anchor) {
+      const cols = anchorToColumns(patch.anchor)
+      sets.push('chapter_index = ?', 'anchor_key = ?', 'anchor_hint = ?', 'excerpt = ?')
+      args.push(cols.chapterIndex, cols.anchorKey, cols.anchorHint, patch.anchor.norm.quote.exact)
+    }
+    if (patch.color !== undefined) {
+      sets.push('color = ?')
+      args.push(patch.color ?? null)
+    }
+    if (patch.body !== undefined) {
+      sets.push('body = ?')
+      args.push(patch.body)
+    }
+    if (patch.ink !== undefined) {
+      sets.push('ink = ?')
+      args.push(patch.ink ?? null)
+    }
+    // 无可改字段也照样推进 updated_at：调用方表达的是"这条笔记被触碰过"
+    sets.push('updated_at = ?')
+    args.push(Date.now(), id)
+    this.db.prepare(`UPDATE notes SET ${sets.join(', ')} WHERE id = ?`).run(...args)
+  }
+
+  async removeNote(id: string): Promise<void> {
+    this.db.prepare('DELETE FROM notes WHERE id = ?').run(id)
+  }
+}
+
+/**
+ * 笔记阅读序比较：章 → 章内进度 → 创建时间。
+ * 用锚点 **Norm 层**而非 Fragment —— Fragment 是不透明串、无可比性，Norm 才是"跨格式可比"的那层
+ * （DATA_MODEL §3.1.1）；末位用 createdAt 兜底，保证进度相同的两条也有稳定次序。
+ */
+function compareNotes(a: Note, b: Note): number {
+  const ca = a.anchor.norm.chapterIndex
+  const cb = b.anchor.norm.chapterIndex
+  if (ca !== cb) return ca - cb
+  const pa = a.anchor.norm.progression
+  const pb = b.anchor.norm.progression
+  if (pa !== pb) return pa - pb
+  return a.createdAt - b.createdAt
+}
+
+/** notes 行 → 领域 Note（锚点三列 + excerpt 走 columnsToAnchor 装配，与写入侧同一套映射） */
+function fromNoteRow(r: Record<string, unknown>): Note {
+  return {
+    id: r.id as string,
+    bookId: r.book_id as string,
+    owner: (r.owner as string | null) ?? null,
+    kind: r.kind as Note['kind'],
+    anchor: columnsToAnchor({
+      chapterIndex: r.chapter_index as number,
+      anchorKey: r.anchor_key as string,
+      anchorHint: r.anchor_hint as string,
+      excerpt: r.excerpt as string
+    }),
+    color: (r.color as Note['color'] | null) ?? undefined,
+    body: (r.body as string) ?? '',
+    ink: (r.ink as string | null) ?? undefined,
+    createdAt: r.created_at as number,
+    updatedAt: r.updated_at as number
   }
 }
 

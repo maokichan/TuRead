@@ -4,12 +4,19 @@
  * 骨架阶段实现：主进程 JSON 文件存储（userData/library.json）——只存文件路径 + 文件信息，够用且诚实；
  * 演进：无缝换成 better-sqlite3（koodo-reader 同款），接口不变。
  */
-import type { BookContainer, BookRecord, LibraryEntry } from '@core/domain/types'
+import type { BookContainer, BookRecord, LibraryEntry, Note } from '@core/domain/types'
 
 export interface LibraryListResult {
   libraries: LibraryEntry[]
   currentId: string
 }
+
+/**
+ * 笔记的可更新字段（v0.3.9）。
+ * 白名单式：`id`/`bookId`/`kind`/`createdAt` **不可改**（身份与种类是既成事实，
+ * 改身份等于换一条记录；改 kind 要先删再建）。`anchor` 可改 = 重锚（`remeasure` 的落点）。
+ */
+export type NotePatch = Partial<Pick<Note, 'anchor' | 'color' | 'body' | 'ink'>>
 
 /** 层级浏览的取书口径（2026-09-13 用户定：书架 = 资源管理器式层级）。
  *  containerId=null（且无 folder）= 根层 = 不属于任何書箱的书；
@@ -78,4 +85,21 @@ export interface ILibraryStore {
    * 目标是自己或自己的后代时拒绝——树不许成环。
    */
   moveContainer(id: string, parentId: string | null): Promise<void>
+
+  // ————— 笔记/划线（2026-09-14 落地；DATA_MODEL §2 notes 表 + §3.1/§3.2 建模）—————
+  /**
+   * 按书取笔记。`chapterIndex` 给值 = 只取该渲染节（高亮回显用）；缺省 = 全书（笔记面板用）。
+   * 排序 = 阅读顺序（章 → 章内进度正序），排序依据走锚点 Norm 层 —— 于是**无需 Fragment**
+   * 也能给出一致的阅读序（弱锚点笔记不会掉队）。
+   */
+  listNotes(bookId: string, chapterIndex?: number): Promise<Note[]>
+  /**
+   * 新增一条笔记。**整条 Note 由调用方给全**（含 `id`/`createdAt`/`updatedAt`）——
+   * `id` 是同步主键，须由用例层一次生成、跨端稳定；存储层不代生成（否则"谁定的身份"会含糊）。
+   */
+  addNote(note: Note): Promise<void>
+  /** 局部更新（批注正文/颜色/墨迹/重锚）。`updatedAt` 由本方法统一写入，调用方不必自己维护 */
+  updateNote(id: string, patch: NotePatch): Promise<void>
+  /** 删除一条笔记（按书删除时由外键级联，不必逐条调本方法） */
+  removeNote(id: string): Promise<void>
 }

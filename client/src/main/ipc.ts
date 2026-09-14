@@ -7,11 +7,11 @@ import type { Dirent } from 'node:fs'
 import { extname, join } from 'node:path'
 import { EBOOK_EXTENSIONS, IPC } from '@shared/ipc'
 import type { HttpRequestOptions } from '@core/ports/net'
-import type { NetConfig, MessageEnvelope, BookRecord } from '@core/domain/types'
+import type { NetConfig, MessageEnvelope, BookRecord, Note } from '@core/domain/types'
 import { WsNetAdapter } from './net/wsNetAdapter'
 import { LibraryManager } from './store/libraryManager'
 import type { SqliteStore } from './store/sqliteStore'
-import type { LibraryLevelQuery } from '@core/ports/store'
+import type { LibraryLevelQuery, NotePatch } from '@core/ports/store'
 
 const EBOOK_EXT_SET = new Set<string>(EBOOK_EXTENSIONS)
 const EBOOK_FILTER = [{ name: '电子书', extensions: [...EBOOK_EXTENSIONS] }]
@@ -112,6 +112,16 @@ export function registerIpc(
   ipcMain.handle(IPC.storeMoveContainer, (_e, p: { id: string; parentId: string | null }) =>
     store().moveContainer(p.id, p.parentId)
   )
+
+  // 笔记/划线（store:* 打到当前库）
+  ipcMain.handle(IPC.storeListNotes, (_e, p: { bookId: string; chapterIndex?: number }) =>
+    store().listNotes(p.bookId, p.chapterIndex)
+  )
+  ipcMain.handle(IPC.storeAddNote, (_e, note: Note) => store().addNote(note))
+  ipcMain.handle(IPC.storeUpdateNote, (_e, p: { id: string; patch: NotePatch }) =>
+    store().updateNote(p.id, p.patch)
+  )
+  ipcMain.handle(IPC.storeRemoveNote, (_e, id: string) => store().removeNote(id))
   // 虚拟映射模式的层级浏览：列子目录（不递归，名称+绝对路径，稳定排序）
   ipcMain.handle(IPC.fsListDirectories, async (_e, dir: string) => {
     const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => [])

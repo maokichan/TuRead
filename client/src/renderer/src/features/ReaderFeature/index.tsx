@@ -19,18 +19,24 @@ import type {
   BookLocation,
   BookRecord,
   Chapter,
+  Note,
+  NoteColor,
   ReaderSettings,
-  RenderOptions
+  RenderOptions,
+  TextAnchor
 } from '@core/domain/types'
+import type { RenderContextMenuRequest, RenderSelection } from '@core/ports/render'
 import type { FeatureProps } from '../types'
 import type { TocRow } from '../../components/TocPanel'
-import { ReaderRail } from '../../components/ReaderRail'
+import { ReaderRail, type LeftPanelKind } from '../../components/ReaderRail'
 import {
   ReaderControls,
   DEFAULT_READER_PARAMS,
   type ReaderParams
 } from '../../components/ReaderControls'
 import { useKeyIntents } from '../../components/useKeyIntents'
+import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
+import { NoteComposer } from '../../components/NoteComposer'
 import { bridgeIframeDocuments } from '../../components/iframeBridge'
 import { IPC } from '@shared/ipc'
 
@@ -75,6 +81,35 @@ export function ReaderFeature({
   const paramsRef = useRef<ReaderParams>(DEFAULT_READER_PARAMS)
   const stageRef = useRef<HTMLDivElement | null>(null)
   const lastSavedAtRef = useRef(0)
+  /**
+   * 本书笔记（阶段 4）。**用 ref 供事件回调读取**：`rendered` 订阅是一次性挂载的，
+   * 闭包会锁住旧 state —— 经 ref 才拿得到最新列表。
+   */
+  const [notes, setNotes] = useState<Note[]>([])
+  const notesRef = useRef<Note[]>([])
+  /** 左挂件当前内容（目錄 / 筆記；同一几何，顶部开关切换）——不持久化，重开书回目录 */
+  const [leftPanel, setLeftPanel] = useState<LeftPanelKind>('toc')
+  /** 当前正文选区（适配器在**书文档**上观测后广播；null = 无选区） */
+  const [selection, setSelection] = useState<RenderSelection | null>(null)
+  /** 选区的 ref 镜像：事件回调（一次性挂载的订阅）里读 state 会拿到过期闭包 */
+  const selectionRef = useRef<RenderSelection | null>(null)
+  /**
+   * 阅读区右键菜单（挂载线形态；2026-09-14 用户定为主入口）。
+   * `anchor` = 右键时的选区锚点（决定「新建」是否可用）；`noteId` = 点在了哪条笔记上。
+   */
+  const [menu, setMenu] = useState<RenderContextMenuRequest | null>(null)
+  /**
+   * 批注输入面板。`noteId` 有值 = 编辑既有笔记；无值 = 用 `anchor` 新建。
+   * 正文内容（`body`）**由这里持有**（受控），这样 `reader.composerCommit` 等键盘意图
+   * 能够提交"当前输入内容"—— 状态若关在组件里，意图层就够不着（用户要的键盘链条会断）。
+   */
+  const [composer, setComposer] = useState<{
+    x: number
+    y: number
+    anchor: TextAnchor
+    noteId?: string
+    body: string
+  } | null>(null)
 
   /**
    * 应用参数到渲染层。分工（`STYLE.md` §5.9）：
@@ -181,6 +216,167 @@ export function ReaderFeature({
       saveLastLocation(loc)
     })
   }, [container, saveLastLocation])
+
+  /**
+   * ————— 笔记/划线生命周期（2026-09-14 阶段 4）—————
+   *
+   * 三条硬约束驱动了下面的形状（均经 `note` 探针实测，见 RENDER_INTERFACE §5）：
+   * ① `renderHighlighters` **只对当前已渲染的那一节生效**（文字类只有一个 iframe）→
+   *   **每章 `rendered` 后都必须重挂**，否则换章后新章没有高亮；
+   * ② 首次渲染可能**先于**笔记载入（载入要走 IPC）→ 载入完必须补挂一次；
+   * ③ 新增/删除由 `createNote`/`removeNote` 自己改 DOM，**不必**整批重挂（重挂会 clear 再画一遍）。
+   */
+
+  // 载入本书笔记（打开/切书时）→ 载入完补挂一次（约束②）
+  useEffect(() => {
+    if (!book) {
+      setNotes([])
+      notesRef.current = []
+      return
+    }
+    let cancelled = false
+    void container.store.listNotes(book.id).then((list) => {
+      if (cancelled) return
+      notesRef.current = list
+      setNotes(list)
+      void container.render.renderHighlighters(list)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [container, book])
+
+  // 每渲染完一章 → 回显该章高亮（约束①；适配器内部按当前节过滤）
+  useEffect(() => {
+    return container.render.on('rendered', () => {
+      void container.render.renderHighlighters(notesRef.current)
+    })
+  }, [container])
+
+  // 正文选区变化（适配器在书文档上观测）。色板已由右键菜单取代（用户 2026-09-14 定：
+  // "新建无论是高亮还是批注，最好的方法还是右键"），但**仍要跟踪选区**：
+  // ① 它决定右键菜单里"新建"两项是否可用；② 键盘驱动的流程（预留）没有鼠标坐标，靠它定位。
+  useEffect(() => {
+    return container.render.on('selection-changed', (sel) => {
+      selectionRef.current = sel
+      setSelection(sel)
+    })
+  }, [container])
+
+  // 阅读区右键 → 弹挂载线菜单（适配器换算好坐标与命中：有选区可新建，点在笔记上可编辑/移除）
+  useEffect(() => {
+    return container.render.on('context-menu', (req) => {
+      setComposer(null)
+      setMenu(req)
+    })
+  }, [container])
+
+  // 单击已有高亮 → 直接开它的批注（kookit handleNoteClick 回调，见 CONTRACTS §4.1）
+  useEffect(() => {
+    return container.render.on('note-clicked', ({ noteId, x, y }) => {
+      const target = notesRef.current.find((n) => n.id === noteId)
+      if (!target) return
+      setMenu(null)
+      // 坐标缺省（kookit 有一条回调路径不给鼠标事件）→ 用选区矩形兜底，最后退到安全位
+      setComposer({
+        x: x ?? selectionRef.current?.rect.x ?? 8,
+        y: y ?? (selectionRef.current?.rect.y ?? 0) + 24,
+        anchor: target.anchor,
+        noteId,
+        body: target.body
+      })
+    })
+  }, [container])
+
+  /**
+   * 新建一条标记（高亮或批注）。
+   * `id`/时间戳在**用例层**生成（存储层不代生成 id —— 它是同步主键，须跨端稳定，CONTRACTS §4.4）；
+   * 落库成功后交给引擎立即回显，不必等整批重挂（见上「约束③」）。
+   * `kind` 记录**创建来路**（选色 → highlight / 写批注 → note），之后编辑正文不改 kind。
+   */
+  const createMark = useCallback(
+    async (anchor: TextAnchor, color: NoteColor, kind: 'highlight' | 'note', body = ''): Promise<void> => {
+      if (!book) return
+      const now = Date.now()
+      const note: Note = {
+        id: crypto.randomUUID(),
+        bookId: book.id,
+        kind,
+        anchor,
+        color,
+        body,
+        createdAt: now,
+        updatedAt: now
+      }
+      try {
+        await container.store.addNote(note)
+        await container.render.createNote(note)
+        const next = [...notesRef.current, note]
+        notesRef.current = next
+        setNotes(next)
+        host.pushLog(`${kind === 'note' ? '已加批註' : '已劃線'}：${note.anchor.norm.quote.exact.slice(0, 12)}…`)
+      } catch (err) {
+        host.pushLog(`標記失敗：${(err as Error).message}`)
+      }
+      // 清掉书文档选区：否则浏览器自带的选区高亮会盖在我们画的高亮上
+      container.render.clearSelection()
+    },
+    [container, book, host]
+  )
+
+  /** 保存批注正文：既有笔记 → 更新；新建（无 noteId）→ 落一条 `kind='note'` */
+  const saveAnnotation = useCallback(async (): Promise<void> => {
+    const c = composer
+    if (!c) return
+    setComposer(null)
+    try {
+      if (c.noteId) {
+        await container.store.updateNote(c.noteId, { body: c.body })
+        const next = notesRef.current.map((n) =>
+          n.id === c.noteId ? { ...n, body: c.body, updatedAt: Date.now() } : n
+        )
+        notesRef.current = next
+        setNotes(next)
+        // 批注有无会影响 kookit 的"带批注"图标（`isNote = item.notes !== ""`）→ 整批重挂一次
+        await container.render.renderHighlighters(next)
+      } else {
+        await createMark(c.anchor, 'yellow', 'note', c.body)
+      }
+    } catch (err) {
+      host.pushLog(`儲存批註失敗：${(err as Error).message}`)
+    }
+  }, [composer, container, host, createMark])
+
+  /**
+   * 跳到一条笔记（笔记面板点击）。走 `resolveAnchor` 的 `revealNoteId` 口径：
+   * 章级导航 + 把该条高亮元素滚进视野 —— **不依赖 Fragment 解算**，故弱锚点笔记也能看到落点。
+   */
+  const jumpNote = useCallback(
+    async (note: Note): Promise<void> => {
+      try {
+        await container.render.resolveAnchor(note.anchor, { revealNoteId: note.id })
+      } catch (err) {
+        host.pushLog(`跳轉筆記失敗：${(err as Error).message}`)
+      }
+    },
+    [container, host]
+  )
+
+  /** 删除一条笔记：先落库删，再让引擎摘掉 DOM 里的高亮（否则划线会留到换章为止） */
+  const removeNote = useCallback(
+    async (note: Note): Promise<void> => {
+      try {
+        await container.store.removeNote(note.id)
+        await container.render.removeNote(note.id)
+        const next = notesRef.current.filter((n) => n.id !== note.id)
+        notesRef.current = next
+        setNotes(next)
+      } catch (err) {
+        host.pushLog(`移除筆記失敗：${(err as Error).message}`)
+      }
+    },
+    [container, host]
+  )
 
   // 打开/关闭受 readerBookId 驱动（host.openReader / host.closeReader）
   useEffect(() => {
@@ -381,19 +577,145 @@ export function ReaderFeature({
       'reader.toggleControls': () => setControlsOpen((v) => !v),
       'reader.toggleFullscreen': () => {
         void window.turead.invoke(IPC.winSetFullScreen, !fullscreen)
-      }
+      },
+      // ————— 标记/批注的**键盘接口（预留）**，2026-09-14 用户定"现在只需要预留出对应的接口" —————
+      // 行为已就位、可直接调用；**键位故意留空**（见 domain/input.ts 的"预留"分组）——
+      // 待配键方案（用户要设置页可配置 + 研究主流键鼠模式）定下后填 DEFAULT_BINDINGS 即可，
+      // 不必再改这里。目标链条：键盘翻页 → 选中 → 集中焦点 → 做笔记，手不离开键盘。
+      'reader.markSelection': () => {
+        if (selection) void createMark(selection.anchor, 'yellow', 'highlight')
+      },
+      'reader.annotateSelection': () => {
+        if (!selection) return
+        setMenu(null)
+        setComposer({
+          x: selection.rect.x,
+          y: selection.rect.y + selection.rect.height,
+          anchor: selection.anchor,
+          body: ''
+        })
+      },
+      'reader.composerCommit': () => {
+        // 提交**当前输入内容** —— 所以面板正文 state 由本组件持有（见 composer 注释）
+        if (composer) void saveAnnotation()
+      },
+      'reader.composerCancel': () => setComposer(null)
     },
     activeFeature === 'reader' && !!book
   )
 
+  // 鼠标侧键在阅读器内翻页（2026-09-14 用户定"侧键在阅读器内也可以翻页是没有问题的"）。
+  // 与书库域的侧键（后退/前进）分工**按功能态**：同一物理键在不同域语义不同 —— 这正是用户要的。
+  // preventDefault 压掉 Chromium 侧键默认的历史导航。
+  useEffect(() => {
+    if (activeFeature !== 'reader' || !book) return
+    const onMouseDown = (e: MouseEvent): void => {
+      if (e.button === 3) {
+        e.preventDefault()
+        void pageTurn('prev')
+      } else if (e.button === 4) {
+        e.preventDefault()
+        void pageTurn('next')
+      }
+    }
+    window.addEventListener('mousedown', onMouseDown)
+    return () => window.removeEventListener('mousedown', onMouseDown)
+  }, [activeFeature, book, pageTurn])
+
+  /**
+   * 右键菜单项（阅读器域语义，用户 2026-09-14 定："不同的地方右键的语义不同，这就是我的要求"）。
+   * 形态由 `ContextMenu` 统一（挂载线 + 向下生长）；这里只给语义。
+   * - 有选区 → 「標記」四色子菜单 + 「加批註」
+   * - 点在已有笔记上 → 「編輯批註」+「移除」
+   */
+  const markMenuItems = (req: RenderContextMenuRequest): ContextMenuItem[] => {
+    const items: ContextMenuItem[] = []
+    if (req.anchor) {
+      const anchor = req.anchor
+      items.push({
+        label: '標記',
+        children: (['yellow', 'green', 'blue', 'red'] as NoteColor[]).map((c) => ({
+          label: { yellow: '黃', green: '綠', blue: '藍', red: '赤' }[c],
+          swatch: `var(--note-${c})`,
+          onClick: () => void createMark(anchor, c, 'highlight')
+        }))
+      })
+      items.push({
+        label: '加批註',
+        onClick: () => setComposer({ x: req.x, y: req.y, anchor, body: '' })
+      })
+    }
+    if (req.noteId) {
+      const noteId = req.noteId
+      const target = notesRef.current.find((n) => n.id === noteId)
+      if (target) {
+        items.push({
+          label: '編輯批註',
+          onClick: () =>
+            setComposer({
+              x: req.x,
+              y: req.y,
+              anchor: target.anchor,
+              noteId,
+              body: target.body
+            })
+        })
+        items.push({ label: '移除', onClick: () => void removeNote(target) })
+      }
+    }
+    return items
+  }
+
   return (
-    <section className="relative h-full select-none" onWheel={onReaderWheel}>
+    <section
+      className="relative h-full select-none"
+      onWheel={onReaderWheel}
+      // 宿主区（页边留白、点击带）的右键：正文内的右键走适配器的 context-menu 事件
+      // （iframe 事件到不了宿主，故两路都要挂，最终汇到同一个菜单 state）
+      onContextMenu={(e) => {
+        e.preventDefault()
+        setComposer(null)
+        setMenu({
+          x: e.clientX,
+          y: e.clientY,
+          anchor: selection?.anchor ?? null
+        })
+      }}
+    >
       {/* 全屏纸（纸色铺满内容区）；正文列是它的子元素（宿主容器 = 正文列，见 styles.css .reader-stage）。
           滚轮接管在整个 section 上（含左右点击翻页带），见 onReaderWheel 注释 */}
       <div className="reader-paper absolute inset-0">
         {/* 正文列：id 是 kookit 硬编码契约；列宽 = --read-width（设置写入）→ 决定一行多长 */}
         <div className="reader-stage" id="page-area" ref={stageRef} />
       </div>
+
+      {/* 右键菜单（挂载线形态，2026-09-14 用户定为主入口）：新建标记/批注、编辑/移除既有笔记。
+          阅读页"零控件"（STYLE.md §5.8）不冲突 —— 它随右键生灭，不是常驻控件 */}
+      {menu && markMenuItems(menu).length > 0 && (
+        <ContextMenu x={menu.x} y={menu.y} items={markMenuItems(menu)} onClose={() => setMenu(null)} />
+      )}
+
+      {/* 批注输入：与菜单同源形态（挂载线 + 向下生长）。Enter 提交 / Shift+Enter 换行 / Esc 取消 */}
+      {composer && (
+        <NoteComposer
+          x={composer.x}
+          y={composer.y}
+          value={composer.body}
+          onChange={(body) => setComposer((c) => (c ? { ...c, body } : c))}
+          title={composer.noteId ? '編輯批註' : '新增批註'}
+          onSave={() => void saveAnnotation()}
+          onCancel={() => setComposer(null)}
+          onRemove={
+            composer.noteId
+              ? () => {
+                  const target = notesRef.current.find((n) => n.id === composer.noteId)
+                  setComposer(null)
+                  if (target) void removeNote(target)
+                }
+              : undefined
+          }
+        />
+      )}
 
       {/* 挂载线实体（STYLE.md §5.8，2026-09-12）：目录顶部垂挂 + 阅读参数底部挂载向上展开，
           目录折叠时点线展开——两挂件互不干扰又同处一条线 */}
@@ -403,6 +725,11 @@ export function ReaderFeature({
           onTocToggle={() => setTocOpen((v) => !v)}
           tocRows={toc}
           onTocJump={(r) => void jumpChapter(r)}
+          leftPanel={leftPanel}
+          onLeftPanelChange={setLeftPanel}
+          notes={notes}
+          onNoteJump={(n) => void jumpNote(n)}
+          onNoteRemove={(n) => void removeNote(n)}
           controlsOpen={controlsOpen}
           onControlsToggle={() => setControlsOpen((v) => !v)}
           params={params}

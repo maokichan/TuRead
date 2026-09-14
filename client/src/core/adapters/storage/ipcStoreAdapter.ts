@@ -3,8 +3,13 @@
  * （SQLite 单库持久化，多库下所有 store:* 打到「当前库」）。
  * 接口保持存储无关；本桥不感知库切换——切库以 main 广播的 library-changed 为准。
  */
-import type { ILibraryStore, LibraryListResult, LibraryLevelQuery } from '@core/ports/store'
-import type { BookContainer, BookRecord, LibraryEntry } from '@core/domain/types'
+import type {
+  ILibraryStore,
+  LibraryListResult,
+  LibraryLevelQuery,
+  NotePatch
+} from '@core/ports/store'
+import type { BookContainer, BookRecord, LibraryEntry, Note } from '@core/domain/types'
 import { IPC, type TureadBridge } from '@shared/ipc'
 
 export class IpcStoreAdapter implements ILibraryStore {
@@ -107,5 +112,24 @@ export class IpcStoreAdapter implements ILibraryStore {
 
   async moveContainer(id: string, parentId: string | null): Promise<void> {
     await this.bridge.invoke(IPC.storeMoveContainer, { id, parentId })
+  }
+
+  async listNotes(bookId: string, chapterIndex?: number): Promise<Note[]> {
+    return (await this.bridge.invoke(IPC.storeListNotes, {
+      bookId,
+      chapterIndex
+    })) as Note[]
+  }
+
+  async addNote(note: Note): Promise<void> {
+    await this.bridge.invoke(IPC.storeAddNote, note)
+  }
+
+  async updateNote(id: string, patch: NotePatch): Promise<void> {
+    await this.bridge.invoke(IPC.storeUpdateNote, { id, patch })
+  }
+
+  async removeNote(id: string): Promise<void> {
+    await this.bridge.invoke(IPC.storeRemoveNote, id)
   }
 }

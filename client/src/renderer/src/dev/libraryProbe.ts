@@ -9,6 +9,8 @@
  */
 import type { ServiceContainer } from '@core/container'
 import { extToFormat } from '@core/domain/format'
+import { anchorStrengthOf } from '@core/domain/anchor'
+import type { Note } from '@core/domain/types'
 import type { FeatureHost } from '../features/types'
 
 let autoRan = false
@@ -137,6 +139,98 @@ export function runLibraryProbe(container: ServiceContainer, host: FeatureHost):
       // ⑤ 引导文件语义：config.json 只有注册表，书库数据在 .db（由 main 保证，这里只验 IPC 面）
       const final = await container.store.listLibraries()
       assert(final.libraries.length === 3, `库注册表三个条目（实际 ${final.libraries.length}）`)
+
+      // ⑥ 笔记/划线全链路（2026-09-14 阶段 2）：渲染层 → IPC → 主进程 → SQLite → 读回。
+      //    重点验**锚点落库往返**（Fragment 逐字节 + excerpt/prefix 投影不脱节）与**重锚一致性**，
+      //    这两处错了表现为"高亮跳到别处"，肉眼极难定位，故钉在探针里。
+      const noteBookId = (await container.books.list())[0].id
+      const mkNote = (
+        chapter: number,
+        progression: number,
+        exact: string,
+        frag: string | null
+      ): Note => ({
+        id: crypto.randomUUID(),
+        bookId: noteBookId,
+        kind: 'highlight',
+        anchor: {
+          norm: {
+            chapterIndex: chapter,
+            progression,
+            quote: { exact, prefix: '前文', suffix: '後文' }
+          },
+          fragment: frag ? { engine: 'kookit-rangy', key: frag } : null
+        },
+        color: 'yellow',
+        body: '',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+      const n1 = mkNote(0, 0.1, '第一章的划线原文', '{"start":1,"end":9}')
+      const n2 = mkNote(2, 0.5, '第三章的划线原文', '{"start":20,"end":30}')
+      const nWeak = mkNote(1, 0.9, '弱锚点原文（无引擎载荷）', null)
+      await container.store.addNote(n1)
+      await container.store.addNote(n2)
+      await container.store.addNote(nWeak)
+      const allNotes = await container.store.listNotes(noteBookId)
+      assert(allNotes.length === 3, `笔记落库 3 条（实际 ${allNotes.length}）`)
+      assert(
+        allNotes.map((n) => n.anchor.norm.chapterIndex).join(',') === '0,1,2',
+        `listNotes 按阅读序（章序）返回：${allNotes.map((n) => n.anchor.norm.chapterIndex).join(',')}`
+      )
+      const onlyCh0 = await container.store.listNotes(noteBookId, 0)
+      assert(
+        onlyCh0.length === 1 && onlyCh0[0].id === n1.id,
+        `按章过滤只取该节（实际 ${onlyCh0.length}）`
+      )
+      const r1 = allNotes.find((n) => n.id === n1.id)!
+      assert(anchorStrengthOf(r1.anchor) === 'strong', 'Fragment 往返后仍是强锚点')
+      assert(
+        r1.anchor.fragment?.key === '{"start":1,"end":9}',
+        'anchor_key 往返逐字节一致（引号/花括号未被转义破坏）'
+      )
+      assert(r1.anchor.norm.quote.exact === '第一章的划线原文', 'excerpt 列装回 quote.exact')
+      assert(r1.anchor.norm.quote.prefix === '前文', 'anchor_hint 的 prefix 装回')
+      const rWeak = allNotes.find((n) => n.id === nWeak.id)!
+      assert(anchorStrengthOf(rWeak.anchor) === 'weak', '无载荷笔记降级为弱锚点（不抛错）')
+      assert(rWeak.anchor.norm.quote.exact !== '', '弱锚点仍保留原文（供 remeasure）')
+
+      // ⑥b 更新：批注正文/颜色 + updatedAt 由存储层统一盖戳
+      const beforeUpdate = r1.updatedAt
+      await wait(5)
+      await container.store.updateNote(n1.id, { body: '我的批注', color: 'red' })
+      const r1b = (await container.store.listNotes(noteBookId, 0))[0]
+      assert(r1b.body === '我的批注', '批注正文可更新（kookit 侧须按字符串传，不再被丢）')
+      assert(r1b.color === 'red', '颜色可更新（存语义名，非 hex）')
+      assert(r1b.updatedAt > beforeUpdate, 'updatedAt 由存储层自动盖戳')
+
+      // ⑥c 重锚：chapter_index/anchor_key/anchor_hint + excerpt **必须一起**改（投影不脱节）
+      await container.store.updateNote(n1.id, {
+        anchor: {
+          norm: {
+            chapterIndex: 1,
+            progression: 0.25,
+            quote: { exact: '重锚後的原文', prefix: '新前', suffix: '新後' }
+          },
+          fragment: { engine: 'kookit-rangy', key: '{"start":99,"end":120}' }
+        }
+      })
+      const re = (await container.store.listNotes(noteBookId, 1)).find((n) => n.id === n1.id)!
+      assert(re.anchor.norm.chapterIndex === 1, '重锚后章节列已更新')
+      assert(re.anchor.fragment?.key === '{"start":99,"end":120}', '重锚后 anchor_key 已更新')
+      assert(re.anchor.norm.quote.exact === '重锚後的原文', '重锚后 excerpt 同步（投影不脱节）')
+      assert(re.anchor.norm.quote.prefix === '新前', '重锚后 anchor_hint 同步')
+      assert(
+        (await container.store.listNotes(noteBookId, 0)).length === 0,
+        '旧章已无该笔记（无残影）'
+      )
+
+      // ⑥d 删除 + 清理
+      await container.store.removeNote(n2.id)
+      assert((await container.store.listNotes(noteBookId)).length === 2, '删除后剩 2 条')
+      await container.store.removeNote(nWeak.id)
+      await container.store.removeNote(n1.id)
+      assert((await container.store.listNotes(noteBookId)).length === 0, '笔记断言清理干净')
 
       if (failed) throw new Error('存在 FAIL 断言')
       ok(

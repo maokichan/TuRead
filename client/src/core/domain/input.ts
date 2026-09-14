@@ -90,6 +90,14 @@ export const DEFAULT_BINDINGS: KeyBindingTable = {
   'reader.toggleToc': ['t'],
   'reader.toggleControls': ['p'],
   'reader.toggleFullscreen': ['f11'], // 沉浸全屏（2026-09-13）
+  // —— 阅读器：标记/批注的键盘接口（**键位预留，故意留空**；2026-09-14 用户定）——
+  // 行为已在 ReaderFeature 就位、可被直接调用；键位待"配键方案"（设置页可配置 + 研究主流键鼠
+  // 交互模式）定下后**只填这里**，不必改 UI。目标链条：键盘翻页 → 选中文字 → 集中焦点 → 写批注，
+  // **手不离开键盘**。
+  'reader.markSelection': [],
+  'reader.annotateSelection': [],
+  'reader.composerCommit': [],
+  'reader.composerCancel': [],
   // —— 全局 ——
   'app.focusSearch': ['ctrl+f'] // 处理函数内分流：仅书库态聚焦标题栏搜索
 }
