@@ -14,6 +14,7 @@ import type { IRoomSession } from '@core/usecases/RoomSession'
 import type { IBookService } from '@core/usecases/BookService'
 import type { ICoverQueue } from '@core/usecases/CoverQueue'
 import type { IImportQueue } from '@core/usecases/ImportQueue'
+import type { IScanService } from '@core/usecases/ScanService'
 import type { IImageThumbnailer } from '@core/ports/image'
 
 import { IpcNetAdapter } from '@core/adapters/net/ipcNetAdapter'
@@ -28,6 +29,7 @@ import { BookService } from '@core/usecases/BookService'
 import { CoverQueue } from '@core/usecases/CoverQueue'
 import { CanvasThumbnailer } from '@core/adapters/image/thumbnail'
 import { ImportQueue } from '@core/usecases/ImportQueue'
+import { ScanService } from '@core/usecases/ScanService'
 import { IPC, type TureadBridge } from '@shared/ipc'
 
 export interface ServiceContainer {
@@ -42,6 +44,8 @@ export interface ServiceContainer {
   books: IBookService
   covers: ICoverQueue
   imports: IImportQueue
+  /** v0.4.0：映射库与真实路径的**扫描对账**（映射库不能导入，只能扫描 —— DATA_MODEL D5） */
+  scan: IScanService
 }
 
 /** 装配真实服务容器（渲染进程调用，桥 = preload 注入的 window.turead） */
@@ -62,6 +66,13 @@ export function createContainer(bridge: TureadBridge): ServiceContainer {
   const thumbnailer: IImageThumbnailer = new CanvasThumbnailer()
   const covers: ICoverQueue = new CoverQueue(metadata, thumbnailer, store)
   const imports: IImportQueue = new ImportQueue(readFile, books)
+  // 扫描对账（映射库专用）：复用 picker 的列目录 + 文件读取能力
+  const scan: IScanService = new ScanService(
+    (dir, recursive) => picker.listEbooks(dir, recursive),
+    readFile,
+    books,
+    store
+  )
 
-  return { render, net, identity, store, picker, room, books, covers, imports }
+  return { render, net, identity, store, picker, room, books, covers, imports, scan }
 }

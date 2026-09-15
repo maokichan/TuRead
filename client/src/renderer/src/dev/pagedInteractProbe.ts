@@ -33,13 +33,16 @@ export function runPagedInteractProbe(container: ServiceContainer, host: Feature
       const devBook = window.turead.devBook
       if (!devBook) throw new Error('paged-interact 探针需要 TUREAD_DEV_BOOK 指向 EPUB/文字类文件')
       const buffer = await container.picker.readFile(devBook)
-      const { book } = await container.books.importBook(
+      // v0.4.0：导入必须给出目标书库（收录关系是库内的）；返回的 `edition` = **内容身份**
+      const { currentId: libraryId } = await container.store.listLibraries()
+      const { edition } = await container.books.importBook(
         buffer,
         devBook.split(/[\\/]/).pop() ?? devBook,
         extToFormat(devBook),
-        devBook
+        devBook,
+        libraryId
       )
-      host.openReader(book.id)
+      host.openReader(edition.id)
 
       const stage = (): HTMLElement | null => document.getElementById('page-area')
       const iframe = (): HTMLIFrameElement | null =>
@@ -49,7 +52,7 @@ export function runPagedInteractProbe(container: ServiceContainer, host: Feature
       let visible = false
       for (let i = 0; i < 24 && !visible; i++) {
         visible = Boolean(stage()?.offsetParent)
-        if (!visible && i > 0 && i % 4 === 0) host.openReader(book.id)
+        if (!visible && i > 0 && i % 4 === 0) host.openReader(edition.id)
         await wait(250)
       }
       if (!visible) throw new Error('阅读器面板不可见')
@@ -62,7 +65,7 @@ export function runPagedInteractProbe(container: ServiceContainer, host: Feature
       await container.store.patchSetting('readerSettings', { readerMode: 'single' })
       host.closeReader()
       await wait(600)
-      host.openReader(book.id)
+      host.openReader(edition.id)
       const deadline2 = Date.now() + 30000
       while ((!iframe() || iframe() === null) && Date.now() < deadline2) await wait(200)
       await wait(2500)

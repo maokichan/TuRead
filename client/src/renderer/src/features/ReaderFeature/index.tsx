@@ -300,7 +300,7 @@ export function ReaderFeature({
       const now = Date.now()
       const note: Note = {
         id: crypto.randomUUID(),
-        bookId: book.id,
+        editionId: book.id,
         kind,
         anchor,
         color,
@@ -399,10 +399,14 @@ export function ReaderFeature({
         const cfg = await container.store.getSetting<ReaderSettings>('readerSettings', {})
         const mode = cfg.readerMode ?? 'scroll'
         setReaderMode(mode)
+        // v0.4.0：阅读状态已从书行拆到 `ReadingState`，**首次定位的目标位置必须显式传入**
+        // （适配器不再读 `record.lastLocation` —— 见 CONTRACTS §2 与 RenderOptions.lastLocation）
+        const state = await container.books.getReadingState(latest.id)
         await container.render.open(latest, {
           readerMode: mode,
           animation: 'none',
-          theme: currentTheme()
+          theme: currentTheme(),
+          ...(state?.lastLocation ? { lastLocation: state.lastLocation } : {})
         })
         if (stageRef.current) await container.render.renderTo(stageRef.current)
         if (cancelled) return

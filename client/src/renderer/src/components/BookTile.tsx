@@ -1,8 +1,9 @@
-import type { BookRecord } from '@core/domain/types'
+import type { EditionRecord } from '@core/domain/types'
 import { FittedTitle } from './FittedTitle'
 
 interface BookTileProps {
-  book: BookRecord
+  /** 内容身份（v0.4.0：原 `BookRecord` → `EditionRecord`） */
+  book: EditionRecord
   active: boolean
   coverUrl: string | null
   onDetail: () => void

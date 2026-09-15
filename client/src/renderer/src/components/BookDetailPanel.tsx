@@ -1,11 +1,14 @@
 import { useEffect, useRef } from 'react'
-import type { BookRecord } from '@core/domain/types'
+import type { EditionRecord, ReadingState } from '@core/domain/types'
 import { formatRelative, formatSize, formatTime, progressText } from '../features/format'
 import { FittedTitle } from './FittedTitle'
 import { Marquee } from './Marquee'
 
 interface BookDetailPanelProps {
-  book: BookRecord
+  /** 内容身份（v0.4.0：原 `BookRecord` → `EditionRecord`） */
+  book: EditionRecord
+  /** 阅读状态（v0.4.0 从书行拆出）——进度与「最近阅读」都读它；`null` = 未读 */
+  readingState: ReadingState | null
   coverUrl: string | null
   onClose: () => void
   onOpen: () => void
@@ -45,6 +48,7 @@ const ROW = 'flex h-8 items-center'
  */
 export function BookDetailPanel({
   book,
+  readingState,
   coverUrl,
   onClose,
   onOpen,
@@ -108,10 +112,18 @@ export function BookDetailPanel({
 
           {/* ③ 指标行：内容自己说明性质，故都不带标签 */}
           <div className="flex gap-1.5">
-            <Chip value={progressText(book)} />
-            <Chip value={book.lastReadAt ? formatRelative(book.lastReadAt) : '未阅读'} />
-            {/* 占位：累计阅读时长，功能待实现（见 TODO.md） */}
-            <Chip value="共 —" />
+            <Chip value={progressText(readingState)} />
+            <Chip
+              value={readingState?.lastReadAt ? formatRelative(readingState.lastReadAt) : '未阅读'}
+            />
+            {/* 指标行第三格：累计阅读时长（v0.4.0 起 `total_read_ms` 有存储位；记录会话待实现） */}
+            <Chip
+              value={
+                readingState?.totalReadMs
+                  ? `${Math.max(1, Math.round(readingState.totalReadMs / 60000))} 分鐘`
+                  : '共 —'
+              }
+            />
           </div>
         </div>
       </header>

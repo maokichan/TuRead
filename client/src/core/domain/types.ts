@@ -65,35 +65,117 @@ export interface BookMetadata {
   cover?: string
 }
 
-/** 本地书库条目 */
-export interface BookRecord {
-  /** 本地唯一 id（uuid） */
+/**
+ * 作品身份（Work）——"这是哪本书"：`protocol` + `code`（如 ISBN）。
+ * 权威口径见 `../../docs/ARCHITECTURE.md` §1；**本次只留接口、不做完整标准化**（DATA_MODEL D11/F9）。
+ * 为什么要留：**阅读时间按 work 汇总**依赖它（同一本书的不同电子版合并计时）。
+ */
+export interface WorkIdentity {
+  protocol: 'isbn' | 'asin' | 'doi' | 'open-library' | 'content-hash-v1'
+  /** 识别编码（isbn 含校验位） */
+  code: string
+}
+
+/**
+ * 电子版本地记录（EditionRecord）——**内容身份**，全局唯一键 = `fingerprint`。
+ *
+ * ⚠ **v0.4.0（2026-09-15「书的身份」定案，DATA_MODEL §4.2/§6）**：本类型取代原 `BookRecord`
+ * 的"内容"部分；原 `BookRecord` 里"属于哪个库/书箱"移到 `Holding`（收录）、"阅读状态"移到
+ * `ReadingState`。**跨库共享的根就是本类型**：同一文件 → 同一指纹 → 同一 edition 行
+ * （**不需要 work 也成立**；work 只用于"不同文件但同一本书"的聚合）。
+ *
+ * ⚠ 与 `CONTRACTS.md` §2 的 wire `Edition`（server 载荷 `{id, workId, ext, hashAlgo, …}`）
+ * **不是同一个类型**：本类型是**本地持久化的 edition 行**（多出 title/metadata/封面等本地字段）。
+ */
+export interface EditionRecord {
+  /** uuid（内部主键，稳定）—— **`Note` 与 `ReadingState` 引用它** */
   id: string
+  /** 可空 = 尚未标准化（D11：接口就位，完整标准化后置；现状旧列是死列） */
+  work?: WorkIdentity | null
   fingerprint: BookFingerprint
   metadata: BookMetadata
   format: BookFormat
+  /** 当前用于打开的真实路径（最后已知） */
   filePath: string
   createdAt: number
-  lastReadAt?: number
-  lastLocation?: BookLocation
   /**
-   * 封面缩略图文件名（相对 `userData/covers/`，如 `<id>.jpg`）；缺省 = 尚无封面。
-   * 只存文件名不存绝对路径（换机器/换用户目录仍可用）；**封面字节不进 library.json**：
-   * 一本封面转 data URL ≈ 200KB，书库全量重写（阅读中每 2s 一次）会被拖垮，故落盘 + 只存引用。
+   * 封面缩略图文件名（相对当前库的 covers 目录）；缺省 = 尚无封面。
+   * **封面由内容决定，故是 edition 级**；只存引用、字节落盘（同 v0.2.6 口径）。
    */
   coverPath?: string
   /**
-   * 封面提取失败标记（2026-09-12）：**永久性失败**（如 TXT/DOCX 根本没有内嵌封面）只试一次，
-   * 之后不再重试 —— 此前失败不留痕，每次启动「存量补封面」都把失败书重新解析一遍
-   * （大文件在渲染主线程解析，书库一大就把 UI 饿死）。重试 = 删除本字段。
+   * 封面提取失败负缓存（永久性失败只试一次）。
+   * ⚠ 已知缺陷：**瞬态故障与永久故障未区分**，会把解析窗崩溃/超时也永久缓存 ——
+   * 见 `TODO.md`「工程与测试设施」组的行为审查条目。重试 = 删除本字段。
    */
   coverFailed?: boolean
 }
 
+/**
+ * 收录（Holding）——"**哪个书库里有这本书**"（原 `BookRecord` 的"属于某库"部分）。
+ * 同一 edition 可被**多个书库**收录（多行）→ 跨库共享天然成立；库内为**单亲归属**（一个 container）。
+ */
+export interface Holding {
+  libraryId: string
+  editionId: string
+  /** 属哪个书箱；`null` = 库根层 */
+  containerId: string | null
+  /** 来源：映射库扫到（`scan`）／导入（`import`） */
+  origin: 'scan' | 'import'
+  /** 该库视角下的路径（映射库对账用） */
+  path?: string
+  /** `path` 的规范化父目录 —— 层级浏览的 **SQL 过滤列**（写入时维护，§DATA_MODEL §2） */
+  parentPath?: string
+  /** 来源缺失（映射库对账产物）：**只影响可见性，不影响笔记与阅读状态**（DATA_MODEL §6.1） */
+  missing: boolean
+  sort: number
+  addedAt: number
+}
+
+/** 层级浏览的读模型（UI 用）：一个条目 = 内容身份 + 它在当前库的收录关系 + 阅读状态 */
+export interface LibraryItem {
+  edition: EditionRecord
+  holding: Holding
+  /**
+   * 阅读状态（进度/最近阅读/累计时长）。放进读模型是**为了不 N+1**：
+   * 列表每行都要显示进度（`progressText`），逐行查一次阅读状态就是个 N+1；
+   * 让 `listItemsAtLevel` 一次 JOIN 出来。`null` = 从未读过。
+   */
+  readingState: ReadingState | null
+}
+
+/** 阅读状态（v0.4.0：从书行里拆出，**逐 edition**）——"按 work 汇总"是查询口径，不是存储口径 */
+export interface ReadingState {
+  editionId: string
+  lastReadAt?: number
+  lastLocation?: BookLocation
+  /** 累计阅读时长（ms）——便于展示的累计投影；权威明细在 `ReadingSession` */
+  totalReadMs: number
+}
+
+/** 阅读会话（③ 阅读时间模型的落点）：逐 edition 记原始会话，便于按 work 汇总 */
+export interface ReadingSession {
+  id: number
+  editionId: string
+  /** 用户（登录后回填）；**本机默认档案 = null/缺省**（D10） */
+  owner?: string | null
+  startedAt: number
+  endedAt: number
+  durationMs: number
+}
+
+/**
+ * ⚠ **过渡别名（v0.4.0）**：`BookRecord` 现等同 `EditionRecord`（只承载**内容身份**）。
+ * 保留是为了**把渲染层的爆炸半径压住**（`IRenderService.open` 只需内容身份：id/指纹/格式/路径/元数据）。
+ * **新代码不得用它表达"属于哪个库"**（那是 `Holding`）；收尾时删除本别名。
+ * @deprecated 用 `EditionRecord`
+ */
+export type BookRecord = EditionRecord
+
 /** 书库视图（列表 / 网格；瀑布流因缩略图统一比例已并入网格，见 FEATURES §10） */
 export type LibraryView = 'list' | 'grid'
 
-/** 书库设置（持久化于当前库 settings 表的 librarySettings 键；随库走） */
+/** 书库视图设置（⚠ v0.4.0：持久化于**全局** `settings` 表 —— D9/F7"设置一律全局，没有库级设置"） */
 export interface LibrarySettings {
   view: LibraryView
   /** 导入文件夹时是否包含子目录（false = 只导入此节点；true = 此节点及所有子节点） */
@@ -101,32 +183,36 @@ export interface LibrarySettings {
 }
 
 /**
- * 书库条目（多书库，2026-09-13 立项）。一个条目 = 一份书库（一个 .db + 封面目录）；
- * 注册表（哪些库存在、当前是哪个）由主进程的引导文件持有（config.json，DATA_MODEL §1）。
- * `dbPath` 随列表返回，仅供展示/「所在文件夾」揭示（路径管理在主进程，渲染层不可指定路径）。
- * `mode`（2026-09-13 用户定）：**建库时必须二选一**——
- *   'source'  虚拟映射：跟踪**唯一一个**真实文件夹（rootPath），书架照搬其文件树（默认含子文件夹）；
- *   'virtual' 自建書箱：从零开始的空库，用户自建書箱树管理书籍。
- * 旧版迁移上来的默认库无 mode → 按 'virtual' 处理（全部书在根层）。
+ * 书库（Library / 書庫）——**组织模式，不是物理分区**（v0.4.0；用户 2026-09-15 定，DATA_MODEL D2）。
+ *
+ * ⚠ 相对 v0.3.5 的两处变化：
+ * ① **去掉 `dbPath`** —— "一库一 .db"已作废：全部数据在一个**全局 .db** 里（多书库只是同一库里的
+ *    多行 `libraries` + 各自的收录关系）；库注册表本身也进库，引导文件只剩 `{version, dbPath, 窗口状态}`。
+ * ② **`mode` 改名** —— 原 `'source' | 'virtual'` 反直觉（"虚拟映射"的标识是 `source`、"自建"却是
+ *    `virtual`），改为 **`'mapped' | 'curated'`**（映射库 / 自建库，见 DATA_MODEL §6.2）。
  */
 export interface LibraryEntry {
   id: string
   name: string
-  dbPath?: string
-  mode?: 'source' | 'virtual'
+  /** 映射库（跟踪真实文件夹，层级 = 文件系统）｜自建库（空库起步，用户自建書箱树） */
+  mode: 'mapped' | 'curated'
+  /** `mode='mapped'`：跟踪的**唯一**真实文件夹 */
   rootPath?: string
+  sort: number
 }
 
 /**
- * 書箱/容器（DATA_MODEL §2 containers 表的领域形状）。
- * virtual = 用户自建書箱（container_books 挂成员，数组序 = 用户排序）；
- * source = 虚拟映射（不落库行，按 rootPath 动态派生——所以本类型只承载 virtual 的行）。
+ * 書箱/容器（DATA_MODEL §2 `containers` 表的领域形状）。
+ * ⚠ v0.4.0：**增 `libraryId`**（箱树在库内 —— 单库时看不出来，多库同处一个 .db 后必须）；
+ * **去 `kind`**（库级 `mode` 已表达"映射/自建"；且原 `kind='source'` 的行**从未被写入过** ——
+ * 映射库的层级是按 `rootPath` **派生**的，不是行）。
  */
 export interface BookContainer {
   id: string
+  libraryId: string
   parentId: string | null
-  kind: 'source' | 'virtual'
   name: string
+  sort: number
 }
 
 /**
@@ -186,6 +272,13 @@ export interface RenderOptions {
   password?: string
   isScannedPDF?: boolean
   ocrEngine?: 'tesseract' | 'paddle' | 'official-ai-ocr' | 'external-engine'
+  /**
+   * v0.4.0：**首次定位的目标位置**（"回到上次读到哪"）。
+   * ⚠ 为什么放在 options 而不是从 `record` 上读：v0.4.0 起 `EditionRecord` 只承载**内容身份**，
+   * 阅读状态已拆到 `ReadingState`（DATA_MODEL §2 v3）—— 渲染层不该为了拿一个位置去依赖阅读状态表。
+   * 缺省 = 无历史位置 → 渲染初始章节（`goToChapterIndex(0)`）。
+   */
+  lastLocation?: BookLocation
 }
 
 /** 目录（TOC）。chapterDocIndex 缺省 = 该目录项无可直达渲染节（如仅作分组标题） */
@@ -275,7 +368,12 @@ export type NoteColor = 'red' | 'yellow' | 'green' | 'blue'
 export interface Note {
   /** uuid（同步主键） */
   id: string
-  bookId: string
+  /**
+   * ⚠ **v0.4.0：原 `bookId` → `editionId`**（DATA_MODEL D8）——
+   * 笔记挂**内容（edition）**：跨库共享、不随"移除收录"消失；且**各版各一份**、
+   * **不做自动跨版迁移**（跨版搬运是用户的主动动作，Pro 候选，见 TODO.md）。
+   */
+  editionId: string
   /** 成员 token；**本地笔记为 null/缺省**（同步上线后回填，DATA_MODEL §4 决定 5 预留） */
   owner?: string | null
   kind: NoteKind

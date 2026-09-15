@@ -113,7 +113,10 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
       if (!rid) return
       setJoining(true)
       try {
-        const res = await container.room.joinRoom(rid, target)
+        // v0.4.0：房间的初始位置取该书的**阅读状态**（已从书行拆到 `ReadingState`）——
+        // 原来 `joinRoom` 自己读 `book.lastLocation`，现在由调用方显式给。
+        const state = await container.books.getReadingState(target.id)
+        const res = await container.room.joinRoom(rid, target, state?.lastLocation ?? null)
         if (res.ok) {
           setJoinedRoomId(rid)
           setSessionBookTitle(target.metadata.title)

@@ -1,6 +1,6 @@
-# 客户端契约（Client Contracts v0.2）
+# 客户端契约（Client Contracts）
 
-> 状态：契约 v0.2（区分 **能力服务** 与 **应用服务（用例）** 两层）。
+> 状态：**v0.4.0**（当前）—— 修订历史见 §8。分层 = **能力服务（ports）** 与 **应用服务（用例）** 两层。
 > 术语：**六边形架构（端口-适配器）为骨架，DDD 命名为层内词汇**，对照表见 `ARCHITECTURE.md` §1。
 > 范围：**仅 client** 的层与接口契约；同步协议（信封/消息集/转发规范）由 server 定义，见 `../../server/docs/API.md`。
 > 迁移：将 1:1 落到 `client/src/core/{domain,ports,usecases}/`。
@@ -81,7 +81,9 @@ interface BookMetadata {
   cover?: string;            // data URL 或本地路径
 }
 
-/** 本地书库条目 */
+/** 本地书库条目
+ *  ⚠ **v0.4.0 退役**：拆为 `EditionRecord`（内容身份）+ `Holding`（收录关系），见 §2.2。
+ *  过渡期保留本类型以免一次改爆；但**新代码不得再用它表达"属于哪个库"**。 */
 interface BookRecord {
   id: string;                // 本地唯一 id（uuid）
   fingerprint: BookFingerprint;
@@ -104,10 +106,20 @@ type LibraryView = 'list' | 'grid';
 /** 书库条目（多书库 v0.3.5，2026-09-13 立项）：一个条目 = 一份书库（一个 .db + 封面目录）。
  *  注册表（有哪些库、当前是哪个）由主进程引导文件持有（config.json，DATA_MODEL §1）——
  *  引导文件不再存任何书库数据。`dbPath` 仅供展示/「所在文件夾」揭示（路径管理在主进程）。 */
+/**
+ * 书库（v0.4.0；**权威形状见 §2.2**）。
+ * ⚠ 旧形状（`{ id, name, dbPath? }`，"一个条目 = 一份 .db 书库"）**已作废** ——
+ * v0.4.0 起全部数据在一个**全局 .db** 里，书库降为**组织模式**，故 `dbPath` 去掉、
+ * `mode` 术语改名（`'source' | 'virtual'` → **`'mapped' | 'curated'`**）。
+ */
 interface LibraryEntry {
   id: string;
   name: string;
-  dbPath?: string;
+  /** 映射库（跟踪真实文件夹）｜自建库（空库起步、自建书箱树） */
+  mode: 'mapped' | 'curated';
+  /** `mode='mapped'`：跟踪的唯一真实文件夹 */
+  rootPath?: string;
+  sort: number;
 }
 
 /** 书库设置（持久化于 config.json 的 librarySettings 键） */
@@ -239,7 +251,9 @@ type NoteColor = 'red' | 'yellow' | 'green' | 'blue'   // **语义名**，UI 按
  */
 interface Note {
   id: string                   // uuid（同步主键）
-  bookId: string
+  /** ⚠ **v0.4.0：`bookId` → `editionId`** —— 笔记挂**内容（edition）**，跨库共享、不随条目消失；
+   *  且**各版各一份**（不自动跨版迁移，见 `DATA_MODEL.md` D8）。 */
+  editionId: string
   owner?: string | null        // 成员 token；本地笔记 null（同步上线后回填）
   kind: NoteKind
   anchor: TextAnchor
@@ -312,6 +326,83 @@ scroll，`next()` 的 smooth 滚动刚开始就 `record()` —— **滚动/翻�
 **修订说明**：本节为 v0.2.2 修订 —— `chapterDocIndex` 从 `number | string` 收窄为
 `number`（string 形态是 kookit 适配细节，域层不收；遗留 string 数据由
 `normalizeLocation` 在边界容错），并修正 `count`/`page` 的错误注释。
+
+### 2.2 书的身份与收录（**v0.4.0，2026-09-15 批复**；定案 = `DATA_MODEL.md` §4.2/§6）
+
+> **背景**：原 `BookRecord` 把**四种身份**揉在一个类型里（库内条目 uuid / 内容指纹 / 文件路径 /
+> 可选 Work），导致"同一本书多库各持一份笔记"（详见 `DATA_MODEL.md` §6.1）。
+> v0.4.0 **拆开**：**内容身份 = edition（全局唯一，键 = 指纹）**、**组织归属 = holding（收录）**、
+> **作品身份 = work（可空，本次只留接口）**。
+> ⚠ 实施方式：**类型改名与全量改名由 `typecheck` 驱动扫尾**（编译器会点出每一处），本文只立形状。
+
+```ts
+/** 作品身份（Work）——"这是哪本书"。本次只留接口，不做完整标准化（DATA_MODEL D11/F9）。 */
+interface WorkIdentity {
+  protocol: 'isbn' | 'asin' | 'doi' | 'open-library' | 'content-hash-v1'
+  code: string                 // 识别编码（isbn 含校验位）
+}
+
+/**
+ * 电子版本地记录（EditionRecord）——**内容身份**，全局唯一键 = `fingerprint`。
+ * ⚠ 与 §2 的 wire `Edition`（server 载荷，`{id, workId, ext, hashAlgo, …}`）**不是同一个类型**：
+ *   本类型是**本地持久化的 edition 行**（多出 title / metadata / coverPath 等本地字段）。
+ *
+ * 为什么不是 `BookRecord` 直接改名：`BookRecord` 同时承担了"收录关系"（属于哪个库/书箱）——
+ * 那部分移到 `Holding`。**跨库共享的根就是这个类型**：同一文件 → 同一指纹 → 同一 edition 行。
+ */
+interface EditionRecord {
+  id: string                   // uuid（内部主键，稳定；**Note 与阅读状态引用它**）
+  work?: WorkIdentity | null   // 可空 = 尚未标准化
+  fingerprint: BookFingerprint
+  format: BookFormat
+  metadata: BookMetadata
+  filePath: string             // 当前用于打开的真实路径（最后已知）
+  coverPath?: string           // 封面是 **edition 级**（由内容决定）
+  coverFailed?: boolean
+  createdAt: number
+}
+
+/**
+ * 收录（Holding）——"**哪个书库里有这本书**"（原 `BookRecord` 的"属于某库"部分）。
+ * 同一 edition 可被**多个书库**收录（多行）→ 跨库共享天然成立；库内为**单亲归属**（一个 container）。
+ */
+interface Holding {
+  libraryId: string
+  editionId: string
+  containerId: string | null   // 属哪个书箱；null = 库根层
+  origin: 'scan' | 'import'    // 映射库扫到 / 导入
+  path?: string                // 该库视角下的路径（映射库对账用）
+  parentPath?: string          // path 的规范化父目录（层级浏览的 SQL 过滤列）
+  /** 来源缺失（映射库对账产物）：**只影响可见性，不影响笔记与阅读状态**（DATA_MODEL §6.1） */
+  missing: boolean
+  sort: number
+  addedAt: number
+}
+
+/** UI 侧常用组合视图（读模型，非存储实体）：一个层级的条目 = edition + 它的收录关系 */
+interface LibraryItem {
+  edition: EditionRecord
+  holding: Holding
+  /** 该 edition 是否还被**其它**库收录（"这本书别处也有"提示；可选） */
+  alsoInLibraries?: number
+}
+```
+
+**连带修订**：
+- `LibraryEntry`：**去掉 `dbPath`**（一库一 .db 作废），改为
+  `{ id, name, mode: 'mapped' | 'curated', rootPath?: string, sort: number }`；
+  **`mode` 术语改名**（原 `'source' | 'virtual'`，见 `DATA_MODEL.md` §6.2）。
+- `BookContainer`：**增 `libraryId`**（书箱树在库内），去 `kind`（库级 mode 已表达）。
+- `Note.bookId` → **`Note.editionId`**（笔记跨库、不随条目消失；各版各一份，DATA_MODEL D8）。
+- `BookRecord`：**退役**（拆为 `EditionRecord` + `Holding`）；过渡期可用 `LibraryItem` 组合读模型。
+
+**不变量（实现与测试的判据）**：
+1. 同一指纹在 `editions` 全局**至多一行**（跨库共享的根）；
+2. 同一 `(libraryId, editionId)` 在 `holdings` **至多一行**；
+3. **删除收录（holding）不得级联删除 edition / notes / reading_state**（笔记是用户资产）；
+4. 笔记的锚点是**在某个 edition 里量出来的** → **禁止**把笔记归属挂到 work 上（否则跨版解析必然失准）。
+
+---
 
 ## 3. 事件机制（所有服务通用）
 
@@ -483,51 +574,92 @@ interface IBookIdentityService {
 
 ### 4.4 ILibraryStore —— 本地持久化
 
+> 形状 = **v0.4.0（edition / holding / library 三层）**。三层与身份的关系见 §2.2；
+> 存储实现与 schema 见 `client/docs/DATA_MODEL.md` §2。
+
 ```ts
 interface ILibraryStore {
-  addBook(record: BookRecord): Promise<void>;
-  updateBook(id: string, patch: Partial<BookRecord>): Promise<void>;
-  getBook(id: string): Promise<BookRecord | null>;
-  listBooks(): Promise<BookRecord[]>;
-  removeBook(id: string): Promise<void>;
+  // —— 内容身份（edition）：全局唯一键 = 指纹 ——
+  /** 按指纹 upsert（全局去重）—— **导入去重的唯一入口** */
+  upsertEdition(record: EditionRecord): Promise<EditionRecord>;
+  getEdition(id: string): Promise<EditionRecord | null>;
+  findEditionByFingerprint(fp: BookFingerprint): Promise<EditionRecord | null>;
+  updateEdition(id: string, patch: Partial<EditionRecord>): Promise<void>;
+  /** **彻底删除内容**（连带 notes/reading_state）；只在显式维护动作里用，**不是"移除书"** */
+  removeEdition(id: string): Promise<void>;
+
+  // —— 收录（holding）："哪个书库里有这本书"（键 = libraryId + editionId）——
+  addHolding(holding: Holding): Promise<void>;
+  /** 取消收录。⚠ **不得级联删除 edition / notes / reading_state**（§2.2 不变量③） */
+  removeHolding(libraryId: string, editionId: string): Promise<void>;
+  getHolding(libraryId: string, editionId: string): Promise<Holding | null>;
+  /** 某库全部收录（跨层级）—— 扫描对账算差集用 */
+  listHoldings(libraryId: string): Promise<Holding[]>;
+  /** 层级取书（读模型）。**缺省不含"来源缺失"**；映射库走 `parent_path` 的 SQL 侧过滤 */
+  listItemsAtLevel(query: LibraryLevelQuery): Promise<LibraryItem[]>;
+  listAllHeldEditions(): Promise<EditionRecord[]>;
+  /** 移动收录到书箱（单亲归属；containerId=null = 移回库根层）—— **唯一的"移动"入口** */
+  moveHolding(editionId: string, libraryId: string, containerId: string | null): Promise<void>;
+  setHoldingMissing(libraryId: string, editionId: string, missing: boolean): Promise<void>;
+
+  // —— 书库（组织模式；库注册表在库内，不在引导文件）——
+  listLibraries(): Promise<LibraryListResult>;
+  createLibrary(input: { name?: string; mode: 'mapped' | 'curated'; rootPath?: string }): Promise<LibraryEntry>;
+  switchLibrary(id: string): Promise<void>;
+  renameLibrary(id: string, name: string): Promise<LibraryEntry>;
+  /** 移除书库（连带 containers/holdings）；**edition/notes 不删**；最后一个库不可移除 */
+  removeLibrary(id: string): Promise<void>;
+  getLibrary(id: string): Promise<LibraryEntry | null>;
+
+  // —— 书箱（树在库内）——
+  listContainers(libraryId: string, parentId: string | null): Promise<BookContainer[]>;
+  createContainer(params: { libraryId: string; parentId: string | null; name: string }): Promise<BookContainer>;
+  renameContainer(id: string, name: string): Promise<void>;
+  removeContainer(id: string): Promise<void>;
+  moveContainer(id: string, parentId: string | null): Promise<void>;
+
+  // —— 阅读状态 / 阅读时间（逐 edition 记，按 work 汇总）——
+  getReadingState(editionId: string): Promise<ReadingState | null>;
+  putReadingState(state: ReadingState): Promise<void>;
+  appendReadingSession(session: Omit<ReadingSession, 'id'>): Promise<void>;
+  totalReadMsByWork(work: WorkIdentity): Promise<number>;
+  getLastReadEdition(): Promise<EditionRecord | null>;
+
+  // —— 封面（**edition 级**：封面由内容决定）——
+  setCover(editionId: string, bytes: ArrayBuffer, ext: string): Promise<string>;
+  getCover(editionId: string): Promise<ArrayBuffer | null>;
+  removeCover(editionId: string): Promise<void>;
+
+  // —— 设置（**一律全局**，无库级设置）——
   getSetting<T>(key: string, fallback: T): Promise<T>;
   setSetting(key: string, value: unknown): Promise<void>;
-  /** v0.2.8：局部更新设置对象（主进程内**原子合并**）——避免两个 Feature 各自"读-改-写"同一键互相覆盖 */
   patchSetting(key: string, patch: Record<string, unknown>): Promise<void>;
-  /** v0.2.6：封面缩略图落盘（返回文件名 → 存入 BookRecord.coverPath）；字节不进 library.json */
-  setCover(bookId: string, bytes: ArrayBuffer, ext: string): Promise<string>;
-  getCover(bookId: string): Promise<ArrayBuffer | null>;
-  removeCover(bookId: string): Promise<void>;
-  // —— 多书库（v0.3.5，2026-09-13）——
-  /** 库列表 + 当前库 id */
-  listLibraries(): Promise<{ libraries: LibraryEntry[]; currentId: string }>;
-  /** 新建空库（缺省名自动编号）并**切换**过去；main 随后广播 library-changed（重载信号以此为准） */
-  createLibrary(name?: string): Promise<LibraryEntry>;
-  /** 切换当前库；main 随后广播 library-changed */
-  switchLibrary(id: string): Promise<void>;
-  /** 更名（显示名，文件路径不变；不切库、不广播） */
-  renameLibrary(id: string, name: string): Promise<LibraryEntry>;
-  // —— 書箱 / 层级浏览（v0.3.7，2026-09-13；虚拟映射模式的"文件夹"不落库、不经这里）——
-  /** 当前层级的子書箱（parentId=null = 根层） */
-  listContainers(parentId: string | null): Promise<BookContainer[]>;
-  /** 新建書箱（parentId=null = 根层） */
-  createContainer(params: { parentId: string | null; name: string }): Promise<BookContainer>;
-  renameContainer(id: string, name: string): Promise<void>;
-  /** 移除書箱（有子書箱时拒绝——先清空子级，防误删整棵子树） */
-  removeContainer(id: string): Promise<void>;
-  /** 按层级取书：containerId=null=根层未入箱书 / containerId=某書箱=其成员 / folder=虚拟映射当前文件夹 */
-  listBooksAtLevel(query: { containerId?: string | null; folder?: string }): Promise<BookRecord[]>;
-  /** 移动书到書箱（单亲归属；containerId=null = 移回根层） */
-  moveBookToContainer(bookId: string, containerId: string | null): Promise<void>;
-  /** v0.3.8：移动書箱（parentId=null = 移回根层）；目标是自己或自己的后代时拒绝（防成环） */
-  moveContainer(id: string, parentId: string | null): Promise<void>;
+
+  // —— 笔记 / 划线（**挂 edition**）——
+  listNotes(editionId: string, chapterIndex?: number): Promise<Note[]>;
+  addNote(note: Note): Promise<void>;
+  updateNote(id: string, patch: NotePatch): Promise<void>;
+  removeNote(id: string): Promise<void>;
 }
 ```
 
-> 实现建议：Electron 下 `better-sqlite3`（koodo-reader 同款）；接口保持存储无关。
-> **v0.2.6 存储布局**：主进程实现把数据拆成两个 JSON —— `library.json`（只放书，带 `version`）与
-> `config.json`（只放设置）—— 因为两者写频率差三个数量级（阅读中每 2s 写位置 vs 用户偶尔改设置）。
-> 封面字节写 `userData/covers/<bookId>.<ext>`（缩略图，渲染进程 canvas 生成，见 §4.1）。
+> **v0.4.0 相对 v0.3.x 的签名变更**（`typecheck` 是扫尾手段）：
+> - `BookRecord` → 拆成 `EditionRecord`（内容）+ `Holding`（收录）；`listBooks*` → `listItemsAtLevel`；
+> - `createLibrary` 由位置参数改**对象参数**（避免 `mode`/`rootPath` 错位这类经典 bug）；`LibraryEntry` 去 `dbPath`；
+> - 笔记与封面方法的 `bookId` 参数 → **`editionId`**；
+> - `moveBookToContainer` → **`moveHolding(editionId, libraryId, containerId)`**（归属长在收录关系上）；
+> - **库管理职责**从 `main/store/libraryManager.ts` 收敛进 `SqliteStore`；`LibraryManager` 退化为"引导文件 + store 句柄"。
+>
+> **新增领域类型**（`core/domain/types.ts`）：
+> ```ts
+> interface ReadingState  { editionId: string; lastReadAt?: number; lastLocation?: BookLocation; totalReadMs: number }
+> interface ReadingSession{ id: number; editionId: string; owner?: string | null
+>                           startedAt: number; endedAt: number; durationMs: number }
+> ```
+
+> 实现建议：`better-sqlite3`（接口保持存储无关）。
+> **存储布局见 `client/docs/DATA_MODEL.md` §1/§2**（全应用一个 SQLite 库 + 极小的 JSON 引导文件；
+> 封面是跟内容走的缩略图 `covers/<editionId>.<ext>`）—— 本节不重复。
 
 ### 4.5 IBookPicker —— 本地文件能力（v0.2.6 新增；适配器：Electron 对话框 + fs）
 
@@ -692,6 +824,7 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.4.0 | 2026-09-15 | **书的身份：全局单库 + 书库降为组织模式**（定案 = `DATA_MODEL.md` §4.2/§6，D1–D12）。新增 **§2.2**：`WorkIdentity`（作品身份，**只留接口**）/ `EditionRecord`（内容身份，**全局唯一键 = 指纹**）/ `Holding`（**收录**："哪个书库里有这本书"）/ `LibraryItem`（读模型组合）+ **四条不变量**。连带：`LibraryEntry` **去 `dbPath`**、`mode` 改 **`'mapped' \| 'curated'`**；`BookContainer` **增 `libraryId`**（树在库内）；`Note.bookId` → **`editionId`**（各版一份、不自动跨版迁移）；**`BookRecord` 退役**（拆 `EditionRecord` + `Holding`）。§4.4 增 `upsertEdition`/`findEditionByFingerprint`/`addHolding`/`removeHolding`/`listItemsAtLevel`/`reading_state`/`reading_sessions` 方法，并给出**签名变更清单**（`moveBookToContainer` → `moveHolding`；封面方法参数改 `editionId`；库管理职责收敛进 `SqliteStore`） |
 | v0.3.12 | 2026-09-14 | **右键成为标记/批注主入口（用户定）+ 批注落地**：① §4.1 增 `'context-menu'`（`RenderContextMenuRequest{x,y,anchor,noteId}` —— 适配器换算坐标并判定"是否点在笔记上"）与 `'note-clicked'`（点击高亮回调；`x/y` 由**量元素矩形**得出，因 kookit 该回调只给 `{target}` 无鼠标坐标）。两个事件都**必须**在适配器发（右键/点击若落在正文 iframe 内，宿主收不到，同 iframeBridge 根因）。② **UI 形态**（用户定）：右键菜单与批注面板统一为**"挂载线形态"** —— 光标处弹一条横向 1px 线、功能项自线下方生长，**摒弃圆角/阴影/卡片底**；**形态全站统一、语义按域不同**（书库 = 文件管理／阅读器 = 标记·批注）。③ **删 `SelectionPalette`**：选色板被右键菜单取代（"新建无论是高亮还是批注，最好的方法还是右键"），避免两个入口语义重叠；`selection-changed` 保留（决定菜单「新建」是否可用 + 键盘流程定位）。④ **批注**：`NoteComposer` 为**受控组件**（正文 state 由 ReaderFeature 持有 —— 以便键盘意图能**从外部提交当前输入**）；`kind` 记录**创建来路**（选色 → `highlight`／写批注 → `note`），编辑正文不改 kind。⑤ **键盘接口预留**：`DEFAULT_BINDINGS` 增 `reader.markSelection` / `annotateSelection` / `composerCommit` / `composerCancel` —— **键位故意留空**，行为已就位，待配键方案定下后只填表。⑥ **侧键**：阅读器内 `XButton1/2` = 翻页（与书库域的后退/前进**按功能态分工**；同一物理键跨域语义不同是用户明确要求）。⑦ **逆向补充**（KOOKIT §5 #14/#15）：`handleNoteClick` 是 `doc.body` 上的 capture 委托且**要求 `mousedown` 与 `click` 坐标相差 ≤ 5px**（防拖选误触）→ 只在"点"而非"拖"时触发；桌面端**无任何 kookit 右键处理**（触屏/右键接线是死代码），右键槽位自由 |
 | v0.3.11 | 2026-09-14 | **笔记 UI 接线（Stage 4 收口）+ 一处 kookit 逆向更正**：① §4.1 `selection-changed` 载荷改为 `RenderSelection`（锚点 + **宿主视口坐标矩形**，适配器换算好 —— UI 不必知道 iframe 位置与内部滚动）；新增 `clearSelection()`（选区在书文档里，宿主清不掉；清完同时广播 null 让 UI 收起色板）。② **逆向事实更正（重要，坑号 KOOKIT §5#13）**：kookit **文字类**（`GeneralRender`）触发的是 `this.trigger("rendered")` —— **不带章号**；只有 `PdfRender` 带 `[chapterDocIndex]`。此前按"事件带章号"实现 → 文字类得到 `undefined`，而 `undefined === null` 为假、又不触发任何告警 → `renderHighlighters` 的章节过滤**静默 0 命中**（高亮永不出现、日志干净）。现改为以**位置**为权威（`getPosition().chapterDocIndex`，见 `resolveRenderedChapter`），并在 `location-changed` 时自愈纠正 |
 | v0.3.10 | 2026-09-14 | **笔记引擎侧原语 + notes 存储接通**：§4.1 增 `RenderServiceEvents['selection-changed']`（选区事件由适配器发 —— 选区在书的 iframe 内文档里，事件跨不过文档边界，UI 无法自行观测）与三个引擎侧原语 `getSelectionAnchor`（`fromSelection`）/ `resolveAnchor(anchor, {revealNoteId})`（`resolveToView`）/ `remeasureAnchor`（`remeasure`）。**口径**：① `resolveToView` 本轮精度 = **章级**（`chapterDocIndex`，PDF 即页码），`revealNoteId` 再补"滚到该高亮元素"的精确落点（不依赖 Fragment 解算 → 弱锚点笔记也能看到落点）；② `remeasure` **只能产弱锚点** —— kookit 搜索（`getSearchResult`）返回 `{excerpt, cfi}`，`cfi` 是含 `chapterDocIndex` 的 JSON 串，**没有字符偏移**，故 `fragment=null`、`progression=0`（不假装精确）；③ §4.4 `ILibraryStore` 增笔记 CRUD（`listNotes(bookId, chapterIndex?)` / `addNote` / `updateNote(id, patch)` / `removeNote(id)`，`NotePatch` 白名单式），**`anchor` 更新时三列 + `excerpt` 必须一起重写**（`excerpt` 是 `quote.exact` 的投影，不许两处各写各的），`updatedAt` 由存储层统一盖戳；④ `id`/`createdAt`/`updatedAt` 由**调用方**给全（`id` 是同步主键，须跨端稳定，存储层不代生成） |

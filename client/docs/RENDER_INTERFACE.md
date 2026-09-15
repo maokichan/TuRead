@@ -140,7 +140,8 @@ UI 选段（iframe 内用户选中，适配器在书文档上听 mouseup/keyup�
    `renderedChapter` 过滤；**调用方须在每次 `rendered` 后重调**（换章 = 换 document）。
 4. kookit 内部 `notes.reverse()` **原地改入参** → 适配器必须传**拷贝**。
 
-**持久化**：笔记是**书外数据**，存 `ILibraryStore`（notes 表；一库一 .db），
+**持久化**：笔记是**书外数据**，存 `ILibraryStore`（`notes` 表；**v0.4.0 起全应用一个全局 `.db`**，
+笔记挂 **edition**、跨库共享、不随"移除收录"消失 —— `DATA_MODEL.md` §1/§2 v3），
 不写进电子书文件；同步（v1 明确排除）将来在用例层加 `room.note` 信封广播。
 
 **重锚（remeasure）的诚实边界**：kookit 搜索（`getSearchResult`）返回 `{excerpt, cfi}`，`cfi` 是含

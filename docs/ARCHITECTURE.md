@@ -19,7 +19,11 @@
 | **标定（calibration）** | 加入房间时把本地电子版身份与房间绑定的 edition **比对** | 一致放行；不一致 → `book-mismatch` |
 
 > 区分要点：**标准化产出身份（Work 层）；标定比对身份（Edition 层）**。此前"书籍标定"一词兼指两层模型，易与"标准化"混淆，故收窄为比对动作。
-> **客户端现状**：本地书库只有 Edition 层（`BookRecord.fingerprint`），**尚无 Work 层** —— 书库重做将引入 `WorkIdentity` 与标准化动作（见 `client/docs/FEATURES.md` §10）。
+> **客户端现状（2026-09-15 更新）**：本地书库的身份分层已建模就位 —— **`works` 表 + `editions.work_id`**
+> （`client/docs/DATA_MODEL.md` §2 v3），但**只留接口、不做完整标准化**（2026-09-15 用户批复 D11/F9：
+> 本次至少要让 Work 身份**可写**，因为"阅读时间按 work 汇总"依赖它；现状旧 `work_protocol/work_code`
+> 是死列）。本地书库的**内容身份 = `editions` 的指纹键**（全局唯一），**笔记与阅读状态挂 edition**。
+> 标准化入口（房间功能内的手填 ISBN / 远期 OCR）仍后置。
 > **服务端约束**：`POST /rooms` 请求体**必须带** `protocol` + `code`（标准化是**创建房间**的前置）；**加入**房间只按 edition 指纹标定，无书成员（`fingerprint: null`）亦可加入并下载副本。
 
 - **Work（同一本书）**：识别协议 + 识别编码唯一确定。协议枚举：`isbn`（校验位）/ `asin` / `doi` / `open-library` / `content-hash-v1`（无外部标识符书籍的兜底身份 = **edition 内容指纹**，客户端校准算法计算：同一扫描版/同一文件内容 → 同 code，标题不同不影响；扫描版不同即不同 edition）。**不设 author / publisher 字段**：多作者需联结表+核对机制，远期复杂不做；ISBN 已提供可查询性。**客户端同样不采集/不显示 author·publisher**（与 server 模型一致，2026-09-08 定）。

@@ -2,27 +2,33 @@
  * 功能组件：书架（LibraryFeature）
  * 职责（编排的用例/端口）：
  *   books.*   —— 删除/选中/最近阅读（列表按层级取）
- *   store.*   —— 层级浏览：書箱 CRUD（自建模式）/ 层级取书（listBooksAtLevel）
- *   picker.*  —— 选文件 / 选目录 / 扫描目录（可含子目录）/ 读文件 / 列子目录（虚拟映射）
- *   imports.* —— 批量导入（用例：串行/进度/可取消/失败上报）
+ *   store.*   —— 层级浏览：書箱 CRUD（自建库）/ 层级取书（listItemsAtLevel）/ 收录与书库管理
+ *   picker.*  —— 选文件 / 选目录 / 扫描目录（可含子目录）/ 读文件 / 列子目录（映射库）
+ *   imports.* —— 批量导入（用例：串行/进度/可取消/失败上报；**仅自建库**）
+ *   scan.*    —— 映射库与真实路径的**扫描对账**（v0.4.0：映射库不能导入，只能扫描）
  *   covers.*  —— 封面缩略图异步提取（进度/取消）
  * 对外状态：selectedBookId（经 host.selectBook 上报 Shell；详情抽屉显示的就是它）。
  *
- * 层级浏览（2026-09-13 用户定：资源管理器式，两种模式不同屏、建库时二选一）：
- *  - 虛擬映射（kind=source，一库一个）：跟踪唯一真实文件夹（rootPath），书架照搬其文件树
- *    （默认含子文件夹）——"書箱"即真实文件夹，条目 = 子文件夹 + 直接位于当前层的书；
- *  - 自建書箱（kind=virtual）：空库起步，右键书架空白处新建書箱，書箱 = 文件夹可点进。
- *  当前层级显示在状态栏右端（面包屑，相对各自模式的根；自建模式的路径名 = 書箱名）。
+ * 层级浏览（2026-09-13 用户定：资源管理器式，两种模式不同屏、建库时二选一；
+ * ⚠ v0.4.0 术语与代码值已统一（见 `DATA_MODEL.md` §6.2）：
+ *  - **映射库**（`mode='mapped'`，原 kind=source）：跟踪唯一真实文件夹（rootPath），书架照搬其文件树
+ *    （默认含子文件夹）——"書箱"即真实文件夹，条目 = 子文件夹 + 直接位于当前层的**收录**；
+ *    ⚠ **不能导入**：书只能在真实路径上加，靠「掃描」对账（DATA_MODEL §6.1）。
+ *  - **自建库**（`mode='curated'`，原 kind=virtual）：空库起步，右键书架空白处新建書箱，
+ *    書箱 = 文件夹可点进；书靠导入。
+ *  当前层级显示在状态栏右端（面包屑，相对各自模式的根；自建库的路径名 = 書箱名）。
  *
  * 布局纪律：**状态栏之上是内容区，详情抽屉只在内容区弹出**。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   BookContainer,
-  BookRecord,
+  EditionRecord,
   LibraryEntry,
+  LibraryItem,
   LibrarySettings,
-  LibraryView
+  LibraryView,
+  ReadingState
 } from '@core/domain/types'
 import type { LibraryLevelQuery } from '@core/ports/store'
 import { IPC } from '@shared/ipc'
@@ -41,11 +47,11 @@ import { useVirtualRange } from '../../components/useVirtualRange'
 
 const DEFAULT_SETTINGS: LibrarySettings = { view: 'list', importRecursive: false }
 
-/** 当前层级的条目：書箱（自建）/ 文件夹（虚拟映射）/ 书；書箱与文件夹外观同书籍（ContainerItem） */
+/** 当前层级的条目：書箱（自建）/ 文件夹（映射库）/ 书；書箱与文件夹外观同书籍（ContainerItem） */
 type LevelItem =
   | { kind: 'container'; container: BookContainer }
   | { kind: 'folder'; name: string; path: string }
-  | { kind: 'book'; book: BookRecord }
+  | { kind: 'book'; book: EditionRecord }
 
 type TrailEntry = { label: string; containerId: string | null; folder: string | null }
 
@@ -61,13 +67,19 @@ export function LibraryFeature({
   activeFeature,
   libraryQuery = ''
 }: FeatureProps): React.JSX.Element {
-  const [books, setBooks] = useState<BookRecord[]>([])
+  const [books, setBooks] = useState<EditionRecord[]>([])
+  /** 本层每本书的阅读状态（v0.4.0：与 `books` 并列，来自 `listItemsAtLevel` 的读模型 —— 避免 N+1） */
+  const [readingStates, setReadingStates] = useState<Record<string, ReadingState | null>>({})
+  /** 当前库 id（收录关系是库内的，凡涉及收录/书箱的调用都要带它） */
+  const [libraryId, setLibraryId] = useState('')
   const [view, setView] = useState<LibraryView>(DEFAULT_SETTINGS.view)
   const [covers, setCovers] = useState<Record<string, string>>({})
   const [detailId, setDetailId] = useState<string | null>(null)
   const [importing, setImporting] = useState<{ done: number; total: number } | null>(null)
   const [coverProgress, setCoverProgress] = useState<{ done: number; total: number } | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<BookRecord | null>(null)
+  /** 映射库扫描进行中（按钮禁用 + 文案） */
+  const [scanning, setScanning] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<EditionRecord | null>(null)
   const [skipDeleteNotice, setSkipDeleteNotice] = useState(false)
   /** 書庫管理弹窗（Obsidian 仓库管理页风格） */
   const [managerOpen, setManagerOpen] = useState(false)
@@ -87,7 +99,7 @@ export function LibraryFeature({
     idx: 0
   })
   const [navPos, setNavPos] = useState({ idx: 0, len: 1 })
-  const [libMode, setLibMode] = useState<'source' | 'virtual'>('virtual')
+  const [libMode, setLibMode] = useState<LibraryEntry['mode']>('curated')
   const [rootPath, setRootPath] = useState<string | undefined>(undefined)
   const [libName, setLibName] = useState('')
   const [containers, setContainers] = useState<BookContainer[]>([])
@@ -172,34 +184,41 @@ export function LibraryFeature({
 
   /**
    * 加载当前层级（模式/根路径随当前库解析；快速导航时用序号丢弃过期结果）。
-   * 虚拟映射：书 = 直接位于当前文件夹的（子文件夹的书属于子层级）+ 子目录条目；
-   * 自建：书 = 当前書箱成员（根 = 不属于任何書箱）+ 子書箱条目。
+   * 映射库（`mapped`）：书 = 直接位于当前文件夹的**收录**（子目录的书属于子层级）+ 子目录条目；
+   * 自建库（`curated`）：书 = 当前書箱成员（根 = 不属于任何書箱）+ 子書箱条目。
    */
   const loadLevel = useCallback(async (): Promise<void> => {
     const seq = ++loadSeq.current
     const info = await container.store.listLibraries()
     const cur = info.libraries.find((l) => l.id === info.currentId)
     if (seq !== loadSeq.current) return
-    const mode = cur?.mode ?? 'virtual'
+    const mode: LibraryEntry['mode'] = cur?.mode ?? 'curated'
     const root = cur?.rootPath
     setLibMode(mode)
     setRootPath(root)
+    setLibraryId(info.currentId)
     if (cur) setLibName(cur.name)
     const nav = navRef.current
     const query: LibraryLevelQuery =
-      mode === 'source' ? { folder: nav.folder ?? root ?? '' } : { containerId: nav.containerId }
+      mode === 'mapped'
+        ? { libraryId: info.currentId, folder: nav.folder ?? root ?? '' }
+        : { libraryId: info.currentId, containerId: nav.containerId }
     const [list, subs] = await Promise.all([
-      container.store.listBooksAtLevel(query),
-      mode === 'virtual'
-        ? container.store.listContainers(nav.containerId)
+      container.store.listItemsAtLevel(query),
+      mode === 'curated'
+        ? container.store.listContainers(info.currentId, nav.containerId)
         : container.picker.listSubdirectories(nav.folder ?? root ?? '')
     ])
     if (seq !== loadSeq.current) return
-    setContainers(mode === 'virtual' ? (subs as BookContainer[]) : [])
-    setFolders(mode === 'source' ? (subs as Array<{ name: string; path: string }>) : [])
-    setBooks(list)
+    setContainers(mode === 'curated' ? (subs as BookContainer[]) : [])
+    setFolders(mode === 'mapped' ? (subs as Array<{ name: string; path: string }>) : [])
+    setBooks(list.map((it) => it.edition))
+    setReadingStates(Object.fromEntries(list.map((it) => [it.edition.id, it.readingState])))
     const pairs = await Promise.all(
-      list.map(async (b) => [b.id, await getCoverUrl(container.store, b.id, b.coverPath)] as const)
+      list.map(
+        async (it: LibraryItem) =>
+          [it.edition.id, await getCoverUrl(container.store, it.edition.id, it.edition.coverPath)] as const
+      )
     )
     if (seq !== loadSeq.current) return
     setCovers(Object.fromEntries(pairs.filter((p): p is [string, string] => p[1] !== null)))
@@ -323,7 +342,7 @@ export function LibraryFeature({
     if (window.turead.devBook) return
     const timer = setTimeout(() => {
       void (async () => {
-        const list = await container.books.list()
+        const list = await container.books.listAll()
         const missing = list.filter((b) => !b.coverPath && !b.coverFailed).map((b) => b.id)
         if (missing.length > 0) container.covers.enqueue(missing)
       })()
@@ -348,11 +367,23 @@ export function LibraryFeature({
     [container]
   )
 
+  /**
+   * 导入（文件）—— ⚠ v0.4.0：**映射库不允许导入**（DATA_MODEL D5/F4：映射库的书只能在真实路径上加，
+   * 入口是「掃描」）。这里把关，并在日志里说明为什么。
+   */
   const importFiles = useCallback(async (): Promise<void> => {
-    container.imports.enqueue(await container.picker.pickFiles())
-  }, [container])
+    if (libMode === 'mapped') {
+      host.pushLog('映射庫的書只能靠掃描真實文件夾進來（若要加書，請先在真實路徑上放置）')
+      return
+    }
+    container.imports.enqueue(await container.picker.pickFiles(), libraryId)
+  }, [container, host, libMode, libraryId])
 
   const importFolder = useCallback(async (): Promise<void> => {
+    if (libMode === 'mapped') {
+      host.pushLog('映射庫的書只能靠掃描真實文件夾進來（若要加書，請先在真實路徑上放置）')
+      return
+    }
     const dir = await container.picker.pickDirectory()
     if (!dir) return
     // "是否含子目录"在设置界面配置 —— 这里每次导入时现读，避免跨 Feature 的变更通知问题
@@ -366,30 +397,52 @@ export function LibraryFeature({
       host.pushLog(`该目录下没有可导入的电子书：${dir}${recursive ? '（含子目录）' : '（仅此节点）'}`)
       return
     }
-    container.imports.enqueue(paths)
-  }, [container, host])
+    container.imports.enqueue(paths, libraryId)
+  }, [container, host, libMode, libraryId])
 
+  /** 映射库的「掃描」：与真实文件夹对账（v0.4.0 DATA_MODEL §6.1 —— 映射库不能导入，只能扫描） */
+  const runScan = useCallback(async (): Promise<void> => {
+    if (!libraryId || libMode !== 'mapped') return
+    setScanning(true)
+    try {
+      const s = await container.scan.scanLibrary(libraryId)
+      await loadLevel()
+      const parts = [`掃描 ${s.found} 本`, `新增 ${s.added}`, `已在庫 ${s.reused}`]
+      if (s.missing > 0) parts.push(`來源缺失 ${s.missing}`)
+      if (s.restored > 0) parts.push(`已恢復 ${s.restored}`)
+      if (s.failed > 0) parts.push(`讀取失敗 ${s.failed}`)
+      host.pushLog(parts.join('，'))
+    } catch (err) {
+      host.pushLog(`掃描失敗：${(err as Error).message}`)
+    } finally {
+      setScanning(false)
+    }
+  }, [container, host, libMode, libraryId, loadLevel])
+
+  /**
+   * 从书库移除 = **取消收录**（v0.4.0）：只删收录关系，**真实文件不动、笔记与阅读状态也不动**
+   * （DATA_MODEL §6.1 / CONTRACTS §2.2 不变量 ③）。
+   */
   const removeBook = useCallback(
     async (id: string): Promise<void> => {
       const book = books.find((b) => b.id === id)
       try {
-        // 只删书库索引（不删源文件）；封面是我们生成的缓存，一并清理
-        await container.books.remove(id)
+        await container.books.remove(id, libraryId)
         forgetCover(id)
         setDetailId((cur) => (cur === id ? null : cur))
         if (selectedBookId === id) host.selectBook(null)
         await loadLevel()
-        host.pushLog(`已从书库移除：${book?.metadata.title ?? id}（源文件保留）`)
+        host.pushLog(`已從書庫移除：${book?.metadata.title ?? id}（源文件與筆記保留）`)
       } catch (err) {
         host.pushLog(`移除失败：${(err as Error).message}`)
       }
     },
-    [books, container, host, loadLevel, selectedBookId]
+    [books, container, host, libraryId, loadLevel, selectedBookId]
   )
 
   /** 删除入口：首次弹确认（说明"只删索引、不删源文件"，可勾选不再提示） */
   const requestDelete = useCallback(
-    (book: BookRecord) => {
+    (book: EditionRecord) => {
       if (skipDeleteNotice) void removeBook(book.id)
       else setPendingDelete(book)
     },
@@ -479,14 +532,18 @@ export function LibraryFeature({
   const createContainerHere = useCallback(
     async (parentId: string | null): Promise<void> => {
       try {
-        const c = await container.store.createContainer({ parentId, name: '新建書箱' })
+        const c = await container.store.createContainer({
+          libraryId,
+          parentId,
+          name: '新建書箱'
+        })
         setRenamingContainerId(c.id)
         commitNav(navRef.current) // 原地重载（容器列表多一项）
       } catch (err) {
         host.pushLog(`新建書箱失败：${(err as Error).message}`)
       }
     },
-    [container, host, commitNav]
+    [container, host, commitNav, libraryId]
   )
 
   const commitContainerRename = useCallback(
@@ -520,7 +577,8 @@ export function LibraryFeature({
     async (bookId: string, targetId: string | null): Promise<void> => {
       const book = books.find((b) => b.id === bookId)
       try {
-        await container.store.moveBookToContainer(bookId, targetId)
+        // v0.4.0：移动的是**收录关系**（书属于哪个书箱），所以必须带 libraryId
+        await container.store.moveHolding(bookId, libraryId, targetId)
         commitNav(navRef.current)
         const where =
           targetId === null
@@ -533,7 +591,7 @@ export function LibraryFeature({
         host.pushLog(`移动失败：${(err as Error).message}`)
       }
     },
-    [books, containers, trail, container, host, commitNav]
+    [books, containers, trail, container, host, commitNav, libraryId]
   )
 
   /**
@@ -578,8 +636,8 @@ export function LibraryFeature({
   /** 「移動到」子菜单（自建模式）：上一層（父层，可出書箱）+ 根層（跳层）+ 当前层各兄弟書箱 */
   const parentOfCurrent = trail.length >= 2 ? (trail[trail.length - 2].containerId ?? null) : null
   const parentLabel = trail.length >= 2 ? (trail[trail.length - 2]?.label ?? '上一層') : '根層'
-  const bookMoveChildren = (b: BookRecord): ContextMenuItem[] => {
-    if (libMode !== 'virtual') return []
+  const bookMoveChildren = (b: EditionRecord): ContextMenuItem[] => {
+    if (libMode !== 'curated') return []
     const children: ContextMenuItem[] = []
     if (navRef.current.containerId) {
       children.push({
@@ -596,7 +654,7 @@ export function LibraryFeature({
     return children
   }
   const containerMoveChildren = (c: BookContainer): ContextMenuItem[] => {
-    if (libMode !== 'virtual') return []
+    if (libMode !== 'curated') return []
     const children: ContextMenuItem[] = []
     if (navRef.current.containerId) {
       children.push({
@@ -655,7 +713,7 @@ export function LibraryFeature({
         })
         return
       }
-      if (libMode !== 'virtual') return
+      if (libMode !== 'curated') return
       e.preventDefault()
       setCtxMenu({
         x: e.clientX,
@@ -723,7 +781,7 @@ export function LibraryFeature({
     gridVirtual.onScroll()
   }
 
-  const itemProps = (b: BookRecord) => ({
+  const itemProps = (b: EditionRecord) => ({
     book: b,
     active: b.id === selectedBookId,
     coverUrl: covers[b.id] ?? null,
@@ -782,7 +840,13 @@ export function LibraryFeature({
   const renderLevelRow = (it: LevelItem): React.JSX.Element => {
     switch (it.kind) {
       case 'book':
-        return <BookRow key={it.book.id} {...itemProps(it.book)} />
+        return (
+          <BookRow
+            key={it.book.id}
+            {...itemProps(it.book)}
+            readingState={readingStates[it.book.id] ?? null}
+          />
+        )
       case 'container':
         return <ContainerItem key={`c-${it.container.id}`} view="list" {...containerProps(it.container)} />
       case 'folder':
@@ -796,24 +860,24 @@ export function LibraryFeature({
     {
       label: libName || '書庫',
       onGo: () => goToLevel(-1),
-      onDropBook: libMode === 'virtual' ? (id: string) => void moveBook(id, null) : undefined,
+      onDropBook: libMode === 'curated' ? (id: string) => void moveBook(id, null) : undefined,
       onDropContainer:
-        libMode === 'virtual' ? (id: string) => void moveContainerHere(id, null, libName || '書庫') : undefined
+        libMode === 'curated' ? (id: string) => void moveContainerHere(id, null, libName || '書庫') : undefined
     },
     ...trail.map((t, i) => ({
       label: t.label,
       onGo: () => goToLevel(i),
       onDropBook:
-        libMode === 'virtual' && t.containerId
+        libMode === 'curated' && t.containerId
           ? (id: string) => void moveBook(id, t.containerId)
           : undefined,
       onDropContainer:
-        libMode === 'virtual' && t.containerId
+        libMode === 'curated' && t.containerId
           ? (id: string) => void moveContainerHere(id, t.containerId, t.label)
           : undefined
     }))
   ]
-  const insideVirtual = libMode === 'virtual' && trail.length > 0
+  const insideVirtual = libMode === 'curated' && trail.length > 0
 
   return (
     <section className="flex h-full flex-col gap-3">
@@ -827,7 +891,7 @@ export function LibraryFeature({
         >
           {levelItems.length === 0 ? (
             <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
-              {libMode === 'virtual'
+              {libMode === 'curated'
                 ? insideVirtual
                   ? '此書箱還沒有書。右鍵空白處可新建子書箱'
                   : '書架為空：點右下角「導入」添加電子書，或右鍵空白處新建書箱'
@@ -862,6 +926,7 @@ export function LibraryFeature({
         {detailBook && (
           <BookDetailPanel
             book={detailBook}
+            readingState={readingStates[detailBook.id] ?? null}
             coverUrl={covers[detailBook.id] ?? null}
             onClose={() => setDetailId(null)}
             onOpen={() => openBook(detailBook.id)}
@@ -883,6 +948,8 @@ export function LibraryFeature({
         onCancelImport={() => container.imports.cancel()}
         coverProgress={coverProgress}
         onOpenManager={() => setManagerOpen(true)}
+        onScan={libMode === 'mapped' ? () => void runScan() : undefined}
+        scanning={scanning}
         crumbs={crumbs}
       />
 
@@ -899,19 +966,16 @@ export function LibraryFeature({
           }}
           onCreate={async (name, mode, root) => {
             try {
-              const l = await container.store.createLibrary(name, mode, root)
-              host.pushLog(
-                `已新建書庫：${l.name}${mode === 'source' && root ? `（跟蹤 ${root}）` : ''}`
-              )
-              // 虚拟映射：建库即扫描跟踪文件夹（默认遍历子文件夹），交给导入队列
-              if (mode === 'source' && root) {
-                const paths = await container.picker.listEbooks(root, true)
-                if (paths.length > 0) {
-                  container.imports.enqueue(paths)
-                  host.pushLog(`開始導入跟蹤文件夾中的 ${paths.length} 本電子書…`)
-                } else {
-                  host.pushLog('跟蹤文件夾中沒有電子書')
-                }
+              const l = await container.store.createLibrary({ name, mode, rootPath: root })
+              host.pushLog(`已新建書庫：${l.name}${mode === 'mapped' && root ? `（跟蹤 ${root}）` : ''}`)
+              // 映射库：建库即**扫描**跟踪文件夹（v0.4.0：映射库不能导入，书只能在真实路径上加）
+              if (mode === 'mapped' && root) {
+                host.pushLog('開始掃描跟蹤文件夾…')
+                const s = await container.scan.scanLibrary(l.id)
+                host.pushLog(
+                  `掃描完成：發現 ${s.found} 本，新增 ${s.added} 本，已在庫 ${s.reused} 本` +
+                    (s.failed > 0 ? `，失敗 ${s.failed} 本` : '')
+                )
               }
             } catch (err) {
               host.pushLog(`新建書庫失败：${(err as Error).message}`)

@@ -175,6 +175,15 @@ void app.whenReady().then(async () => {
     return
   }
 
+  // dev-only 夹具（DATA_MODEL §6.3 T1/T2）：TUREAD_DEV_MIGRATE=fixture|json|verify 时
+  // 造旧 userData / 走真实迁移路径并断言迁移结果，跑完即退，不创建窗口、不进应用
+  if (process.env['TUREAD_DEV_MIGRATE']) {
+    const { runMigrateFixture } = await import('./dev/migrateFixture')
+    await runMigrateFixture(process.env['TUREAD_DEV_MIGRATE'])
+    app.exit(Number(process.exitCode) || 0)
+    return
+  }
+
   // 去掉 Electron 自带菜单栏（File/Edit/...），应用内统一由侧边栏功能组件导航
   Menu.setApplicationMenu(null)
 
@@ -209,8 +218,8 @@ void app.whenReady().then(async () => {
 
   createWindow()
 
-  // WAL checkpoint 随 close 落盘：当前库的句柄在退出前收掉
-  app.on('will-quit', () => libraries.current.close())
+  // WAL checkpoint 随 close 落盘：退出前收起全局库句柄（v0.4.0：只有一个库）
+  app.on('will-quit', () => libraries.store.close())
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

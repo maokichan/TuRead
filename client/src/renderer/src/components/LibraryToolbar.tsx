@@ -13,6 +13,13 @@ interface LibraryToolbarProps {
   coverProgress: { done: number; total: number } | null
   /** 打开書庫管理弹窗（2026-09-13 用户立项：Obsidian 仓库管理页风格，见 LibraryManagerDialog） */
   onOpenManager: () => void
+  /**
+   * 扫描真实文件夹（**仅映射库**提供；v0.4.0 DATA_MODEL §6.1：映射库不能导入，
+   * 书只能在真实路径上加 —— 所以"让书架跟着文件夹走"的唯一入口就是这个）。
+   */
+  onScan?: () => void
+  /** 扫描进行中（按钮禁用 + 进度文案） */
+  scanning?: boolean
   /** 当前层级面包屑（2026-09-13 用户定：书架右下角显示"当前层级"，相对各模式根；
    *  末段 = 当前层不可点，其余可点回跳；把书/書箱拖到面包屑段 = 移动到该层
    *  （containerId=null 的根段 = 移出書箱回根层）） */
@@ -49,6 +56,8 @@ export function LibraryToolbar({
   onCancelImport,
   coverProgress,
   onOpenManager,
+  onScan,
+  scanning,
   crumbs
 }: LibraryToolbarProps): React.JSX.Element {
   const [flashing, setFlashing] = useState(false)
@@ -116,6 +125,18 @@ export function LibraryToolbar({
         <button onClick={onOpenManager} className="text-action text-action--lg" title="切换 / 新建 / 更名書庫">
           書庫
         </button>
+        {/* 映射库专属：「掃描」= 与真实文件夹对账（缺文件标"來源缺失"、新文件补进来）。
+            自建库不显示 —— 它的书靠导入（DATA_MODEL §6.1）。 */}
+        {onScan && (
+          <button
+            onClick={onScan}
+            disabled={scanning}
+            className="text-action text-action--lg"
+            title="重新掃描跟蹤的文件夾（與真實路徑對賬）"
+          >
+            {scanning ? '掃描中…' : '掃描'}
+          </button>
+        )}
         {/* 当前层级（右下角，2026-09-13 用户定）：根 = 库名；自建模式路径名 = 書箱名，虚拟映射 = 文件夹名。
             面包屑也是拖放目标：书/書箱拖到某段 = 移动到该层（资源管理器语义，拖入段高亮提示）。
             **根固定、子节点向右增生**（2026-09-13 用户定）：容器取固定宽度再 ml-auto 推到右侧，

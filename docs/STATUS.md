@@ -2,10 +2,10 @@
 
 > 目的：让下一次会话/模型以最低成本恢复上下文。
 > 阅读顺序：本文件 → `MAP.md`（自动加载）→ `TODO.md` → 各端架构文档（见 MAP）。
-> 更新：2026-09-14（**client v0.1.16 已发版：笔记/划线落地** —— 领域层锚点（`anchor.ts`）+
-> `Note` v2 + `notes` 表存储/IPC + 引擎侧原语 + **右键「挂载线」菜单**为标记/批注主入口 + 批注输入 +
-> 笔记面板 + 高亮生命周期；并引入 **vitest + 分层依赖守卫**、修掉**选区系统蓝**。
-> **★ 下一步唯一主线 = 「书的身份」（可见性与追踪 + 笔记身份 + 阅读时间三合一）**，见 §6 交接快照）
+> 更新：2026-09-15（**client v0.1.17：「书的身份」已落地** —— 全局单库 + 书库降为组织模式；
+> 笔记挂 edition、阅读时间按 work 汇总；含迁移器与四处自查修正。逐项见 §4 的 v0.1.17 条目。
+> **⚠ 唯一未做 = 真机验收**。此外本日做了**文档减重**：竞品调研底稿随 `借物表.md` 一并移出版本控制，
+> `README` 改为面向用户/开发者的介绍，`DATA_MODEL` §6 与 `TODO` 的已完成项大幅收敛）
 
 ## 1. 一句话
 
@@ -16,7 +16,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 ## 2. 仓库与提交（`D:\PROJECT\TuRead`）
 
 - git 仓库：本地 `main`，`origin = https://github.com/maokichan/TuRead.git`（独立仓库，非 fork）
-- 结构：`client/`（Electron 客户端）｜`server/`（独立 Go module）｜`kookit/`（submodule，HEAD `6e18465`）｜`docs/`｜`TODO.md`（`借物表.md` 已退役，见 §3）
+- 结构：`client/`（Electron 客户端）｜`server/`（独立 Go module）｜`kookit/`（submodule，HEAD `6e18465`）｜`docs/`｜`TODO.md`
 - **tag 约定**：两端版本号独立滚动（server `v0.2.x` / client `v0.1.x`），tag 命名带端名前缀：`client-v0.1.4`、`server-v0.2.0`（首个 tag：client-v0.1.4，2026-09-08）
 - **提交与标签的职责划分（2026-09-08 定）**：
   - `git commit` 与 `git tag` **由 agent（模型会话）执行** —— 一次交付 = 一次提交 + 一个带端名前缀的 annotated tag（tag 消息沿用 `client vX — 摘要` 格式）；agent 不 push，除非用户明确要求。
@@ -51,8 +51,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | 主题色取向（2026-09-08 定，**四套**） | **暗色/亮色**一律黑灰白（不引入色相；高亮=灰阶两端）+ **羊皮纸·亮 / 羊皮纸·暗**（同一暖棕取向的明暗两版）；状态色（ok/warn/err）保留语义色相 | `client/src/renderer/src/styles.css` |
 | 书籍身份模型（2026-09-08 定术语） | **作品身份**（Work：`protocol` + `code`，如 ISBN）＋ **电子版身份**（Edition：`fingerprint`）；**标准化** = 补齐作品身份（入口在房间功能，短期手填、远期 OCR）；**标定** = 加入房间时的**比对**动作。本地**不采集/不显示** author·publisher（与 server Work 模型一致） | `docs/ARCHITECTURE.md` §1 |
 | 跨层改动授权（2026-09-08） | 书库重做等改动**允许修改应用层与领域层**（前提：不违背六边形依赖规则、契约文档先行） | — |
-| 许可 | kookit AGPL-3.0 → TuRead 以 **AGPL-3.0** 开源；新依赖**先核许可证与 AGPL 兼容性**（登记仪式已退役，见下） | `client/docs/…`；`docs/STATUS.md` §3 |
-| **借物表退役（2026-09-11 用户定）** | 手维护的第三方登记仪式自 **v0.1.6/v0.1.7 前后实际停摆**（v0.1.0 就在用的 Electron/React 一直躺在「候选」表里，自带"登记滞后，待补入已采用表"的注记；文件最后一次内容更新 = 2026-09-08 打包源流明体）。用户定：**先不维护、注明、移出版本控制**（`借物表.md` 进根 `.gitignore`，文件留本地作参考）。**保留的只有义务**：引入新依赖仍须核许可证与 AGPL 兼容性；kookit（AGPL-3.0）与源流明体（OFL 1.1）的声明义务仍在 —— **发行物缺件（LICENSE / OFL 全文 / 第三方声明随包）登记在 `TODO.md`**。⚠ 此前"必须先登记"的门禁散布在 MAP/STATUS/FEATURES/STYLE/TODO 六处，已一并改为"先核许可、不登记" | `.gitignore`；`借物表.md`（本地，已冻结）；`TODO.md` |
+| 许可 | kookit AGPL-3.0 → TuRead 以 **AGPL-3.0** 开源；引入新依赖**先核许可证与 AGPL 兼容性**（不逐依赖登记）。**发行物缺件（LICENSE / OFL 全文 / 第三方声明随包）登记在 `TODO.md`** | `TODO.md` |
 | **发版节奏（2026-09-13 用户定）** | **功能确定后即滚版本号 + 出 release**（不再把多个版本的改动长期堆在"已提交未发版"状态）：本机 `npm run dist`（走代理，见 `NETWORK.md`）→ 便携产物（见上一条）+ `client-v<version>` annotated tag。版本号滚动仍由用户决定（见 §2），agent 按指示执行并同步 `package.json` / `package-lock.json` / 本文 §4 / `MAP.md` / `README.md` | `client/electron-builder.yml`；`docs/STATUS.md` §2/§4 |
 | 仓库形态 | 单仓库 monorepo（server 可零成本拆出） | `docs/ARCHITECTURE.md` §2 |
 | 开发原则 | **解释优先**；大改前写理由（Rule of Three） | — |
@@ -60,7 +59,8 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | **无边框窗口 + 自绘标题栏（2026-09-12 用户定）** | `frame:false`，不用系统控制键——自绘 min/max/close（主题 token，关闭 hover = `--err` 负片；`win:*` IPC 走 `ipcMain.handle`）。标题栏内嵌**全局搜索栏**（绝对定位几何居中；作用域随功能：书库搜书已接线、阅读器搜书内内容/房间搜房间占位待接线；Ctrl+F 聚焦、Esc 清空） | `client/src/renderer/src/components/TitleBar.tsx`；`FEATURES.md` §11 |
 | **挂载线实体（2026-09-12 用户定，二次纠正定稿）** | 目录（左）与阅读参数（右）同处**一条横向挂载线**：线**延伸整个页面宽度、被书页压着**（纸列 z2 建层，横线仅左右留白可见）；左段可点 = 目录开合，右段可点 = 参数开合，参数面板底部「折疊」与目录同款；**折叠 = 向上收回线里**；参数内容中间对齐、**低透明度 = 遮罩按鼠标距离**（与目录同款，废静态灰字）。原右侧独立召唤条与面板内「收起」废除 | `client/src/renderer/src/components/ReaderRail.tsx`；`STYLE.md` §5.8 |
 | **键鼠意图层机制（2026-09-12 骨架落地）** | 键盘 = **意图**：`core/domain/input.ts` 纯函数绑定表（normalizeKey/resolveIntent/**assertNoConflict 一键一意**）+ `DEFAULT_BINDINGS`（先原样收拢现状键位）+ `useKeyIntents`（ref 装载防过期闭包；**常驻挂载组件必须带 enabled 守卫**）。已迁移：Reader 全部键、TitleBar Ctrl+F。待收编：书库行内键（元素级）、用户自定义表 | `client/src/core/domain/input.ts`；`client/src/renderer/src/components/useKeyIntents.ts` |
-| **数据分层存储（2026-09-12 批复；同日二次批复改为统一 SQLite）** | **v2：单一 SQLite 库文件 = 一份书库**——书籍/阅读状态/书箱/笔记/库级设置全在一个 .db（JSON 的"单文件可携带"理由不成立，SQLite 本身就是单文件）；JSON **退役为引导文件**（极小：已知库注册表 + 当前库路径可配置 + 窗口状态）。**多书库**：多 .db + 库管理（新建/切换/移除引用），每库两种组织并存（真实路径虚拟映射 + 纯书箱）。封面缩略图（400px/q0.82）随库目录。**owner 字段建模预留**（本地 NULL，同步上线回填）；书签进 note 表。建模与 schema 见 `client/docs/DATA_MODEL.md`（收束版）；实施前先做 better-sqlite3 打包 spike | `client/docs/DATA_MODEL.md`；`docs/STATUS.md` §3 |
+| **数据存储 v3（2026-09-15 批复，取代 2026-09-12 的 v2）** | **全应用一个 SQLite 库 = 一份用户数据**：作品/电子版/收录/书库/书箱/笔记/阅读状态/设置全在一个 .db；JSON 只剩**引导文件**（`{version, dbPath, 窗口状态}`）。**书库 = 组织模式（非物理分区）**，成员关系 = **收录（holdings）**；同一内容可被多库收录 → **跨库共享天然成立**。**笔记挂 edition（各版一份）、阅读时间逐 edition 记录并按 work 汇总**；**设置一律全局**（无库级设置）。⚠ 取代"一库一 .db = 一份书库 / 多书库 = 多 .db" | `client/docs/DATA_MODEL.md` §1/§2/§4.2 |
+| **「书的身份」三问一次定案（2026-09-15 用户批复）** | 三问（可见性与追踪 / 笔记身份 / 阅读时间）本质同问 → 一次定案：书库降为组织模式 + 全局单库；**映射库**（跟踪真实文件夹；**移除 = 移除可见性**；**不能在其中加书**，靠**扫描**对账，**监听不作首选**）vs **自建库**；**笔记不自动跨版迁移**（跨版搬运 = 用户主动动作，Pro 候选）；**Work 身份本次只留接口**（阅读时间按 work 汇总的前提）；**Pro 版 = 功能分层、非订阅**（捐赠走爱发电；服务器开源可自建）。术语：**收录 / 映射库 / 自建库**（`mode: 'mapped' \| 'curated'`） | `DATA_MODEL.md` §4.2 D1–D12 + §6；`TODO.md` 文首 ★ |
 | **PDF 纸宽填充 + 单页交互核查（2026-09-13 用户定）** | ① **PDF 改纸宽应当填充**（用户定）——kookit PdfRender 渲染时刻定 canvas 像素、无重排入口（`dev/pdfWidthProbe.ts` 量化存档），修法 = **PDF 改纸宽时阅读器原地重开**（`reopenTick` 机制，位置自动恢复；将来 kookit 出重排入口可换轻量路径）② **单页模式交互核查**：无头探针 `dev/pagedInteractProbe.ts`（`TUREAD_DEV_PROBE=paged-interact`）实证 EPUB 单页模式键盘/滚轮/目录三路全部正常（合成事件派发，位置均移动、目录落点精确）——用户报障的两处真根因 = **桥的嵌套 iframe 盲区**（PDF 每页是顶层 iframe 里再嵌的子 iframe，已修：桥递归扫描+递归观察）与**左右点击翻页带的滚轮死区**（已修：滚轮接管上移到整个阅读器区，目录/参数面板让位）。⚠ 若 EPUB 真实鼠标滚轮仍有异常，属原生滚动与翻页的竞态，需用户复现步骤 | `client/src/renderer/src/components/iframeBridge.ts`；`ReaderFeature`；`dev/pagedInteractProbe.ts` |
 | **iframe 事件桥 + 分页滚轮翻页（2026-09-13 用户定/实测修）** | **根因**：kookit 正文渲染在 iframe 里，焦点进书页后键盘/滚轮事件落在 iframe document 上，**到不了宿主 window**（文档边界）——实测点进书页后 F11 失灵。修法 = `components/iframeBridge.ts`：对同源 iframe 文档挂同一套监听（MutationObserver 追懒加载章节），按键**只看当前界面不看焦点**（用户定：无状态实现）；useKeyIntents 全量接入 + 输入类目标让位。**分页模式滚轮翻页**同批落地（默认键盘、无按钮控件，滚轮像 koodo 可翻页；留白走宿主 onWheel、正文走 iframe 桥；平滑滚轮累积 + 冷却防连翻；scroll 模式不拦） | `client/src/renderer/src/components/iframeBridge.ts`；`useKeyIntents.ts`；`ReaderFeature`；`FEATURES.md` §11 |
 | **沉浸全屏落地 + 模糊立项（2026-09-13 用户定）** | **全屏**：`F11`（意图 `reader.toggleFullscreen`，绑定表收编）+ 设置开关「進入閱讀器時進入全屏」（默认关，`appearance.readerFullscreen`，SettingsFeature 经 patchSetting 写——appearance 键自此改原子合并）= OS 全屏 + 标题栏退场（TitleBar 订阅 `win:fullscreen-changed` 返回 null）；`Esc` 分流（**2026-09-13 用户纠正**：面板是常伴工具，Esc 不收面板）= 全屏→退阅读器；离开阅读器自动还原窗口。新增 IPC `win:set-fullscreen` / `win:fullscreen-changed`（main 于 enter/leave-full-screen 广播）。**模糊（blur）立项**：页面模糊作注意力工具（大状态切换的过渡模糊 + 定向聚焦模糊），实现路径与形态待定项见 TODO | `client/src/main/index.ts`；`shared/ipc.ts`；`ReaderFeature`；`TitleBar`；`SettingsFeature`；`TODO.md` 模糊条目 |
@@ -69,7 +69,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | **全局禁选（2026-09-13 用户定）** | **文字选择 = 阅读正文专属**：除阅读页正文外，宿主 UI 任何内容都不响应按住鼠标拖选（`body{user-select:none}`，`input/textarea` 豁免——更名/搜索/新建命名仍可选中复制）。正文在 kookit iframe（独立 document）内，天然不受宿主规则影响，选择能力原样保留。顺带删除 `LibraryFeature` 内容区原有的局部 `select-none`（被全局覆盖，冗余） | `client/src/renderer/src/styles.css`；`client/docs/FEATURES.md` §10/§11 |
 | **书库层级后退/前进（2026-09-13 用户定）** | 对齐**文件资源管理器**逻辑：① **鼠标侧键** XButton1/2 = 后退/前进（仅 `activeFeature==='library'` 接管，`preventDefault` 压掉 Chromium 默认历史导航）② **标题栏返回/前进按钮**，左缘 = `var(--sidebar-w)`（与左侧边栏右缘对齐），只在书库态渲染，不可用禁用（opacity-30）。**历史栈在 `LibraryFeature`**（`histRef` = stack + idx）：条目 = `{containerId, folder, trail}`——**面包屑整条随条目存取**，后退/前进一起还原；`enterContainer`/`enterFolder`/`goToLevel` 全走 `pushEntry`（新导航截断"前进"分支，资源管理器语义），移动/导入等 `commitNav` 是**原地重载、不入栈**；切库广播时历史重置为根。跨兄弟组件用**模块总线** `features/libraryNavBus.ts`（TitleBar 与 LibraryFeature 是 AppShell 兄弟，props 穿 Shell 不值当——`logStore` 先例；TitleBar 以 `useSyncExternalStore` 订阅可用性） | `client/src/renderer/src/features/LibraryFeature/index.tsx`；`features/libraryNavBus.ts`；`components/TitleBar.tsx`；`FEATURES.md` §10/§11 |
 | **面包屑根固定（2026-09-13 用户定）** | 状态栏右下角"当前层级路径"：**根（库名）显示位置固定、子节点向右增生**（原实现容器宽度随内容 + `ml-auto`，路径变深时整体左移、根会跑）。实现 = 容器改**固定宽度** `w-[420px]` + `ml-auto`，内容从左往右流 → 容器左缘锚死。⚠ 过长处理**暂不做**（登记 TODO）。顺带修一个分隔符 bug：`/` 原先渲染在根段**之前**（箱内显示「/ 書庫 測試箱A」）会把根推右 → 改 `index > 0` 才渲染 | `client/src/renderer/src/components/LibraryToolbar.tsx`；`FEATURES.md` §10 |
-| **阅读器功能边界判断（2026-09-12 用户定，产品哲学层；同日二次澄清收窄）** | ① **不管理源文件**：阅读器对书籍实体（源文件）不做资产管理——导入=建索引不拷贝、移除=只删索引（现状即如此）；⚠ **不延伸到索引组织层**：容器/书架系统照常演进（2026-09-09 已定案，用户总要用一种方式索引信息），也不依赖/不绑定任何外部管理程序；② **参数控制有必要，但形态克制**：剩余排版参数照常评估落地，形态上坚持召唤式、默认收起、默认暴露集最小，不做 Koodo 式参数墙分散注意力；③ **阅读界面=注意力焦点模式**：不做功能抽屉，不用的功能透明度逐渐提高（淡出）——淡出要慢、召回路径恒定、仅限阅读页。效力高于行业惯例；待吸收进 `STYLE.md` §5.8 | `docs/LANDSCAPE.md` §6 |
+| **阅读器功能边界判断（2026-09-12 用户定，产品哲学层；同日二次澄清收窄）** | ① **不管理源文件**：阅读器对书籍实体（源文件）不做资产管理——导入=建索引不拷贝、移除=只删索引（现状即如此）；⚠ **不延伸到索引组织层**：容器/书架系统照常演进（2026-09-09 已定案，用户总要用一种方式索引信息），也不依赖/不绑定任何外部管理程序；② **参数控制有必要，但形态克制**：剩余排版参数照常评估落地，形态上坚持召唤式、默认收起、默认暴露集最小，不做 Koodo 式参数墙分散注意力；③ **阅读界面=注意力焦点模式**：不做功能抽屉，不用的功能透明度逐渐提高（淡出）——淡出要慢、召回路径恒定、仅限阅读页。效力高于行业惯例；待吸收进 `STYLE.md` §5.8 | `docs/STATUS.md` §3（本行）；`client/docs/STYLE.md` §5.8 |
 
 ## 4. 版本历史
 
@@ -77,6 +77,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| v0.1.17 | 2026-09-15 | **「书的身份」定案并落地：全局单库 + 书库降为组织模式**（定案 = `client/docs/DATA_MODEL.md` §4.2 D1–D12 / §6）。① **存储**从"一库一 `.db`"改为**全应用一个 SQLite 库**（`store.db`）：`works / editions / holdings / libraries / containers(+library_id) / notes.edition_id / reading_state / reading_sessions / edition_toc`；`config.json` 瘦为 `{version, dbPath, 窗口状态}`。② **迁移器** `main/store/migrate.ts`：T1 旧 JSON、**T2 多 `.db` 合并**（**同指纹归并到第一条 edition**、笔记重挂、旧文件留档可回退、单库失败不阻断其余库、`failed` 可重试）。③ **语义全量换层**：端口/适配器/IPC/用例/UI 改 edition + holding；**导入去重改全局**；**映射库禁导入**、新增 **`ScanService` 扫描对账**（`missing` 只标不删）+ 状态栏「掃描」；**Work 做成活列**（阅读时间按 work 汇总的前提）；`edition_toc` 留位。④ **阅读状态**从书行拆出为 `ReadingState`，并进层级读模型（免 N+1）。**实现期四处自查修正**：`addHolding` 不得夺走書箱归属（扫描会吃用户组织）、`upsertEdition` 幂等、纯 JSON 老用户不丢设置、**阻塞级 bug —— 全局库与旧默认库同名撞 schema**（`CREATE TABLE IF NOT EXISTS` 静默跳过旧表 → `no such column`；改 `store.db` + 形状守卫 + 夹具变异测试）。**验证**：`npm test` **72 断言**（新增 `migrate` 15 / 双队列 14 / 分层守卫 9）、typecheck 三 project、`npm run build`、`library` 探针 **44**、`note` 探针、渲染自检 `恢复=ok`、**迁移夹具 T2 59 + T1 37 断言**（走真实主进程入口）。契约 **v0.4.0** / DATA_MODEL **v3**。⚠ **真机验收未做**（多库同一本书的笔记/进度是否真共享、扫描手感） |
 | v0.1.16 | 2026-09-14 | **笔记/划线落地（本地侧，文字类优先；PDF 第二批）**：① **领域层** `core/domain/anchor.ts` —— 选区级锚点两层结构（`Norm` 跨格式可比 + 引擎载荷 `Fragment` 不透明），`compareAnchor` **先 Fragment 后 Norm** 出 exact/strong/weak，含落库映射纯函数；`Note` 收拢 v2（v1 形状退役），`excerpt` 不设字段（是 `quote.exact` 的投影）② **存储/IPC**：`ILibraryStore` 笔记 CRUD（`NotePatch` 白名单）→ `SqliteStore` → `shared/ipc` → `main/ipc` → `IpcStoreAdapter`；**`anchor` 更新时三列 + `excerpt` 一起重写**（投影不许两处各写各的），`updatedAt` 由存储层盖戳 ③ **引擎侧原语**：`getSelectionAnchor`（`fromSelection`）/ `resolveAnchor`（`resolveToView` + `revealNoteId`）/ `remeasureAnchor`（诚实降级为**弱锚点**，因 kookit 搜索不给字符偏移）/ `clearSelection` ④ **右键 = 标记/批注主入口**（用户定）：适配器在**书文档**上听 `contextmenu` / `note-clicked`（宿主收不到 iframe 内事件），UI 弹**「挂载线」菜单**（横向 1px 线 + 功能项自线下方生长，**摒弃圆角/阴影/卡片底**；**形态全站统一、语义按域不同**）⑤ **批注**：`NoteComposer`（**受控**组件 —— 便于键盘意图从外部提交当前输入）+ `NotesPanel`（左挂件「目錄/筆記」开关，共用挂载线几何）⑥ **高亮生命周期**：载入 → 每章 `rendered` 后重挂 → 增删即时改 DOM ⑦ **侧键进阅读器**（XButton1/2 翻页；与书库域按功能态分工）⑧ **键盘接口预留**：4 个 `reader.*` 意图（markSelection/annotateSelection/composerCommit/composerCancel），**键位故意留空**，行为已就位 ⑨ **测试设施**：引入 `vitest`（MIT，devDependency，不进发行物）+ **分层依赖守卫**（7 条规则把六边形纪律机器化，含"防静默通过"与元测试）⑩ **选区配色跟主题**（新增 `--selection-bg` 四套取向，去浏览器默认蓝）⑪ 删 `SelectionPalette`（被右键菜单取代，避免两个入口语义重叠）。验证：`npm test` **42 断言** + typecheck **三 project** + `library` 探针 **39 断言** + **新增 `note` 探针**（选区→锚点→引擎回显→导航→重锚→删除→**重开书自动回挂**→笔记面板列出→右键/批注正文到达引擎/点击高亮）+ 渲染自检无回归。⚠ 真机验收未做；逆向补录 3 个 kookit 静默坑（`KOOKIT.md` §5 #13/#14/#15）。契约 v0.3.12 / STYLE v1.4 |
 | v0.1.15 | 2026-09-13 | **首个打包发行版（用户 2026-09-13 定"功能确定后滚版本放 release"）——把此前 v0.1.13/v0.1.14 只提交未打包的客户端内容一次交付**（逐项明细见 git log，此处按"实现了某某功能"收敛）：① **无边框窗口 + 自绘标题栏**（主题化控制键；标题栏内嵌居中**全局搜索栏**，书库搜书已接线，阅读器/房间占位）② **挂载线实体**（目录左段 + 阅读参数右段共用一条横向线，线延伸整页宽、被纸压着；折叠 = 向上收回线里；遮罩按鼠标距离）③ **阅读器沉浸态**（全屏的是「桌」不是正文 / 纸居中定宽 + 纸内边距 / 阅读页零控件 / 覆盖式侧边栏 / 挂载线目录与参数面板 / 空目录占位 / PDF 改纸宽原地重开）④ **沉浸全屏**（`F11` + 设置开关 + 标题栏退场 + Esc 分流 + 离开阅读器自动还原）⑤ **键鼠意图层骨架**（`domain/input.ts` 绑定表 + `useKeyIntents`）⑥ **iframe 事件桥**（键盘/滚轮被文档边界挡住的根修；分页模式滚轮翻页）⑦ **离屏封面/元数据解析** + TXT 编码修复 + 书库窗口化渲染 ⑧ **SQLite 单库落地 + one-shot 迁移器**（用户实机 327 本已迁移）+ **多书库**（一库一 .db，config.json = 引导文件）+ 書庫管理弹窗 ⑨ **书库双模式（虛擬映射 / 自建書箱）+ 资源管理器式层级浏览 + 書箱一等条目交互**（computer-use 实机验证）⑩ **书/書箱移动全量交互**：拖拽双向 + 右键「移動到」子菜单，`moveContainer` 防成环（CONTRACTS v0.3.8）⑪ **书架三则**：全局禁选（正文专属）、层级后退/前进（历史栈 + 标题栏按钮 + 鼠标侧键）、面包屑根固定。验证：typecheck 双绿；`library` 探针 **20 断言全过**（含書箱移动/防成环）；EPUB 无头自检无回归；**真机验收通过（用户 2026-09-14：全局禁选 ✓ / 鼠标侧键 ✓）**。发行物 = **免安装便携版** `TuRead-0.1.15-win-x64-portable.exe`（用户 2026-09-14 定：非正式版本给免安装版最好；不出 NSIS 安装包）。⚠ 分页模式交互用户复测仍异常（待复现细节，见 TODO 渲染组） |
 | v0.1.14 | 2026-09-13 | **（已 tag，从未打包）** 沉浸全屏 + 交互根修 + 数据地基 + 书架层级化。实现了：① 阅读器交互三则（参数面板默认展开 / 布局模式入面板 / 空目录占位）+ TODO 开设 PDF 专区 ② 沉浸全屏（F11 + 设置开关 + 标题栏退场 + Esc 分流 + 离开阅读器自动还原）③ iframe 事件桥（键盘/滚轮被文档边界挡住的根修，按键只看界面不看焦点）④ 分页模式滚轮翻页 ⑤ PDF 改纸宽原地重开（填充）⑥ **SQLite 单库落地 + one-shot 迁移器**（用户实机 327 本已迁移）⑦ **多书库 + 書庫管理弹窗**（config.json=引导文件，一库一 .db）⑧ **书库双模式（虛擬映射/自建書箱）+ 资源管理器式层级浏览 + 書箱一等条目交互**（computer-use 实机验证）⑨ **书/書箱移动全量交互**：書箱可拖拽（拖箱入箱 / 拖到面包屑段），右键「移動到」子菜单，面包屑拖入段高亮，`moveContainer` 防成环（CONTRACTS v0.3.8）⑩ Esc 分流纠正 + 搜索栏两修 + 书架 select-none。⚠ 内容随 v0.1.15 一并交付 |
@@ -116,17 +117,28 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 `release/win-unpacked/`。kookit 子模块的 `m` 是其自身工作树噪音，**勿动**。
 逐版本过程明细见 §4（v0.1.16 条目）；**本文件只写"现在在哪"，细节一律指向权威文档**。
 
-**★ 下一步唯一主线（用户 2026-09-14 定，最高优先级）：「书的身份」**
-- 用户陈述（原话，**须照此立轴**）："**这些问题本质上会回到一个问题**" ——
-  **① 可见性与追踪**（虚拟映射下书被外部增删改/内部移除后怎么办；书库以文件系统还是导入快照为准）
-  ＋ **② 笔记身份**（同一本书多库各持一份笔记与阅读状态；笔记挂"书"还是挂"内容"）
-  ＋ **③ 阅读时间模型**（会话时长挂哪一层）
-  **本质上是同一个问题：在虚拟映射下，什么算「同一本书」？**
-  → **下一个 session 专注解决此问题**；一次讨论定"书的身份"，三件事一起落地（别分开谈三次）。
-  讨论起点 = `docs/ARCHITECTURE.md` §1 的 `WorkIdentity`（protocol+code）与 `BookFingerprint`
-  （`md5-sample3-v1`）跟本地 `books.id`（uuid）三者的关系。详表见 `TODO.md` 文首 ★ 块。
-- **讨论结论的落点**：`DATA_MODEL.md`（实体/表结构/身份键）、`docs/ARCHITECTURE.md`（标定口径）、
-  `CONTRACTS.md`（`BookRecord`/`Note` 身份字段）。
+**★ 当前主目标 · 「书的身份」——契约与代码已落地（2026-09-15），待真机验收**
+- **讨论已结束**：用户 2026-09-14 定最高优先级 → **2026-09-15 给出方向并逐条批复**（D1–D12）。
+  **结论权威 = `client/docs/DATA_MODEL.md` §4.2（已批复表）+ §6（定案与讨论存档）**；
+  **落地步骤与完成状态 = `TODO.md` 文首 ★ 块九步**；本节不再重述讨论过程。
+- **三问的答案（一句话）**：**书库降为组织模式**（一库一 .db → **全局单库**）；
+  **笔记挂 edition、各版一份**（不自动跨版迁移）；**阅读时间逐 edition 记录、按 work 汇总**；
+  **映射库的"移除"只移除可见性**（不能在其中加书，靠**扫描**对账，监听不作首选）。
+- **代码已落（2026-09-15）**：`sqliteStore.ts` 拆 `works/editions/holdings/libraries/containers(+library_id)/
+  notes.edition_id/reading_state/reading_sessions/edition_toc`；`migrate.ts`（T1 旧 JSON / T2 多 `.db` 合并，
+  同指纹归并 + 旧文件留档可回退）；`LibraryManager` 瘦为引导文件 + 全局 store；IPC/适配器/用例/UI 全量换语义；
+  `BookService` 去重改**全局**；**映射库禁导入**、新增 `ScanService` 扫描对账 + 状态栏「掃描」入口；
+  Work 做成**活列**；`edition_toc` 留位。**验证**：`npm test` **72 断言**、`typecheck` 三 project、
+  `npm run build`、`TUREAD_DEV_PROBE=library` 探针 **44 断言全过**（含跨库共享同一 edition）、`note` 探针 全过。
+- **实现期自查修正（三处，都已修 + 探针钉住）**：`addHolding` 不得夺走書箱归属（扫描会吃用户组织）、
+  `upsertEdition` 幂等（并发同指纹不抛错）、纯 JSON 老用户不丢设置（`legacyConfigPath` 兜底）。
+- **迁移的真库验证（2026-09-15）**：`TUREAD_DEV_MIGRATE=fixture|json|verify` 夹具（`src/main/dev/migrateFixture.ts`，
+  **走真实 `out/main` 入口 + 真 Chromium 进程**）—— **T2 多 `.db` 合并 59 断言全过**（含"同指纹跨库只留 1 条
+  edition 且保留第一个库的 `books.id`"、settings 只取旧当前库、旧文件留档、二次启动幂等）+
+  **T1 旧 JSON 37 断言全过**（含 library.json 与旧设置 config.json 的 settings 都并入）。
+  ⚠ 未覆盖（已登记）：真机 300+ 本书库、封面搬运、并发级幂等；迁移器两条口径待定项（F12）。
+- **⚠ 未做**：**真机验收**（用户手上走一遍：多库同一本书的笔记/进度是否真的共享、映射库扫描手感、
+  移除后笔记是否留存）；渲染自检的「恢复=失败」需与既有 P2「重开书偶发空白」对照判定。
 
 **其余待办（按 TODO 分组，摘要）**：真机验收（笔记 UI 手感/观感未验）· 笔记四色取值过目 ·
 笔记概念收敛（`kind` 去 `'note'`，待放行）· 库级笔记索引页（倒查表结论已做，卡在"笔记身份"）·
@@ -158,7 +170,8 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 - `TUREAD_DEV_BOOK` 单跑 = 渲染自检；`TUREAD_DEV_SQLITE=1` = 原生模块 spike。
 - 换 Electron 版本后 `npm run rebuild:sqlite`；打包走代理（`NETWORK.md`）。
 - **发行版冒烟**（可重复）：独立 userData 起 `release/win-unpacked/TuRead.exe` →
-  应落盘 `config.json`（库注册表）+ `turead.db` + `covers/<bookId>.jpg`（导入→封面→落库整链成立）。
+  应落盘 `config.json`（引导文件）+ `store.db` + `covers/<editionId>.jpg`（导入→封面→落库整链成立）。
+  （v0.4.0 前全局库曾叫 `turead.db`；因与旧默认库同名会撞 schema，已改名，见 `DATA_MODEL.md` §1。）
 
 **⑮ 的真机验收（2026-09-14 用户实测：通过）**：全局禁选 ✓ / 鼠标侧键后退前进 ✓。
 已知边界（既有行为）：**PDF 正文选不中** —— pdf.js 自带文本层 `user-select:none`；要放开另立条目。

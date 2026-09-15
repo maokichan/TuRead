@@ -1,7 +1,9 @@
 /**
- * ILibraryStore 适配器（渲染进程侧）—— IPC 桥，转发到主进程的 LibraryManager/SqliteStore
- * （SQLite 单库持久化，多库下所有 store:* 打到「当前库」）。
- * 接口保持存储无关；本桥不感知库切换——切库以 main 广播的 library-changed 为准。
+ * ILibraryStore 适配器（渲染进程侧）—— IPC 桥，转发到主进程的 `SqliteStore`。
+ *
+ * ⚠ v0.4.0（2026-09-15「书的身份」）：主进程只有**一个全局 .db**，所以本桥**不再有"当前库"概念**——
+ * 库是库内实体，凡涉及收录/书箱的调用都**显式带 `libraryId`**。切库以 main 广播的
+ * `store:library-changed` 为准（渲染层据此重载各自状态）。
  */
 import type {
   ILibraryStore,
@@ -9,31 +11,90 @@ import type {
   LibraryLevelQuery,
   NotePatch
 } from '@core/ports/store'
-import type { BookContainer, BookRecord, LibraryEntry, Note } from '@core/domain/types'
+import type {
+  BookContainer,
+  BookFingerprint,
+  EditionRecord,
+  Holding,
+  LibraryEntry,
+  LibraryItem,
+  Note,
+  ReadingSession,
+  ReadingState,
+  WorkIdentity
+} from '@core/domain/types'
 import { IPC, type TureadBridge } from '@shared/ipc'
 
 export class IpcStoreAdapter implements ILibraryStore {
   constructor(private bridge: TureadBridge) {}
 
-  async addBook(record: BookRecord): Promise<void> {
-    await this.bridge.invoke(IPC.storeAddBook, record)
+  // ————— 内容身份（edition）—————
+
+  async upsertEdition(record: EditionRecord): Promise<EditionRecord> {
+    return (await this.bridge.invoke(IPC.storeUpsertEdition, record)) as EditionRecord
   }
 
-  async updateBook(id: string, patch: Partial<BookRecord>): Promise<void> {
-    await this.bridge.invoke(IPC.storeUpdateBook, { id, patch })
+  async getEdition(id: string): Promise<EditionRecord | null> {
+    return (await this.bridge.invoke(IPC.storeGetEdition, id)) as EditionRecord | null
   }
 
-  async getBook(id: string): Promise<BookRecord | null> {
-    return (await this.bridge.invoke(IPC.storeGetBook, id)) as BookRecord | null
+  async findEditionByFingerprint(fp: BookFingerprint): Promise<EditionRecord | null> {
+    return (await this.bridge.invoke(
+      IPC.storeFindEditionByFingerprint,
+      fp
+    )) as EditionRecord | null
   }
 
-  async listBooks(): Promise<BookRecord[]> {
-    return (await this.bridge.invoke(IPC.storeListBooks)) as BookRecord[]
+  async updateEdition(id: string, patch: Partial<EditionRecord>): Promise<void> {
+    await this.bridge.invoke(IPC.storeUpdateEdition, { id, patch })
   }
 
-  async removeBook(id: string): Promise<void> {
-    await this.bridge.invoke(IPC.storeRemoveBook, id)
+  async removeEdition(id: string): Promise<void> {
+    await this.bridge.invoke(IPC.storeRemoveEdition, id)
   }
+
+  // ————— 收录（holding）—————
+
+  async addHolding(holding: Holding): Promise<void> {
+    await this.bridge.invoke(IPC.storeAddHolding, holding)
+  }
+
+  async removeHolding(libraryId: string, editionId: string): Promise<void> {
+    await this.bridge.invoke(IPC.storeRemoveHolding, { libraryId, editionId })
+  }
+
+  async getHolding(libraryId: string, editionId: string): Promise<Holding | null> {
+    return (await this.bridge.invoke(IPC.storeGetHolding, {
+      libraryId,
+      editionId
+    })) as Holding | null
+  }
+
+  async listHoldings(libraryId: string): Promise<Holding[]> {
+    return (await this.bridge.invoke(IPC.storeListHoldings, libraryId)) as Holding[]
+  }
+
+  async setHoldingMissing(libraryId: string, editionId: string, missing: boolean): Promise<void> {
+    await this.bridge.invoke(IPC.storeSetHoldingMissing, { libraryId, editionId, missing })
+  }
+
+  async listItemsAtLevel(query: LibraryLevelQuery): Promise<LibraryItem[]> {
+    return (await this.bridge.invoke(IPC.storeListItemsAtLevel, query)) as LibraryItem[]
+  }
+
+  async listAllHeldEditions(): Promise<EditionRecord[]> {
+    return (await this.bridge.invoke(IPC.storeListAllHeldEditions)) as EditionRecord[]
+  }
+
+  async moveHolding(
+    editionId: string,
+    libraryId: string,
+    containerId: string | null
+  ): Promise<void> {
+    await this.bridge.invoke(IPC.storeMoveHolding, { editionId, libraryId, containerId })
+  }
+
+  // ————— 设置（全局）—————
 
   async getSetting<T>(key: string, fallback: T): Promise<T> {
     return (await this.bridge.invoke(IPC.storeGetSetting, { key, fallback })) as T
@@ -47,32 +108,54 @@ export class IpcStoreAdapter implements ILibraryStore {
     await this.bridge.invoke(IPC.storePatchSetting, { key, patch })
   }
 
-  async setCover(bookId: string, bytes: ArrayBuffer, ext: string): Promise<string> {
-    return (await this.bridge.invoke(IPC.storeSetCover, { bookId, bytes, ext })) as string
+  // ————— 封面（edition 级）—————
+
+  async setCover(editionId: string, bytes: ArrayBuffer, ext: string): Promise<string> {
+    return (await this.bridge.invoke(IPC.storeSetCover, { editionId, bytes, ext })) as string
   }
 
-  async getCover(bookId: string): Promise<ArrayBuffer | null> {
-    return (await this.bridge.invoke(IPC.storeGetCover, bookId)) as ArrayBuffer | null
+  async getCover(editionId: string): Promise<ArrayBuffer | null> {
+    return (await this.bridge.invoke(IPC.storeGetCover, editionId)) as ArrayBuffer | null
   }
 
-  async removeCover(bookId: string): Promise<void> {
-    await this.bridge.invoke(IPC.storeRemoveCover, bookId)
+  async removeCover(editionId: string): Promise<void> {
+    await this.bridge.invoke(IPC.storeRemoveCover, editionId)
   }
+
+  // ————— 阅读状态 / 阅读时间 ——————
+
+  async getReadingState(editionId: string): Promise<ReadingState | null> {
+    return (await this.bridge.invoke(IPC.storeGetReadingState, editionId)) as ReadingState | null
+  }
+
+  async putReadingState(state: ReadingState): Promise<void> {
+    await this.bridge.invoke(IPC.storePutReadingState, state)
+  }
+
+  async appendReadingSession(session: Omit<ReadingSession, 'id'>): Promise<void> {
+    await this.bridge.invoke(IPC.storeAppendReadingSession, session)
+  }
+
+  async totalReadMsByWork(work: WorkIdentity): Promise<number> {
+    return (await this.bridge.invoke(IPC.storeTotalReadMsByWork, work)) as number
+  }
+
+  async getLastReadEdition(): Promise<EditionRecord | null> {
+    return (await this.bridge.invoke(IPC.storeGetLastReadEdition)) as EditionRecord | null
+  }
+
+  // ————— 书库（组织模式）—————
 
   async listLibraries(): Promise<LibraryListResult> {
     return (await this.bridge.invoke(IPC.storeListLibraries)) as LibraryListResult
   }
 
-  async createLibrary(
-    name?: string,
-    mode?: 'source' | 'virtual',
+  async createLibrary(input: {
+    name?: string
+    mode: 'mapped' | 'curated'
     rootPath?: string
-  ): Promise<LibraryEntry> {
-    return (await this.bridge.invoke(IPC.storeCreateLibrary, {
-      name,
-      mode,
-      rootPath
-    })) as LibraryEntry
+  }): Promise<LibraryEntry> {
+    return (await this.bridge.invoke(IPC.storeCreateLibrary, input)) as LibraryEntry
   }
 
   async switchLibrary(id: string): Promise<void> {
@@ -83,11 +166,25 @@ export class IpcStoreAdapter implements ILibraryStore {
     return (await this.bridge.invoke(IPC.storeRenameLibrary, { id, name })) as LibraryEntry
   }
 
-  async listContainers(parentId: string | null): Promise<BookContainer[]> {
-    return (await this.bridge.invoke(IPC.storeListContainers, parentId)) as BookContainer[]
+  async removeLibrary(id: string): Promise<void> {
+    await this.bridge.invoke(IPC.storeRemoveLibrary, id)
+  }
+
+  async getLibrary(id: string): Promise<LibraryEntry | null> {
+    return (await this.bridge.invoke(IPC.storeGetLibrary, id)) as LibraryEntry | null
+  }
+
+  // ————— 书箱（树在库内）—————
+
+  async listContainers(libraryId: string, parentId: string | null): Promise<BookContainer[]> {
+    return (await this.bridge.invoke(IPC.storeListContainers, {
+      libraryId,
+      parentId
+    })) as BookContainer[]
   }
 
   async createContainer(params: {
+    libraryId: string
     parentId: string | null
     name: string
   }): Promise<BookContainer> {
@@ -102,21 +199,15 @@ export class IpcStoreAdapter implements ILibraryStore {
     await this.bridge.invoke(IPC.storeRemoveContainer, id)
   }
 
-  async listBooksAtLevel(query: LibraryLevelQuery): Promise<BookRecord[]> {
-    return (await this.bridge.invoke(IPC.storeListBooksAtLevel, query)) as BookRecord[]
-  }
-
-  async moveBookToContainer(bookId: string, containerId: string | null): Promise<void> {
-    await this.bridge.invoke(IPC.storeMoveBook, { bookId, containerId })
-  }
-
   async moveContainer(id: string, parentId: string | null): Promise<void> {
     await this.bridge.invoke(IPC.storeMoveContainer, { id, parentId })
   }
 
-  async listNotes(bookId: string, chapterIndex?: number): Promise<Note[]> {
+  // ————— 笔记 / 划线（挂 edition）—————
+
+  async listNotes(editionId: string, chapterIndex?: number): Promise<Note[]> {
     return (await this.bridge.invoke(IPC.storeListNotes, {
-      bookId,
+      editionId,
       chapterIndex
     })) as Note[]
   }

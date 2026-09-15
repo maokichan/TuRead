@@ -11,32 +11,47 @@ export const IPC = {
   netGetMemberId: 'net:get-member-id',
   netMessage: 'net:message',
   netConnectionChanged: 'net:connection-changed',
-  storeAddBook: 'store:add-book',
-  storeUpdateBook: 'store:update-book',
-  storeGetBook: 'store:get-book',
-  storeListBooks: 'store:list-books',
-  storeRemoveBook: 'store:remove-book',
+  // ————— 内容身份（edition；v0.4.0「书的身份」：全局唯一键 = 指纹）—————
+  // 原 store:add-book / update-book / get-book / list-books / remove-book 已由下列取代
+  storeUpsertEdition: 'store:upsert-edition',
+  storeGetEdition: 'store:get-edition',
+  storeFindEditionByFingerprint: 'store:find-edition-by-fingerprint',
+  storeUpdateEdition: 'store:update-edition',
+  storeRemoveEdition: 'store:remove-edition',
+  // ————— 收录（holding）："哪个书库里有这本书" —————
+  storeAddHolding: 'store:add-holding',
+  storeRemoveHolding: 'store:remove-holding',
+  storeGetHolding: 'store:get-holding',
+  storeListHoldings: 'store:list-holdings',
+  storeSetHoldingMissing: 'store:set-holding-missing',
+  storeListItemsAtLevel: 'store:list-items-at-level',
+  storeListAllHeldEditions: 'store:list-all-held-editions',
+  storeMoveHolding: 'store:move-holding',
   storeGetSetting: 'store:get-setting',
   storeSetSetting: 'store:set-setting',
   storePatchSetting: 'store:patch-setting',
   storeSetCover: 'store:set-cover',
   storeGetCover: 'store:get-cover',
   storeRemoveCover: 'store:remove-cover',
-  // 多书库（2026-09-13）：库列表/新建/切换/更名（管理弹窗，Obsidian 仓库管理页风格）；
-  // main 在切换/新建成功后广播 library-changed（含发起方——渲染层统一以广播为
-  // "当前库已变"的信号，重载各自状态；更名不改当前库，不广播，弹窗自行刷新列表）
+  // ————— 阅读状态 / 阅读时间（③ 的落点）—————
+  storeGetReadingState: 'store:get-reading-state',
+  storePutReadingState: 'store:put-reading-state',
+  storeAppendReadingSession: 'store:append-reading-session',
+  storeTotalReadMsByWork: 'store:total-read-ms-by-work',
+  storeGetLastReadEdition: 'store:get-last-read-edition',
+  // 书库（组织模式，v0.4.0：库是库内实体；main 在切换/新建成功后广播 library-changed）
   storeListLibraries: 'store:list-libraries',
   storeCreateLibrary: 'store:create-library',
   storeSwitchLibrary: 'store:switch-library',
   storeRenameLibrary: 'store:rename-library',
+  storeRemoveLibrary: 'store:remove-library',
+  storeGetLibrary: 'store:get-library',
   storeLibraryChanged: 'store:library-changed',
-  // 書箱/层级浏览（2026-09-13 用户定：书架 = 资源管理器式，書箱 = 文件夹）
+  // 書箱/层级浏览（2026-09-13 用户定：书架 = 资源管理器式，書箱 = 文件夹；v0.4.0 起树在库内）
   storeListContainers: 'store:list-containers',
   storeCreateContainer: 'store:create-container',
   storeRenameContainer: 'store:rename-container',
   storeRemoveContainer: 'store:remove-container',
-  storeListBooksAtLevel: 'store:list-books-at-level',
-  storeMoveBook: 'store:move-book',
   storeMoveContainer: 'store:move-container',
   // 笔记/划线（2026-09-14）：笔记是**书外数据**，存笔记表（DATA_MODEL §2 notes），不写进电子书文件
   storeListNotes: 'store:list-notes',

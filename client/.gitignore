@@ -7,3 +7,7 @@ release/
 
 # local dev data
 *.json.tmp
+
+# electron-vite 在 dev/build 时落下的**临时打包配置**（`electron.vite.config.<时间戳>.mjs`，
+# 是配置的打包副本、不是源码；2026-09-15 发现它会以未跟踪文件出现在仓库里）
+electron.vite.config.[0-9]*.mjs

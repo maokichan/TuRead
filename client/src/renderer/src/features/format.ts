@@ -1,5 +1,5 @@
 /** 书库展示用的格式化小工具（纯函数，无副作用） */
-import type { BookRecord } from '@core/domain/types'
+import type { ReadingState } from '@core/domain/types'
 
 export function formatSize(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '—'
@@ -8,10 +8,14 @@ export function formatSize(bytes: number): string {
     : `${Math.max(1, Math.round(bytes / 1024))} KB`
 }
 
-/** 阅读进度文案（`percentage` 是 display 角色字段，仅展示，见 CONTRACTS §2.1） */
-export function progressText(book: BookRecord): string {
-  if (!book.lastLocation) return '未读'
-  return `已读 ${Math.round((book.lastLocation.percentage ?? 0) * 100)}%`
+/**
+ * 阅读进度文案（`percentage` 是 display 角色字段，仅展示，见 CONTRACTS §2.1）。
+ * ⚠ v0.4.0：进度来自 `ReadingState`（已从 `EditionRecord` 拆出）—— 调用方从
+ * `LibraryItem.readingState` 取（读模型里已 JOIN 好，避免 N+1）。
+ */
+export function progressText(state: ReadingState | null): string {
+  if (!state?.lastLocation) return '未读'
+  return `已读 ${Math.round((state.lastLocation.percentage ?? 0) * 100)}%`
 }
 
 /** 时间戳 → 本地可读时间（unix 毫秒） */

@@ -19,8 +19,16 @@ client/test_docs/
 # 文件仍留在本地作参考，但**不再进仓库**；许可义务仍要核（见 docs/STATUS.md §3 与 TODO.md）
 借物表.md
 
+# 竞品调研底稿已退役（用户 2026-09-15 定：与借物表同样处理）：
+# 它是一次性调研底稿，**被采纳的结论早已回写进 `docs/STATUS.md` §3 决策表**；
+# 留在仓库里只会随版本继续膨胀。文件留本地作参考，不再进仓库、不再纳入文档导航。
+docs/LANDSCAPE.md
+
 # editors / os
 .vscode/
 .DS_Store
 Thumbs.db
+
+# 一次性留档（临时审查/排查文档；文件自己写明"勿入库"）
+*.tmp.md
 

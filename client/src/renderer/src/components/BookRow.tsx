@@ -1,9 +1,12 @@
-import type { BookRecord } from '@core/domain/types'
+import type { EditionRecord, ReadingState } from '@core/domain/types'
 import { formatSize, progressText } from '../features/format'
 import { FittedTitle } from './FittedTitle'
 
 interface BookRowProps {
-  book: BookRecord
+  /** 内容身份（v0.4.0：原 `BookRecord` → `EditionRecord`；阅读状态已拆出，见下） */
+  book: EditionRecord
+  /** 阅读状态（来自 `LibraryItem.readingState`，读模型已 JOIN 好，避免 N+1） */
+  readingState: ReadingState | null
   /** 当前选中（= 详情抽屉显示的书） */
   active: boolean
   coverUrl: string | null
@@ -23,6 +26,7 @@ interface BookRowProps {
  */
 export function BookRow({
   book,
+  readingState,
   active,
   coverUrl,
   onDetail,
@@ -36,7 +40,7 @@ export function BookRow({
     <span className="flex items-center gap-2 text-[10.5px] text-[var(--muted)]">
       <b className="text-[10.5px] font-bold tracking-[0.4px] text-[var(--accent)]">{book.format}</b>
       <span>{formatSize(book.fingerprint.size)}</span>
-      <span>{progressText(book)}</span>
+      <span>{progressText(readingState)}</span>
     </span>
   )
 

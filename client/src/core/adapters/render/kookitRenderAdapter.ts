@@ -82,6 +82,11 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
    * `close()` 不清它 —— 换书后 renderTo 末尾的注入会用同一份值。
    */
   private typography: ReaderTypography | null = null
+  /**
+   * 首次定位目标（v0.4.0：由 `options.lastLocation` 传入 —— 阅读状态已从 `EditionRecord` 拆到
+   * `ReadingState`，渲染层不该为拿一个位置去依赖阅读状态表）。`close()` 清空。
+   */
+  private lastLocation: BookLocation | null = null
 
   constructor(readFile: ReadBookFile) {
     super()
@@ -95,6 +100,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     // this.rendition，就会覆盖后发起的书 —— 用代次令牌让过期的那次直接作废。
     const token = ++this.openToken
     this.theme = options?.theme ?? null
+    this.lastLocation = options?.lastLocation ?? null
     const [Kookit, buffer] = await Promise.all([loadKookit(), this.readFile(record.filePath)])
     if (token !== this.openToken) {
       // 代次守卫命中：这次 open 已被更晚的 open/close 作废。**静默返回**是调用方无法区分的
@@ -139,6 +145,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     this.record = null
     this.element = null
     this.theme = null
+    this.lastLocation = null
   }
 
   /**
@@ -186,8 +193,8 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     //   record() 只算位置不渲染，用它会导致正文空白（v0.1.1 遗留根因）。
     //   harness 验证的成功序列是 renderTo → record() → goToChapterIndex(0)，这里保持同序。
     await this.rendition.record()
-    if (this.record?.lastLocation) {
-      await this.rendition.goToPosition(JSON.stringify(this.record.lastLocation))
+    if (this.lastLocation) {
+      await this.rendition.goToPosition(JSON.stringify(this.lastLocation))
     } else {
       await this.rendition.goToChapterIndex(0)
     }

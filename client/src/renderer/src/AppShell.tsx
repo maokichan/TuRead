@@ -179,8 +179,17 @@ export default function AppShell(): React.JSX.Element {
         pushLog('拖入的文件没有可导入的电子书格式')
         return
       }
-      container.imports.enqueue(paths)
-      pushLog(`拖入导入：${paths.length} 本（加入当前書庫）`)
+      void (async () => {
+        // v0.4.0：导入必须带目标书库（收录关系是库内的）；映射库不允许导入（只能扫描）
+        const { libraries, currentId } = await container.store.listLibraries()
+        const cur = libraries.find((l) => l.id === currentId)
+        if (cur?.mode === 'mapped') {
+          pushLog('映射庫的書只能靠掃描真實文件夾進來（拖入導入只對自建庫有效）')
+          return
+        }
+        container.imports.enqueue(paths, currentId)
+        pushLog(`拖入导入：${paths.length} 本（加入「${cur?.name ?? '當前書庫'}」）`)
+      })()
     }
     window.addEventListener('dragenter', onDragEnter)
     window.addEventListener('dragover', onDragOver)

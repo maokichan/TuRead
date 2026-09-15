@@ -1,5 +1,8 @@
 /**
  * IPC 注册（主进程）：把 net / store / 文件选择适配器桥接到渲染进程。
+ *
+ * ⚠ v0.4.0（2026-09-15「书的身份」）：`store:*` 不再"打到当前库"——**全应用一个全局 .db**，
+ * 书库是**库内实体**；写在收录/内容上的操作都**显式带 libraryId**（见 `ILibraryStore`）。
  */
 import { ipcMain, dialog, BrowserWindow, shell } from 'electron'
 import { promises as fs } from 'node:fs'
@@ -7,10 +10,21 @@ import type { Dirent } from 'node:fs'
 import { extname, join } from 'node:path'
 import { EBOOK_EXTENSIONS, IPC } from '@shared/ipc'
 import type { HttpRequestOptions } from '@core/ports/net'
-import type { NetConfig, MessageEnvelope, BookRecord, Note } from '@core/domain/types'
+import type {
+  BookFingerprint,
+  EditionRecord,
+  Holding,
+  LibraryEntry,
+  NetConfig,
+  MessageEnvelope,
+  Note,
+  ReadingSession,
+  ReadingState,
+  WorkIdentity
+} from '@core/domain/types'
 import { WsNetAdapter } from './net/wsNetAdapter'
 import { LibraryManager } from './store/libraryManager'
-import type { SqliteStore } from './store/sqliteStore'
+import { SqliteStore } from './store/sqliteStore'
 import type { LibraryLevelQuery, NotePatch } from '@core/ports/store'
 
 const EBOOK_EXT_SET = new Set<string>(EBOOK_EXTENSIONS)
@@ -21,9 +35,8 @@ export function registerIpc(
   libraries: LibraryManager,
   send: (channel: string, payload: unknown) => void
 ): void {
-  // 多库下 store:* 一律打到「当前库」——switchLibrary 换掉 manager 内部的当前句柄即可，
-  // 这些 handler 不需要感知库的切换
-  const store = (): SqliteStore => libraries.current
+  /** 全局 store（v0.4.0：只有一个；书库是库内实体） */
+  const store = (): SqliteStore => libraries.store
 
   net.on('message', (env) => send(IPC.netMessage, env))
   net.on('connection-changed', (state) => send(IPC.netConnectionChanged, state))
@@ -34,13 +47,43 @@ export function registerIpc(
   ipcMain.handle(IPC.netRequest, (_e, opts: HttpRequestOptions) => net.request(opts))
   ipcMain.handle(IPC.netGetMemberId, () => net.getMemberId())
 
-  ipcMain.handle(IPC.storeAddBook, (_e, record: BookRecord) => store().addBook(record))
-  ipcMain.handle(IPC.storeUpdateBook, (_e, p: { id: string; patch: Partial<BookRecord> }) =>
-    store().updateBook(p.id, p.patch)
+  // ————— 内容身份（edition）—————
+  ipcMain.handle(IPC.storeUpsertEdition, (_e, record: EditionRecord) => store().upsertEdition(record))
+  ipcMain.handle(IPC.storeGetEdition, (_e, id: string) => store().getEdition(id))
+  ipcMain.handle(IPC.storeFindEditionByFingerprint, (_e, fp: BookFingerprint) =>
+    store().findEditionByFingerprint(fp)
   )
-  ipcMain.handle(IPC.storeGetBook, (_e, id: string) => store().getBook(id))
-  ipcMain.handle(IPC.storeListBooks, () => store().listBooks())
-  ipcMain.handle(IPC.storeRemoveBook, (_e, id: string) => store().removeBook(id))
+  ipcMain.handle(
+    IPC.storeUpdateEdition,
+    (_e, p: { id: string; patch: Partial<EditionRecord> }) => store().updateEdition(p.id, p.patch)
+  )
+  ipcMain.handle(IPC.storeRemoveEdition, (_e, id: string) => store().removeEdition(id))
+
+  // ————— 收录（holding）—————
+  ipcMain.handle(IPC.storeAddHolding, (_e, h: Holding) => store().addHolding(h))
+  ipcMain.handle(IPC.storeRemoveHolding, (_e, p: { libraryId: string; editionId: string }) =>
+    store().removeHolding(p.libraryId, p.editionId)
+  )
+  ipcMain.handle(IPC.storeGetHolding, (_e, p: { libraryId: string; editionId: string }) =>
+    store().getHolding(p.libraryId, p.editionId)
+  )
+  ipcMain.handle(IPC.storeListHoldings, (_e, libraryId: string) => store().listHoldings(libraryId))
+  ipcMain.handle(
+    IPC.storeSetHoldingMissing,
+    (_e, p: { libraryId: string; editionId: string; missing: boolean }) =>
+      store().setHoldingMissing(p.libraryId, p.editionId, p.missing)
+  )
+  ipcMain.handle(IPC.storeListItemsAtLevel, (_e, q: LibraryLevelQuery) =>
+    store().listItemsAtLevel(q)
+  )
+  ipcMain.handle(IPC.storeListAllHeldEditions, () => store().listAllHeldEditions())
+  ipcMain.handle(
+    IPC.storeMoveHolding,
+    (_e, p: { editionId: string; libraryId: string; containerId: string | null }) =>
+      store().moveHolding(p.editionId, p.libraryId, p.containerId)
+  )
+
+  // ————— 设置（全局，D9）—————
   ipcMain.handle(
     IPC.storeGetSetting,
     (_e, p: { key: string; fallback: unknown }) => store().getSetting(p.key, p.fallback)
@@ -51,77 +94,99 @@ export function registerIpc(
   ipcMain.handle(IPC.storePatchSetting, (_e, p: { key: string; patch: Record<string, unknown> }) =>
     store().patchSetting(p.key, p.patch)
   )
-  ipcMain.handle(IPC.storeSetCover, (_e, p: { bookId: string; bytes: ArrayBuffer; ext: string }) =>
-    store().setCover(p.bookId, p.bytes, p.ext)
+  ipcMain.handle(IPC.storeSetCover, (_e, p: { editionId: string; bytes: ArrayBuffer; ext: string }) =>
+    store().setCover(p.editionId, p.bytes, p.ext)
   )
-  ipcMain.handle(IPC.storeGetCover, (_e, bookId: string) => store().getCover(bookId))
-  ipcMain.handle(IPC.storeRemoveCover, (_e, bookId: string) => store().removeCover(bookId))
+  ipcMain.handle(IPC.storeGetCover, (_e, editionId: string) => store().getCover(editionId))
+  ipcMain.handle(IPC.storeRemoveCover, (_e, editionId: string) => store().removeCover(editionId))
 
-  // 多书库：列表 / 新建（随即切换）/ 切换——成功后广播 library-changed（渲染层各自重载）
-  ipcMain.handle(IPC.storeListLibraries, () => libraries.listLibraries())
+  // ————— 阅读状态 / 阅读时间 —————
+  ipcMain.handle(IPC.storeGetReadingState, (_e, editionId: string) =>
+    store().getReadingState(editionId)
+  )
+  ipcMain.handle(IPC.storePutReadingState, (_e, state: ReadingState) =>
+    store().putReadingState(state)
+  )
+  ipcMain.handle(IPC.storeAppendReadingSession, (_e, s: Omit<ReadingSession, 'id'>) =>
+    store().appendReadingSession(s)
+  )
+  ipcMain.handle(IPC.storeTotalReadMsByWork, (_e, work: WorkIdentity) =>
+    store().totalReadMsByWork(work)
+  )
+  ipcMain.handle(IPC.storeGetLastReadEdition, () => store().getLastReadEdition())
+
+  // ————— 书库（组织模式）—————
+  ipcMain.handle(IPC.storeListLibraries, () => store().listLibraries())
   ipcMain.handle(
     IPC.storeCreateLibrary,
     async (
       _e,
-      p?: { name?: string; mode?: 'source' | 'virtual'; rootPath?: string } | string
+      p: { name?: string; mode?: 'mapped' | 'curated'; rootPath?: string } | string
     ) => {
-      // 兼容旧调用（直接传字符串 name）
-      const name = typeof p === 'string' ? p : p?.name
-      const mode = typeof p === 'string' ? 'virtual' : p?.mode
-      const rootPath = typeof p === 'string' ? undefined : p?.rootPath
-      const entry = await libraries.createLibrary(name, mode, rootPath)
+      // 兼容旧调用（直接传字符串 name）：按自建库处理
+      const input: { name?: string; mode: 'mapped' | 'curated'; rootPath?: string } =
+        typeof p === 'string'
+          ? { name: p, mode: 'curated' }
+          : { name: p?.name, mode: p?.mode ?? 'curated', rootPath: p?.rootPath }
+      const entry: LibraryEntry = await store().createLibrary(input)
       send(IPC.storeLibraryChanged, entry)
-      return { id: entry.id, name: entry.name }
+      return entry
     }
   )
   ipcMain.handle(IPC.storeSwitchLibrary, async (_e, id: string) => {
-    const entry = await libraries.switchLibrary(id)
+    await store().switchLibrary(id)
+    const entry = await store().getLibrary(id)
     send(IPC.storeLibraryChanged, entry)
-    return { id: entry.id, name: entry.name }
+    return entry
   })
   ipcMain.handle(IPC.storeRenameLibrary, async (_e, p: { id: string; name: string }) => {
-    const entry = await libraries.renameLibrary(p.id, p.name)
-    return { id: entry.id, name: entry.name }
+    return store().renameLibrary(p.id, p.name)
   })
-  // 在系统文件管理器中显示文件（库管理弹窗「所在文件夾」）：路径来自引导文件，不接受任意路径
-  ipcMain.handle(IPC.fsShowInFolder, (_e, p: { libraryId: string }) => {
-    const entry = libraries.listLibraries().libraries.find((l) => l.id === p.libraryId)
-    if (!entry) return false
-    shell.showItemInFolder(entry.dbPath)
+  ipcMain.handle(IPC.storeRemoveLibrary, async (_e, id: string) => {
+    await store().removeLibrary(id)
+    const { currentId } = await store().listLibraries()
+    const entry = await store().getLibrary(currentId)
+    send(IPC.storeLibraryChanged, entry)
+    return entry
+  })
+  ipcMain.handle(IPC.storeGetLibrary, (_e, id: string) => store().getLibrary(id))
+
+  // 在系统文件管理器中显示数据库文件（库管理弹窗「所在文件夾」）：
+  // ⚠ v0.4.0 起只有一个全局 .db，**不接受任意路径**（只揭示引导文件指向的那个库文件）
+  ipcMain.handle(IPC.fsShowInFolder, (_e, p: { libraryId?: string }) => {
+    const dbPath = store().describeDbPath()
+    if (!dbPath) return false
+    shell.showItemInFolder(dbPath)
     return true
   })
 
-  // 書箱/层级浏览（store:* 打到当前库）
-  ipcMain.handle(IPC.storeListContainers, (_e, parentId: string | null) =>
-    store().listContainers(parentId)
+  // ————— 書箱 / 层级浏览（树在库内）—————
+  ipcMain.handle(IPC.storeListContainers, (_e, p: { libraryId: string; parentId: string | null }) =>
+    store().listContainers(p.libraryId, p.parentId)
   )
   ipcMain.handle(
     IPC.storeCreateContainer,
-    (_e, p: { parentId: string | null; name: string }) => store().createContainer(p)
+    (_e, p: { libraryId: string; parentId: string | null; name: string }) =>
+      store().createContainer(p)
   )
   ipcMain.handle(IPC.storeRenameContainer, (_e, p: { id: string; name: string }) =>
     store().renameContainer(p.id, p.name)
   )
   ipcMain.handle(IPC.storeRemoveContainer, (_e, id: string) => store().removeContainer(id))
-  ipcMain.handle(IPC.storeListBooksAtLevel, (_e, q: LibraryLevelQuery) =>
-    store().listBooksAtLevel(q)
-  )
-  ipcMain.handle(IPC.storeMoveBook, (_e, p: { bookId: string; containerId: string | null }) =>
-    store().moveBookToContainer(p.bookId, p.containerId)
-  )
   ipcMain.handle(IPC.storeMoveContainer, (_e, p: { id: string; parentId: string | null }) =>
     store().moveContainer(p.id, p.parentId)
   )
 
-  // 笔记/划线（store:* 打到当前库）
-  ipcMain.handle(IPC.storeListNotes, (_e, p: { bookId: string; chapterIndex?: number }) =>
-    store().listNotes(p.bookId, p.chapterIndex)
+  // ————— 笔记 / 划线（挂 edition）—————
+  ipcMain.handle(IPC.storeListNotes, (_e, p: { editionId: string; chapterIndex?: number }) =>
+    store().listNotes(p.editionId, p.chapterIndex)
   )
   ipcMain.handle(IPC.storeAddNote, (_e, note: Note) => store().addNote(note))
   ipcMain.handle(IPC.storeUpdateNote, (_e, p: { id: string; patch: NotePatch }) =>
     store().updateNote(p.id, p.patch)
   )
   ipcMain.handle(IPC.storeRemoveNote, (_e, id: string) => store().removeNote(id))
+
   // 虚拟映射模式的层级浏览：列子目录（不递归，名称+绝对路径，稳定排序）
   ipcMain.handle(IPC.fsListDirectories, async (_e, dir: string) => {
     const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => [])
@@ -155,8 +220,8 @@ export function registerIpc(
   })
 
   /**
-   * 列目录下的电子书：`recursive=false` 只此节点，`true` 则连子节点（用户可配置，见 FEATURES §10）。
-   * 递归有上限（MAX_SCAN）防止误选到巨大的目录树；子目录读取失败（权限等）跳过，不整体失败。
+   * 列目录下的电子书：`recursive=false` 只此节点，`true` 则连子节点（用户可配置）。
+   * 递归有上限（MAX_SCAN）防误选巨大目录树；子目录读取失败（权限等）跳过，不整体失败。
    */
   ipcMain.handle(IPC.pickerListEbooks, async (_e, p: { dir: string; recursive: boolean }) => {
     const out: string[] = []

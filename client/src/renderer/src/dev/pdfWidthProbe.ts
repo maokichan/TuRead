@@ -29,20 +29,24 @@ export function runPdfWidthProbe(container: ServiceContainer, host: FeatureHost)
       const devBook = window.turead.devBook
       if (!devBook) throw new Error('pdf-width 探针需要 TUREAD_DEV_BOOK 指向 PDF 文件')
       const buffer = await container.picker.readFile(devBook)
-      const { book } = await container.books.importBook(
+      // v0.4.0：导入必须给出目标书库（收录关系是库内的）；返回的 `edition` = **内容身份**，
+      // 书库归属改由 holding 表达（同一个 edition 可被多个库收录）。
+      const { currentId: libraryId } = await container.store.listLibraries()
+      const { edition } = await container.books.importBook(
         buffer,
         devBook.split(/[\\/]/).pop() ?? devBook,
         extToFormat(devBook),
-        devBook
+        devBook,
+        libraryId
       )
-      if (book.format !== 'PDF') throw new Error(`探针只针对 PDF，实际 ${book.format}`)
-      host.openReader(book.id)
+      if (edition.format !== 'PDF') throw new Error(`探针只针对 PDF，实际 ${edition.format}`)
+      host.openReader(edition.id)
 
       // 等阅读器面板可见（功能组件非激活 display:none 时一切尺寸读成 0，同 selfCheck 的坑）
       let visible = false
       for (let i = 0; i < 24 && !visible; i++) {
         visible = Boolean(document.getElementById('page-area')?.offsetParent)
-        if (!visible && i > 0 && i % 4 === 0) host.openReader(book.id)
+        if (!visible && i > 0 && i % 4 === 0) host.openReader(edition.id)
         await wait(250)
       }
       if (!visible) throw new Error('阅读器面板不可见')

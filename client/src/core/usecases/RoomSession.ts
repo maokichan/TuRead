@@ -50,7 +50,9 @@ export interface IRoomSession {
   on(event: 'book-mismatch', listener: RoomSessionEvents['book-mismatch']): () => void
 
   /** 加入房间并完成标定：上报本地指纹 → 通过则订阅房间状态 */
-  joinRoom(roomId: string, book: BookRecord): Promise<JoinResult>
+  /** 加入房间并完成标定：上报本地指纹 → 通过则订阅房间状态。
+   *  v0.4.0：`lastLocation` 由调用方给（原来从 `book.lastLocation` 读 —— 阅读状态已拆到 `ReadingState`）。 */
+  joinRoom(roomId: string, book: BookRecord, lastLocation?: BookLocation | null): Promise<JoinResult>
   leaveRoom(): Promise<void>
   /** 手动广播当前位置（通常不需要：翻页由内部监听 render 自动广播） */
   emitLocation(location?: BookLocation): Promise<void>
@@ -105,7 +107,11 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     )
   }
 
-  async joinRoom(roomId: string, book: BookRecord): Promise<JoinResult> {
+  async joinRoom(
+    roomId: string,
+    book: BookRecord,
+    lastLocation?: BookLocation | null
+  ): Promise<JoinResult> {
     if (this.state) await this.leaveRoom()
     this.myId = await this.net.getMemberId()
     this.joinedFormat = book.format
@@ -135,7 +141,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
       roomId: ack.roomId ?? roomId,
       bookId: ack.edition ? String(ack.edition.id) : undefined,
       members,
-      currentLocation: book.lastLocation ?? null
+      currentLocation: lastLocation ?? null
     }
     // join-ack 已带全量成员位置 → 作为 presence diff 的基线
     this.seedMemberLocs(members)

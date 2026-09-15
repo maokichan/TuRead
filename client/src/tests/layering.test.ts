@@ -168,6 +168,20 @@ describe('分层依赖守卫', () => {
     expect(bad, `主进程依赖了渲染层：\n${fmt(bad)}`).toEqual([])
   })
 
+  /**
+   * v0.4.0（书的身份）新增规则。**为什么这条现在才需要**：本次把"库管理"从
+   * `main/store/libraryManager.ts` 收敛进了 `core/ports` + `core/usecases`，
+   * 于是"存储实现的形状"第一次和 core 靠得很近 —— 很容易顺手 `import type { SqliteStore }`
+   * 把主进程实现拖进端口/用例层（那会让六边形退化成"core 认识 main"）。
+   * 领域类型留在 `core/domain`，实现留在 `main/`，**这条边界要机器守着**。
+   */
+  it('core/** 不得反向 import 主进程实现（main/**）', () => {
+    expect(filesIn(join(SRC, 'core')).length).toBeGreaterThanOrEqual(15)
+    const deps = depsIn(join(SRC, 'core'))
+    const bad = deps.filter((d) => /(^|\/)main\//.test(d.spec))
+    expect(bad, `core 反向依赖了主进程实现：\n${fmt(bad)}`).toEqual([])
+  })
+
   it('通用层（shared）保持叶子地位：不依赖 core 的任何子层', () => {
     expect(filesIn(join(SRC, 'shared')).length).toBeGreaterThanOrEqual(1)
     const deps = depsIn(join(SRC, 'shared'))

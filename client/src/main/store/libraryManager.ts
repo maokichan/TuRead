@@ -1,211 +1,126 @@
 /**
- * LibraryManager —— 多书库管理（主进程，2026-09-13 用户立项：底部状态栏「書庫」入口）。
+ * LibraryManager —— 引导文件 + **全局唯一** store 句柄（主进程）。
  *
- * 职能分层（DATA_MODEL §1 已批复：JSON 退役为**引导文件**）：
- *   config.json = 引导文件（app 级，极小）：已知库注册表 + 当前库 id。**不再存任何书库数据**。
- *   <库>.db     = 一份书库的一切数据（SqliteStore，见 DATA_MODEL §2）。
+ * ⚠ **v0.4.0（2026-09-15「书的身份」定案，DATA_MODEL §1/§4.2）职责已大幅收缩**：
+ * - 旧职责"多库 = 多 .db、切库 = 换句柄"**作废** —— 现在是**全应用一个 .db**，
+ *   书库降为**库内实体**（`libraries` 表 + `holdings` 收录），库管理方法在 `ILibraryStore` 上。
+ * - 本类只剩三件事：① 读写**引导文件**（极小）；② 持有并初始化 `SqliteStore`；
+ *   ③ 在首次启动（或从旧版升级）时把旧数据交给迁移器。
  *
- * 文件布局（userData/）：
- *   config.json        引导文件 { version, libraries[], currentId }
- *   turead.db          默认库（历史数据经 one-shot 迁移器进入，见 sqliteStore.ts）
- *   lib-<id>.db        新建库
- *   covers/            默认库封面（历史位置不动）；新建库封面在 covers/<库id>/
- *
- * 首次引导：config.json 缺失或还是旧版"设置文件"（无 libraries 数组）→
- * 建默认库条目（指向 turead.db，携带旧 JSON 路径给迁移器），旧设置文件改名 .migrated 让位。
+ * 引导文件（`config.json`）：
+ *   v2（现行）：{ version: 2, dbPath, window? }         ← 唯一必须留在库外的是 dbPath（鸡生蛋）
+ *   v1（旧版）：{ version: 1, libraries: [...], currentId } ← 升级时由迁移器消费后改名留档
+ *   v0（更早）：设置文件（无 libraries 数组）→ 同样交给迁移器
  */
 import { promises as fs } from 'node:fs'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { randomBytes } from 'node:crypto'
 import { SqliteStore } from './sqliteStore'
 
-export interface LibraryEntry {
-  id: string
-  name: string
+/** 现行引导文件 */
+export interface BootstrapFile {
+  version: 2
   dbPath: string
-  coversDir: string
-  /** 书库模式（2026-09-13 用户定：建库二选一）。缺省按 virtual 处理（旧版迁移库） */
-  mode?: 'source' | 'virtual'
-  /** 虚拟映射模式跟踪的唯一真实文件夹 */
-  rootPath?: string
-  /** 旧 JSON 路径（只有默认库在升级首启时带；迁移完成前每次启动都要给迁移器看到） */
-  legacyLibraryPath?: string
-  legacyConfigPath?: string
+  window?: { width: number; height: number; x?: number; y?: number; maximized?: boolean }
 }
 
-interface BootstrapFile {
-  version: 1
-  libraries: LibraryEntry[]
-  currentId: string
-}
+/**
+ * 全局库文件名。
+ *
+ * ⚠ **必须与旧版默认库的文件名（`turead.db`）不同** —— 2026-09-15 用户实测踩到的真 bug：
+ * 升级用户的旧版引导文件里，**默认库的 `dbPath` 就是 `<userData>/turead.db`**，
+ * 而这个文件是**旧 v2 schema**（`books`/`containers`/`notes`，没有 `library_id`/`edition_id`）。
+ * 若把**全局库**也放在同一个路径上，`db.exec(SCHEMA_SQL)` 里的 `CREATE TABLE IF NOT EXISTS`
+ * 会**静默跳过**已存在的旧表（形状完全不同！），紧接着针对新列的索引就以
+ * `SqliteError: no such column: library_id` 炸掉 —— 且报错点远离真因，极难定位。
+ *
+ * 所以：**全局库另起一个文件名**，旧 `turead.db` 就只是一份"要迁移的旧书库文件"，
+ * 既不冲突、也不会被改动（迁移只读它）。
+ */
+const DEFAULT_DB_NAME = 'store.db'
 
 export class LibraryManager {
   private userDataDir: string
   private bootstrap: BootstrapFile | null = null
-  private stores = new Map<string, SqliteStore>()
-  private initPromise: Promise<void> | null = null
+  private storeInstance: SqliteStore | null = null
 
   constructor(userDataDir: string) {
     this.userDataDir = userDataDir
   }
 
+  get bootstrapPath(): string {
+    return join(this.userDataDir, 'config.json')
+  }
+
+  get coversDir(): string {
+    return join(this.userDataDir, 'covers')
+  }
+
+  /** 全局 store（init 后才可用） */
+  get store(): SqliteStore {
+    if (!this.storeInstance) throw new Error('LibraryManager 尚未 init')
+    return this.storeInstance
+  }
+
   async init(): Promise<void> {
-    if (!this.initPromise) this.initPromise = this.load()
-    await this.initPromise
-  }
+    const raw = await this.readJson<Record<string, unknown>>(this.bootstrapPath)
+    const isCurrent = raw?.version === 2 && typeof raw.dbPath === 'string'
 
-  private async load(): Promise<void> {
-    this.bootstrap = await this.loadOrCreateBootstrap()
-    await this.openStore(this.bootstrap.currentId)
-  }
+    const dbPath = isCurrent
+      ? (raw!.dbPath as string)
+      : join(this.userDataDir, DEFAULT_DB_NAME)
 
-  /**
-   * 载入/创建引导文件。三种起点：
-   * ① config.json 是引导文件（有 libraries）→ 直接用；
-   * ② config.json 是旧版设置文件 → 改名 .migrated 让位，建默认库条目（旧 JSON 路径交给迁移器）；
-   * ③ 全新安装 → 建默认库条目（无 legacy 路径，迁移器标记 fresh）。
-   */
-  private async loadOrCreateBootstrap(): Promise<BootstrapFile> {
-    const cfgPath = join(this.userDataDir, 'config.json')
-    const parsed = await this.readJson<Partial<BootstrapFile>>(cfgPath)
-    if (parsed && Array.isArray(parsed.libraries) && parsed.libraries.length > 0) {
-      return { version: 1, libraries: parsed.libraries, currentId: parsed.currentId ?? parsed.libraries[0].id }
-    }
+    // 旧版线索：引导文件本身可能还是 v1（含 libraries[]），另有更早的 JSON 留档
+    const legacyLibraryPath = pickExisting(
+      join(this.userDataDir, 'library.json'),
+      join(this.userDataDir, 'library.json.migrated')
+    )
+    /**
+     * 旧**设置**文件（v1 时代：主题/阅读参数/导入选项写在 config.json 里）。
+     * 优先取已留档的 `config.json.migrated`；**都没有时，当前的 `config.json` 本身就是它** ——
+     * 同一个路径可同时充当"引导文件候选"（供迁移器探测 `libraries[]`）与"旧设置来源"，两者不冲突：
+     * 迁移器先按 `libraries[]` 判定走 T2（多 `.db`，设置从各 `.db` 取），判不出来才走 T1（读这里的设置）。
+     *
+     * ⚠ 2026-09-15 自查发现并修：漏掉这个兜底会让**从未启动过 SQLite 版**的老用户在升级时
+     * **丢掉全部设置**（书能迁过来，主题/阅读参数/导入选项没了）。
+     */
+    const legacyConfigPath =
+      pickExisting(join(this.userDataDir, 'config.json.migrated')) ??
+      (isCurrent ? undefined : this.bootstrapPath)
 
-    let legacyConfigPath: string | undefined
-    if (parsed) {
-      // 旧版设置文件让位（迁移器随后从 .migrated 读设置）；已留档则直接指向留档
-      legacyConfigPath = join(this.userDataDir, 'config.json.migrated')
-      if (existsSync(cfgPath) && !existsSync(legacyConfigPath)) {
-        await fs.rename(cfgPath, legacyConfigPath).catch(() => undefined)
-      }
-    }
-    const legacyLibraryPath = join(this.userDataDir, 'library.json')
-    const entry: LibraryEntry = {
-      id: 'default',
-      name: '書庫',
-      dbPath: join(this.userDataDir, 'turead.db'),
-      coversDir: join(this.userDataDir, 'covers'),
-      legacyLibraryPath: existsSync(legacyLibraryPath)
-        ? legacyLibraryPath
-        : existsSync(`${legacyLibraryPath}.migrated`)
-          ? `${legacyLibraryPath}.migrated`
-          : undefined,
-      legacyConfigPath:
-        legacyConfigPath ??
-        (existsSync(join(this.userDataDir, 'config.json.migrated'))
-          ? join(this.userDataDir, 'config.json.migrated')
-          : undefined)
-    }
-    const bootstrap: BootstrapFile = {
-      version: 1,
-      libraries: [entry],
-      currentId: entry.id
-    }
-    await this.writeBootstrap(bootstrap)
-    return bootstrap
-  }
-
-  get currentId(): string {
-    return this.bootstrap!.currentId
-  }
-
-  get current(): SqliteStore {
-    return this.stores.get(this.bootstrap!.currentId)!
-  }
-
-  listLibraries(): { libraries: LibraryEntry[]; currentId: string } {
-    return { libraries: this.bootstrap!.libraries, currentId: this.bootstrap!.currentId }
-  }
-
-  /** 切换当前库：关旧库句柄、开新库、持久化 currentId。同 id 幂等。 */
-  async switchLibrary(id: string): Promise<LibraryEntry> {
-    const entry = this.bootstrap!.libraries.find((l) => l.id === id)
-    if (!entry) throw new Error(`書庫不存在：${id}`)
-    if (id !== this.bootstrap!.currentId) {
-      this.current.close()
-      await this.openStore(id)
-      this.bootstrap!.currentId = id
-      await this.writeBootstrap(this.bootstrap!)
-    }
-    return entry
-  }
-
-  /**
-   * 新建库（2026-09-13 用户定：**建库必须二选一模式**）并切换过去：
-   *  - source（虚拟映射）：必须给 rootPath——跟踪唯一一个真实文件夹，书架照搬其文件树；
-   *  - virtual（自建書箱）：空库，用户自建書箱树。
-   * 文件名用随机 id，与可改的显示名解耦。
-   */
-  async createLibrary(
-    name?: string,
-    mode: 'source' | 'virtual' = 'virtual',
-    rootPath?: string
-  ): Promise<LibraryEntry> {
-    const existing = this.bootstrap!.libraries
-    const autoName = name?.trim() || `書庫 ${existing.length + 1}`
-    if (mode === 'source' && !rootPath) throw new Error('虛擬映射書庫必須指定跟蹤的文件夾')
-    const id = `lib-${randomBytes(4).toString('hex')}`
-    const entry: LibraryEntry = {
-      id,
-      name: autoName,
-      dbPath: join(this.userDataDir, `${id}.db`),
-      coversDir: join(this.userDataDir, 'covers', id),
-      mode,
-      rootPath: mode === 'source' ? rootPath : undefined
-    }
-    this.bootstrap!.libraries.push(entry)
-    await this.writeBootstrap(this.bootstrap!)
-    await this.switchLibrary(id)
-    return entry
-  }
-
-  /** 更名（显示名；文件名/路径不变——dbPath 与可改的显示名解耦）。不切库、不广播。 */
-  async renameLibrary(id: string, name: string): Promise<LibraryEntry> {
-    const entry = this.bootstrap!.libraries.find((l) => l.id === id)
-    if (!entry) throw new Error(`書庫不存在：${id}`)
-    const trimmed = name.trim()
-    if (!trimmed) throw new Error('書庫名不能為空')
-    entry.name = trimmed
-    await this.writeBootstrap(this.bootstrap!)
-    return entry
-  }
-
-  /** 移除**引用**（不删 .db / 封面文件——引用模型，与"移除书=只删索引"同语义；最后一个库不可移除） */
-  async removeLibrary(id: string): Promise<void> {
-    const libs = this.bootstrap!.libraries
-    if (libs.length <= 1) throw new Error('最後一個書庫不能移除')
-    const idx = libs.findIndex((l) => l.id === id)
-    if (idx < 0) return
-    libs.splice(idx, 1)
-    if (this.bootstrap!.currentId === id) {
-      await this.switchLibrary(libs[0].id)
-    }
-    await this.writeBootstrap(this.bootstrap!)
-  }
-
-  private async openStore(id: string): Promise<void> {
-    const entry = this.bootstrap!.libraries.find((l) => l.id === id)
-    if (!entry) throw new Error(`書庫不存在：${id}`)
-    let store = this.stores.get(id)
-    if (!store) {
-      store = new SqliteStore({
-        dbPath: entry.dbPath,
-        coversDir: entry.coversDir,
-        legacyLibraryPath: entry.legacyLibraryPath,
-        legacyConfigPath: entry.legacyConfigPath
-      })
-      this.stores.set(id, store)
-    }
+    const store = new SqliteStore({
+      dbPath,
+      coversDir: this.coversDir,
+      // 只有"不是现行引导文件"时才把 config.json 交给迁移器读（否则它就是新版引导文件）
+      bootstrapPath: isCurrent ? undefined : this.bootstrapPath,
+      legacyLibraryPath,
+      legacyConfigPath
+    })
     await store.init()
+    this.storeInstance = store
+
+    // 迁移失败时**不覆盖**引导文件（否则 v1 的 libraries[] 一丢，重试就找不到旧 .db 了）
+    if (isCurrent || store.migrationState() !== 'failed') {
+      this.bootstrap = { version: 2, dbPath }
+      if (isCurrent && raw?.window) this.bootstrap.window = raw.window as BootstrapFile['window']
+      await this.writeBootstrap(this.bootstrap)
+    } else {
+      console.error('[library] 迁移未成功，保留旧引导文件以便下次重试')
+    }
+  }
+
+  /**
+   * 新建库已切换到该库后，把"当前库"落盘**不需要**动引导文件（它在库内 `settings` 里）——
+   * 本方法只为将来扩展预留（如窗口状态），现无副作用。
+   */
+  async touch(): Promise<void> {
+    if (this.bootstrap) await this.writeBootstrap(this.bootstrap)
   }
 
   private async writeBootstrap(b: BootstrapFile): Promise<void> {
-    const cfgPath = join(this.userDataDir, 'config.json')
-    const tmp = `${cfgPath}.tmp`
+    const tmp = `${this.bootstrapPath}.tmp`
     await fs.writeFile(tmp, JSON.stringify(b, null, 2), 'utf-8')
-    await fs.rename(tmp, cfgPath)
+    await fs.rename(tmp, this.bootstrapPath)
   }
 
   private async readJson<T>(path: string): Promise<T | null> {
@@ -217,4 +132,8 @@ export class LibraryManager {
       return null
     }
   }
+}
+
+function pickExisting(...paths: string[]): string | undefined {
+  return paths.find((p) => existsSync(p))
 }

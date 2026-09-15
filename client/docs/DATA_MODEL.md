@@ -2,28 +2,40 @@
 
 > **性质**：活文档。数据持久化（2026-09-12 立为当前主目标）的建模与库设计；
 > 讨论增量直接补节，**实施待批复**；结论回写 `CONTRACTS.md`。
-> 阅读顺序：§1 总构 → §2 schema → §3 实体与锚点 → §4 已批复 → §5 开放问题。
+> 阅读顺序：§1 总构 → §2 schema → §3 实体与锚点 → §4 已批复 → §5 开放问题 → **§6「书的身份」定案与讨论存档**。
+> ✅ **2026-09-15 已批复并收敛**：§6 定案后，**§1/§2 已按 §6 重写为 v3**（全局单库 + 书库降为组织模式），
+> D1–D12 收编进 **§4.2**。§6 自此转为**讨论存档**（保留理由与"防反复"记录）；**权威以 §1/§2/§4 为准**。
 
-## 1. 存储总构（v2，2026-09-12 二次批复：统一 SQLite）
+## 1. 存储总构（v3，**2026-09-15 批复：全局单库 + 书库降为组织模式**）
 
-**单一 SQLite 库文件 = 一份书库**：书籍索引、阅读状态、书箱、笔记全在**一个 .db** 里。
-JSON 的"单文件可携带"理由不成立——SQLite 本身就是单文件。JSON **退役为引导文件**。
+> ⚠ **本条取代 v2**（原文：「单一 SQLite 库文件 = 一份书库；多书库 = 多 .db」）。
+> 定案与理由见 §6（D1–D12）；本节只写结论。
+
+**全应用一个 SQLite 库 = 一份用户数据**：作品 / 电子版 / 收录 / 书库 / 书箱 / 笔记 / 阅读状态 / 设置
+**全在一个 `.db`**。JSON 只作**引导文件**——"开哪个库"是鸡生蛋问题，必须留在库外。
 
 ```
-<库目录>/
-  <库名>.db          ← 一切书库数据（下 §2）
-  covers/<bookId>.jpg ← 封面缩略图（跟随库目录，携带书库 = 拷目录）
-config.json          ← 引导文件（极小，app 级）：已知库注册表 + 当前库 id（**已落地 2026-09-13**，
-                       实现 = `src/main/store/libraryManager.ts`；窗口状态待补；不再存任何书库数据）
+<userData>/
+  store.db               ← 一切数据（下 §2）；路径由引导文件指向，可配置
+                         ⚠ **不能叫 `turead.db`** —— 那是**旧版默认库**的文件名（旧 schema），
+                           同名会让 `CREATE TABLE IF NOT EXISTS` 静默跳过旧表、
+                           随后新列索引以 `no such column` 炸掉（2026-09-15 实测事故）
+  covers/<editionId>.jpg ← 封面缩略图（随库目录；携带 = 拷目录）
+  config.json            ← 引导文件（极小，app 级）：{ version, dbPath, 窗口状态 }
 ```
 
-- **库路径可配置**（用户定）：引导文件里存路径（相对/绝对均可），给出即自动读取；
-  UI 提供库管理（新建/切换/移除引用）。
-- **多书库**（用户定"多书库是正确的"）：每个 .db = 独立书库，组织方式互不影响；
-  每库**至少两种组织并存**——①真实路径的虚拟映射 ②纯书箱（见书箱建模）。
-- 同一 filePath 可登记进多个库（引用模型，互不影响）。
-- 封面现状（回答）：**走缩略图**——canvas 400px / JPEG q0.82 / 实测 20-40KB，`covers/<bookId>.jpg`，
-  UI 读字节转 blob URL（内存缓存）。统一库后 covers 目录从 userData 移到**库目录**下。
+- **书库（Library）= 组织模式，不是物理分区**（D2）：物理上"一库一文件"的划分**取消**；
+  书库只回答"**哪些书以什么分类出现**"，其成员关系 = **收录**（holdings，§2）。
+- **多书库仍在**（用户定"多书库是正确的"）：但同处一个 `.db`，与"每库一个文件"无关。
+- **书库两种组织模式并存**（术语已改，见 §6.2）：**映射库**（`mode='mapped'`，跟踪唯一真实文件夹）
+  ＋ **自建库**（`mode='curated'`，空库起步、用户自建书箱树）。
+- **同一内容可被多个书库收录**（holdings 多行）→ **跨库共享天然成立**：同一文件 = 同一指纹
+  = 同一 edition 行（**不需要 work 也成立**；work 只管"不同文件但同一本书"，§6.1）。
+- **笔记与阅读状态跨书库**（D3）：挂 **edition**，不挂书库。
+- **封面是 edition 级**：canvas 400px / JPEG q0.82（实测 20-40KB）→ `covers/<editionId>.jpg`。
+- **设置一律全局**（D9）：**没有库级设置**。
+- **`config.json` 进一步瘦身**（D1+D9 的推论）：库注册表进库、"当前库是哪个"降为库内设置
+  （`settings.currentLibraryId`）→ 引导文件只剩 `{ version, dbPath, 窗口状态 }`。
 
 **打包风险（已解，2026-09-13 spike 全绿）**：better-sqlite3@**12**（v13 无 electron prebuild），
 `prebuild-install -r electron -t <electron 版本>` 取 Electron ABI 二进制 + `asarUnpack` 解出 .node ——
@@ -31,63 +43,160 @@ config.json          ← 引导文件（极小，app 级）：已知库注册表
 spike 脚本 `src/main/dev/sqliteSpike.ts`，触发 `TUREAD_DEV_SQLITE=1`）。原生路线成立，**wasm 兜底不需要**。
 ⚠ 换 Electron 版本时须重跑 `npm run rebuild:sqlite`（v13 若恢复 electron prebuild 可升级）。
 
-## 2. schema v2（统一库，**已落地 2026-09-13**，实现 = `src/main/store/sqliteStore.ts`）
+## 2. schema v3（**2026-09-15 批复并已实施**；实现 = `src/main/store/sqliteStore.ts`；迁移 = `src/main/store/migrate.ts`）
 
-> 相对初稿的两处增补（其余与批复稿一致）：books 加 `metadata` 列（完整 BookMetadata JSON，
-> title 列是其规范化投影——当前元数据只有文件名推导的标题，标准化立项后可能扩字段，先无损落库）；
-> 加 `meta` 表（迁移标记等库级簿记，不属于业务 schema）。
+> **实现状态（2026-09-15）**：已落地 —— `SqliteStore` 拆表、`migrate.ts`（T1 旧 JSON / T2 多 `.db` 合并）、
+> `ILibraryStore` 与 IPC/适配器换语义、`ScanService`（映射库扫描对账）、Work 活列、`edition_toc` 留位。
+> 验证：`npm test` **72 断言**（34 anchor + **9 分层守卫** + 15 migrate + 7 CoverQueue + 7 ImportQueue）、
+> `typecheck` 三 project 全绿、`npm run build` 通过、`TUREAD_DEV_PROBE=library` 探针 **44 断言全过**
+> （含"两个库指向同一 edition（跨库共享的根 = 指纹）"与"重入 addHolding(null) 不夺走書箱归属"）。
+>
+> **迁移的真库验证（2026-09-15，`TUREAD_DEV_MIGRATE=fixture|json|verify`，走**真实 `out/main` 入口 + 真 Chromium 进程**）**：
+> - **T2（多 `.db` → 全局单库）59 断言全过**：`libraries=2`（`virtual→curated` / `source→mapped` + rootPath 原样）、
+>   **`editions=3` 且共有书 `edition.id` = 第一个库的 `books.id`**（第二库不另建 edition）、
+>   `holdings=4`（各库保留自己的路径、`parent_path` 归一、书箱成员各归各库）、`notes=4` 重挂到合并后的 edition、
+>   `reading_state=3`（共有书**取更晚那条**）、settings **只取旧当前库**、`config.json.migrated` 留档 +
+>   两个旧 `.db` 原样在盘上、新引导文件已是 v2、**二次启动幂等**。
+> - **T1（旧 JSON → 全局单库）37 断言全过**：`from-json`、v1 `books[].id` 原样作为 `edition.id`、
+>   位置对象序列化、**`library.json` 与旧设置文件 `config.json` 的 settings 都并入全局**、两者都留档。
+> - 夹具 = `src/main/dev/migrateFixture.ts`（dev-only，`TUREAD_DEV_MIGRATE` 开关；**不给 `TUREAD_USER_DATA` 拒绝运行**，
+>   防夹具写进真实书库）。⚠ 它同时钉住了实现期自查的三处修正（書箱归属、幂等 upsert、纯 JSON 老用户不丢设置）。
+>
+> ⚠ **2026-09-15 用户实测的阻塞级 bug（已修，见 `TODO.md` ★ ⑪）**：**全局库文件名不能是 `turead.db`** ——
+> 那是**旧版默认库**的文件名（旧 schema），同名会让 `CREATE TABLE IF NOT EXISTS` **静默跳过旧表**，
+> 随后新列索引以 `SqliteError: no such column: library_id` 崩在启动路径上。现已改名 **`store.db`**，
+> 并加了**形状守卫**与"单库失败不阻断其余库、`failed` 可重试"的迁移纪律。
+> **夹具此前把旧默认库叫 `lib-default.db`，恰好绕开了这个碰撞**（所以没抓到）—— 现已改为真实的 `turead.db`，
+> 并用**变异测试**（把 `DEFAULT_DB_NAME` 改回去 → 夹具立刻 FAIL）证明它能抓。
+
+> **相对 v2 的结构性变化**（定案见 §2）：
+> ① `books` 一表拆成 **`editions`**（= 原书行，全局唯一键 = 指纹）+ **身份分层的 `works`**；
+> ② 新增 **`holdings`（收录）** 取代"每库一套 books"，书箱归属进 **`libraries`**；
+> ③ `notes.book_id` → **`notes.edition_id`**（笔记跨库、不随条目消失）；
+> ④ 阅读状态从 books 行里拆出 **`reading_state`** + 新增 **`reading_sessions`**（③ 阅读时间模型）；
+> ⑤ `containers` 增 **`library_id`**、**去掉 `kind`/`paths`**（库级 mode 已表达"映射/自建"；
+>    原 `kind='source'` 的行**从未被写入过** —— 映射库的层级是派生出来的，不是行）；
+> ⑥ 新增 **`edition_toc`**（自建目录存储位；先留位不实现，功能见 TODO.md）；
+> ⑦ `settings` 注释改为**全局**（无库级设置）。
+> 另：`holdings.parent_path` 是为**映射库层级浏览的 SQL 侧过滤**而加的维护列
+> （修掉 v2 的 `SELECT * FROM books` 全量再 JS 过滤，见 `TODO.md` 工程组规模条目）。
 
 ```sql
+PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
--- 书（原 BookRecord 全量入表；阅读状态并入行）
-CREATE TABLE books (
-    id TEXT PRIMARY KEY,              -- uuid
-    title TEXT NOT NULL, format TEXT NOT NULL,
-    fp_algo TEXT NOT NULL, fp_hash TEXT NOT NULL, fp_size INTEGER NOT NULL,  -- ≙ editions 唯一键
-    file_path TEXT NOT NULL,
-    cover_path TEXT, cover_failed INTEGER NOT NULL DEFAULT 0,
-    work_protocol TEXT, work_code TEXT,                  -- 标准化产出（可空）
-    last_read_at INTEGER, last_location TEXT,            -- BookLocation JSON
+
+-- ── 身份 L1：作品（Work）——"这是哪本书"。本次只留接口，不做完整标准化（D11/F9）──
+CREATE TABLE works (
+    id TEXT PRIMARY KEY,                    -- uuid
+    protocol TEXT NOT NULL,                 -- 'isbn' | 'asin' | 'doi' | 'open-library' | 'content-hash-v1'
+    code TEXT NOT NULL,                     -- 识别编码（isbn 含校验位）
+    title TEXT NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL,
-    metadata TEXT NOT NULL DEFAULT '{}'                  -- 完整 BookMetadata JSON（title 列的投影来源）
+    UNIQUE (protocol, code)
 );
--- 迁移/簿记标记（key-value）：migrated_v1 = 'json'|'fresh'，防"迁移后删光书 → 从留档 JSON 复活"
-CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
--- 书箱（Collection 的产品标准名，用户定）——两种组织并存
+
+-- ── 身份 L2：电子版（Edition）——"这是哪个电子文件"。全局唯一键 = 指纹 ──
+CREATE TABLE editions (
+    id TEXT PRIMARY KEY,                    -- uuid（内部主键，稳定；notes/reading_state 引用它）
+    work_id TEXT REFERENCES works(id) ON DELETE SET NULL,   -- 可空 = 尚未标准化
+    fp_algo TEXT NOT NULL, fp_hash TEXT NOT NULL, fp_size INTEGER NOT NULL,
+    format TEXT NOT NULL,
+    title TEXT NOT NULL,                    -- metadata.title 的规范化投影
+    metadata TEXT NOT NULL DEFAULT '{}',    -- 完整 BookMetadata JSON
+    file_path TEXT NOT NULL,                -- 当前用于打开的真实路径（最后已知）
+    cover_path TEXT, cover_failed INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    UNIQUE (fp_algo, fp_hash, fp_size)      -- ← 内容身份：跨库共享的根
+);
+
+-- ── 组织：书库（Library）——组织模式，非物理分区（D2）──
+CREATE TABLE libraries (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    mode TEXT NOT NULL,                     -- 'mapped'（映射库：跟踪真实文件夹）| 'curated'（自建库）
+    root_path TEXT,                         -- mode='mapped'：跟踪的唯一真实文件夹
+    sort INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+);
+
+-- ── 组织：书箱（Container）——树在库内（v3 新增 library_id）──
 CREATE TABLE containers (
     id TEXT PRIMARY KEY,
-    parent_id TEXT REFERENCES containers(id),  -- NULL = 根；单亲树
-    kind TEXT NOT NULL,            -- 'source'（真实路径虚拟映射）| 'virtual'（纯书箱）
+    library_id TEXT NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+    parent_id TEXT REFERENCES containers(id) ON DELETE CASCADE,   -- NULL = 库根
     name TEXT NOT NULL,
-    paths TEXT,                    -- kind=source：JSON 数组
-    collapsed INTEGER NOT NULL DEFAULT 0,
-    sort INTEGER NOT NULL DEFAULT 0
-);
-CREATE TABLE container_books (     -- 虚拟书箱的成员（引用非拷贝；数组序 = 用户排序）
-    container_id TEXT NOT NULL REFERENCES containers(id) ON DELETE CASCADE,
-    book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
     sort INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (container_id, book_id)
+    collapsed INTEGER NOT NULL DEFAULT 0
 );
--- 笔记（kind 四枚举；书签入本表已批复）
+CREATE INDEX idx_containers_library ON containers(library_id, parent_id);
+
+-- ── 收录（Holding）——"哪个书库里有这本书"（取代 v2 的"每库一套 books"）──
+CREATE TABLE holdings (
+    library_id TEXT NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+    edition_id TEXT NOT NULL REFERENCES editions(id) ON DELETE CASCADE,
+    container_id TEXT REFERENCES containers(id) ON DELETE SET NULL,  -- NULL = 库根层（单亲归属）
+    origin TEXT NOT NULL,                   -- 'scan'（映射库扫到）| 'import'（导入）
+    path TEXT,                              -- 该库视角下的路径（映射库对账用）
+    parent_path TEXT,                       -- path 的规范化父目录（层级浏览的 SQL 过滤列，写入时维护）
+    missing INTEGER NOT NULL DEFAULT 0,      -- 来源缺失（映射库对账产物；不影响笔记）
+    sort INTEGER NOT NULL DEFAULT 0,
+    added_at INTEGER NOT NULL,
+    PRIMARY KEY (library_id, edition_id)     -- 同一库内同一电子版只收录一次
+);
+CREATE INDEX idx_holdings_level ON holdings(library_id, parent_path);
+CREATE INDEX idx_holdings_edition ON holdings(edition_id);
+
+-- ── 笔记（物理挂 edition；跨库共享、不随条目消失）──
 CREATE TABLE notes (
-    id TEXT PRIMARY KEY,           -- uuid（同步主键）
-    book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
-    owner TEXT,                    -- 成员 token；本地笔记 NULL（同步上线后回填）——预留，功能后置
-    kind TEXT NOT NULL,            -- 'highlight' | 'note' | 'bookmark' | 'ink'
+    id TEXT PRIMARY KEY,                    -- uuid（同步主键）
+    edition_id TEXT NOT NULL REFERENCES editions(id) ON DELETE CASCADE,
+    owner TEXT,                             -- 用户（登录后回填）；本机默认档案 = NULL（D10）
+    kind TEXT NOT NULL,                     -- 'highlight' | 'note' | 'bookmark' | 'ink'
     chapter_index INTEGER NOT NULL,
-    anchor_key TEXT NOT NULL,      -- 不透明锚串（适配器编码/解释，§3.1）
+    anchor_key TEXT NOT NULL,               -- 不透明锚串（适配器编码/解释，§3.1）
     anchor_hint TEXT NOT NULL DEFAULT '',
-    color TEXT,                    -- 语义名（red/yellow/green/blue），不是 hex
-    excerpt TEXT NOT NULL DEFAULT '',
-    body TEXT NOT NULL DEFAULT '',
-    ink TEXT,                      -- kind=ink：InkStroke[] JSON
+    color TEXT,                             -- 语义名（red/yellow/green/blue），不是 hex
+    excerpt TEXT NOT NULL DEFAULT '',       -- = anchor.norm.quote.exact 的投影
+    body TEXT NOT NULL DEFAULT '',          -- 用户批注正文（只有这里住批注内容）
+    ink TEXT,                               -- kind=ink：InkStroke[] JSON
     created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
 );
-CREATE INDEX idx_notes_book ON notes(book_id, chapter_index);
-CREATE INDEX idx_container_books_book ON container_books(book_id);
--- 库级设置（主题/阅读器参数随库走 → 携带书库 = 数据+外观全带）
+CREATE INDEX idx_notes_edition ON notes(edition_id, chapter_index);
+CREATE INDEX idx_notes_updated ON notes(updated_at);   -- 跨书按时间列（§5 开放问题 6）
+CREATE INDEX idx_notes_owner ON notes(owner);
+
+-- ── 阅读状态（逐 edition；"按 work 汇总"是查询口径，不是存储口径，§6.1）──
+CREATE TABLE reading_state (
+    edition_id TEXT PRIMARY KEY REFERENCES editions(id) ON DELETE CASCADE,
+    last_read_at INTEGER,
+    last_location TEXT,                     -- BookLocation JSON（读回先过 normalizeLocation）
+    total_read_ms INTEGER NOT NULL DEFAULT 0
+);
+
+-- ── 阅读会话（③ 阅读时间模型的落点：逐 edition 记原始会话）──
+CREATE TABLE reading_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    edition_id TEXT NOT NULL REFERENCES editions(id) ON DELETE CASCADE,
+    owner TEXT,
+    started_at INTEGER NOT NULL,
+    ended_at INTEGER NOT NULL,
+    duration_ms INTEGER NOT NULL
+);
+CREATE INDEX idx_sessions_edition ON reading_sessions(edition_id, started_at);
+
+-- ── 自建目录存储位（目录是 edition 级数据，先留位不实现）──
+CREATE TABLE edition_toc (
+    edition_id TEXT NOT NULL REFERENCES editions(id) ON DELETE CASCADE,
+    origin TEXT NOT NULL,                   -- 'builtin'（引擎算出的快照）| 'user'（用户自建）
+    payload TEXT NOT NULL,                  -- Chapter[] JSON（含 chapterDocIndex）
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (edition_id, origin)
+);
+
+-- ── 全局设置（D9：一律全局，没有库级设置）──
 CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+-- 迁移/簿记标记（key-value）：migrated_v1 / migrated_v2 等，防"迁移后删光书 → 从留档复活"
+CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 ```
 
 ## 3. 实体与锚点（收束版）
@@ -175,24 +284,57 @@ location+range——"读到哪"是进度语义、"标在哪"是选区语义，�
 > 布局引擎管不了）—— 那时才轮到覆盖层。
 
 **3.4 书箱领域建模（原"容器"）**
+
+> ⚠ **v0.4.0 更新（2026-09-15）**：本节术语已过时 —— 箱**不再有 `kind`**（库级 `mode` 已表达"映射/自建"）、
+> 箱**归属到库**（`containers.library_id`）、成员关系从 `container_books` 变为 **`holdings.container_id`**
+> （书箱归属长在**收录**上）。**权威见 §2 v3 与 `CONTRACTS.md` §2.2**；下面的 Source/Virtual 二分保留作设计沿革。
+
 `SourceContainer{paths[]}`（按路径前缀动态派生，永不悬挂）｜`VirtualContainer{parentId 单亲树,
 bookRefs[] 引用（数组序=用户排序）}`。不变量：无环 / 悬挂引用静默清理 / 路径缺失标记。
 原语（纯函数）：`resolveCollectionBooks`（source 前缀匹配；virtual 递归子树并集）、`validateTree`。
 现有列表/网格 = 全库视图恒存，书箱是其上的过滤器；房间选书流程不变。
 
-## 4. 已批复决定（2026-09-12）
+## 4. 已批复决定
+
+### 4.1 2026-09-12（数据持久化地基）
+
+| # | 决定 | 状态（2026-09-15 复核） |
+|---|---|---|
+| 1 | 统一 SQLite 单库文件；JSON 退役为引导文件（库注册表/当前库路径/窗口状态） | ✅ 仍有效（v3 起**更进一步**：库注册表也进库，见 §4.2 D1/D9） |
+| 2 | 容器标准名 = **书箱**（代码标识 Collection 暂留，UI 文案用"书箱"） | ✅ 仍有效 |
+| 3 | 多书库：多 .db 文件 + 库管理（新建/切换/移除引用）；库路径可配置（引导文件指向即读） | ❌ **已废止（2026-09-15）**：物理分库取消，多书库同处一库 —— 见 §4.2 D1 |
+| 4 | 每库两种组织并存：真实路径虚拟映射 + 纯书箱 | ✅ 语义不变，**术语改名**（映射库 `mapped` / 自建库 `curated`，§6.2） |
+| 5 | 笔记带 `owner` 字段（建模预留，功能随同步上线；本地 NULL） | ✅ 仍有效（本地 NULL = **本机默认档案**，D10） |
+| 6 | 书签进 note 表（kind='bookmark'） | ✅ 仍有效 |
+| 7 | 封面走缩略图（现状已实现），统一库后 covers 跟随库目录 | ✅ 仍有效（v3 起封面是 **edition 级**） |
+
+### 4.2 2026-09-15 批复（「书的身份」；完整理由与讨论见 §6）
+
+> 本表是「书的身份」的**权威批复表**；§6 只留结论要点与沿革（过程与提案已删，避免与 §1/§2 重复）。
 
 | # | 决定 |
 |---|---|
-| 1 | 统一 SQLite 单库文件；JSON 退役为引导文件（库注册表/当前库路径/窗口状态） |
-| 2 | 容器标准名 = **书箱**（代码标识 Collection 暂留，UI 文案用"书箱"） |
-| 3 | 多书库：多 .db 文件 + 库管理（新建/切换/移除引用）；库路径可配置（引导文件指向即读） |
-| 4 | 每库两种组织并存：真实路径虚拟映射 + 纯书箱 |
-| 5 | 笔记带 `owner` 字段（建模预留，功能随同步上线；本地 NULL） |
-| 6 | 书签进 note 表（kind='bookmark'） |
-| 7 | 封面走缩略图（现状已实现），统一库后 covers 跟随库目录 |
+| D1 | **物理上不再按书库分库**：全局一个统一数据库 + JSON 驱动的引导配置 |
+| D2 | **书库 = 一种组织模式**（组织管理书的分类），进领域层；与书箱同级 |
+| D3 | **笔记与用户产生的信息跨书库** |
+| D4 | 身份规则：有 work 按 work、否则按指纹 —— ⚠ **经 D8/D11 细化**：**笔记挂 edition（各版一份）**；**阅读时间逐 edition 记录、按 work 汇总** |
+| D5 | **虚拟映射**：移除 = 移除可见性；**不能在映射库"添加"书**；需要扫描/同步机制（**监听不作首选**） |
+| D6 | **登录前应用必须可用**；登录是**升级**动作，带来状态转移，须显式设计 |
+| D7 | **词汇标准化**（§6.2：收录 / 映射库 / 自建库；`mode: 'mapped' \| 'curated'`） |
+| D8 | **笔记按 edition 各一份，不做自动迁移**；跨版搬运 = **用户主动动作**（Pro 候选，见 TODO.md） |
+| D9 | **设置一律全局**（无库级设置） |
+| D10 | **不假设多用户共用一台机器** → 本地数据 = 本机默认档案；登录 = **认领**；退出登录**不删**本地数据 |
+| D11 | **本次不做完整标准化，但必须留出 Work 接口**（阅读时间按 work 汇总的前提） |
+| D12 | **Pro 版 = 功能分层、非订阅**（捐赠走爱发电；服务器开源可自建）—— 见 TODO.md「产品与发行」 |
+
+**登记待议（不阻塞实施）**：F3 孤儿 edition 的清理动作 · F5「全部书」顶层视角 · F6「导出库包」 ·
+F10 Pro 功能边界（详见 §6.4）。
 
 ## 5. 开放问题（待批复）
+
+> ⚠ **2026-09-15**：下方第 6 条的**前置阻塞已解** —— 「笔记身份」已在 §4.2 D8 定案
+> （笔记挂 edition、各版一份），故"库级笔记索引页（含 FTS5）"**可以开工**；
+> v3 schema 已顺带加好 `idx_notes_updated` / `idx_notes_owner`（§2）。
 
 1. ~~better-sqlite3 vs sql.js~~ **已解（2026-09-13 spike 全绿，见 §1）**：走 better-sqlite3@12 原生 +
    prebuild（electron-v130）+ asarUnpack。待办收敛为一件小事：新机器 `npm install` 后须手动
@@ -237,3 +379,63 @@ bookRefs[] 引用（数组序=用户排序）}`。不变量：无环 / 悬挂引
      （或查询时回查 `books.metadata`/目录）—— 那才是真正的表结构决定。
    **结论**：倒查表本身**不动实体层**；动实体层的是它**照出来的**那两件事（笔记身份、章标题冗余）。
    建议顺序：先定笔记身份 → 再落索引页（含 FTS5）。
+
+---
+
+## 6. 「书的身份」定案与沿革（要点）
+
+> 三问（可见性与追踪 / 笔记身份 / 阅读时间模型）**本质同一问**：「虚拟映射下什么算同一本书」。
+> **结论已全部落进 §1/§2/§4.2**，本节只留**结论要点 + 为什么这么定 + 已登记的待议项** ——
+> 不再保留讨论过程与提案表（那些已被上文取代，留着只会重复）。
+
+### 6.1 定案要点（权威在 §4.2）
+
+| 问题 | 结论 |
+|---|---|
+| 书库是什么 | **组织模式，不是物理分区** → 全应用**一个** SQLite 库；成员关系 = **收录**（`holdings`） |
+| 笔记挂哪 | 挂 **edition**（= 内容指纹）。**同一文件跨库共享**（同一指纹 → 同一 edition 行，**不需要 work**） |
+| 笔记要不要跨版合并 | **不要**：**各 edition 各一份**。共读会让用户**自然选出最好的那一版**，长期看不需要迁移 |
+| 阅读时间挂哪 | **逐 edition 记录**，**按 work 汇总**（有 work 才跨版合并计时；无 work 退化为按文件） |
+| 映射库的"移除" | **只移除可见性**：删收录，**不动真实文件、不动笔记与阅读状态**；文件回来书自动重现 |
+| 映射库能不能加书 | **不能**（只能在真实路径上加）→ 入口是**扫描对账**，不是导入；**不做 `fs.watch`**（开销不更低，且与"不管理源文件"张力最大） |
+| 设置作用域 | **一律全局**（"使用者是用户，而不是库"），**没有库级设置** |
+| 登录边界 | **登录前必须可用**；不假设多用户共用一台机器 → 本地数据即"本机默认档案"，登录 = **认领** |
+| 标准化 | 本次**只把 Work 做成可写的活列**（阅读时间按 work 汇总的前提），完整标准化后置 |
+
+**两个关键取舍的理由**（防反复，别处不再重复）：
+
+1. **笔记物理挂 edition，而不是挂 work**：锚点是在**某个 edition 里**量出来的（rangy 字符偏移），
+   挂 work 会让异版锚点必然失准；挂 edition 还有个副作用好处 —— **补录 work 时零重写**
+   （T3 退化成"改一列"）。
+2. **指纹是采样哈希**（`md5-sample3-v1`：头/中/尾各 64KB + size），所以它当主身份有两类误差：
+   只改中段未触及采样窗 → **假同一**；EPUB 重存/换封面 → **假不同**。承认误差，不做自动合并。
+
+### 6.2 术语（开发时说同一件事）
+
+| 术语 | 含义 | 代码标识 |
+|---|---|---|
+| **收录**（Holding） | 「哪个书库里有这本书」这条关系 | `holdings` |
+| **映射库** | 跟踪**唯一真实文件夹**，层级 = 文件系统 | `mode: 'mapped'`（原 `'source'`） |
+| **自建库** | 空库起步，用户自建书箱树 | `mode: 'curated'`（原 `'virtual'`） |
+| **来源缺失** | 真实路径上找不到该文件 | `holdings.missing` |
+
+> 旧的 `'source' | 'virtual'` **一读就错**（"虚拟映射"是 `source`、"自建"是 `virtual`），已改名。
+
+### 6.3 状态转移（实现时最容易出事的地方）
+
+| # | 转移 | 触发 | 口径 |
+|---|---|---|---|
+| T1 | 旧 JSON → 全局单库 | 老版本升级 | `migrate.ts` 的 `migrateFromJson` |
+| T2 | **多 `.db` → 全局单库** | 本次架构变更 | `migrateFromV2`：**同指纹归并到第一条 edition**、笔记重挂、旧文件留档可回退 |
+| T3 | `fp:…` → `work:…` | 补 ISBN / 远期 OCR | **只改 `editions.work_id` 一列，笔记零重写** |
+| T4 | 匿名本地 → 已登录 | 用户主动登录 | 认领（回填 `owner`）；退出登录**不删**本地数据 |
+| T5 | 跨设备同步 | 登录 + server | v1 明确排除笔记同步 |
+
+⚠ **全局库文件名不能是 `turead.db`**（旧默认库的文件名，旧 schema）—— 同名会让
+`CREATE TABLE IF NOT EXISTS` 静默跳过旧表、随后新列索引崩在启动路径上。现用 `store.db`。
+
+### 6.4 已登记、尚未拍板的项
+
+**不在本节重复展开**，见 `TODO.md` 文首 ★ 块末尾「以后再说」：
+F3 孤儿 edition 清理 · F5「全部书」顶层视角 · F6「导出库包」 · F10 Pro 功能边界 ·
+F11 同库多路径的收录键 · F12 迁移器两条口径（位置 vs 时间戳的优先级、同库同指纹两行静默丢一条）。

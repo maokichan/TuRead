@@ -16,7 +16,7 @@ interface LibraryManagerDialogProps {
   onClose: () => void
   listLibraries: () => Promise<{ libraries: LibraryEntry[]; currentId: string }>
   onSwitch: (id: string) => Promise<void>
-  onCreate: (name: string, mode: 'source' | 'virtual', rootPath?: string) => Promise<void>
+  onCreate: (name: string, mode: 'mapped' | 'curated', rootPath?: string) => Promise<void>
   onRename: (id: string, name: string) => Promise<void>
   /** 虚拟映射建库时选择跟踪的根文件夹（系统对话框；取消 = null） */
   onPickDirectory: () => Promise<string | null>
@@ -37,7 +37,7 @@ export function LibraryManagerDialog({
   /** 新建行的开合与草稿（2026-09-13 用户定：建库必须二选一模式） */
   const [creating, setCreating] = useState(false)
   const [createDraft, setCreateDraft] = useState('')
-  const [createMode, setCreateMode] = useState<'source' | 'virtual'>('virtual')
+  const [createMode, setCreateMode] = useState<'mapped' | 'curated'>('curated')
   const [createRoot, setCreateRoot] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
@@ -73,7 +73,7 @@ export function LibraryManagerDialog({
 
   const commitCreate = async (): Promise<void> => {
     if (!createDraft.trim()) return
-    if (createMode === 'source' && !createRoot) return
+    if (createMode === 'mapped' && !createRoot) return
     await onCreate(createDraft, createMode, createRoot ?? undefined)
     setCreating(false)
     setCreateDraft('')
@@ -170,8 +170,14 @@ export function LibraryManagerDialog({
                           {isCurrent && '　·　當前'}
                         </button>
                       </div>
-                      <div className="mt-0.5 truncate text-[11.5px] text-[var(--muted)]" title={l.dbPath}>
-                        {l.dbPath}
+                      {/* v0.4.0：一库一 .db 已作废（全部数据在一个全局库）→ 改显示**库的模式与跟踪目录** */}
+                      <div
+                        className="mt-0.5 truncate text-[11.5px] text-[var(--muted)]"
+                        title={l.rootPath ?? undefined}
+                      >
+                        {l.mode === 'mapped'
+                          ? `映射庫${l.rootPath ? ` · ${l.rootPath}` : ''}`
+                          : '自建庫'}
                       </div>
                     </>
                   )}
@@ -196,8 +202,8 @@ export function LibraryManagerDialog({
                 <label className="flex cursor-pointer items-start gap-1.5 text-[12px] text-[var(--muted)]">
                   <input
                     type="radio"
-                    checked={createMode === 'source'}
-                    onChange={() => setCreateMode('source')}
+                    checked={createMode === 'mapped'}
+                    onChange={() => setCreateMode('mapped')}
                     className="mt-0.5 h-3.5 w-3.5 accent-[var(--accent)]"
                   />
                   <span>
@@ -210,8 +216,8 @@ export function LibraryManagerDialog({
                 <label className="flex cursor-pointer items-start gap-1.5 text-[12px] text-[var(--muted)]">
                   <input
                     type="radio"
-                    checked={createMode === 'virtual'}
-                    onChange={() => setCreateMode('virtual')}
+                    checked={createMode === 'curated'}
+                    onChange={() => setCreateMode('curated')}
                     className="mt-0.5 h-3.5 w-3.5 accent-[var(--accent)]"
                   />
                   <span>
@@ -220,7 +226,7 @@ export function LibraryManagerDialog({
                   </span>
                 </label>
               </div>
-              {createMode === 'source' && (
+              {createMode === 'mapped' && (
                 <div className="flex items-center gap-3 text-[12px]">
                   <button
                     onClick={async () => setCreateRoot(await onPickDirectory())}
@@ -236,7 +242,7 @@ export function LibraryManagerDialog({
               <div className="flex gap-5">
                 <button
                   onClick={() => void commitCreate()}
-                  disabled={!createDraft.trim() || (createMode === 'source' && !createRoot)}
+                  disabled={!createDraft.trim() || (createMode === 'mapped' && !createRoot)}
                   className="text-action text-action--primary disabled:opacity-40"
                 >
                   建立

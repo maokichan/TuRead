@@ -29,14 +29,18 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
   void (async () => {
     try {
       const buffer = await container.picker.readFile(devBook)
-      const { book, reused } = await container.books.importBook(
+      // v0.4.0：导入必须给出目标书库（收录关系是库内的）；返回的 `edition` = **内容身份**
+      // （原来那个 `book` 行同时承载"属于哪个库"与阅读状态，现分别由 holding / ReadingState 承担）。
+      const { currentId: libraryId } = await container.store.listLibraries()
+      const { edition, reused } = await container.books.importBook(
         buffer,
         devBook.split(/[\\/]/).pop() ?? devBook,
         extToFormat(devBook),
-        devBook
+        devBook,
+        libraryId
       )
-      pushLog(reused ? '[dev] 已在书架（指纹命中，复用）' : `[dev] 已导入：${book.metadata.title}`)
-      host.openReader(book.id)
+      pushLog(reused ? '[dev] 已在书架（指纹命中，复用）' : `[dev] 已导入：${edition.metadata.title}`)
+      host.openReader(edition.id)
 
       const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
       /**
@@ -47,7 +51,7 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
       const ensureReaderVisible = async (): Promise<boolean> => {
         for (let i = 0; i < 24; i++) {
           if (document.getElementById('page-area')?.offsetParent) return true
-          if (i > 0 && i % 4 === 0) host.openReader(book.id)
+          if (i > 0 && i % 4 === 0) host.openReader(edition.id)
           await wait(250)
         }
         return false
@@ -98,7 +102,7 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
         }
       }
       const changed = (p1: BookLocation, p2: BookLocation): boolean =>
-        !sameLocation(p1, p2, book.format)
+        !sameLocation(p1, p2, edition.format)
       // 等宿主滚动停稳再取位置（next() 是 smooth 滚动 + record 算旧位置；
       // 无头隐藏窗口下 Chromium 还会推迟 smooth scroll 动画 ~2s，固定短等待会取到旧值）
       const waitScrollSettle = async (): Promise<void> => {
@@ -173,7 +177,7 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
       let innerLen = -1
       let subInfo = ''
       let posChanged = false
-      if (book.format === 'PDF') {
+      if (edition.format === 'PDF') {
         const countCanvases = countPdfCanvases
         // PDF 页面 canvas 异步渲染（大文件冷启动较慢；封面等空页无 canvas 属正常）→
         // 聚合所有页面 iframe 的 canvas 数并轮询其出现
@@ -272,13 +276,13 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
               resolve(s)
             })
           })
-          container.covers.enqueue([book.id])
+          container.covers.enqueue([edition.id])
           const summary = await Promise.race([finished, wait(45000).then(() => null)])
-          const fresh = await container.books.get(book.id)
+          const fresh = await container.books.get(edition.id)
           if (!fresh?.coverPath) {
             return `封面=无(${summary ? `ok${summary.ok}/fail${summary.failed}` : '超时'})`
           }
-          const bytes = await container.store.getCover(book.id)
+          const bytes = await container.store.getCover(edition.id)
           return `封面=${fresh.coverPath}(${bytes ? `${Math.round(bytes.byteLength / 1024)}KB` : '读回失败'})`
         } catch (err) {
           return `封面=异常(${(err as Error).message})`
@@ -339,7 +343,7 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
         try {
           // PDF 是位图：`applyTheme` 对 PDF **本来就是 no-op**（深色走像素处理，TODO 单独立项）
           // → 不能对 PDF 断言"注入必须存在"，否则是对着正确行为报假阴性（2026-09-11 实测）。
-          if (book.format === 'PDF') return '夜間注入=跳过(PDF 位圖，待像素處理)'
+          if (edition.format === 'PDF') return '夜間注入=跳过(PDF 位圖，待像素處理)'
           const before = readDocState()
           if (!before.doc) return '夜間注入=跳过(无正文)'
           const beforeText = before.textLen
@@ -387,7 +391,7 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
           while (Date.now() < deadline) {
             // 判据按格式分：文字类看正文 textContent；**PDF 看子 iframe 里的 canvas**
             // （顶层 iframe 只有壳，textContent 是 0 —— 用它判 PDF 会对着"其实已恢复"报失败）
-            if (book.format === 'PDF' ? countPdfCanvases() > 0 : stageHasText()) return '恢复=ok'
+            if (edition.format === 'PDF' ? countPdfCanvases() > 0 : stageHasText()) return '恢复=ok'
             await wait(200)
           }
           const s = readDocState()
@@ -414,7 +418,7 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
       const sbHidden = st?.style.getPropertyValue('scrollbar-width') === 'none'
       const sbLine = `滚动条=${sbHidden ? '隐藏' : '显示'}(溢出${overflowPx})`
       const line =
-        `[dev] ${ok ? '渲染OK' : '渲染可疑'} 主题=${themeAttr} 格式=${book.format} 章节数=${ch} ` +
+        `[dev] ${ok ? '渲染OK' : '渲染可疑'} 主题=${themeAttr} 格式=${edition.format} 章节数=${ch} ` +
         `正文textContent=${contentLen} 正文innerText=${innerLen} 可滚动=${s2.scrollH} iframeH=${s2.iframeH} docScrollH=${s2.docScrollH} ${sbLine} ${subInfo} ${nightLine} ${coverLine} ${fontLine} ${fittedLine} ${restoreLine} 位置=第${pos1.page}页/${pos1.percentage}`
       pushLog(line)
       console.log(ok ? '[TUREAD-TEST-OK]' + line : '[TUREAD-TEST-FAIL]' + line)

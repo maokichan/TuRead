@@ -6,9 +6,12 @@
  * 与同构的 `CoverQueue`（用例）职责重复且位置不一致 —— UI 应当是 driving adapter，
  * 只负责"显示进度、把失败写进诊断日志"。移动后 LibraryFeature 不再持有编排状态。
  *
- * 编排：readFile（文件能力）→ IBookService.importBook（指纹 + 元数据 + 入库，含指纹去重）
+ * 编排：readFile（文件能力）→ IBookService.importBook（指纹 + 元数据 + upsert edition + 加收录）
+ *
+ * ⚠ v0.4.0：导入**必须给出目标书库**（`libraryId`）—— 收录关系是库内的。
+ * **映射库（`mode='mapped'`）不该走导入**（应走扫描，DATA_MODEL D5/F4），由 UI 按库模式把关。
  */
-import type { BookRecord } from '@core/domain/types'
+import type { EditionRecord } from '@core/domain/types'
 import { basename, extToFormat } from '@core/domain/format'
 import { TypedEmitter } from '@core/ports/emitter'
 import type { IBookService } from './BookService'
@@ -17,7 +20,7 @@ export interface ImportSummary {
   total: number
   /** 成功处理的条目数（含指纹复用） */
   imported: number
-  /** 其中指纹命中、复用了已有条目的数量 */
+  /** 其中指纹命中、复用了已有内容的数量 */
   reused: number
   failed: number
   cancelled: boolean
@@ -26,14 +29,14 @@ export interface ImportSummary {
 export interface ImportQueueEvents {
   /** done/total 随队列增长而更新 */
   progress: (done: number, total: number) => void
-  imported: (book: BookRecord, reused: boolean) => void
+  imported: (edition: EditionRecord, reused: boolean) => void
   'import-failed': (path: string, message: string) => void
   done: (summary: ImportSummary) => void
 }
 
 export interface IImportQueue extends TypedEmitter<ImportQueueEvents> {
-  /** 入队导入（同一路径只入队一次；运行中可继续入队） */
-  enqueue(paths: string[]): void
+  /** 入队导入到指定书库（同一路径只入队一次；运行中可继续入队） */
+  enqueue(paths: string[], libraryId: string): void
   /** 取消剩余队列（正在处理的那本会跑完） */
   cancel(): void
   isRunning(): boolean
@@ -42,6 +45,8 @@ export interface IImportQueue extends TypedEmitter<ImportQueueEvents> {
 export class ImportQueue extends TypedEmitter<ImportQueueEvents> implements IImportQueue {
   private queue: string[] = []
   private planned = new Set<string>()
+  /** 本次批次的目标书库（enqueue 时给定；同一批次只进一个库） */
+  private libraryId = ''
   private total = 0
   private done = 0
   private imported = 0
@@ -57,8 +62,9 @@ export class ImportQueue extends TypedEmitter<ImportQueueEvents> implements IImp
     super()
   }
 
-  enqueue(paths: string[]): void {
+  enqueue(paths: string[], libraryId: string): void {
     this.cancelled = false
+    this.libraryId = libraryId
     for (const path of paths) {
       if (this.planned.has(path)) continue
       this.planned.add(path)
@@ -86,10 +92,16 @@ export class ImportQueue extends TypedEmitter<ImportQueueEvents> implements IImp
       try {
         const buffer = await this.readFile(path)
         const name = basename(path)
-        const res = await this.books.importBook(buffer, name, extToFormat(name), path)
+        const res = await this.books.importBook(
+          buffer,
+          name,
+          extToFormat(name),
+          path,
+          this.libraryId
+        )
         this.imported++
         if (res.reused) this.reused++
-        this.emit('imported', res.book, res.reused)
+        this.emit('imported', res.edition, res.reused)
       } catch (err) {
         this.failed++
         this.emit('import-failed', path, (err as Error).message)

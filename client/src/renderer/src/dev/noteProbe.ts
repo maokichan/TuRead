@@ -44,13 +44,17 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
       const devBook = window.turead.devBook
       if (!devBook) throw new Error('note 探针需要 TUREAD_DEV_BOOK 指向文字类电子书（EPUB/TXT/MD）')
       const buffer = await container.picker.readFile(devBook)
-      const { book } = await container.books.importBook(
+      // v0.4.0：导入必须给出目标书库（收录关系是库内的）；返回的 `edition` = **内容身份**，
+      // 笔记改挂 edition（`Note.editionId`）—— 跨库共享、不随"移除收录"消失。
+      const { currentId: libraryId } = await container.store.listLibraries()
+      const { edition } = await container.books.importBook(
         buffer,
         devBook.split(/[\\/]/).pop() ?? devBook,
         extToFormat(devBook),
-        devBook
+        devBook,
+        libraryId
       )
-      host.openReader(book.id)
+      host.openReader(edition.id)
 
       const stage = (): HTMLElement | null => document.getElementById('page-area')
       const iframe = (): HTMLIFrameElement | null =>
@@ -79,7 +83,7 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
             const dl0 = Date.now() + 8000
             while (iframe() !== null && Date.now() < dl0) await wait(100)
           }
-          host.openReader(book.id)
+          host.openReader(edition.id)
           const dl = Date.now() + 15000
           while (Date.now() < dl) {
             const cur = iframe()
@@ -98,7 +102,7 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
       let visible = false
       for (let i = 0; i < 24 && !visible; i++) {
         visible = Boolean(stage()?.offsetParent)
-        if (!visible && i > 0 && i % 4 === 0) host.openReader(book.id)
+        if (!visible && i > 0 && i % 4 === 0) host.openReader(edition.id)
         await wait(250)
       }
       if (!visible) throw new Error('阅读器面板不可见')
@@ -198,7 +202,7 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
       const noteId = crypto.randomUUID()
       const note: Note = {
         id: noteId,
-        bookId: book.id,
+        editionId: edition.id,
         kind: 'highlight',
         anchor,
         color: 'yellow',
