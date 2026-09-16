@@ -73,7 +73,7 @@ npm test               # 纯逻辑单测（vitest，秒级，不需要书）
 npm run typecheck:all  # 四个 tsconfig（node / web / test / preview）
 npm run style          # 样式样张（浏览器里看 token 与组件，不用起 Electron）
 npm run build          # 只构建产物（不打包发行版）
-npm run dist           # 打包便携版（Windows x64；需代理）
+npm run dist           # 打包便携版（Windows x64；需代理）—— ⚠ 打包由仓库负责人决定何时做
 npm run rebuild:sqlite # 换 Electron 大版本后重建原生模块
 ```
 

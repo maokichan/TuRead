@@ -21,13 +21,17 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 - git 仓库：本地 `main`，`origin = https://github.com/maokichan/TuRead.git`（独立仓库，非 fork）
 - 结构：`client/`（Electron）｜`server/`（独立 Go module）｜`kookit/`（submodule，HEAD `6e18465`）｜`docs/`｜`TODO.md`
 - **tag 约定**：两端版本号独立滚动（server `v0.2.x` / client `v0.1.x`），tag 带端名前缀：`client-v0.1.19`
-- **职责划分（2026-09-08 定）**：`git commit` 与 `git tag` **由 agent 执行**（一次交付 = 一次提交 +
-  一个 annotated tag，消息沿用 `client vX — 摘要`）；agent 不 push，除非用户明确要求。
+- **职责划分（2026-09-08 定；2026-09-16 补一条硬边界）**：`git commit` 与 `git tag` **由 agent 执行**
+  （一次交付 = 一次提交 + 一个 annotated tag，消息沿用 `client vX — 摘要`）；agent 不 push，除非用户明确要求。
   **版本号是否滚动由用户决定** —— agent 不得自行发版；未获指示的改动并入当前版本，
   "已提交但版本未滚"是合法状态（此时不打 tag）。
-- **发版节奏（2026-09-13 定）**：功能确定后即滚版本号 + 出 release（不再把多版改动长期堆着）：
-  本机 `npm run dist`（走代理，见 `D:\PROJECT\NETWORK.md`）→ 便携产物 + annotated tag。
-  版本号滚动时 agent 同步 `package.json` / `package-lock.json` / 本文 §4 / `MAP.md` / `README.md`。
+  ⚠ **打包（`npm run dist` / `dist:dir` / `pack:portable`）只在用户明确要求时做**（用户 2026-09-16 定），
+  且**打包这件事可能根本不由本会话的 agent 做**（用户可交给另一个 agent）——
+  **"滚了版本号"不等于"该打包"**，绝不因为版本滚动就顺手出 release。
+  （本条是一次事故的产物：2026-09-16 agent 依据下面那条"发版节奏"自行打包，用户纠正"没有让你发 release来着"。）
+- **发版节奏（2026-09-13 定；2026-09-16 收窄）**：**功能确定后即滚版本号**（不再把多版改动长期堆着）。
+  滚版本时 agent 同步 `package.json` / `package-lock.json` / 本文 §4 / `MAP.md` / `README.md` + 打 tag。
+  **产物（便携版 exe / 安装包）不在此列** —— 见上一条：打包等用户明确指示。
 - 网络配方（git 代理 + OpenSSL、Go `GOPROXY=goproxy.cn`、npm 直连、打包代理）见 `D:\PROJECT\NETWORK.md`
 
 ## 3. 已定决策（**索引**：一行一条 + 权威位置；细节不在这里重复）
@@ -61,7 +65,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | 主题色取向 | 四套：纯色·深/亮（黑灰白，不引入色相）+ 羊皮纸·深/亮；状态色保留语义色相 | `styles.css`；`STYLE.md` §3.4 |
 | 抽屉平面结构 | 封面 2:3 不拉伸；三行 = 封面高度三等分；标题/数据行单行；指标行无标签；外壳全透明 | `STYLE.md` §5.5 |
 | 样式效果确认方式 | 浏览器**样式样张**（`npm run style`）+ 无头机检（`smoke.cjs`）；排版类最终仍要在 Electron 内复核 | `tools/style-gallery/README.md`；`STYLE.md` §8.0 |
-| 发行版范围与形态 | **只出 64 位 Windows**；当前形态 = **免安装便携版**（NSIS 暂不出，配置留着备用）；打包关掉原生重建、排除 pdfjs 的 `canvas` | `electron-builder.yml`；`README.md` |
+| **发行版范围与形态** | **只出 64 位 Windows**；当前形态 = **免安装便携版**（NSIS 暂不出，配置留着备用）；打包关掉原生重建、排除 pdfjs 的 `canvas`。⚠ **打包由用户明确指示后才做**（agent 不得自行打包 / 发 release，见 §2） | `electron-builder.yml`；`README.md`；§2 |
 | 插件 | v1 不做插件运行时；**ports 即插件边界**（官方插件 = 适配器 + descriptor） | `ARCHITECTURE.md` §4 |
 | UI 功能组件 | 标准容器：`FeatureDescriptor` + `registry` + `AppShell`；跨功能跳转走 `FeatureHost`；纯 React 状态 + props | `FEATURES.md` |
 | 跳转历史 | **行动树驳回** → 状态机（前进/后退栈）；随笔记落地后实施 | `TODO.md`；`FEATURES.md` §9 |
@@ -112,8 +116,9 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 client 工作树干净。⚠ **工作树里另有 server 侧三处未提交改动**（`server/cmd/server/main.go`、
 `server/internal/room/manager.go`、`server/internal/store/store.go`）—— 来源不明（非本会话所为），
 **下次动 server 前先确认**。kookit 子模块的 `m` 是其自身工作树噪音，**勿动**。
-**发行物**：仍是 v0.1.15 那次的便携版（`client/release/` 已 gitignore）—— **v0.1.16~v0.1.19 都要在
-下次 `npm run dist` 时一并打**。
+**发行物**：`client/release/`（已 gitignore）里**只有 v0.1.15 那次的便携版 exe/zip**；
+**v0.1.16~v0.1.19 尚未打包**。⚠ **要不要打包、什么时候打、由谁打，由用户决定**
+（用户 2026-09-16：打包交给另一个 agent）—— agent **不得**因为"滚了版本号"就自行打包，见 §2。
 
 **★ 现在在哪**：**本地阅读侧收口完成**（详见 §4 v0.1.19 一行 + `STYLE.md` §10 v1.8~v1.11）。
 视觉/几何/交互的**权威在 `client/docs/STYLE.md` §5.8/§5.10 与 `FEATURES.md` §11/§12**；
@@ -154,8 +159,9 @@ client 工作树干净。⚠ **工作树里另有 server 侧三处未提交改�
   - `TUREAD_DEV_PROBE=paged-interact` / `pdfWidth` = 单页交互 / PDF 纸宽量化（无产品断言，看事实行）
   - `TUREAD_DEV_SQLITE=1` = 原生模块 spike；`TUREAD_DEV_BOOK` **打包产物**跑自检不自退（已知问题，见 TODO）
 - 换 Electron 版本后 `npm run rebuild:sqlite`；打包走代理（`NETWORK.md`）。
-- **发行版冒烟**：独立 userData 起 `release/win-unpacked/TuRead.exe` → 应落盘 `config.json` +
-  `store.db` + `covers/<editionId>.jpg`（导入→封面→落库整链成立）。
+- **发行版冒烟**（**打包之后**才做；`release/win-unpacked/` 由打包产出，未打包时该目录不存在）：
+  独立 userData 起 `release/win-unpacked/TuRead.exe` → 应落盘 `config.json` + `store.db` +
+  `covers/<editionId>.jpg`（导入→封面→落库整链成立）。
 
 **旧账状态（唯一一条会干扰探针的）**：「**重开书偶发空白**」——"关书 → 重开"后 iframe 数为 0、无任何报错，
 `note`/渲染自检都复现过（历史 ~1/4，2026-09-16 多次连试两轮全灭）；**还见过一次"半成功"**
