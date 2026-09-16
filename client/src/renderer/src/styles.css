@@ -90,6 +90,10 @@
   --toc-veil-rest: 0.74;
   /* 右侧阅读参数面板宽度上限（实际宽度还会被右留白夹取，见 .reader-controls） */
   --reader-panel-w: 250px;
+  /* 笔记管理（跨书）流的**列宽**（STYLE.md §5.10）：固定值、只变高，列数随窗口自适应
+     （`repeat(auto-fill, minmax(--note-col-w, 1fr))`，与书库网格 auto-fill 同口径）。
+     ⚠ NoteFlow.tsx 的首帧高度估算也用这个宽度做基数（改这里要同步那里的 CJK_PER_LINE 口径）。 */
+  --note-col-w: 240px;
 
   --scrollbar: #2f3438;
   /* 视图切换动画的"深色块 + 浅色字"。
@@ -1103,6 +1107,131 @@ textarea {
 
 .note-row__remove:hover {
   color: var(--err);
+}
+
+/* ── 笔记管理（跨书）卡片与流（STYLE.md §5.10，2026-09-16 立案）─────────────
+   卡片 = **纯文字块**（无边框 / 无底色 / 无阴影 / 无圆角）—— 书库封面格的 1px 边框是因为
+   "图需要槽"，文字卡没有图就不该有框架（P1/P3）。
+   选中态是**试验档**（§5.10）：1px `--accent-ring` 直角矩形 → 所以卡片**常驻 8px 内边距 +
+   1px 透明边框**（否则选中时盒模型变化会挤动文字、整片流重排）。 */
+.note-flow {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--note-col-w, 240px), 1fr));
+  column-gap: 16px;
+}
+
+/* 網格 = **等高行**：同行卡片撑到最高者（内容差异只体现在内部截断，不体现在高度） */
+.note-flow--grid {
+  row-gap: 16px;
+  align-items: stretch;
+}
+
+.note-flow--grid .note-card {
+  height: 100%;
+}
+
+/* 瀑布流 = **按列装箱**：行高单位 8px，卡片按实测高度跨行（`grid-row-end: span N`）。
+   ⚠ 两条容易算错的：
+   ① **`row-gap` 必须是 0** —— 若与 `grid-auto-rows` 同时给，跨 N 行的可用高度是
+      `N×8 + (N−1)×16`，空隙随内容长度漂移（16~39px 不均）；行距改由跨行数里的余量承担
+      （`N = ceil((h + 16) / 8)`，余量 <8px → 实际行距 16~24px，肉眼均匀）。
+   ② **不能用 CSS `columns`** —— 它是**列优先**，会把时间倒序的视觉流读乱；网格 + span 是行优先的
+      （晚的在前、从左到右）。 */
+.note-flow--masonry {
+  grid-auto-rows: 8px;
+  row-gap: 0;
+  align-items: start;
+}
+
+.note-card {
+  position: relative;
+  padding: 8px;
+  border: 1px solid transparent; /* 常驻占位：选中只换颜色，不改盒模型 */
+  cursor: pointer;
+  text-align: left;
+}
+
+.note-card--selected {
+  border-color: var(--accent-ring);
+}
+
+.note-card__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--muted);
+  transition: color 150ms ease-out;
+}
+
+/* 标记块 = **功能信息**（这条是什么色），非装饰 —— §5.2 例外⑤，与 `.note-row__mark` 同口径。
+   1px `--border-soft` 让浅色取向在浅底上也有轮廓。**禁止**升级为色条/彩色边框/彩色背景。 */
+.note-card__mark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--border-soft);
+  transform: translateY(-1px);
+}
+
+.note-card__where {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 时间靠右：与出处同一行，不另占一行 */
+.note-card__when {
+  flex: none;
+  margin-left: auto;
+}
+
+.note-card__excerpt,
+.note-card__body {
+  margin: 6px 0 0 0;
+  font-family: var(--font-serif-cn);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 上限（§5.10）：摘录 ≤4 行、批注 ≤6 行；超出省略号收尾，全文跳转进阅读器看 */
+.note-card__excerpt {
+  -webkit-line-clamp: 4;
+}
+
+.note-card__body {
+  -webkit-line-clamp: 6;
+}
+
+/* 两档文字主次（§5.10）：差别**只有字号 + 颜色** —— P2 一套字体、中文只有 Bold 切面
+   （不做字重对比）。默认档 = body（批註為主），由组件挂类名。 */
+.note-card--body-first .note-card__excerpt {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.note-card--body-first .note-card__body {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.note-card--excerpt-first .note-card__excerpt {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.note-card--excerpt-first .note-card__body {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* hover：只做色温变化（与书库卡片同一口径），不加底色/边框 */
+.note-card:hover .note-card__meta {
+  color: var(--text);
 }
 
 /* ── 自绘标题栏（无边框窗口，2026-09-12）────────────────────────────

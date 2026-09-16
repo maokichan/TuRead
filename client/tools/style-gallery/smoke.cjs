@@ -69,6 +69,12 @@ app.whenReady().then(async () => {
         bodyBg: getComputedStyle(body).backgroundColor,
         railZones: document.querySelectorAll('.reader-rail').length,
         tocLists: document.querySelectorAll('.toc-list').length,
+        noteCards: document.querySelectorAll('.note-card').length,
+        noteFlows: document.querySelectorAll('.note-flow').length,
+        /* 笔记卡片的实测高度（去重、升序）—— 用来断言「条目大小随内容长度变」：
+           STYLE §5.10 的核心要求，若退化成等高（或全被算成同一跨行数）这里会露出来。 */
+        noteHeights: [...new Set([...document.querySelectorAll('.note-card')]
+          .map((el) => Math.round(el.getBoundingClientRect().height)))].sort((a, b) => a - b),
         fontOk: document.fonts.check('700 16px "GenRyuMin TW"')
       }
     })()`)
@@ -82,9 +88,21 @@ app.whenReady().then(async () => {
       (l.kind === 'console' && l.level >= 2 && !/Content-Security-Policy/.test(l.message)) ||
       l.kind !== 'console'
   )
+  // 「条目大小随内容变」（STYLE §5.10）：笔记卡片 ≥2 张时，实测高度至少要出现 3 种
+  // —— 样张里的批注长短刻意拉开（1 行 / 2 行 / 6 行截断），若全等高就是回归。
+  // 没渲染笔记卡片时本条自动豁免（样张不含该节也不该 FAIL）。
+  const notesOk = !stats || stats.noteCards < 2 || (stats.noteHeights?.length ?? 0) >= 3
   const verdict = {
-    ok: Boolean(stats && stats.rootChildren > 0 && stats.panels > 0 && stats.textLen > 500 && pageErrors.length === 0),
+    ok: Boolean(
+      stats &&
+        stats.rootChildren > 0 &&
+        stats.panels > 0 &&
+        stats.textLen > 500 &&
+        pageErrors.length === 0 &&
+        notesOk
+    ),
     url: URL,
+    notesOk,
     stats,
     pageErrors
   }

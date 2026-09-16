@@ -314,12 +314,19 @@ F6「导出库包」 · F10 Pro 功能边界（见 `DATA_MODEL.md` §6.4 与下�
   ⚠ **契约缺口已补**：跨书跳转原**无通道**（`FeatureHost` 只有 `openReader(bookId)`）→ 定为
   `openReader(editionId, target?: { revealNoteId? })` + `FeatureProps.readerTarget`（**带 tick 防重复消费**）；
   **ReaderFeature 消费时序**：书已打开 + 笔记载入 + 目标章 `rendered` **之后**再 reveal（顺序错会静默落空）。
-  **剩余 = 实施**（按序）：① `FEATURE_IDS` + registry 条目 + `NotesFeature` 骨架（**激活时重读**）；
+  **剩余 = 实施**（按序）：
+  ⏳ **进展（2026-09-16）**：**视觉层已落** —— 领域类型（`NoteView`/`NoteTextFocus`/`NoteFilter`/`NoteSettings`）、
+  `styles.css` 的 `--note-col-w` 与 `.note-flow` / `.note-card*` 语汇、`components/NoteCard.tsx`（纯展示：三段卡片 +
+  两档主次 + 标记块）、`components/NoteFlow.tsx`（**網格 / 瀑布流**两态；瀑布流 = `grid` + `grid-row-end: span N`，
+  首帧按文本长度估算、`ResizeObserver` 实测纠正），并在**样式样张**加了可交互一节（切视图 / 切主次 / 点选中态）。
+  **实测**（`tools/style-gallery/smoke.cjs`）：6 张卡片高度 **59 / 88 / 101 / 110 / 220 px 共 5 档** → 证"高度随内容变"；
+  `pageErrors=[]`。（样张黑屏已另修，见「工程与测试设施」组。）
+  ① `FEATURE_IDS` + registry 条目 + `NotesFeature` 骨架（**激活时重读**）；
   ② `SqliteStore.listAllNotes/countAllNotes`（`holdings` 连接 + `body` 判据筛选 + 子串 + 排序/分页）+ IPC + 适配器；
   ③ `IClipboard` 端口 + preload **具名方法**（不用泛化 `invoke`）+ `ServiceContainer` 装配；
   ④ `TitleBar` 搜索扩为**按 `FeatureId` 分表**（现只有书库一路，且 `key={activeFeature}` 会重挂输入框）
      + `app.focusSearch` 分流扩到「书库 / 笔记」；
-  ⑤ 视图 UI（瀑布流/網格 + 状态栏 5 件 + 空态；**选中态是试验档**，按 `STYLE.md` §7 单 commit 可回退）；
+  ⑤ 视图 UI 的**其余部分**（底部状态栏 5 件 + 空态 + 筛选/作用域接线；卡片与流已落）；
   ⑥ 跳转链路（`openReader` 扩参 + ReaderFeature 消费，含一次重试）+ 右键菜单（`ContextMenu` 复用）；
   ⑦ ⚠ **瀑布流 × `useVirtualRange` 的等高 `stride` 假设冲突**：先量化（千条实测），
      候选 = 列高前缀和虚拟化 / 不窗口化 / 只给网格窗口化（`STYLE.md` §5.10 末段）。

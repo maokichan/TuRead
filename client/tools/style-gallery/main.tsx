@@ -21,6 +21,7 @@ import { BookTile } from '@renderer/components/BookTile'
 import { BookDetailPanel } from '@renderer/components/BookDetailPanel'
 import { LibraryToolbar } from '@renderer/components/LibraryToolbar'
 import { ReaderRail, type LeftPanelKind } from '@renderer/components/ReaderRail'
+import { NoteFlow, type NoteFlowItem } from '@renderer/components/NoteFlow'
 import { DEFAULT_READER_PARAMS, type ReaderParams } from '@renderer/components/ReaderControls'
 import { StatePill } from '@renderer/components/StatePill'
 import { ChatLog } from '@renderer/components/ChatLog'
@@ -31,6 +32,9 @@ import type {
   ChatMessage,
   EditionRecord,
   Note,
+  NoteColor,
+  NoteTextFocus,
+  NoteView,
   ReadingState,
   RoomInfo,
   RoomMember
@@ -190,6 +194,94 @@ const TOC = [
   { label: '2.1 糖原储备', depth: 1, chapterDocIndex: 5 },
   { label: '第十二章 运动与糖代谢', depth: 0, chapterDocIndex: 12 },
   { label: '（无直达章节的分组标题）', depth: 1, chapterDocIndex: undefined }
+]
+
+/* --------------------- 笔记管理（跨书）的样张数据 --------------------- */
+
+const mkNote = (
+  id: string,
+  chapterIndex: number,
+  excerpt: string,
+  body: string,
+  color: NoteColor,
+  updatedAt: number,
+  /** 故意允许与 body 不一致 —— 见下面第 3 条 */
+  kind: Note['kind'] = body ? 'note' : 'highlight'
+): Note => ({
+  id,
+  editionId: 'demo-1',
+  kind,
+  anchor: {
+    norm: { chapterIndex, progression: 0.5, quote: { exact: excerpt, prefix: '', suffix: '' } },
+    fragment: null
+  },
+  color,
+  body,
+  createdAt: updatedAt,
+  updatedAt
+})
+
+const DAY = 86400000
+/**
+ * 笔记流的样张数据：**长短刻意拉开**，用来验证"条目高度随内容变"与上限截断（摘录 ≤4 行 / 批注 ≤6 行）。
+ * ⚠ 第 3 条刻意做成 `kind='highlight'` 但 `body` 非空 —— 这正是"划完线再补批注"的真实情形
+ * （用户 2026-09-16："画完线后补 body，那这就是批注，很显然"）。所以**卡片照样按批注显示**：
+ * 判据是 `body` 是否为空，不是 `kind`。
+ */
+const NOTE_FLOW_ITEMS: NoteFlowItem[] = [
+  {
+    editionTitle: '高级运动营养学（第2版）',
+    note: mkNote('f-1', 12, '糖原是运动中最容易被消耗的能源物质', '', 'yellow', Date.now() - 2 * DAY)
+  },
+  {
+    editionTitle: '高级运动营养学（第2版）',
+    note: mkNote(
+      'f-2',
+      4,
+      '每日碳水摄入建议按每公斤体重 3–5 g 计',
+      '训练日取上限，休息日取下限。',
+      'red',
+      Date.now() - 3600000
+    )
+  },
+  {
+    editionTitle: '高级运动营养学（第2版）',
+    note: mkNote(
+      'f-3',
+      7,
+      '蛋白质的摄入时机对合成窗口的影响仍在争论',
+      '这里说的和上一章的数字对不上：他前面写 1.6 g/kg，这里又写 2.2 g/kg。我倾向于按训练量与总热量来定，而不是死守一个数；回头把两处的原文都抄出来对比一遍，顺便查一下引用的那篇 2018 年的综述到底是不是这个结论，因为如果引用错了，后面整章的推算都要打折看，剂量的事不能含糊。',
+      'green',
+      Date.now() - 5 * DAY,
+      'highlight' // ← body 非空但 kind 是 highlight：卡片仍按「批注」显示（判据 = body）
+    )
+  },
+  {
+    editionTitle: '机器学习',
+    note: mkNote(
+      'f-4',
+      3,
+      '奥卡姆剃刀：若无必要，勿增实体。模型复杂度应当与数据量匹配，否则方差会吃掉偏差下降带来的收益。',
+      '',
+      'blue',
+      Date.now() - 9 * DAY
+    )
+  },
+  {
+    editionTitle: '机器学习',
+    note: mkNote(
+      'f-5',
+      5,
+      '交叉验证',
+      '留一法在数据量小的时候方差很大，还是 k 折稳。',
+      'yellow',
+      Date.now() - 20 * DAY
+    )
+  },
+  {
+    editionTitle: '年代四部曲',
+    note: mkNote('f-6', 1, '普遍的、总体的危机', '', 'red', Date.now() - 40 * DAY)
+  }
 ]
 
 /* ------------------------------ 主题切换 ------------------------------ */
@@ -469,6 +561,14 @@ export function Gallery(): React.JSX.Element {
       </Panel>
 
       <Panel
+        title="笔记管理 · 卡片与流（NoteCard / NoteFlow）"
+        path="components/NoteFlow.tsx / components/NoteCard.tsx（视觉 = STYLE §5.10 立案）"
+        note="视图两态（**瀑布流默认** / 網格）与文字主次两档（默认「批註為主」）都是真实的受控 props —— 点左上按钮切视图、点第二个按钮切主次。卡片高度**随内容长短变**（摘录 ≤4 行、批注 ≤6 行由 line-clamp 封顶，长批注截断）。点任意卡片看**选中态**（试验档：1px --accent-ring 直角矩形；卡片常驻 8px 内边距，所以选中不会抖）。⚠ 卡片零 chrome：无边框、无底色、无阴影、无圆角（书库封面格的 1px 边框是因为「图需要槽」，文字卡没有图）。单击选中 / 双击跳转 / 右键菜单由 NotesFeature 接，本页只验视觉"
+      >
+        <NotesDemo />
+      </Panel>
+
+      <Panel
         title="房间 · 大厅行（RoomRow）"
         path="components/RoomRow.tsx"
         note="同样是导航文字：无边框/无底色/无分隔线，靠留白分行（五列对齐不变）"
@@ -582,6 +682,49 @@ function RailDemo({
           onNoteRemove={noop}
         />
       </div>
+    </div>
+  )
+}
+
+/**
+ * 笔记管理的可交互样张：视图两态 + 文字主次两档 + 选中态（**只给 mock 与回调，不复制组件逻辑**）。
+ * 两个控件的形态与真实状态栏一致（视图切换带三角负片；主次切换是普通文字按钮）——
+ * 真实位置在笔记管理的**底部状态栏**（STYLE §5.10 的 5 件套），这里为便于试而排在一起。
+ */
+function NotesDemo(): React.JSX.Element {
+  const [view, setView] = useState<NoteView>('masonry')
+  const [focus, setFocus] = useState<NoteTextFocus>('body')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-7">
+        <button
+          className="view-switch"
+          title="切换显示模式"
+          onClick={() => setView((v) => (v === 'masonry' ? 'grid' : 'masonry'))}
+        >
+          {view === 'masonry' ? '瀑布流' : '網格'}
+        </button>
+        <button
+          className="text-action text-action--lg"
+          title="切换卡片内的文字主次"
+          onClick={() => setFocus((f) => (f === 'body' ? 'excerpt' : 'body'))}
+        >
+          {focus === 'body' ? '批註為主' : '摘錄為主'}
+        </button>
+        <span className="text-[11px] text-[var(--muted)]">
+          ← 两个循环按钮（视图切换带三角负片）。单击卡片 = 选中，双击 = 跳转（本页不跳）
+        </span>
+      </div>
+      <NoteFlow
+        view={view}
+        items={NOTE_FLOW_ITEMS}
+        selectedId={selectedId}
+        textFocus={focus}
+        onSelect={(it) => setSelectedId(it.note.id)}
+        onOpen={noop}
+        onContextMenu={noop}
+      />
     </div>
   )
 }

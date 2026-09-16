@@ -391,6 +391,38 @@ export interface Note {
   updatedAt: number
 }
 
+/* ————— 笔记管理（跨书）—— CONTRACTS v0.4.2；视觉 = STYLE §5.10，形态 = FEATURES §12 ————— */
+
+/** 笔记管理的视图：`grid` = 網格（等高行）；`masonry` = 瀑布流（按列装箱，**默认**）。
+ *  ⚠ **没有列表形态**（用户 2026-09-16 定）。 */
+export type NoteView = 'grid' | 'masonry'
+
+/** 卡片内文字主次（用户 2026-09-16 定：两档**可切换**，默认 `body`）。只改字号/颜色的分配，不改数据。 */
+export type NoteTextFocus = 'body' | 'excerpt'
+
+/**
+ * 卡片筛选（用户 2026-09-16 定：**单按钮三态循环** 批註 → 劃線 → 全部，默认 `annotated`）。
+ *
+ * ⚠ **判据是 `body` 是否为空，不是 `kind`** —— 二者在实现里**可以互相矛盾**，两个方向都有真实路径：
+ * - `kind='highlight'` **可能带 body**：划完线再点它补写批注 → `updateNote(id, { body })`
+ *   （`ReaderFeature` 的 `saveAnnotation`）→ 用户 2026-09-16 明确："**画完线后补 body，那这就是批注，很显然**"；
+ * - `kind='note'` **可能 body 为空**：「加批註」后没写字就回车 —— `NoteComposer` 明确允许空串
+ *   （"空串 = 清空批注正文，允许"）→ `createMark(..., 'note', '')`。
+ * 按 `kind` 分组会把这两类都分错（正是 `NoteKind` 已记档的"标签取决于历史"坏模型）；
+ * 与已记档的收敛口径一致：**呈现只按有无 `body` 区分**。
+ */
+export type NoteFilter = 'annotated' | 'highlight' | 'all'
+
+/** 笔记管理设置（持久化于**全局** `settings` 表的 `noteSettings` 键 —— 设置一律全局，D9） */
+export interface NoteSettings {
+  view: NoteView
+  filter: NoteFilter
+  /** 卡片文字主次（默认 `body` = 批註為主） */
+  textFocus: NoteTextFocus
+  /** 作用域：当前库 / 全部库（**默认当前库**，用户 2026-09-16 定） */
+  scope: 'library' | 'all'
+}
+
 /** 聊天消息（v0.1.5 起 server 支持；追加日志模型，历史经 REST 拉取） */
 export interface ChatMessage {
   /** server 分配（追加序号） */
