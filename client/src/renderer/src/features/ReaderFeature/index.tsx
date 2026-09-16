@@ -516,10 +516,10 @@ export function ReaderFeature({
     }
   }, [readerBookId, reopenTick, container, host, flushLastLocation])
 
-  // 沉浸全屏（2026-09-13）：
-  // - F11（reader.toggleFullscreen）随时切换；
+  // 沉浸全屏（2026-09-13；2026-09-16 改 F11 语义与退出行为）：
+  // - F11（`reader.enterFullscreen`）= **进入**全屏（幂等）；退出走 Esc 分流；
   // - 设置开关（appearance.readerFullscreen）= 进入阅读器自动全屏，默认关；
-  // - **离开阅读器自动还原窗口**（全屏只属于阅读态，不遗留到书库/设置）；
+  // - **离开阅读器**：若当时仍在全屏 → 退出全屏并**保持最大化**（不缩回小窗，见下面的 effect）；
   // - main 在 enter/leave-full-screen 时广播真实状态，这里只订阅跟随。
   useEffect(() => {
     const off = window.turead.subscribe(IPC.winFullScreenChanged, (payload) => {
@@ -672,8 +672,11 @@ export function ReaderFeature({
       },
       'reader.toggleToc': () => setTocOpen((v) => !v),
       'reader.toggleControls': () => setControlsOpen((v) => !v),
-      'reader.toggleFullscreen': () => {
-        void window.turead.invoke(IPC.winSetFullScreen, !fullscreen)
+      // F11 = **进入**全屏（幂等）。⚠ 不做成切换（用户 2026-09-16："在阅读器内按F11是在切换全屏
+      // 状态，不是在进入全屏"）—— 退出全屏走 Esc（`reader.back` 的分流）；离开阅读器时若仍在全屏，
+      // 由下面的 effect 退出并保持最大化。
+      'reader.enterFullscreen': () => {
+        void window.turead.invoke(IPC.winSetFullScreen, true)
       },
       // ————— 标记/批注的**键盘接口（预留）**，2026-09-14 用户定"现在只需要预留出对应的接口" —————
       // 行为已就位、可直接调用；**键位故意留空**（见 domain/input.ts 的"预留"分组）——

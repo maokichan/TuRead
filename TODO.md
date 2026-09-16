@@ -169,11 +169,15 @@ F6「导出库包」 · F10 Pro 功能边界（见 `DATA_MODEL.md` §6.4 与下�
 
 - [ ] **(高优) 键鼠操作 / 意图层**（2026-09-09 用户定；**骨架已落地 2026-09-12**：
   `core/domain/input.ts` 纯函数绑定表（normalizeKey/resolveIntent/assertNoConflict 一键一意）+
-  `DEFAULT_BINDINGS`（现状键位原样收拢：reader.back/nextPage/prevPage/spacePage/toggleToc/toggleControls、
-  app.focusSearch）+ `useKeyIntents`（ref 装载；常驻挂载组件必须带 enabled 守卫）。
-  Reader/TitleBar 已迁移。**剩余**：① 书库域意图收编（行内键 Enter/Space/Delete 仍元素级；
-  单击详情/双击打开/方向键移焦点）② 色块视图/房间域意图 ③ 用户自定义绑定表（表已是纯数据）
-  ④ 新键（沉浸全屏 F9 候选等）一律走意图层登记。范围顺序：书库域先行 → 阅读器 → 房间
+  `DEFAULT_BINDINGS`（现状键位原样收拢：reader.back/nextPage/prevPage/spacePage/toggleToc/toggleControls/
+  **enterFullscreen**（v1.11 由 toggle 改为幂等"进入"）/app.focusSearch）+ `useKeyIntents`（ref 装载；
+  常驻挂载组件必须带 enabled 守卫）。Reader/TitleBar 已迁移。**剩余**：① 书库域意图收编（行内键 Enter/Space/Delete
+  仍元素级；单击详情/双击打开/方向键移焦点）② 色块视图/房间域意图 ③ 用户自定义绑定表（表已是纯数据）
+  ④ 新键（沉浸全屏 F9 候选等）一律走意图层登记。范围顺序：书库域先行 → 阅读器 → 房间。
+  ⚠ **2026-09-16 用户重申（优先级上调）**："**交互模式也很有问题**…这个是 todo 里面记住是要**大改**的"
+  —— 即本条不是"把剩下的键收编完"就结束，而是要连**交互模式本身**一起重新设计
+  （键位分工、鼠标手势、点击带、面板开合方式、与意图层的关系）。**动工前先与用户对齐目标形态**，
+  本条与下方「配键体系」同批做。
 - [ ] **详情抽屉「描述」块的内容待定**（2026-09-09 用户定）：抽屉底部保留一个满宽负片块占位
   （**无标签**，当前显示「（描述待定）」—— 内容自述性质，见 `STYLE.md` §5.5）。
   显示什么未决定，候选：① `BookMetadata.description`（kookit 解析自带，但 `extractMetadata`
@@ -517,9 +521,10 @@ F6「导出库包」 · F10 Pro 功能边界（见 `DATA_MODEL.md` §6.4 与下�
   处置候选：preload 按通道白名单转发（或收窄为具名方法）；`fs:*` 限定在库根/导入来源范围内 +
   电子书扩展名（`EBOOK_EXT_SET` / `collectEbooks` 的判据可直接复用）。
 - [ ] **(P2 · 2026-09-15 行为审查登记) 单测覆盖缺口（脆弱点恰好都在无覆盖区）**：
-  ⚠ 2026-09-16 更新基数：现在 = `domain/anchor` + `noteLayout`（笔记流几何 14）+ 分层依赖守卫 + 迁移 + 双队列
-  ＝ **86 断言**；**仍无覆盖**：WS 重连状态机、`RoomSession`、SQLite 迁移的真实库路径、全部渲染行为、
-  **笔记管理的功能链路**（激活 → 查询 → 筛选 → 跳转 → 刪除 —— 只有单测与样张，缺探针）。
+  ⚠ 2026-09-16 更新基数：现在 = `domain/anchor` + `noteLayout`（笔记流几何 14）+ `readerFollow`（跟随判据 7）
+  + 分层依赖守卫 + 迁移 + 双队列 ＝ **98 断言**；**仍无覆盖**：WS 重连状态机、`RoomSession`、
+  SQLite 迁移的真实库路径、全部渲染行为、**笔记管理的功能链路**（激活 → 查询 → 筛选 → 跳转 → 刪除
+  —— 只有单测与样张，缺探针）。
   dev 探针（`selfCheck` / `library` / `note` / `pdfWidth` / `pagedInteract` / 样式样张 smoke）覆盖真实链路，
   但需 env flag 无头触发、**不进常态 CI**。
   处置：按"回归成本 × 脆弱度"起步 —— 双队列与 SQLite 迁移是纯逻辑、可无书跑，优先补。

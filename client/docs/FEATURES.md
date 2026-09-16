@@ -342,9 +342,10 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
   与左侧边栏右缘对齐）在 `activeFeature === 'library'` 时渲染**后退/前进**两个按钮，不可用时禁用
   （opacity-30）；历史栈与还原语义在 §10「层级后退/前进」。放在标题栏的收益是"书库态才有意义"，
   因此按钮随功能态出现，不占其他功能的标题栏。
-- **沉浸全屏（2026-09-13 落地）**：`F11`（意图 `reader.toggleFullscreen`，意图层裁决）或设置开关
-  「進入閱讀器時進入全屏」（默认关，`appearance.readerFullscreen`）= OS 级全屏 + **标题栏整条退场**
-  （`TitleBar` 订阅 `win:fullscreen-changed` 返回 null；全屏态无拖拽区，找回 = `F11`/`Esc`）。
+- **沉浸全屏（2026-09-13 落地；2026-09-16 改 F11 语义）**：`F11`（意图 `reader.enterFullscreen`）
+  = **进入**全屏（幂等，**不切换** —— 退出走 `Esc` 分流）或设置开关「進入閱讀器時進入全屏」
+  （默认关，`appearance.readerFullscreen`）= OS 级全屏 + **标题栏整条退场**
+  （`TitleBar` 订阅 `win:fullscreen-changed` 返回 null）；**离开阅读器时若仍全屏 → 退出全屏并保持最大化**。
   `Esc` 分流（**2026-09-13 用户纠正**：参数面板是常伴工具，Esc 顺手收面板是错误设计，面板开合只归挂载线）
   = 全屏先退全屏 → 否则退出阅读器；**离开阅读器自动还原窗口**（全屏只属于阅读态）。
   状态由 main 在 `enter/leave-full-screen` 广播，渲染层只订阅跟随（`win:*` IPC 与 TitleBar 同为 Shell 镶边级例外）。

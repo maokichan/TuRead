@@ -89,7 +89,9 @@ export const DEFAULT_BINDINGS: KeyBindingTable = {
   'reader.spacePage': [' '], // 仅分页模式翻页（scroll 模式 Space 归滚动，处理函数内分流）
   'reader.toggleToc': ['t'],
   'reader.toggleControls': ['p'],
-  'reader.toggleFullscreen': ['f11'], // 沉浸全屏（2026-09-13）
+  // ⚠ 语义是**进入**全屏（幂等），不是切换 —— 用户 2026-09-16："在阅读器内按F11是在切换全屏状态，
+  //   不是在进入全屏"。退出全屏走 `reader.back`（Esc：先退全屏、再退阅读器）。
+  'reader.enterFullscreen': ['f11'],
   // —— 阅读器：标记/批注的键盘接口（**键位预留，故意留空**；2026-09-14 用户定）——
   // 行为已在 ReaderFeature 就位、可被直接调用；键位待"配键方案"（设置页可配置 + 研究主流键鼠
   // 交互模式）定下后**只填这里**，不必改 UI。目标链条：键盘翻页 → 选中文字 → 集中焦点 → 写批注，
