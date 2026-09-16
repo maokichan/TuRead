@@ -110,6 +110,95 @@ app.whenReady().then(async () => {
     logs.push({ kind: 'eval-throw', message: String(e) })
   }
 
+  /**
+   * ————— 本轮新增的机检（2026-09-16；用户定的三条形态要求）—————
+   *
+   * 为什么必须机检：这三条都是**几何/对比度**要求，肉眼在样张里"看着差不多"根本不可靠
+   * （项目已有教训：`show:false` 的窗口量出的 1.6s 假数字）。故量真实矩形：
+   * ① **两挂件以页面中线镜像** —— 同宽、同高（高度上限同 token）、离中线等距；
+   * ② **目录当前条目居中** —— 位置钉在第 12 章，量「第十二章」那条的中心与滚动容器中心之差；
+   * ③ **批注输入栏** —— 零文字（无可见文字 + 无 placeholder）+ 纯色底 + 1px 描边 + 水平居中。
+   */
+  let geometry = null
+  try {
+    geometry = await win.webContents.executeJavaScript(`(() => {
+      const demos = Array.prototype.slice.call(document.querySelectorAll('[data-rail-demo]'))
+      const demo = demos.filter((el) => (el.dataset.railDemo || '').indexOf('鏡像') >= 0)[0]
+      if (!demo) return { error: 'mirror demo not found', demoCount: demos.length }
+      const toc = demo.querySelector('.toc-list')
+      const params = demo.querySelector('.reader-controls')
+      if (!toc || !params) return { error: 'panels missing', toc: !!toc, params: !!params }
+      const box = demo.getBoundingClientRect()
+      const t = toc.getBoundingClientRect()
+      const p = params.getBoundingClientRect()
+      const center = box.left + box.width / 2
+      // ② 目录当前条目：滚动容器必须真的能滚，否则"居中"是平凡成立的
+      const rowsBox = demo.querySelector('.toc-list__rows')
+      const rows = rowsBox ? rowsBox.querySelectorAll('.toc-row') : []
+      let hit = null
+      for (let i = 0; i < rows.length; i++) {
+        if ((rows[i].textContent || '').indexOf('第十二章') >= 0) { hit = rows[i]; break }
+      }
+      const rowsRect = rowsBox ? rowsBox.getBoundingClientRect() : null
+      const hitRect = hit ? hit.getBoundingClientRect() : null
+      return {
+        demoWidth: Math.round(box.width),
+        tocLeftGap: Math.round(center - t.left),
+        paramsRightGap: Math.round(p.right - center),
+        tocWidth: Math.round(t.width),
+        paramsWidth: Math.round(p.width),
+        tocMaxH: getComputedStyle(toc).maxHeight,
+        paramsMaxH: getComputedStyle(params).maxHeight,
+        rows: rows.length,
+        scrollable: rowsBox ? rowsBox.scrollHeight - rowsBox.clientHeight : -1,
+        hitFound: !!hit,
+        centeredDelta: rowsRect && hitRect
+          ? Math.round((hitRect.top + hitRect.height / 2) - (rowsRect.top + rowsRect.height / 2))
+          : null
+      }
+    })()`)
+  } catch (e) {
+    logs.push({ kind: 'geometry-throw', message: String(e) })
+  }
+
+  // ③ 批注输入栏：点开再量（React 状态 → 渲染，等一拍）
+  let composer = null
+  try {
+    await win.webContents.executeJavaScript(
+      `(() => { const b = document.getElementById('demo-composer-toggle'); if (b) b.click(); return true })()`
+    )
+    await new Promise((r) => setTimeout(r, 400))
+    composer = await win.webContents.executeJavaScript(`(() => {
+      const el = document.querySelector('.note-composer')
+      if (!el) return { error: 'composer not mounted' }
+      const r = el.getBoundingClientRect()
+      const cs = getComputedStyle(el)
+      const ta = el.querySelector('textarea')
+      // ⚠ 两个量法上的坑（第一版判据在这里**假 FAIL** 过）：
+      // ① 描边宽度不能断言字面 "1px"：Windows 125% 缩放下 DPR=1.25，1 CSS px 吸附成 1 设备 px
+      //    → getComputedStyle 报 **0.8px**（实测）。判据应是"有描边且是发丝级"。
+      // ② 居中要跟 **documentElement.clientWidth** 比：window.innerWidth 含滚动条
+      //    → 页面长到出现滚动条时，fixed 元素（按视口定位）会被判成偏了 5~8px。
+      const cw = document.documentElement.clientWidth
+      return {
+        visibleText: (el.innerText || '').trim().length,
+        placeholder: ta ? ta.placeholder : null,
+        background: cs.backgroundColor,
+        borderTopPx: Number.parseFloat(cs.borderTopWidth),
+        centerDelta: Math.round(r.left + r.width / 2 - cw / 2),
+        dpr: window.devicePixelRatio,
+        focusIsTextarea: document.activeElement === ta
+      }
+    })()`)
+    await win.webContents.executeJavaScript(
+      `(() => { const b = document.getElementById('demo-composer-toggle'); if (b) b.click(); return true })()`
+    )
+    await new Promise((r) => setTimeout(r, 200))
+  } catch (e) {
+    logs.push({ kind: 'composer-throw', message: String(e) })
+  }
+
+
   // 判据：有面板 + 有文字 + 无 page error（level 2 里排除 Electron 的开发期 CSP 警告）
   const pageErrors = logs.filter(
     (l) =>
@@ -123,6 +212,35 @@ app.whenReady().then(async () => {
   //   不许它悄悄豁免（探针假阴性比 FAIL 更危险）。
   const notesOk =
     !stats || (stats.noteFlows > 0 && stats.noteCards >= 2 && (stats.noteHeights?.length ?? 0) >= 3)
+
+  /**
+   * 本轮两条几何判据（**逐条独立**，便于失败时一眼看出是哪一条破了）：
+   * ① 镜像 = 左右挂件同宽（±1px）且离页面中线等距（±2px）且高度上限同值；
+   * ② 居中 = 目录滚动容器**真的能滚**（否则平凡成立，必须防假通过）+「第十二章」那条落在容器正中（±8px）。
+   * ③ 输入栏 = 零可见文字 + 无 placeholder + 非透明纯色底 + 1px 描边 + 水平居中（±2px）+ 挂载即聚焦。
+   */
+  const mirrorOk = Boolean(
+    geometry &&
+      !geometry.error &&
+      Math.abs((geometry.tocLeftGap ?? 0) - (geometry.paramsRightGap ?? 0)) <= 2 &&
+      Math.abs((geometry.tocWidth ?? 0) - (geometry.paramsWidth ?? 0)) <= 1 &&
+      geometry.tocMaxH === geometry.paramsMaxH
+  )
+  const followedOk = Boolean(
+    geometry && !geometry.error && (geometry.scrollable ?? -1) > 40 && geometry.hitFound && Math.abs(geometry.centeredDelta ?? 999) <= 8
+  )
+  const composerOk = Boolean(
+    composer &&
+      !composer.error &&
+      composer.visibleText === 0 &&
+      composer.placeholder === '' &&
+      composer.background !== 'rgba(0, 0, 0, 0)' &&
+      composer.background !== 'transparent' &&
+      composer.borderTopPx > 0 &&
+      composer.borderTopPx <= 1.5 && // 发丝级（125% 缩放下实测 0.8px，见上面的量法说明）
+      Math.abs(composer.centerDelta ?? 999) <= 2 &&
+      composer.focusIsTextarea === true
+  )
   // 压力场景（可选）：`?notes-scale=N` → 读 window.__notesScale（笔记管理瀑布流的规模数字）
   let scale = null
   let rafGapMs = -1
@@ -154,11 +272,20 @@ app.whenReady().then(async () => {
         stats.textLen > 500 &&
         pageErrors.length === 0 &&
         notesOk &&
+        mirrorOk &&
+        followedOk &&
+        composerOk &&
         (SCALE <= 0 || (scale && rafGapMs <= 60))
     ),
     url: URL,
     notesOk,
+    /** 本轮三条形态判据（2026-09-16）：镜像对称 / 当前条目居中 / 输入栏零文字 */
+    mirrorOk,
+    followedOk,
+    composerOk,
     stats,
+    geometry,
+    composer,
     scale,
     /** 空闲 rAF 间隔（计时环境是否可信；> 60ms 时上面的 commit/refresh 数字都不要当真） */
     rafGapMs,
@@ -167,6 +294,7 @@ app.whenReady().then(async () => {
   fs.writeFileSync(OUT, JSON.stringify({ verdict, logs }, null, 2))
   console.log(
     `[style-gallery smoke] ${verdict.ok ? 'OK' : 'FAIL'}` +
+      ` | mirror=${mirrorOk ? 'ok' : 'FAIL'} followed=${followedOk ? 'ok' : 'FAIL'} composer=${composerOk ? 'ok' : 'FAIL'}` +
       (scale ? ` | scale n=${scale.n} commit=${scale.commitMs}ms settle=${scale.settleMs}ms refresh=${scale.refreshMs}ms cards=${scale.cardCount}/${scale.n} rafGap=${rafGapMs}ms` : '') +
       ` → ${OUT}`
   )

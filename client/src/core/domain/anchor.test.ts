@@ -15,6 +15,7 @@ import {
   clipQuote,
   columnsToAnchor,
   compareAnchor,
+  compareNoteOrder,
   describeAnchor,
   normalizeAnchor,
   quoteSimilarity,
@@ -265,5 +266,36 @@ describe('anchorKey / describeAnchor / clipQuote', () => {
     expect(clipQuote('abcdefghij', 4)).toBe('abcd')
     expect(clipQuote('ab', 4)).toBe('ab')
     expect(clipQuote('', 4)).toBe('')
+  })
+})
+
+describe('compareNoteOrder（笔记阅读序：章 → 章内进度 → 创建时间 → id）', () => {
+  const n = (id: string, anchor: TextAnchor, createdAt: number): { anchor: TextAnchor; createdAt: number; id: string } => ({ id, anchor, createdAt })
+
+  it('先比章号：第 2 章一定排在第一章之前（与创建时间无关）', () => {
+    const early = n('a', make(2, 0, 'q', null), 999)
+    const late = n('b', make(1, 0.9, 'q', null), 1)
+    expect(compareNoteOrder(late, early)).toBeLessThan(0)
+  })
+
+  it('同章比章内进度', () => {
+    expect(compareNoteOrder(n('a', make(3, 0.2, 'q', null), 5), n('b', make(3, 0.7, 'q', null), 1))).toBeLessThan(0)
+  })
+
+  it('章与进度都相同 → 创建时间兜底；再相同 → id 兜底（结果确定，不依赖输入顺序）', () => {
+    expect(compareNoteOrder(n('a', make(3, 0.2, 'q', null), 5), n('b', make(3, 0.2, 'q', null), 9))).toBeLessThan(0)
+    expect(compareNoteOrder(n('a', make(3, 0.2, 'q', null), 5), n('b', make(3, 0.2, 'q', null), 5))).toBeLessThan(0)
+    expect(compareNoteOrder(n('b', make(3, 0.2, 'q', null), 5), n('b', make(3, 0.2, 'q', null), 5))).toBe(0)
+  })
+
+  it('**不用 Fragment 排序**：载荷相同/不同都不影响（Fragment 是不透明串，无可比性）', () => {
+    const a = n('a', make(3, 0.2, 'q', 'ZZZ'), 5)
+    const b = n('b', make(3, 0.2, 'q', 'AAA'), 9)
+    expect(compareNoteOrder(a, b)).toBeLessThan(0)
+  })
+
+  it('排序结果 = 阅读序（稳定的整体断言）', () => {
+    const list = [n('d', make(5, 0, 'q', null), 1), n('b', make(1, 0.8, 'q', null), 2), n('c', make(1, 0.2, 'q', null), 3), n('a', make(1, 0.2, 'q', null), 4)]
+    expect([...list].sort(compareNoteOrder).map((x) => x.id)).toEqual(['c', 'a', 'b', 'd'])
   })
 })

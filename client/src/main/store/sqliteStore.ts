@@ -43,7 +43,7 @@ import type {
   NoteQuery
 } from '@core/ports/store'
 import { normalizeLocation } from '@core/domain/location'
-import { anchorToColumns, columnsToAnchor } from '@core/domain/anchor'
+import { anchorToColumns, columnsToAnchor, compareNoteOrder } from '@core/domain/anchor'
 import { runMigrations } from './migrate'
 
 export interface SqliteStoreOptions {
@@ -1073,19 +1073,11 @@ function fromContainerRow(r: Record<string, unknown>): BookContainer {
 }
 
 /**
- * 笔记阅读序比较：章 → 章内进度 → 创建时间。
- * 用锚点 **Norm 层**而非 Fragment —— Fragment 是不透明串、无可比性，Norm 才是"跨格式可比"的那层
- * （DATA_MODEL §3.1.1）；末位用 createdAt 兜底，保证进度相同的两条也有稳定次序。
+ * 笔记阅读序比较（章 → 章内进度 → 创建时间）：**实现已上收领域层**
+ * （`@core/domain/anchor` 的 `compareNoteOrder`）—— 渲染层新建笔记时插入同一条序列也要用它，
+ * 两处各写一份迟早分叉。这里只保留 SQL 侧的名字，读起来仍在本文件语境里。
  */
-function compareNotes(a: Note, b: Note): number {
-  const ca = a.anchor.norm.chapterIndex
-  const cb = b.anchor.norm.chapterIndex
-  if (ca !== cb) return ca - cb
-  const pa = a.anchor.norm.progression
-  const pb = b.anchor.norm.progression
-  if (pa !== pb) return pa - pb
-  return a.createdAt - b.createdAt
-}
+const compareNotes = compareNoteOrder
 
 /** notes 行 → 领域 Note（锚点三列 + excerpt 走 columnsToAnchor 装配，与写入侧同一套映射） */
 function fromNoteRow(r: Record<string, unknown>): Note {

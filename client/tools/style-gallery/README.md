@@ -47,6 +47,19 @@ node_modules\electron\dist\electron.exe tools\style-gallery\smoke.cjs [url]   # 
 
 `smoke.cjs` 用 Electron 真载入页面，量 DOM 事实（面板数 / 文字长度 / 挂载线实例数 / 打包字体可用）
 并抓控制台，判据 = **有面板 + 有文字 + 无页面错误**（只放行 Electron 的开发期 CSP 警告）。
+**2026-09-16 起另有三条几何机检**（几何/对比度类判据一律机检，不靠肉眼）：
+
+| 判据 | 量什么 | 通过条件 |
+|---|---|---|
+| `mirrorOk` | 两挂件（目录/笔记 ｜ 阅读参数）的外缘到页面中线、宽度、`max-height` | 两侧 gap 相等 ±2px、**同宽** ±1px、**高度上限同值** |
+| `followedOk` | 目录滚动容器与"当前条目"（样张钉在第 12 章）的中心 | **先要求容器真能滚**（否则平凡成立 = 假通过），再要求偏差 ≤ 8px |
+| `composerOk` | 批注输入栏（点 `#demo-composer-toggle` 挂载后量） | 零可见文字 + 无 placeholder + 非透明底 + 发丝描边 + 水平居中 ±2px + 挂载即聚焦 |
+
+> ⚠ **两个会造成假 FAIL 的量法坑**（已写进脚本注释，别踩第二次）：
+> ① **描边宽度不能断言字面 `1px`** —— 本机 DPR = 1.25（Windows 125% 缩放），1 CSS px 吸附成 1 设备 px，
+> `getComputedStyle` 报 **0.8px**；
+> ② **居中要跟 `documentElement.clientWidth` 比** —— `window.innerWidth` 含滚动条，页面一长就会把
+> `fixed` 元素判成偏了 5~8px。
 ⚠ **环境约束**：Electron 的 Mojo 通道走**命名管道**，受限文件沙箱下必然
 `FATAL: platform_channel.cc ... 拒绝访问` → 需在放宽模式下跑（与 `src/renderer/src/dev/selfCheck.ts` 同类）。
 

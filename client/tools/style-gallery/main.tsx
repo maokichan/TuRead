@@ -21,6 +21,8 @@ import { BookTile } from '@renderer/components/BookTile'
 import { BookDetailPanel } from '@renderer/components/BookDetailPanel'
 import { LibraryToolbar } from '@renderer/components/LibraryToolbar'
 import { ReaderRail, type LeftPanelKind } from '@renderer/components/ReaderRail'
+import { ContextMenu, type ContextMenuItem } from '@renderer/components/ContextMenu'
+import { NoteComposer } from '@renderer/components/NoteComposer'
 import { NoteFlow, type NoteFlowItem } from '@renderer/components/NoteFlow'
 import { DEFAULT_READER_PARAMS, type ReaderParams } from '@renderer/components/ReaderControls'
 import { StatePill } from '@renderer/components/StatePill'
@@ -188,12 +190,49 @@ const ROOMS: RoomInfo[] = [
   }
 ]
 
+/**
+ * 目录（给左挂件用）。
+ * ⚠ **刻意给到 20 条**：条目区必须真的能滚（`scrollHeight > clientHeight`），否则
+ * "当前条目滚到正中"这件事在样张里根本量不出来（短列表看起来永远是对的）——
+ * `smoke.cjs` 的居中断言也依赖这一点。
+ */
 const TOC = [
   { label: '第一章 能量代谢', depth: 0, chapterDocIndex: 0 },
+  { label: '1.1 ATP 与磷酸原系统', depth: 1, chapterDocIndex: 1 },
+  { label: '1.2 糖酵解', depth: 1, chapterDocIndex: 2 },
   { label: '第二章 碳水化合物', depth: 0, chapterDocIndex: 4 },
   { label: '2.1 糖原储备', depth: 1, chapterDocIndex: 5 },
+  { label: '2.2 血糖调节', depth: 1, chapterDocIndex: 6 },
+  { label: '第三章 脂肪代谢', depth: 0, chapterDocIndex: 7 },
+  { label: '第四章 蛋白质与氨基酸', depth: 0, chapterDocIndex: 8 },
+  { label: '第五章 维生素', depth: 0, chapterDocIndex: 9 },
+  { label: '（无直达章节的分组标题）', depth: 1, chapterDocIndex: undefined },
+  { label: '第六章 矿物质与水', depth: 0, chapterDocIndex: 10 },
+  { label: '第七章 能量平衡', depth: 0, chapterDocIndex: 11 },
   { label: '第十二章 运动与糖代谢', depth: 0, chapterDocIndex: 12 },
-  { label: '（无直达章节的分组标题）', depth: 1, chapterDocIndex: undefined }
+  { label: '12.1 运动中糖的利用', depth: 1, chapterDocIndex: 13 },
+  { label: '12.2 补糖策略', depth: 1, chapterDocIndex: 14 },
+  { label: '第十三章 训练适应', depth: 0, chapterDocIndex: 15 },
+  { label: '第十四章 特殊人群', depth: 0, chapterDocIndex: 16 },
+  { label: '第十五章 补剂与伦理', depth: 0, chapterDocIndex: 17 },
+  { label: '第十六章 运动营养实践', depth: 0, chapterDocIndex: 18 },
+  { label: '附錄 常用数据表', depth: 0, chapterDocIndex: 19 }
+]
+
+/** 右键挂载菜单的样张项（阅读器域语义：標記四色子菜单 + 加批註 / 編輯 / 移除）——
+ *  用来复核 2026-09-16 的对比度改动：**动作区纯色底 + 1px 描边 + 全强度文字** */
+const MENU_ITEMS: ContextMenuItem[] = [
+  {
+    label: '標記',
+    children: (['yellow', 'green', 'blue', 'red'] as NoteColor[]).map((c) => ({
+      label: { yellow: '黃', green: '綠', blue: '藍', red: '赤' }[c],
+      swatch: `var(--note-${c})`,
+      onClick: noop
+    }))
+  },
+  { label: '加批註', onClick: noop },
+  { label: '編輯批註', onClick: noop },
+  { label: '移除', onClick: noop }
 ]
 
 /* --------------------- 笔记管理（跨书）的样张数据 --------------------- */
@@ -354,6 +393,10 @@ const THEME_LABEL: Record<Theme, string> = {
 export function Gallery(): React.JSX.Element {
   const [theme, setTheme] = useState<Theme>('dark')
   const [showDialog, setShowDialog] = useState(false)
+  /** 阅读器两个浮层的开关（右键挂载菜单 / 批注输入栏）—— 形态复核用，默认都关着 */
+  const [overlay, setOverlay] = useState({ composer: false, menu: false })
+  const toggleOverlay = (k: 'composer' | 'menu'): void =>
+    setOverlay((o) => ({ ...o, [k]: !o[k] }))
 
   useEffect(() => {
     const resolved =
@@ -598,12 +641,12 @@ export function Gallery(): React.JSX.Element {
       <Panel
         title="阅读器 · 挂载线实体（ReaderRail：桌/纸 + 目录 / 笔记 + 参数）"
         path="components/ReaderRail.tsx（内含 TocPanel / NotesPanel / ReaderControls）"
-        note="沉浸态（STYLE.md §5.8）：全屏的是「桌」不是「正文」—— 纸在居中定宽列里，靠 --desk-bg / --page-edge **用颜色区分**。一条横向挂载线贯穿页面：左段 = 目录 / 笔记垂挂（顶部「目錄 / 筆記」两格文字开关、当前格 --accent），右段 = 阅读参数，中段是纯线。⚠ 2026-09-16 更正：参数面板**默认展开**（v1.0 起），右侧独立召唤条与面板内「收起」均已废除；折叠 = 向上收回线里。目录条目高亮 = **遮罩按到鼠标的距离**（把鼠标在列表上上下移动看过渡），静息更淡"
+        note="沉浸态（STYLE.md §5.8）：全屏的是「桌」不是「正文」—— 纸在居中定宽列里，靠 --desk-bg / --page-edge **用颜色区分**。一条横向挂载线贯穿页面：左段 = 目录 / 笔记垂挂（顶部「目錄 / 筆記」两格文字开关、当前格 --accent），右段 = 阅读参数，中段是纯线。⚠ 2026-09-16（用户定）：**左右两挂件以页面中线镜像** —— 同宽、同高、离中线等距（右起第一格就是两挂件同开的样子，`smoke.cjs` 按它量对称）；**目录/笔记的当前条目自动滚到容器正中**（这里把位置钉在第 12 章：看「第十二章 运动与糖代谢」是否落在列表正中间）。参数面板**默认展开**（v1.0 起），折叠 = 向上收回线里；目录条目高亮 = **遮罩按到鼠标的距离**（把鼠标在列表上上下移动看过渡），静息更淡"
       >
         <div className="grid gap-6 md:grid-cols-2">
           <RailDemo label="只剩掛載線（左欄與參數都折疊）" />
-          <RailDemo label="目錄垂掛（默認展示）" leftOpen />
-          <RailDemo label="筆記垂掛（左掛件另一種內容）" leftPanel="notes" leftOpen />
+          <RailDemo label="左欄 + 右欄都展開（鏡像對稱的基準）" leftOpen controlsOpen />
+          <RailDemo label="筆記垂掛（左掛件另一種內容，同樣跟隨位置）" leftPanel="notes" leftOpen />
           <RailDemo label="閱讀參數面板（右段垂掛，默認展開）" controlsOpen />
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-6">
@@ -611,6 +654,37 @@ export function Gallery(): React.JSX.Element {
           <StatePill state="reconnecting" />
           <StatePill state="disconnected" />
         </div>
+      </Panel>
+
+      <Panel
+        title="阅读器 · 右键挂载菜单与批注输入栏（形态复核）"
+        path="components/ContextMenu.tsx / components/NoteComposer.tsx"
+        note="2026-09-16（用户定）改的两处形态：① **右键菜单**原来是「线 + 纯文字、透明底」，用户报「整个容器太透明了」→ 动作区改**纯色底 + 1px 描边 + 全强度文字**（选项色仍只在色块上，见 STYLE §5.2 例外⑤/⑥）；② **批注输入栏**改为**屏幕底部居中**的**纯色带边框容器**、**一个字都没有**（无标题、无 placeholder、无按钮），焦点态由容器给强调边 —— 操作逻辑不变（Enter 提交 / Shift+Enter 换行 / Esc 取消）。两个按钮在下面，点开即在真实位置出现（输入栏是 `fixed`，会浮在本页底部 —— 与 App 内一致）"
+      >
+        <div className="flex flex-wrap items-center gap-6">
+          <button
+            id="demo-composer-toggle"
+            className="text-action text-action--lg"
+            onClick={() => toggleOverlay('composer')}
+          >
+            {overlay.composer ? '關閉批註輸入欄' : '打開批註輸入欄'}
+          </button>
+          <button className="text-action text-action--lg" onClick={() => toggleOverlay('menu')}>
+            {overlay.menu ? '關閉右鍵菜單' : '打開右鍵菜單'}
+          </button>
+          <span className="text-[11px] text-[var(--muted)]">
+            ← 判据由 smoke.cjs 机检：输入栏**零文字** + 纯色底 + 1px 描边 + 水平居中
+          </span>
+        </div>
+        {overlay.menu && <ContextMenu x={220} y={140} items={MENU_ITEMS} onClose={() => toggleOverlay('menu')} />}
+        {overlay.composer && (
+          <NoteComposer
+            value=""
+            onChange={noop}
+            onSave={() => toggleOverlay('composer')}
+            onCancel={() => toggleOverlay('composer')}
+          />
+        )}
       </Panel>
 
       <Panel
@@ -694,12 +768,15 @@ function RailDemo({
   label,
   leftPanel = 'toc',
   leftOpen = false,
-  controlsOpen = false
+  controlsOpen = false,
+  activeChapter = 12
 }: {
   label: string
   leftPanel?: LeftPanelKind
   leftOpen?: boolean
   controlsOpen?: boolean
+  /** 当前阅读位置（章号）：目录/笔记的"当前条目"据此滚到正中（2026-09-16 用户定） */
+  activeChapter?: number
 }): React.JSX.Element {
   const [tocOpen, setTocOpen] = useState(leftOpen)
   const [ctlOpen, setCtlOpen] = useState(controlsOpen)
@@ -710,7 +787,16 @@ function RailDemo({
       <span className="text-[12.5px] text-[var(--muted)]">{label}</span>
       <div
         className="relative h-[300px] w-full"
-        style={{ '--read-width': '320px' } as React.CSSProperties}
+        data-rail-demo={label}
+        style={
+          {
+            '--read-width': '260px',
+            /* 样张里没有真实侧边栏（真实值 56px 会把镜像挤歪）—— 置 0 才能量出对称 */
+            '--sidebar-w': '0px',
+            /* "同高"：两个挂件的高度上限是同一个 token（样张里收窄以免溢出演示框） */
+            '--rail-panel-h': '260px'
+          } as React.CSSProperties
+        }
       >
         <div className="reader-paper absolute inset-0">
           <div className="reader-stage">
@@ -733,6 +819,7 @@ function RailDemo({
           notes={NOTES}
           onNoteJump={noop}
           onNoteRemove={noop}
+          activeChapter={activeChapter}
         />
       </div>
     </div>

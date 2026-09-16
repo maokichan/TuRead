@@ -13,6 +13,7 @@
  * - 滚轮在两侧留白上也要能滚 → 纸容器把 wheel 转发给正文列。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { compareNoteOrder } from '@core/domain/anchor'
 import { isZeroLocation } from '@core/domain/location'
 import type { ResolvedTheme } from '@core/domain/theme'
 import type {
@@ -92,8 +93,6 @@ export function ReaderFeature({
   const [leftPanel, setLeftPanel] = useState<LeftPanelKind>('toc')
   /** 当前正文选区（适配器在**书文档**上观测后广播；null = 无选区） */
   const [selection, setSelection] = useState<RenderSelection | null>(null)
-  /** 选区的 ref 镜像：事件回调（一次性挂载的订阅）里读 state 会拿到过期闭包 */
-  const selectionRef = useRef<RenderSelection | null>(null)
   /**
    * 阅读区右键菜单（挂载线形态；2026-09-14 用户定为主入口）。
    * `anchor` = 右键时的选区锚点（决定「新建」是否可用）；`noteId` = 点在了哪条笔记上。
@@ -103,14 +102,18 @@ export function ReaderFeature({
    * 批注输入面板。`noteId` 有值 = 编辑既有笔记；无值 = 用 `anchor` 新建。
    * 正文内容（`body`）**由这里持有**（受控），这样 `reader.composerCommit` 等键盘意图
    * 能够提交"当前输入内容"—— 状态若关在组件里，意图层就够不着（用户要的键盘链条会断）。
+   * ⚠ 2026-09-16：面板形态改为**屏幕底部居中**（用户定），故不再持有右键坐标 `x/y`。
    */
   const [composer, setComposer] = useState<{
-    x: number
-    y: number
     anchor: TextAnchor
     noteId?: string
     body: string
   } | null>(null)
+  /**
+   * 当前阅读位置（章号，= `BookLocation.chapterDocIndex`）—— 目录/笔记列表据此把"当前条目"
+   * 滚到容器正中（2026-09-16 用户定）。只在**换了章**时 setState，滚动过程中的重复事件不重渲染。
+   */
+  const [currentChapter, setCurrentChapter] = useState(0)
 
   /**
    * 应用参数到渲染层。分工（`STYLE.md` §5.9）：
@@ -211,10 +214,13 @@ export function ReaderFeature({
     void container.books.updateLastLocation(readerBookId, loc)
   }, [container, readerBookId])
 
-  // 位置事件 → 持久化（同步数据源，见 RENDER_INTERFACE.md §4）
+  // 位置事件 → 持久化 + 跟随（同步数据源，见 RENDER_INTERFACE.md §4）。
+  // 跟随：目录 / 笔记列表要知道"读到第几章"才能把当前条目放到中间（2026-09-16 用户定）
   useEffect(() => {
     return container.render.on('location-changed', (loc) => {
       saveLastLocation(loc)
+      if (isZeroLocation(loc)) return
+      setCurrentChapter((prev) => (prev === loc.chapterDocIndex ? prev : loc.chapterDocIndex))
     })
   }, [container, saveLastLocation])
 
@@ -291,7 +297,6 @@ export function ReaderFeature({
   // ① 它决定右键菜单里"新建"两项是否可用；② 键盘驱动的流程（预留）没有鼠标坐标，靠它定位。
   useEffect(() => {
     return container.render.on('selection-changed', (sel) => {
-      selectionRef.current = sel
       setSelection(sel)
     })
   }, [container])
@@ -306,18 +311,12 @@ export function ReaderFeature({
 
   // 单击已有高亮 → 直接开它的批注（kookit handleNoteClick 回调，见 CONTRACTS §4.1）
   useEffect(() => {
-    return container.render.on('note-clicked', ({ noteId, x, y }) => {
+    return container.render.on('note-clicked', ({ noteId }) => {
       const target = notesRef.current.find((n) => n.id === noteId)
       if (!target) return
       setMenu(null)
-      // 坐标缺省（kookit 有一条回调路径不给鼠标事件）→ 用选区矩形兜底，最后退到安全位
-      setComposer({
-        x: x ?? selectionRef.current?.rect.x ?? 8,
-        y: y ?? (selectionRef.current?.rect.y ?? 0) + 24,
-        anchor: target.anchor,
-        noteId,
-        body: target.body
-      })
+      // 面板在底部居中（2026-09-16 用户定），不再需要命中坐标
+      setComposer({ anchor: target.anchor, noteId, body: target.body })
     })
   }, [container])
 
@@ -344,7 +343,10 @@ export function ReaderFeature({
       try {
         await container.store.addNote(note)
         await container.render.createNote(note)
-        const next = [...notesRef.current, note]
+        // **按阅读序插入**，不是追加（用户 2026-09-16 定："笔记按照先后顺序排序，而不是按照
+        // 时间顺序排序"）。库里同一条序列由 `compareNoteOrder` 保证 —— 追加到末尾会让界面
+        // 看上去按创建时间排（第 5 章的新笔记掉到第 1 章后面）。
+        const next = [...notesRef.current, note].sort(compareNoteOrder)
         notesRef.current = next
         setNotes(next)
         host.pushLog(`${kind === 'note' ? '已加批註' : '已劃線'}：${note.anchor.norm.quote.exact.slice(0, 12)}…`)
@@ -444,6 +446,9 @@ export function ReaderFeature({
         if (stageRef.current) await container.render.renderTo(stageRef.current)
         if (cancelled) return
         setBook(latest)
+        // 跟随判据的**初始值**：以打开后的权威位置为准（不能沿用上一本书的章号 ——
+        // 否则新书的目录会在第一次翻页前停在"上一本读到的那一章"所对应的条目上）
+        setCurrentChapter(container.render.getPosition().chapterDocIndex)
         // 兜底启发式：kookit 无 toc 的书会用纯数字页码生成 chapterList（如 PDF 每页一项），
         // 全数字 = 假目录，不显示挂载线；存在任一非纯数字标题才视为真目录。
         const rows: TocRow[] = []
@@ -625,12 +630,7 @@ export function ReaderFeature({
       'reader.annotateSelection': () => {
         if (!selection) return
         setMenu(null)
-        setComposer({
-          x: selection.rect.x,
-          y: selection.rect.y + selection.rect.height,
-          anchor: selection.anchor,
-          body: ''
-        })
+        setComposer({ anchor: selection.anchor, body: '' })
       },
       'reader.composerCommit': () => {
         // 提交**当前输入内容** —— 所以面板正文 state 由本组件持有（见 composer 注释）
@@ -679,7 +679,7 @@ export function ReaderFeature({
       })
       items.push({
         label: '加批註',
-        onClick: () => setComposer({ x: req.x, y: req.y, anchor, body: '' })
+        onClick: () => setComposer({ anchor, body: '' })
       })
     }
     if (req.noteId) {
@@ -688,14 +688,7 @@ export function ReaderFeature({
       if (target) {
         items.push({
           label: '編輯批註',
-          onClick: () =>
-            setComposer({
-              x: req.x,
-              y: req.y,
-              anchor: target.anchor,
-              noteId,
-              body: target.body
-            })
+          onClick: () => setComposer({ anchor: target.anchor, noteId, body: target.body })
         })
         items.push({ label: '移除', onClick: () => void removeNote(target) })
       }
@@ -732,25 +725,14 @@ export function ReaderFeature({
         <ContextMenu x={menu.x} y={menu.y} items={markMenuItems(menu)} onClose={() => setMenu(null)} />
       )}
 
-      {/* 批注输入：与菜单同源形态（挂载线 + 向下生长）。Enter 提交 / Shift+Enter 换行 / Esc 取消 */}
+      {/* 批注输入：**底部居中的纯色容器，零文字**（2026-09-16 用户定）。
+          Enter 提交 / Shift+Enter 换行 / Esc 取消；移除既有笔记只剩右键菜单一条路径 */}
       {composer && (
         <NoteComposer
-          x={composer.x}
-          y={composer.y}
           value={composer.body}
           onChange={(body) => setComposer((c) => (c ? { ...c, body } : c))}
-          title={composer.noteId ? '編輯批註' : '新增批註'}
           onSave={() => void saveAnnotation()}
           onCancel={() => setComposer(null)}
-          onRemove={
-            composer.noteId
-              ? () => {
-                  const target = notesRef.current.find((n) => n.id === composer.noteId)
-                  setComposer(null)
-                  if (target) void removeNote(target)
-                }
-              : undefined
-          }
         />
       )}
 
@@ -767,6 +749,7 @@ export function ReaderFeature({
           notes={notes}
           onNoteJump={(n) => void jumpNote(n)}
           onNoteRemove={(n) => void removeNote(n)}
+          activeChapter={currentChapter}
           controlsOpen={controlsOpen}
           onControlsToggle={() => setControlsOpen((v) => !v)}
           params={params}

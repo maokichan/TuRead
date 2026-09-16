@@ -7,6 +7,11 @@
  *   把手即线本身（右段），面板内无收起按钮（2026-09-12 废除）。
  * 两个挂件互不干扰（左/右分区），又同处一条线（同一实体）。
  * 中段是纯线段（跨过正文上方，无交互）。
+ *
+ * ⚠ **2026-09-16（用户定）：左右两挂件以页面中线镜像** —— 同宽、同高、离中线等距；
+ * 线段与面板同宽同侧（算式唯一一份在 `styles.css` 的 `.reader-rail` 一节）。
+ * 线段现在从 `--sidebar-w` 处开始（`__lead` 占位不留线），而不是让整个容器从那里起算 ——
+ * 这样 `50%` 才是**页面中线**（不是"中线减去侧边栏"）。
  */
 import type { Note } from '@core/domain/types'
 import type { TocRow } from './TocPanel'
@@ -31,6 +36,8 @@ interface ReaderRailProps {
   notes: Note[]
   onNoteJump: (note: Note) => void
   onNoteRemove: (note: Note) => void
+  /** 当前阅读位置（章号）：两个挂件的"当前条目"都据此滚到正中（2026-09-16 用户定） */
+  activeChapter: number
 }
 
 export function ReaderRail({
@@ -46,7 +53,8 @@ export function ReaderRail({
   onLeftPanelChange,
   notes,
   onNoteJump,
-  onNoteRemove
+  onNoteRemove,
+  activeChapter
 }: ReaderRailProps): React.JSX.Element {
   /**
    * 左挂件顶部的内容开关（目錄 / 筆記）。两格**都是文字**（§5.1），当前格用 `--accent` ——
@@ -73,8 +81,10 @@ export function ReaderRail({
 
   return (
     <>
-      {/* 横向挂载线：左段（目录）+ 中段（纯线）+ 右段（参数），三段拼出整页宽的一条线 */}
+      {/* 横向挂载线：引导段（占位不留线，线不贴窗口左缘）+ 左段（目录）+ 中段（纯线）+ 右段（参数），
+          拼出整页宽的一条线。⚠ 左/右段与各自挂件**同宽同侧**（镜像几何，见 styles.css 的算式） */}
       <div className="reader-rail">
+        <div className="reader-rail__lead" aria-hidden="true" />
         <button
           className="reader-rail__zone reader-rail__zone--toc"
           aria-label={tocOpen ? '收起左欄' : '打開左欄'}
@@ -96,7 +106,13 @@ export function ReaderRail({
           （2026-09-13 用户定："本书没有目录索引"要可见，不静默消失） */}
       {tocOpen &&
         (leftPanel === 'toc' ? (
-          <TocPanel rows={tocRows} onJump={onTocJump} onToggle={onTocToggle} header={leftTabs} />
+          <TocPanel
+            rows={tocRows}
+            onJump={onTocJump}
+            onToggle={onTocToggle}
+            header={leftTabs}
+            activeChapter={activeChapter}
+          />
         ) : (
           <NotesPanel
             notes={notes}
@@ -104,6 +120,7 @@ export function ReaderRail({
             onJump={onNoteJump}
             onRemove={onNoteRemove}
             onToggle={onTocToggle}
+            activeChapter={activeChapter}
           />
         ))}
 

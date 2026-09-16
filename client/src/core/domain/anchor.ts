@@ -298,6 +298,29 @@ export function columnsToAnchor(cols: AnchorColumnInput): TextAnchor {
   })
 }
 
+/* ————————————————— 阅读序（笔记列表的排序权威）————————————————— */
+
+/**
+ * 笔记**阅读序**比较：章 → 章内进度 → 创建时间 → id（稳定兜底）。
+ *
+ * 为什么是领域规则而不留在存储层：用户 2026-09-16 定的口径是"**笔记按照先后顺序排序，
+ * 而不是按照时间顺序排序**" —— "先后"是**书里的位置**，这是笔记的语义，不是 SQL 的细节。
+ * 谁是权威必须只有一处：存储层读列表、渲染层新建插入都用它，否则"库里是对的、界面上是乱的"
+ * （2026-09-16 的实际症状：新建的笔记被追加到列表末尾 → 看上去按时间排）。
+ *
+ * ⚠ 用锚点的 **Norm 层**（跨格式可比）而非 Fragment（不透明串、无可比性，§3.1.1）；
+ * 末位 `createdAt`/`id` 只为"同一进度上的两条"给出确定性次序，不代表"按时间排序"。
+ */
+export function compareNoteOrder(
+  a: { anchor: TextAnchor; createdAt: number; id: string },
+  b: { anchor: TextAnchor; createdAt: number; id: string }
+): number {
+  const byNorm = compareNormOrder(a.anchor.norm, b.anchor.norm)
+  if (byNorm !== 0) return byNorm
+  if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+}
+
 /* ————————————————— 内部 ————————————————— */
 
 function compareNormOrder(a: AnchorNorm, b: AnchorNorm): -1 | 0 | 1 {
