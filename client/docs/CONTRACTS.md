@@ -1,6 +1,6 @@
 # 客户端契约（Client Contracts）
 
-> 状态：**v0.4.1**（当前）—— 修订历史见 §8。分层 = **能力服务（ports）** 与 **应用服务（用例）** 两层。
+> 状态：**v0.4.2**（当前）—— 修订历史见 §8。分层 = **能力服务（ports）** 与 **应用服务（用例）** 两层。
 > 术语：**六边形架构（端口-适配器）为骨架，DDD 命名为层内词汇**，对照表见 `ARCHITECTURE.md` §1。
 > 范围：**仅 client** 的层与接口契约；同步协议（信封/消息集/转发规范）由 server 定义，见 `../../server/docs/API.md`。
 > 迁移：将 1:1 落到 `client/src/core/{domain,ports,usecases}/`。
@@ -122,7 +122,8 @@ interface LibraryEntry {
   sort: number;
 }
 
-/** 书库设置（持久化于 config.json 的 librarySettings 键） */
+/** 书库设置（持久化于**全局 settings 表的 `librarySettings` 键** —— v0.4.0 起设置一律全局，
+ *  见 DATA_MODEL §4.2 D9；`config.json` 已降为引导文件，⚠ 原文写的"config.json"是 v0.3.x 的旧事实） */
 interface LibrarySettings {
   view: LibraryView;
   /** 导入文件夹是否含子目录（false = 只此节点；true = 此节点及所有子节点） */
@@ -130,7 +131,7 @@ interface LibrarySettings {
 }
 
 /**
- * 阅读器设置（持久化于 config.json 的 readerSettings 键）—— v0.3.1。
+ * 阅读器设置（持久化于**全局 settings 表的 `readerSettings` 键**）—— v0.3.1。
  * ⚠ 这些是**呈现/排版参数**，不是"阅读页控件"：阅读页零控件（`STYLE.md` §5.8），
  *   参数一律在阅读器**挂载线参数面板**改（2026-09-13 起：布局模式也移入面板，
  *   `readerSettings` 的唯一写者 = 面板；设置页只留沉浸全屏开关）。
@@ -152,7 +153,7 @@ interface ReaderSettings {
 }
 
 /**
- * 阅读排版参数（v0.3.3；持久化于 config.json 的 readerSettings）。
+ * 阅读排版参数（v0.3.3；持久化于**全局 settings 表的 `readerSettings` 键**）。
  * 分工（`STYLE.md` §5.9）：**宿主几何**（`--read-width` / `--page-pad-x`）走 CSS 变量；
  * **正文排版**（本类型）走 `IRenderService.applyTypography` 注入正文 iframe。
  * 三态：字段**缺省 = 不改**（UI 上是「默認」档）；存数值不存档位名。
@@ -163,7 +164,8 @@ interface ReaderTypography {
   paragraphSpacing?: number; // px（段落下边距）
 }
 
-/** 阅读渲染配置（领域层友好配置，适配器内部翻译为 kookit config） */interface RenderOptions {
+/** 阅读渲染配置（领域层友好配置，适配器内部翻译为 kookit config） */
+interface RenderOptions {
   readerMode: 'single' | 'double' | 'scroll';
   animation: 'sliding' | 'mimical' | 'none';
   fontSize?: number;
@@ -262,6 +264,39 @@ interface Note {
   ink?: string                 // kind='ink'：InkStroke[] JSON
   createdAt: number
   updatedAt: number
+}
+
+/* ————— 笔记管理（跨书）—— v0.4.2；形态 = FEATURES §12，视觉 = STYLE §5.10 ————— */
+
+/** 笔记管理的视图（**无列表形态**，用户 2026-09-16 定）：
+ *  `grid` = 網格（等高行）；`masonry` = 瀑布流（按列装箱，**默认**）。 */
+type NoteView = 'grid' | 'masonry';
+
+/** 卡片内的文字主次（用户 2026-09-16 定：两档**可切换**，默认 `body`）。
+ *  只影响字号/颜色的分配（STYLE §5.10），**不改数据**。 */
+type NoteTextFocus = 'body' | 'excerpt';
+
+/**
+ * 卡片筛选（用户 2026-09-16 定：**单按钮三态循环** 批註 → 劃線 → 全部，默认 `annotated`）。
+ *
+ * ⚠ **判据是 `body` 是否为空，不是 `kind`** —— 二者在实现里可以互相矛盾（两个方向都有路径）：
+ *   - `kind='highlight'` **可能有 body**：划完线再点它补写批注 → `updateNote(id, {body})`
+ *     （`ReaderFeature/index.tsx:334`）；
+ *   - `kind='note'` **可能没有 body**：「加批註」后没写字就回车 —— `NoteComposer` 明确
+ *     "空串 = 清空批注正文，允许" → `createMark(..., 'note', '')`。
+ *   按 `kind` 分组会把这两类都分错，正是 §2 `NoteKind` 已记档的"标签取决于历史"坏模型。
+ *   与已记档的收敛口径一致：**呈现只按有无 `body` 区分**。
+ */
+type NoteFilter = 'annotated' | 'highlight' | 'all';
+
+/** 笔记管理设置（持久化于**全局 settings 表的 `noteSettings` 键** —— 设置一律全局，D9） */
+interface NoteSettings {
+  view: NoteView;
+  filter: NoteFilter;
+  /** 卡片文字主次（默认 `body` = 批註為主） */
+  textFocus: NoteTextFocus;
+  /** 作用域：当前库 / 全部库（**默认当前库**，用户 2026-09-16 定） */
+  scope: 'library' | 'all';
 }
 
 /** 聊天消息（v0.1.5 起 server 支持；追加日志模型，历史经 REST 拉取） */
@@ -720,6 +755,22 @@ interface IBookPicker {
 > **平台约束**：Electron 同一对话框**不能既选文件又选目录**（Windows 下 `openFile`+`openDirectory`
 > 只会给出目录，electron#26885）→ 因此是 `pickFiles` / `pickDirectory` 两个方法，UI 侧表现为导入小菜单。
 
+### 4.6 IClipboard —— 剪贴板写入（v0.4.2 新增；适配器：Electron `clipboard`）
+
+```ts
+interface IClipboard {
+  /** 写纯文本到系统剪贴板 —— 笔记管理的「複製批註」（FEATURES §12 / STYLE §5.10） */
+  writeText(text: string): Promise<void>;
+}
+```
+
+> **为什么要端口，而不让 UI 直接调 `navigator.clipboard`**：① **纪律一致** —— UI 只依赖
+> `ServiceContainer`、不直接摸桥（`IBookPicker` 就是为**一个**用途立的先例，§4.5）；
+> ② `navigator.clipboard` 依赖"安全上下文 + 权限"，在 Electron 的加载协议下**行为随版本变**，
+> 不宜作为契约前提；Electron 的 `clipboard.writeText` 是同步且可靠的。
+> **桥的形状**：preload 暴露**具名方法**（如 `writeClipboardText(text)`），**不用泛化 `invoke(channel, …)`**
+> —— 与 `TODO.md`「IPC 桥信任边界过宽」那条的**收敛方向一致**（那边要求通道白名单/具名方法）。
+
 ## 5. 应用服务（用例层）
 
 ### 5.1 IRoomSession —— 房间会话（同步业务逻辑本体）
@@ -840,6 +891,7 @@ interface ServiceContainer {
   identity: IBookIdentityService;
   store: ILibraryStore;
   picker: IBookPicker;
+  clipboard: IClipboard;
   // 应用服务（用例）
   room: IRoomSession;
   books: IBookService;
@@ -866,6 +918,7 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.4.2 | 2026-09-16 | **笔记管理（跨书）的视图 / 筛选 / 主次 / 设置类型 + 剪贴板端口**（视觉立案 = `STYLE.md` §5.10，形态 = `FEATURES.md` §12）：§2 增 **`NoteView`**（`'grid'` 網格 / `'masonry'` 瀑布流，**默认瀑布流、无列表形态**）、**`NoteTextFocus`**（`'body'` / `'excerpt'`，卡片文字主次**两档可切换**，默认 `body` = 批註為主）、**`NoteFilter`**（`'annotated'` / `'highlight'` / `'all'`，**单按钮三态循环**，默认只看批注）、**`NoteSettings`**（`view` / `filter` / `textFocus` / `scope`，持久化于全局 settings 表的 `noteSettings` 键）。⚠ **`NoteFilter` 的判据是 `body` 是否为空、不是 `kind`** —— 两者在实现里可互相矛盾（`highlight` 可能有 body、`note` 可能没有），按 `kind` 分组会分错。§4.6 新增 **`IClipboard`**（`writeText`）+ §6 `ServiceContainer` 增 `clipboard` —— 供卡片右键「複製批註」；**立端口而非让 UI 直用 `navigator.clipboard`**（纪律同 `IBookPicker`；桥用**具名方法**，与「IPC 信任边界」收敛方向一致）。顺手修正三处文档滞后：`LibrarySettings`/`ReaderSettings`/`ReaderTypography` 注释里的"持久化于 config.json"→ **全局 settings 表**（v0.4.0 起设置一律全局，D9），以及两处 `*/interface` 粘连的排版 |
 | v0.4.1 | 2026-09-16 | **笔记管理（跨书）读模型**：§4.4 `ILibraryStore` 增 **`listAllNotes(query?)` / `countAllNotes(query?)`** 与两个读模型类型 **`NoteQuery`**（库作用域 / 按书 / 色 / 有无批注 / `text` 子串关键词 / 排序分页）与 **`NoteListItem`**（`note` + 展示投影 `editionTitle`/`editionFormat`/`libraryNames`）。**`Note` 实体与 `notes` schema 零改动**（读模型是派生视图，藏在端口后）。口径：**关键词是 `NoteQuery.text` 的一个筛选维度，不另立 `searchNotes`** —— 换实现（v1 `LIKE` → 将来 FTS5）**签名与语义不变**；`libraryId` 过滤**经 `holdings` 连接**（笔记挂 edition、不挂库）；**不含章标题**（v1 列表显示「書名 · 節 N」）。形态裁决（容器=同一套容器同级功能组件 / 作用域=当前库为默认可切全局 / 检索=只搜笔记 / 章节标签）见 `FEATURES.md` §12 与 `DATA_MODEL.md` §5 问题 6 |
 | v0.4.0 | 2026-09-15 | **书的身份：全局单库 + 书库降为组织模式**（定案 = `DATA_MODEL.md` §4.2/§6，D1–D12）。新增 **§2.2**：`WorkIdentity`（作品身份，**只留接口**）/ `EditionRecord`（内容身份，**全局唯一键 = 指纹**）/ `Holding`（**收录**："哪个书库里有这本书"）/ `LibraryItem`（读模型组合）+ **四条不变量**。连带：`LibraryEntry` **去 `dbPath`**、`mode` 改 **`'mapped' \| 'curated'`**；`BookContainer` **增 `libraryId`**（树在库内）；`Note.bookId` → **`editionId`**（各版一份、不自动跨版迁移）；**`BookRecord` 退役**（拆 `EditionRecord` + `Holding`）。§4.4 增 `upsertEdition`/`findEditionByFingerprint`/`addHolding`/`removeHolding`/`listItemsAtLevel`/`reading_state`/`reading_sessions` 方法，并给出**签名变更清单**（`moveBookToContainer` → `moveHolding`；封面方法参数改 `editionId`；库管理职责收敛进 `SqliteStore`） |
 | v0.3.12 | 2026-09-14 | **右键成为标记/批注主入口（用户定）+ 批注落地**：① §4.1 增 `'context-menu'`（`RenderContextMenuRequest{x,y,anchor,noteId}` —— 适配器换算坐标并判定"是否点在笔记上"）与 `'note-clicked'`（点击高亮回调；`x/y` 由**量元素矩形**得出，因 kookit 该回调只给 `{target}` 无鼠标坐标）。两个事件都**必须**在适配器发（右键/点击若落在正文 iframe 内，宿主收不到，同 iframeBridge 根因）。② **UI 形态**（用户定）：右键菜单与批注面板统一为**"挂载线形态"** —— 光标处弹一条横向 1px 线、功能项自线下方生长，**摒弃圆角/阴影/卡片底**；**形态全站统一、语义按域不同**（书库 = 文件管理／阅读器 = 标记·批注）。③ **删 `SelectionPalette`**：选色板被右键菜单取代（"新建无论是高亮还是批注，最好的方法还是右键"），避免两个入口语义重叠；`selection-changed` 保留（决定菜单「新建」是否可用 + 键盘流程定位）。④ **批注**：`NoteComposer` 为**受控组件**（正文 state 由 ReaderFeature 持有 —— 以便键盘意图能**从外部提交当前输入**）；`kind` 记录**创建来路**（选色 → `highlight`／写批注 → `note`），编辑正文不改 kind。⑤ **键盘接口预留**：`DEFAULT_BINDINGS` 增 `reader.markSelection` / `annotateSelection` / `composerCommit` / `composerCancel` —— **键位故意留空**，行为已就位，待配键方案定下后只填表。⑥ **侧键**：阅读器内 `XButton1/2` = 翻页（与书库域的后退/前进**按功能态分工**；同一物理键跨域语义不同是用户明确要求）。⑦ **逆向补充**（KOOKIT §5 #14/#15）：`handleNoteClick` 是 `doc.body` 上的 capture 委托且**要求 `mousedown` 与 `click` 坐标相差 ≤ 5px**（防拖选误触）→ 只在"点"而非"拖"时触发；桌面端**无任何 kookit 右键处理**（触屏/右键接线是死代码），右键槽位自由 |
