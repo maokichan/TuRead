@@ -29,6 +29,8 @@ const path = require('path')
 const { app, BrowserWindow } = require('electron')
 
 const URL = process.argv[2] || 'http://localhost:5199/tools/style-gallery/index.html'
+/** `--scale=N`：附加跑压力场景（笔记管理瀑布流的规模数字，见 STYLE §5.10 的窗口化决策） */
+const SCALE = Number((process.argv.find((a) => a.startsWith('--scale=')) ?? '').split('=')[1] ?? 0)
 const OUT = path.join(os.tmpdir(), 'turead-gallery-smoke.json')
 const logs = []
 
@@ -92,6 +94,22 @@ app.whenReady().then(async () => {
   // —— 样张里的批注长短刻意拉开（1 行 / 2 行 / 6 行截断），若全等高就是回归。
   // 没渲染笔记卡片时本条自动豁免（样张不含该节也不该 FAIL）。
   const notesOk = !stats || stats.noteCards < 2 || (stats.noteHeights?.length ?? 0) >= 3
+  // 压力场景（可选）：`?notes-scale=N` → 读 window.__notesScale（笔记管理瀑布流的规模数字）
+  let scale = null
+  if (SCALE > 0) {
+    try {
+      await win.loadURL(`${URL}?notes-scale=${SCALE}`)
+      const deadline = Date.now() + 120000
+      while (Date.now() < deadline) {
+        scale = await win.webContents.executeJavaScript('window.__notesScale || null')
+        if (scale) break
+        await new Promise((r) => setTimeout(r, 500))
+      }
+    } catch (e) {
+      logs.push({ kind: 'scale-throw', message: String(e) })
+    }
+  }
+
   const verdict = {
     ok: Boolean(
       stats &&
@@ -99,14 +117,20 @@ app.whenReady().then(async () => {
         stats.panels > 0 &&
         stats.textLen > 500 &&
         pageErrors.length === 0 &&
-        notesOk
+        notesOk &&
+        (SCALE <= 0 || scale)
     ),
     url: URL,
     notesOk,
     stats,
+    scale,
     pageErrors
   }
   fs.writeFileSync(OUT, JSON.stringify({ verdict, logs }, null, 2))
-  console.log(`[style-gallery smoke] ${verdict.ok ? 'OK' : 'FAIL'} → ${OUT}`)
+  console.log(
+    `[style-gallery smoke] ${verdict.ok ? 'OK' : 'FAIL'}` +
+      (scale ? ` | scale n=${scale.n} commit=${scale.commitMs}ms settle=${scale.settleMs}ms refresh=${scale.refreshMs}ms cards=${scale.cardCount}` : '') +
+      ` → ${OUT}`
+  )
   app.exit(verdict.ok ? 0 : 1)
 })

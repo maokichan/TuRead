@@ -12,7 +12,7 @@
  * 不覆盖：Electron 专属行为（IPC、窗口、kookit 渲染）—— 那些仍以 App 内自测为准。
  * 用法：`cd client && npm run style` → http://localhost:5199/tools/style-gallery/index.html
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@renderer/styles.css'
 import { FittedTitle } from '@renderer/components/FittedTitle'
@@ -283,6 +283,57 @@ const NOTE_FLOW_ITEMS: NoteFlowItem[] = [
     note: mkNote('f-6', 1, '普遍的、总体的危机', '', 'red', Date.now() - 40 * DAY)
   }
 ]
+
+/**
+ * **压力场景的数据**（`?notes-scale=N`）：确定性伪随机生成 N 条笔记，长短贴近真实分布
+ * （多数是短划线/短批注，少量长批注）。
+ *
+ * 为什么要它：书库域吃过"大规模数据刷新卡死"的亏（`useVirtualRange` 的头注记着"一次全量渲染
+ * 几百个条目会卡顿"）。笔记管理目标规模是**近千条**，而 `NoteFlow` 目前**没有窗口化** ——
+ * 到底要不要窗口化、要哪种，按项目纪律**先量化再选**（`STYLE.md` §5.10 已登记三条候选）。
+ * 本场景只负责**产出数字**，不预设结论。
+ */
+function makeScaleItems(n: number): NoteFlowItem[] {
+  // 线性同余伪随机（种子固定 → 每次量的是同一批数据，数字可比）
+  let seed = 20260916
+  const rnd = (): number => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff
+    return seed / 0x7fffffff
+  }
+  const titles = ['高级运动营养学（第2版）', '机器学习', '年代四部曲', '疯狂的投资']
+  const filler =
+    '糖原储备与运动表现的关系需要结合训练强度与总热量来判断，单看一个数字容易得出错误的结论。'
+  const items: NoteFlowItem[] = []
+  for (let i = 0; i < n; i++) {
+    const r = rnd()
+    // 70% 短、25% 中、5% 长（长的那批会撞上 line-clamp 上限）
+    const bodyLen = r < 0.7 ? 0 : r < 0.95 ? Math.floor(rnd() * 60) : Math.floor(rnd() * 400) + 120
+    const excerptLen = 8 + Math.floor(rnd() * 90)
+    const body = bodyLen > 0 ? filler.repeat(Math.ceil(bodyLen / filler.length)).slice(0, bodyLen) : ''
+    items.push({
+      editionTitle: titles[i % titles.length],
+      note: mkNote(
+        `s-${i}`,
+        i % 98,
+        filler.slice(0, excerptLen),
+        body,
+        (['yellow', 'green', 'blue', 'red'] as NoteColor[])[i % 4],
+        Date.now() - i * 60000
+      )
+    })
+  }
+  return items
+}
+
+/** 压力场景的实测结果（探针读它；`smoke.cjs --scale=N` 用） */
+interface ScaleMetrics {
+  n: number
+  commitMs: number
+  settleMs: number
+  refreshMs: number
+  cardCount: number
+  spanCount: number
+}
 
 /* ------------------------------ 主题切换 ------------------------------ */
 
@@ -741,6 +792,93 @@ function NotesDemo(): React.JSX.Element {
   )
 }
 
+/**
+ * 压力场景（`?notes-scale=N`）—— **只产出数字，不预设结论**。
+ *
+ * 量三件事（都是"刷新"这一类成本的三个面）：
+ * - `commitMs`：首屏从挂载到第一帧（N 张卡片的 React 提交 + 布局）；
+ * - `settleMs`：瀑布流**跨行数收敛**用时（首帧是文本长度估算值，`ResizeObserver` 实测纠正后才稳）；
+ * - `refreshMs`：**整片重渲染**用时（切换文字主次档 = 全部卡片重新渲染，等价于筛选/重读后的刷新）。
+ * 结果挂到 `window.__notesScale`，由 `tools/style-gallery/smoke.cjs --scale=N` 读走。
+ */
+function ScaleProbe({ n }: { n: number }): React.JSX.Element {
+  const [items] = useState<NoteFlowItem[]>(() => makeScaleItems(n))
+  const [focus, setFocus] = useState<NoteTextFocus>('body')
+  const t0 = useRef(performance.now())
+  const m = useRef<Partial<ScaleMetrics>>({})
+
+  /** 等跨行数稳定（连续 250ms 无变化即认为收敛）—— 不碰组件内部，纯从 DOM 观测 */
+  const waitSpansStable = useCallback((cb: () => void) => {
+    let last = ''
+    let since = performance.now()
+    const id = window.setInterval(() => {
+      const sig = [...document.querySelectorAll('.note-flow__item')]
+        .map((e) => (e as HTMLElement).style.gridRowEnd)
+        .join('|')
+      const now = performance.now()
+      if (sig === '' || sig !== last) {
+        last = sig
+        since = now
+        return
+      }
+      if (now - since > 250) {
+        window.clearInterval(id)
+        cb()
+      }
+    }, 50)
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    let stop: (() => void) | undefined
+    const raf = requestAnimationFrame(() => {
+      m.current.commitMs = Math.round(performance.now() - t0.current)
+      stop = waitSpansStable(() => {
+        m.current.settleMs = Math.round(performance.now() - t0.current)
+        // 「刷新」成本：切一次文字主次档 → 全部卡片重渲染
+        const t1 = performance.now()
+        setFocus((f) => (f === 'body' ? 'excerpt' : 'body'))
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            m.current.refreshMs = Math.round(performance.now() - t1)
+            m.current.cardCount = document.querySelectorAll('.note-card').length
+            m.current.spanCount = document.querySelectorAll('.note-flow__item[style]').length
+            ;(window as unknown as { __notesScale?: ScaleMetrics }).__notesScale = {
+              n,
+              commitMs: m.current.commitMs ?? -1,
+              settleMs: m.current.settleMs ?? -1,
+              refreshMs: m.current.refreshMs ?? -1,
+              cardCount: m.current.cardCount ?? -1,
+              spanCount: m.current.spanCount ?? -1
+            }
+          })
+        )
+      })
+    })
+    return () => {
+      cancelAnimationFrame(raf)
+      stop?.()
+    }
+  }, [n, waitSpansStable])
+
+  return (
+    <div className="cjk-ui min-h-screen bg-[var(--bg)] px-8 py-7 text-[var(--text)]">
+      <p className="m-0 mb-4 text-[12px] text-[var(--muted)]">
+        压力场景：{n} 条笔记 · 瀑布流（**无窗口化**）—— 结果在 window.__notesScale
+      </p>
+      <NoteFlow
+        view="masonry"
+        items={items}
+        selectedId={null}
+        textFocus={focus}
+        onSelect={noop}
+        onOpen={noop}
+        onContextMenu={noop}
+      />
+    </div>
+  )
+}
+
 function Panel({
   title,
   path,
@@ -782,4 +920,10 @@ function Specimen({
   )
 }
 
-createRoot(document.getElementById('root') as HTMLElement).render(<Gallery />)
+/** 入口：带 `?notes-scale=N` 时只跑压力场景（测量要干净，不与样张其它节混在一起） */
+function Root(): React.JSX.Element {
+  const scaleN = Number(new URLSearchParams(window.location.search).get('notes-scale') ?? '')
+  return Number.isFinite(scaleN) && scaleN > 0 ? <ScaleProbe n={scaleN} /> : <Gallery />
+}
+
+createRoot(document.getElementById('root') as HTMLElement).render(<Root />)
