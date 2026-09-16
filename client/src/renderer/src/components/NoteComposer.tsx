@@ -56,7 +56,7 @@ export function NoteComposer({
           }
         }}
         className="note-composer__input"
-        rows={3}
+        rows={1}
         aria-label="批註"
       />
     </div>

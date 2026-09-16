@@ -553,6 +553,32 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   }
 
   /**
+   * 书文档内的一点 → **宿主视口坐标**（UI 摆放浮层用）。
+   *
+   * 为什么要**逐层累加**、不能只加一层：文字类的正文 iframe 直接挂在宿主里（一层），
+   * 但 **PDF 的每一页是"顶层 iframe 里再嵌的子 iframe"**（`KOOKIT.md` §5，2026-09-13 实证）——
+   * 只加一层就少算中间那层偏移。故沿 `frameElement` 链一路累加到宿主文档为止。
+   *
+   * ⚠ `clientX/clientY` 是**事件所属文档**的视口坐标，**不是宿主坐标**。
+   *   2026-09-16 用户实测报障："选完内容右键，右键栏出现在非内容部分，还得额外移动鼠标"——
+   *   根因就是这里没换算（旧代码直接把 `me.clientX` 当宿主坐标发出去）。
+   */
+  private hostOffset(fromDoc: Document | null): { x: number; y: number } {
+    let x = 0
+    let y = 0
+    let cur: Document | null = fromDoc
+    while (cur && cur !== document) {
+      const frame = cur.defaultView?.frameElement
+      if (!frame) break
+      const r = frame.getBoundingClientRect()
+      x += r.left
+      y += r.top
+      cur = frame.ownerDocument
+    }
+    return { x, y }
+  }
+
+  /**
    * 正文内右键 → 换算成宿主坐标 + 判定"是否点在已有笔记上"→ 交给 UI 弹菜单。
    *
    * 命中判定走 `event.target.closest('.kookit-note[data-key]')` —— 与我们写进 span 的
@@ -564,9 +590,18 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     const target = me.target as (HTMLElement & { closest?: (s: string) => Element | null }) | null
     const hit = target?.closest?.('.kookit-note[data-key]') ?? null
     const noteId = hit?.getAttribute('data-key') ?? undefined
+    // 事件所属文档 → 宿主偏移（PDF 子页要多层累加，见 hostOffset）
+    const off = this.hostOffset(
+      (me.target as Node | null)?.ownerDocument ?? this.rendition?.getDocument() ?? null
+    )
     // 选区锚点：右键时若仍有选区 → 可用于"新建"；点在笔记上时通常无选区（单击已清空）
     void this.getSelectionAnchor().then((anchor) => {
-      this.emit('context-menu', { x: me.clientX, y: me.clientY, anchor, noteId })
+      this.emit('context-menu', {
+        x: off.x + me.clientX,
+        y: off.y + me.clientY,
+        anchor,
+        noteId
+      })
     })
   }
 
@@ -581,12 +616,12 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     if (!key) return
     let x: number | undefined
     let y: number | undefined
-    const iframe = this.rendition?.getIframe()
-    if (el && iframe && typeof el.getBoundingClientRect === 'function') {
+    if (el && typeof el.getBoundingClientRect === 'function') {
       const r = el.getBoundingClientRect()
-      const f = iframe.getBoundingClientRect()
-      x = f.left + r.left
-      y = f.top + r.bottom
+      // 元素所在文档 → 宿主偏移（元素在 PDF 子页里时，链上不止一层）
+      const off = this.hostOffset(el.ownerDocument ?? this.rendition?.getDocument() ?? null)
+      x = off.x + r.left
+      y = off.y + r.bottom
     }
     this.emit('note-clicked', { noteId: key, x, y })
   }
@@ -607,14 +642,20 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
    * iframe 的 rect 里）。
    * 取不到（iframe/选区已消失）→ 全零矩形：UI 退到默认摆放位置，而不是崩。
    */
+  /**
+   * 选区矩形 → **宿主视口坐标**（浮层摆放用）。
+   * `getBoundingClientRect()` 在书文档里本就是相对该 iframe 视口的，加上**逐层**的 iframe
+   * 偏移（`hostOffset`，PDF 子页不止一层）即得宿主视口坐标。
+   * 取不到（选区已消失）→ 全零矩形：UI 退到默认摆放位置，而不是崩。
+   */
   private selectionRect(): { x: number; y: number; width: number; height: number } {
     const zero = { x: 0, y: 0, width: 0, height: 0 }
-    const iframe = this.rendition?.getIframe()
-    const range = this.rendition?.getDocument()?.getSelection()?.getRangeAt(0)
-    if (!iframe || !range) return zero
+    const doc = this.rendition?.getDocument() ?? null
+    const range = doc?.getSelection()?.getRangeAt(0)
+    if (!doc || !range) return zero
     const r = range.getBoundingClientRect()
-    const f = iframe.getBoundingClientRect()
-    return { x: f.left + r.left, y: f.top + r.top, width: r.width, height: r.height }
+    const off = this.hostOffset(doc)
+    return { x: off.x + r.left, y: off.y + r.top, width: r.width, height: r.height }
   }
 
   /**

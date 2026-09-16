@@ -291,76 +291,27 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
       )
       off()
 
-      // ⑦ 生命周期（阶段 4）：**重开书 + 切章回挂** —— 这是 UI（ReaderFeature）负责的那一半。
-      //    先落库一条 > 关书重开 > 切到锚点所在章 > 高亮应当自己回来。
-      //    分两段判定以便**定位职责**：先看自动路径（UI 的 `rendered` 重挂），再手工补一次
-      //    （引擎能力）—— 二者分离才能说清"是引擎不行还是 UI 没挂上"。
-      const persistedId = crypto.randomUUID()
-      const persisted: Note = { ...note, id: persistedId }
-      await container.store.addNote(persisted)
-      const reopened = await reopenReader()
-      if (!reopened) {
-        // 走到这里 = 重开反复没产生新 iframe → 命中 TODO 登记的间歇性「重开书偶发空白」
-        fact('⚠ 重开书 3 次均未产生新 iframe —— 命中已登记的间歇性「重开书偶发空白」（TODO 旧账）')
-        fact('（本轮跳过 ⑦ 生命周期与 ⑧ 笔记面板断言 —— 它们需要一次成功的重开）')
-      } else {
-        // 重开走的是 lastLocation 恢复，落点未必是锚点所在章 → 显式切过去（同时也是"切章"用例）
-        await container.render.goToChapter(anchor.norm.chapterIndex)
-        await wait(1500)
-        const auto = liveDoc().querySelectorAll(`.kookit-note[data-key="${persistedId}"]`).length
-        fact(`切章后自动重挂 span 数=${auto}（章 ${anchor.norm.chapterIndex}）`)
+      /**
+       * ⑦ 引擎侧回显（**不依赖重开**）。
+       *
+       * ⚠ 2026-09-16 调整：这段以前被塞在"重开成功"分支里 —— 而「重开书偶发空白」命中率不低，
+       *   一命中就整段被跳过，**判据等于不存在**。分段粒度也是判据的一部分：不需要重开的断言
+       *   （引擎回显 / 右键坐标 / 输入框生命周期 / 保存落库 / 笔记面板 / 批注正文 / 点击高亮）
+       *   一律不许挂在重开上；重开只留最后那一条"自动回挂"（⑫）。
+       */
+      await container.render.renderHighlighters([note])
+      await wait(400)
+      const manual = liveDoc().querySelectorAll(`.kookit-note[data-key="${noteId}"]`).length
+      const manualStyle =
+        (liveDoc().querySelector(`.kookit-note[data-key="${noteId}"]`) as HTMLElement | null)
+          ?.getAttribute('style') ?? ''
+      assert(
+        manual > 0,
+        `引擎侧 renderHighlighters 能回显锚点（span 数=${manual}，style=「${manualStyle}」）`
+      )
 
-        // 手工补挂：隔离"引擎能力"与"UI 生命周期"两件事
-        await container.render.renderHighlighters([persisted])
-        await wait(400)
-        const manual = liveDoc().querySelectorAll(`.kookit-note[data-key="${persistedId}"]`).length
-        fact(`手工 renderHighlighters 后 span 数=${manual}`)
-        const style =
-          (liveDoc().querySelector(`.kookit-note[data-key="${persistedId}"]`) as HTMLElement | null)
-            ?.getAttribute('style') ?? ''
-        assert(
-          manual > 0,
-          `引擎侧 renderHighlighters 能回显弱/强锚点（span 数=${manual}，style=「${style}」）`
-        )
-        assert(
-          auto > 0,
-          `UI 生命周期：重开书并切回锚点章后高亮**自动**回挂（span 数=${auto}）`
-        )
-
-        // ⑧ 笔记面板（左挂件「筆記」页签）：应列出本书笔记，且行数与库中一致
-        const tab = Array.from(
-          document.querySelectorAll<HTMLButtonElement>('.left-tabs__tab')
-        ).find((b) => (b.textContent ?? '').includes('筆記'))
-        if (!tab) {
-          // 左挂件默认收起时页签不在 DOM —— 用挂载线左段把它打开再找
-          document.querySelector<HTMLButtonElement>('.reader-rail__zone--toc')?.click()
-          await wait(300)
-        }
-        const tab2 = Array.from(
-          document.querySelectorAll<HTMLButtonElement>('.left-tabs__tab')
-        ).find((b) => (b.textContent ?? '').includes('筆記'))
-        tab2?.click()
-        await wait(300)
-        const rows = document.querySelectorAll('.note-row')
-        assert(
-          rows.length === 1,
-          `筆記頁簽列出本書筆記（行數=${rows.length}，庫中 1 條）`
-        )
-        const firstText = rows[0]?.querySelector('.note-row__text')?.textContent ?? ''
-        assert(
-          firstText.length > 0,
-          `筆記行顯示原文摘錄（「${firstText}」）`
-        )
-      }
-      // 清理：库里删掉这条持久化笔记（探针可重复跑）
-      await container.store.removeNote(persistedId)
-
-      // ⑨-⑪ 需要阅读器活着（前面可能命中"重开偶发空白"）→ 先确保可用，否则跳过而非误报 FAIL
-      let readerOk = Boolean(iframe()?.contentDocument?.body)
-      if (!readerOk) readerOk = await reopenReader()
-      if (!readerOk) {
-        fact('⚠ 阅读器不可用（重开偶发空白）→ 跳过 ⑨⑩⑪（右键 / 批注正文 / 点击高亮）断言')
-      } else {
+      // ⑧~⑪ 都在**阅读器活着**时跑（前面刚用过它）—— 旧写法把这段整体挂在"重开成功"上，
+      //  于是「重开偶发空白」一命中就全被跳过（见 ⑦ 的说明）。
       // ⑨ 右键入口（v0.3.12，用户定的主入口）：正文内 contextmenu → 适配器换算坐标 + 带锚点广播
       const ctxEvents: RenderContextMenuRequest[] = []
       const offCtx = container.render.on('context-menu', (r) => ctxEvents.push(r))
@@ -377,13 +328,138 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
           ctx != null && ctx.anchor !== null,
           '右键事件带选区锚点（菜单据此决定"新建"是否可用）'
         )
+        /**
+         * 坐标必须是**宿主视口坐标**（不是书文档里的 clientX/clientY）。
+         * ⚠ 这条断言**曾经把 bug 当契约**：旧探针写的是 `ctx.x === 240 && ctx.y === 320`
+         *   （= 事件在书文档里的原始坐标），于是"菜单跑到非内容部分"这个真 bug 一路绿灯
+         *   （用户 2026-09-16 实测报障）。现在改成两条硬判据：
+         *   ① 精确等于"书 iframe 在宿主里的偏移 + 事件坐标"；
+         *   ② 语义要求：这个点必须落在**纸**（`#page-area`）里 —— 右键菜单就该出现在正文上。
+         */
+        const f = iframe()?.getBoundingClientRect()
+        const paper = stage()?.getBoundingClientRect()
         assert(
-          ctx != null && ctx.x === 240 && ctx.y === 320,
-          `右键事件带宿主坐标（x=${ctx?.x} y=${ctx?.y}）`
+          ctx != null &&
+            f != null &&
+            Math.abs(ctx.x - (f.left + 240)) <= 1 &&
+            Math.abs(ctx.y - (f.top + 320)) <= 1,
+          `右键事件带**宿主**坐标（预期 x≈${((f?.left ?? 0) + 240).toFixed(1)} y≈${((f?.top ?? 0) + 320).toFixed(1)}，实际 x=${ctx?.x} y=${ctx?.y}）`
+        )
+        assert(
+          ctx != null && paper != null && ctx.x >= paper.left && ctx.x <= paper.right && ctx.y >= paper.top && ctx.y <= paper.bottom,
+          `右键菜单落在纸内（纸 x[${Math.round(paper?.left ?? 0)}..${Math.round(paper?.right ?? 0)}] y[${Math.round(paper?.top ?? 0)}..${Math.round(paper?.bottom ?? 0)}]，实际 x=${ctx?.x} y=${ctx?.y}）`
         )
       } else {
         fact('造选区失败，跳过右键断言')
       }
+
+      /**
+       * ⑨b 输入框的生命周期与几何（用户 2026-09-16 报障两条，都是"应当根本不存在"的：
+       * ① 选区消失后输入框还留着；② 输入框高度/宽度不对）。
+       *
+       * 走**真实 UI 路径**：右键 →（菜单里）「加批註」→ 输入框挂载 → 引擎 `clearSelection()`
+       * （= 选区真的消失）→ 输入框必须跟着消失。几何判据 = 宽 = 纸宽 × 0.9（两侧各 5% 缝）、
+       * 与纸**同轴**（中心一致）、**单行高**（比三轮文本矮得多）。
+       */
+      const composerEl = (): HTMLElement | null => document.querySelector('.note-composer')
+      const menuItem = (label: string): HTMLElement | null =>
+        (Array.from(document.querySelectorAll<HTMLElement>('.context-menu__item')).find(
+          (el) => (el.textContent ?? '').trim() === label
+        ) ?? null)
+      const forComposer = pickSelectableRange(liveDoc())
+      if (forComposer) {
+        selectRange(forComposer.range)
+        liveDoc().body.dispatchEvent(
+          new MouseEvent('contextmenu', { bubbles: true, clientX: 200, clientY: 260 })
+        )
+        await wait(300)
+        const addBtn = menuItem('加批註')
+        assert(addBtn !== null, '右键菜单里有「加批註」（真实 UI 路径的入口）')
+        addBtn?.click()
+        await wait(300)
+        const box = composerEl()
+        assert(box !== null, '点「加批註」后输入框挂载')
+        const paperRect = stage()?.getBoundingClientRect()
+        const boxRect = box?.getBoundingClientRect()
+        if (boxRect && paperRect) {
+          const expectedW = paperRect.width * 0.9
+          assert(
+            Math.abs(boxRect.width - expectedW) <= 2,
+            `输入框宽度 = 纸宽 × 0.9（预期 ${expectedW.toFixed(1)}px，实际 ${boxRect.width.toFixed(1)}px）`
+          )
+          assert(
+            Math.abs(boxRect.left + boxRect.width / 2 - (paperRect.left + paperRect.width / 2)) <= 2,
+            `输入框与纸同轴（纸心 ${(paperRect.left + paperRect.width / 2).toFixed(1)}，框心 ${(boxRect.left + boxRect.width / 2).toFixed(1)}）`
+          )
+          // 单行高：容器 = 1 行（15px×1.55≈23px）+ 6px×2 内边距 + 2px 边 ≈ 37px；三轮文本会到 ~80px
+          assert(
+            boxRect.height <= 48,
+            `输入框是**矮**的（实际 ${boxRect.height.toFixed(1)}px，判据 ≤48px）`
+          )
+        }
+        // 关键：选区消失 → 输入框必须跟着消失（用户报障的那条）
+        container.render.clearSelection()
+        await wait(300)
+        assert(composerEl() === null, '选区消失后输入框随之消失（生命周期跟选区走）')
+      } else {
+        fact('造选区失败，跳过输入框断言')
+      }
+
+      /**
+       * ⑨c 保存路径 + 笔记面板（左挂件「筆記」页签）—— **同样不依赖重开**：
+       * 走真实 UI 路径（右键 →「加批註」→ `Enter` 提交）把笔记造出来，于是它既在库里、
+       * 也在 ReaderFeature 的 state 里。判据 = 面板行数与库里**同口径**（不写死 1，
+       * 免得"库里多一条就假失败"）+ 摘要非空。
+       */
+      const beforeIds = new Set((await container.store.listNotes(edition.id)).map((n) => n.id))
+      const forSave = pickSelectableRange(liveDoc())
+      if (forSave) {
+        selectRange(forSave.range)
+        liveDoc().body.dispatchEvent(
+          new MouseEvent('contextmenu', { bubbles: true, clientX: 200, clientY: 300 })
+        )
+        await wait(300)
+        menuItem('加批註')?.click()
+        await wait(300)
+        const input = document.querySelector<HTMLTextAreaElement>('.note-composer__input')
+        assert(input !== null, '再次呼出输入框（保存路径的起点）')
+        input?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+        await wait(600)
+        assert(composerEl() === null, 'Enter 提交后输入框关闭（保存路径）')
+        const after = (await container.store.listNotes(edition.id)).length
+        assert(after === beforeIds.size + 1, `Enter 提交真的落库（${beforeIds.size} → ${after}）`)
+      } else {
+        fact('造选区失败，跳过保存路径断言')
+      }
+
+      // 笔记面板：行数应与库里一致（左挂件「筆記」页签）
+      const stored = (await container.store.listNotes(edition.id)).length
+      if (
+        !Array.from(document.querySelectorAll<HTMLButtonElement>('.left-tabs__tab')).some((b) =>
+          (b.textContent ?? '').includes('筆記')
+        )
+      ) {
+        // 左挂件收起时页签不在 DOM —— 用挂载线左段把它打开
+        document.querySelector<HTMLButtonElement>('.reader-rail__zone--toc')?.click()
+        await wait(300)
+      }
+      Array.from(document.querySelectorAll<HTMLButtonElement>('.left-tabs__tab'))
+        .find((b) => (b.textContent ?? '').includes('筆記'))
+        ?.click()
+      await wait(300)
+      const rows = document.querySelectorAll('.note-row')
+      fact(
+        `筆記页签现场：页签=${Array.from(document.querySelectorAll('.left-tabs__tab')).map((b) => (b.textContent ?? '').trim()).join('|') || '（无）'} toc行=${document.querySelectorAll('.toc-row').length} 笔记行=${rows.length} 库中=${stored} 空态=「${document.querySelector('.toc-list__empty')?.textContent ?? ''}」`
+      )
+      assert(
+        stored > 0 && rows.length === stored,
+        `筆記頁簽列出本書筆記（行數=${rows.length}，庫中 ${stored} 條）`
+      )
+      const firstText = rows[0]?.querySelector('.note-row__text')?.textContent ?? ''
+      assert(firstText.length > 0, `筆記行顯示原文摘錄（「${firstText}」）`)
+      // 清理：把这条 UI 造出来的笔记从库里删掉（探针要可重复跑；引擎侧的高亮随进程结束）
+      const leftover = (await container.store.listNotes(edition.id)).find((n) => !beforeIds.has(n.id))
+      if (leftover) await container.store.removeNote(leftover.id)
 
       // ⑩ 批注正文真的到达引擎：`isNote = item.notes !== ""` 会另外长出批注图标
       const annId = crypto.randomUUID()
@@ -425,7 +501,26 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
       offClick()
       offCtx()
       await container.render.removeNote(annId)
+
+      /**
+       * ⑫ 重开书 + 切章回挂 —— **唯一**需要重开的一条（UI 的 `rendered` 重挂是 ReaderFeature
+       * 的职责）。⚠ 放最后：这一步要关书重开，而「重开书偶发空白」是已登记的间歇性故障 ——
+       * 命中时**只跳过这一条**（记 fact），不再连累前面那些断言。
+       */
+      const persistedId = crypto.randomUUID()
+      await container.store.addNote({ ...note, id: persistedId })
+      const reopened = await reopenReader()
+      if (!reopened) {
+        fact('⚠ 重开书 3 次均未产生新 iframe —— 命中已登记的间歇性「重开书偶发空白」（TODO 旧账）')
+        fact('（只跳过 ⑫「重开后自动回挂」这一条）')
+      } else {
+        await container.render.goToChapter(anchor.norm.chapterIndex)
+        await wait(1500)
+        const auto = liveDoc().querySelectorAll(`.kookit-note[data-key="${persistedId}"]`).length
+        fact(`重开并切回锚点章后自动重挂 span 数=${auto}（章 ${anchor.norm.chapterIndex}）`)
+        assert(auto > 0, `UI 生命周期：重开书并切回锚点章后高亮**自动**回挂（span 数=${auto}）`)
       }
+      await container.store.removeNote(persistedId)
 
       if (failed) throw new Error('存在 FAIL 断言')
       console.log('[TUREAD-TEST-OK][note] 笔记/划线链路全通（选区→锚点→引擎回显→导航→重锚→删除）')

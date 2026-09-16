@@ -111,17 +111,19 @@ app.whenReady().then(async () => {
   }
 
   /**
-   * ————— 本轮新增的机检（2026-09-16；用户定的三条形态要求）—————
+   * ————— 挂载线几何机检（2026-09-16；用户定的口径 + v1.9 的纠正）—————
    *
-   * 为什么必须机检：这三条都是**几何/对比度**要求，肉眼在样张里"看着差不多"根本不可靠
+   * 为什么必须机检：这些都是**几何**要求，肉眼在样张里"看着差不多"根本不可靠
    * （项目已有教训：`show:false` 的窗口量出的 1.6s 假数字）。故量真实矩形：
-   * ① **两挂件以页面中线镜像** —— 同宽、同高（高度上限同 token）、离中线等距；
-   * ② **目录当前条目居中** —— 位置钉在第 12 章，量「第十二章」那条的中心与滚动容器中心之差；
-   * ③ **批注输入栏** —— 零文字（无可见文字 + 无 placeholder）+ 纯色底 + 1px 描边 + 水平居中。
+   * ① **两挂件关于「挂载线的中心」镜像** —— 线 = 固定的一条（样张里 = 演示框本身），
+   *    两段**等宽**且**各贴线的一端**（等宽 + 贴齐 ⟺ 互为镜像，不需要中心点算式）；
+   * ② **宽度不得由纸宽派生** —— 把 `--read-width` 现场改掉，两挂件宽度必须**一点不变**
+   *    （v1.8 曾把宽度写成纸宽的函数，用户判定"可笑之极"）；
+   * ③ **目录当前条目居中** —— 位置钉在第 12 章，量那一条的中心与滚动容器中心之差。
    */
   let geometry = null
   try {
-    geometry = await win.webContents.executeJavaScript(`(() => {
+    geometry = await win.webContents.executeJavaScript(`(async () => {
       const demos = Array.prototype.slice.call(document.querySelectorAll('[data-rail-demo]'))
       const demo = demos.filter((el) => (el.dataset.railDemo || '').indexOf('鏡像') >= 0)[0]
       if (!demo) return { error: 'mirror demo not found', demoCount: demos.length }
@@ -141,21 +143,36 @@ app.whenReady().then(async () => {
       }
       const rowsRect = rowsBox ? rowsBox.getBoundingClientRect() : null
       const hitRect = hit ? hit.getBoundingClientRect() : null
-      return {
+      const first = {
         demoWidth: Math.round(box.width),
         tocLeftGap: Math.round(center - t.left),
         paramsRightGap: Math.round(p.right - center),
+        tocFlushLeft: Math.round(t.left - box.left),
+        paramsFlushRight: Math.round(box.right - p.right),
         tocWidth: Math.round(t.width),
         paramsWidth: Math.round(p.width),
         tocMaxH: getComputedStyle(toc).maxHeight,
-        paramsMaxH: getComputedStyle(params).maxHeight,
+        paramsMaxH: getComputedStyle(params).maxHeight
+      }
+      // 换一个纸宽再量宽度（判据 ②：宽度不许是纸的函数）
+      demo.style.setProperty('--read-width', '520px')
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      const wide = {
+        tocWidth: Math.round(toc.getBoundingClientRect().width),
+        paramsWidth: Math.round(params.getBoundingClientRect().width)
+      }
+      demo.style.setProperty('--read-width', '260px')
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      return Object.assign(first, {
+        widthAtOtherPaper: wide.tocWidth,
+        widthAtOtherPaper2: wide.paramsWidth,
         rows: rows.length,
         scrollable: rowsBox ? rowsBox.scrollHeight - rowsBox.clientHeight : -1,
         hitFound: !!hit,
         centeredDelta: rowsRect && hitRect
           ? Math.round((hitRect.top + hitRect.height / 2) - (rowsRect.top + rowsRect.height / 2))
           : null
-      }
+      })
     })()`)
   } catch (e) {
     logs.push({ kind: 'geometry-throw', message: String(e) })
@@ -180,12 +197,17 @@ app.whenReady().then(async () => {
       // ② 居中要跟 **documentElement.clientWidth** 比：window.innerWidth 含滚动条
       //    → 页面长到出现滚动条时，fixed 元素（按视口定位）会被判成偏了 5~8px。
       const cw = document.documentElement.clientWidth
+      const rw = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--read-width')) || 760
+      const paperW = Math.min(cw, rw)
       return {
         visibleText: (el.innerText || '').trim().length,
         placeholder: ta ? ta.placeholder : null,
         background: cs.backgroundColor,
         borderTopPx: Number.parseFloat(cs.borderTopWidth),
         centerDelta: Math.round(r.left + r.width / 2 - cw / 2),
+        /* 「填充阅读纸、两侧各留 5% 缝」= 宽 = 纸宽 × 0.9（纸宽 = min(视口, --read-width)） */
+        widthDelta: Math.round(r.width - paperW * 0.9),
+        heightPx: Math.round(r.height),
         dpr: window.devicePixelRatio,
         focusIsTextarea: document.activeElement === ta
       }
@@ -214,17 +236,24 @@ app.whenReady().then(async () => {
     !stats || (stats.noteFlows > 0 && stats.noteCards >= 2 && (stats.noteHeights?.length ?? 0) >= 3)
 
   /**
-   * 本轮两条几何判据（**逐条独立**，便于失败时一眼看出是哪一条破了）：
-   * ① 镜像 = 左右挂件同宽（±1px）且离页面中线等距（±2px）且高度上限同值；
-   * ② 居中 = 目录滚动容器**真的能滚**（否则平凡成立，必须防假通过）+「第十二章」那条落在容器正中（±8px）。
-   * ③ 输入栏 = 零可见文字 + 无 placeholder + 非透明纯色底 + 1px 描边 + 水平居中（±2px）+ 挂载即聚焦。
+   * 几何判据（**逐条独立**，便于失败时一眼看出是哪一条破了）：
+   * ① 镜像 = 两挂件**等宽**且**各贴线的一端**（等宽 + 贴齐 ⟺ 关于线中心互为镜像）+ 高度上限同值；
+   * ② 不随内容 = 把 `--read-width` 改成 520px 后，两挂件宽度**一点不变**（v1.8 的错就在这条）；
+   * ③ 跟随 = 目录滚动容器**真的能滚**（否则平凡成立，必须防假通过）+「第十二章」落在容器正中（±8px）；
+   * ④ 输入栏 = 零可见文字 + 无 placeholder + 非透明纯色底 + 发丝描边 + 居中 ±2px + 挂载即聚焦
+   *    + **宽 = 纸宽 × 0.9**（两侧各 5% 缝）+ **矮**（单行；三轮文本约 90px，这里判 ≤56px）。
    */
   const mirrorOk = Boolean(
     geometry &&
       !geometry.error &&
-      Math.abs((geometry.tocLeftGap ?? 0) - (geometry.paramsRightGap ?? 0)) <= 2 &&
-      Math.abs((geometry.tocWidth ?? 0) - (geometry.paramsWidth ?? 0)) <= 1 &&
+      geometry.tocWidth === geometry.paramsWidth &&
+      Math.abs(geometry.tocFlushLeft ?? 99) <= 1 &&
+      Math.abs(geometry.paramsFlushRight ?? 99) <= 1 &&
+      Math.abs((geometry.tocLeftGap ?? 0) - (geometry.paramsRightGap ?? 0)) <= 1 &&
       geometry.tocMaxH === geometry.paramsMaxH
+  )
+  const widthIndependentOk = Boolean(
+    geometry && !geometry.error && geometry.widthAtOtherPaper === geometry.tocWidth && geometry.widthAtOtherPaper2 === geometry.paramsWidth
   )
   const followedOk = Boolean(
     geometry && !geometry.error && (geometry.scrollable ?? -1) > 40 && geometry.hitFound && Math.abs(geometry.centeredDelta ?? 999) <= 8
@@ -239,6 +268,8 @@ app.whenReady().then(async () => {
       composer.borderTopPx > 0 &&
       composer.borderTopPx <= 1.5 && // 发丝级（125% 缩放下实测 0.8px，见上面的量法说明）
       Math.abs(composer.centerDelta ?? 999) <= 2 &&
+      Math.abs(composer.widthDelta ?? 999) <= 2 &&
+      (composer.heightPx ?? 999) <= 56 &&
       composer.focusIsTextarea === true
   )
   // 压力场景（可选）：`?notes-scale=N` → 读 window.__notesScale（笔记管理瀑布流的规模数字）
@@ -273,14 +304,16 @@ app.whenReady().then(async () => {
         pageErrors.length === 0 &&
         notesOk &&
         mirrorOk &&
+        widthIndependentOk &&
         followedOk &&
         composerOk &&
         (SCALE <= 0 || (scale && rafGapMs <= 60))
     ),
     url: URL,
     notesOk,
-    /** 本轮三条形态判据（2026-09-16）：镜像对称 / 当前条目居中 / 输入栏零文字 */
+    /** 几何判据（2026-09-16）：镜像 / 宽度不随纸变 / 当前条目居中 / 输入栏零文字且贴纸宽 */
     mirrorOk,
+    widthIndependentOk,
     followedOk,
     composerOk,
     stats,
@@ -294,7 +327,7 @@ app.whenReady().then(async () => {
   fs.writeFileSync(OUT, JSON.stringify({ verdict, logs }, null, 2))
   console.log(
     `[style-gallery smoke] ${verdict.ok ? 'OK' : 'FAIL'}` +
-      ` | mirror=${mirrorOk ? 'ok' : 'FAIL'} followed=${followedOk ? 'ok' : 'FAIL'} composer=${composerOk ? 'ok' : 'FAIL'}` +
+      ` | mirror=${mirrorOk ? 'ok' : 'FAIL'} fixedWidth=${widthIndependentOk ? 'ok' : 'FAIL'} followed=${followedOk ? 'ok' : 'FAIL'} composer=${composerOk ? 'ok' : 'FAIL'}` +
       (scale ? ` | scale n=${scale.n} commit=${scale.commitMs}ms settle=${scale.settleMs}ms refresh=${scale.refreshMs}ms cards=${scale.cardCount}/${scale.n} rafGap=${rafGapMs}ms` : '') +
       ` → ${OUT}`
   )

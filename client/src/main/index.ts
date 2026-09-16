@@ -137,10 +137,14 @@ function createWindow(): void {
     // dev-only 无头验证：渲染进程打印 TUREAD-TEST-* 标记后自动退出
     // 上限 180s：文字类书（尤其 MOBI/AZW3）找不到正文时会逐章向前扫描，单次可耗 60~120s，
     // 原来 120s 会把「跑得慢」误报成 FAIL（2026-09-11 实测）。
+    // ⚠ 2026-09-16：`note` 探针**最多连试两轮重开**（每轮 3 次 × 15s）—— 命中「重开书偶发空白」
+    //   时 180s 会被吃满并报「超时未完成」（那不是回归，是跑不完）。故允许用
+    //   `TUREAD_DEV_TIMEOUT_MS` 覆盖（排障用；默认不变，避免把"卡死"也一起放过）。
+    const timeoutMs = Number(process.env['TUREAD_DEV_TIMEOUT_MS'] ?? '') || 180000
     const timeout = setTimeout(() => {
       console.error('[TUREAD-TEST-FAIL] 超时未完成')
       app.exit(2)
-    }, 180000)
+    }, timeoutMs)
     win.webContents.on('console-message', (_e, level, message) => {
       if (message.startsWith('[TUREAD-TEST-')) {
         console.log(message)

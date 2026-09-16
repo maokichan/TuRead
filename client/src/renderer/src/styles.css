@@ -82,17 +82,15 @@
   --page-pad-x: 44px;
   /* 侧边栏图标栏宽度：目录左缘对齐它（= 侧边栏展开时的右缘），AppShell 也读这个值 */
   --sidebar-w: 56px;
-  /* 挂载线两挂件（左 = 目錄/筆記，右 = 閱讀參數）的几何（STYLE.md §5.8；2026-09-16 改为镜像）：
-     **两挂件以页面中线镜像** —— 同宽、同高、离中线等距；纸的两侧留白是唯一的夹取来源。
-     --rail-panel-w = 面板宽度上限（两侧共用同一个值 → "同宽"）；
-     --rail-gap     = 面板外缘到纸边的呼吸位；
-     --rail-panel-h = 两挂件**共用**的高度上限（→ "同高"）；
-     ⚠ 两个算式（--rail-shift / --rail-w-cap）**声明在使用元素上**（见下 .reader-rail 一节），
-        不能声明在 :root —— var(--read-width) 要取最近祖先的值、百分比要在使用处解析，
-        否则样式样张里把纸宽等比缩小后位置会失真。
+  /* 挂载线两挂件（左 = 目錄/筆記，右 = 閱讀參數）的几何（STYLE.md §5.8）：
+     **挂载线自己定义长度** —— 线从侧边栏右缘（`--sidebar-w`）拉到窗口右缘，是**固定的一条**；
+     两个挂件各占线的一端、**同宽**（都用 `--rail-panel-w`）→ 关于**线的中心**天然镜像
+     （等宽 + 两端贴齐 ⟺ 互为镜像，且不需要任何中心点算式）。
+     ⚠ **不许把宽/位置写成 `--read-width` 的函数**（2026-09-16 犯过：那样"线的长度"就变成了
+     相对中间正文的派生量，纸一改宽两段跟着变，用户判定为不可接受）。纸只决定纸自己。
+     --rail-panel-h = 两挂件**共用**的高度上限（→ "同高"）。
      --toc-veil-rest = 静息遮罩不透明度（越大越淡、越"退场"）；--toc-line-top = 挂载线纵向位置。 */
   --rail-panel-w: 280px;
-  --rail-gap: 16px;
   --rail-panel-h: 62vh;
   --toc-line-top: 44px;
   --toc-veil-rest: 0.74;
@@ -667,16 +665,15 @@ textarea {
 /* ---------- 阅读参数（挂载线右段垂挂；2026-09-12 用户定，二次纠正定稿）----------
    原右侧独立召唤条 + 面板内「收起」废除。参数面板挂在横向挂载线**右段下方**，
    开合 = 点挂载线右段，**折叠 = 向上收回线里**；内容统一中间对齐。
-   ⚠ 2026-09-16（用户定）：**与左挂件以页面中线镜像** —— 同宽、同高、离中线等距，
-   宽度/位置全由共用的 --rail-w-cap / --rail-shift 决定（见 .reader-rail 一节的算式）。 */
+   宽度 = `--rail-panel-w`（与左挂件**同值**）→ 与左挂件关于线的中心镜像（见 .reader-rail 一节）。 */
 .reader-controls {
   position: absolute;
   top: calc(var(--toc-line-top, 28px) + 1px);
-  right: max(0px, calc(var(--rail-shift) - var(--rail-w-cap)));
+  right: 0;
   z-index: 16;
   display: flex;
   flex-direction: column;
-  width: var(--rail-w-cap);
+  width: var(--rail-panel-w, 280px);
   max-height: var(--rail-panel-h, 62vh);
   overflow-y: auto;
   scrollbar-width: none;
@@ -755,23 +752,14 @@ textarea {
    一条**横向**挂载线：自目录段起**延伸整个页面宽度**（左段=目录挂载区、中段=纯线跨过正文上方、
    右段=参数挂载区）。目录折叠时点左段 = 展开目录；参数面板挂在右段下方，**折叠 = 向上收回线里**。
    三段 border-top 拼出同一条线；容器不接事件（pointer-events:none），只有两段按钮可点。
-   ⚠ 2026-09-16（用户定）：**左右两挂件以页面中线镜像**（同宽/同高/离中线等距），故线段与面板
-   共用同一组算式：--rail-shift = 面板**外缘**到中线的距离；--rail-w-cap = 面板宽度。
-   ⚠ 算式必须声明在这四个元素上（不能进 :root）：`var(--read-width)` 要取**最近祖先**的值
-   （样式样张把纸宽等比缩小到样张宽度）、`50%` 要在**使用元素**上解析（页面中线）。 */
-
-.reader-rail__zone--toc,
-.reader-rail__zone--params,
-.toc-list,
-.reader-controls {
-  --rail-shift: calc(50% - var(--read-width, 760px) / 2 - var(--rail-gap, 16px));
-  --rail-w-cap: clamp(140px, calc(var(--rail-shift) - var(--rail-gap, 16px)), var(--rail-panel-w, 280px));
-}
-
+   **镜像口径（2026-09-16 用户定，v1.9 纠正）**：线 = 从 `--sidebar-w` 到窗口右缘的**固定一条**；
+   两段**等宽**（`--rail-panel-w`）且**各贴线的一端** → 关于**线的中心**互为镜像。
+   ⚠ 不存在"中心点算式"这种东西：等宽 + 两端贴齐就已经是镜像了；曾经用 `--read-width`
+   反推宽度与位置（`--rail-shift` / `--rail-w-cap`）是**错的**，已删（线的长度不许是纸的函数）。 */
 .reader-rail {
   position: absolute;
   top: var(--toc-line-top, 28px);
-  left: 0;
+  left: var(--sidebar-w, 56px);
   right: 0;
   z-index: 1; /* 桌（z-auto）之上、纸列（z2）之下 —— 线被书页压着 */
   display: flex;
@@ -779,11 +767,6 @@ textarea {
   height: 30px; /* 点击判定高度：线画在顶缘，向下撑出可点带 */
   margin-top: -15px; /* 线的视觉位置仍由 --toc-line-top 决定（判定带上下各让一半） */
   pointer-events: none;
-}
-
-/* 线**不贴窗口左缘**：这一段只占位不留线（= 原"左缘 = --sidebar-w"的形态） */
-.reader-rail__lead {
-  flex: 0 0 var(--sidebar-w, 56px);
 }
 
 .reader-rail__zone,
@@ -803,13 +786,9 @@ textarea {
   cursor: pointer;
 }
 
-/* 线段与面板**同宽同侧**（镜像算式的两处使用）：面板左缘 = max(侧边栏右缘, 中线镜像位) */
+/* 两段**等宽**：左段贴线的左端、右段贴线的右端（镜像的全部条件就是这两条） */
 .reader-rail__zone--toc {
-  width: var(--rail-w-cap);
-  margin-left: max(
-    0px,
-    calc(var(--rail-shift) - var(--rail-w-cap) - var(--sidebar-w, 56px))
-  );
+  width: var(--rail-panel-w, 280px);
 }
 
 .reader-rail__span {
@@ -818,8 +797,7 @@ textarea {
 }
 
 .reader-rail__zone--params {
-  width: var(--rail-w-cap);
-  margin-right: max(0px, calc(var(--rail-shift) - var(--rail-w-cap)));
+  width: var(--rail-panel-w, 280px);
 }
 
 .reader-rail__zone:hover {
@@ -830,8 +808,8 @@ textarea {
 .toc-list {
   position: absolute;
   top: calc(var(--toc-line-top, 28px) + 1px);
-  left: max(var(--sidebar-w, 56px), calc(var(--rail-shift) - var(--rail-w-cap)));
-  width: var(--rail-w-cap);
+  left: var(--sidebar-w, 56px);
+  width: var(--rail-panel-w, 280px);
   z-index: 15;
   display: flex;
   flex-direction: column;
@@ -1002,17 +980,20 @@ textarea {
   border: 1px solid var(--border);
 }
 
-/* ── 批注输入（2026-09-14 立；**2026-09-16 用户改形态**）────────────────
+/* ── 批注输入（2026-09-14 立；**2026-09-16 用户改形态**，同日 v1.9 再改宽高）────────────────
    用户 2026-09-16 定："默认在底部中心对齐，作为一个**纯色带边框的容器**，**不带任何提示词**，
-   作为焦点存在" —— 从"挂在右键坐标上的线 + 向下生长"改为**屏幕底部居中的纯输入区**：
-   纯色底（`--panel-2`）+ 1px 描边、**零文字**（无标题、无 placeholder、无按钮）。
-   操作逻辑不变（Enter 提交 / Shift+Enter 换行 / Esc 取消，挂载即聚焦）→ 由 NoteComposer 保证。
+   作为焦点存在"；再定："**高度更低**，但是需要**填充阅读纸的部分**，两侧尽量只留相对 **5%** 的缝隙"。
+   落地：屏幕**底部居中**、纯色底 `--panel-2` + 1px 描边、**零文字**（无标题/placeholder/按钮）、
+   **单行高**（`rows=1` + 6px 内边距）；宽度 = **纸宽的 90%**：
+   `min(100%, --read-width) * 0.9` —— `100%` 对 fixed 元素解析为**视口宽（不含滚动条）**，
+   与纸的容器宽度同源 → 与纸左右对齐、各留 5%（写 `100vw` 会把滚动条算进去，偏半个滚动条）。
+   操作逻辑不变（Enter 提交 / Shift+Enter 换行 / Esc 取消，挂载即聚焦）。
    直角（挂载线语汇，§3.3 的圆角规则不适用于本形态）。焦点态由容器自身给强调边。 */
 .note-composer {
-  width: min(560px, calc(100vw - 2 * var(--rail-gap, 16px)));
+  width: calc(min(100%, var(--read-width, 760px)) * 0.9);
   background: var(--panel-2);
   border: 1px solid var(--border);
-  padding: 8px;
+  padding: 6px;
 }
 
 .note-composer:focus-within {
@@ -1023,7 +1004,7 @@ textarea {
 .note-composer__input {
   display: block;
   width: 100%;
-  padding: 6px 8px;
+  padding: 4px 8px;
   border: 0;
   background: none;
   color: var(--text);

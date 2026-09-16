@@ -23,6 +23,11 @@ export interface NotesPanelProps {
   onToggle: () => void
   /** 当前阅读位置（章号）：**当前条目自动滚到容器正中**（2026-09-16 用户定，与目录同一判据） */
   activeChapter?: number
+  /**
+   * 「看这条笔记」请求（点正文高亮 → 这里定位到它；2026-09-16 用户纠正单击语义）：
+   * 有它时**优先**定位到这一条（只读，不改内容）；`tick` 变化即视为一次新请求。
+   */
+  focusNote?: { id: string; tick: number } | null
 }
 
 /** 摘录截断长度：够认出是哪一段即可（完整原文在笔记本体里） */
@@ -34,24 +39,35 @@ export function NotesPanel({
   onJump,
   onRemove,
   onToggle,
-  activeChapter = 0
+  activeChapter = 0,
+  focusNote = null
 }: NotesPanelProps): React.JSX.Element {
   const rowsRef = useRef<HTMLDivElement | null>(null)
   /** 笔记列表换了（换书 / 新建 / 删除）→ 视为首次落位（瞬时定位，不做平滑动画） */
   const lastNotesRef = useRef<Note[] | null>(null)
+  /** 已处理过的「看这条」请求 tick（同一条再点一次时 tick 会变） */
+  const lastFocusTickRef = useRef(0)
 
-  /** 跟随当前位置（判据与目录同源：`readerFollow.ts`；章级粒度与退化路径见该文件注释） */
+  /**
+   * 落点（判据与目录同源：`readerFollow.ts`；章级粒度与退化路径见该文件注释）：
+   * ① 有**新的**「看这条」请求 → 定位到它（瞬时，明确意图）；
+   * ② 否则跟随当前阅读位置（跨章平滑、换书瞬时）。
+   */
   useEffect(() => {
     const box = rowsRef.current
     if (!box) return
-    const idx = activeNoteIndex(notes, activeChapter)
+    const requested = focusNote && focusNote.tick !== lastFocusTickRef.current ? focusNote : null
+    const idx = requested
+      ? notes.findIndex((n) => n.id === requested.id)
+      : activeNoteIndex(notes, activeChapter)
     if (idx < 0) return
     const el = box.querySelectorAll<HTMLElement>('.note-row')[idx]
     if (!el) return
-    const first = lastNotesRef.current !== notes
+    const listChanged = lastNotesRef.current !== notes
     lastNotesRef.current = notes
-    centerInScrollBox(box, el, !first)
-  }, [notes, activeChapter])
+    if (requested) lastFocusTickRef.current = requested.tick
+    centerInScrollBox(box, el, !requested && !listChanged)
+  }, [notes, activeChapter, focusNote])
 
   return (
     <div className="toc-list">

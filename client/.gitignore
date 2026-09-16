@@ -14,3 +14,7 @@ electron.vite.config.[0-9]*.mjs
 
 # 样式样张无头核验（tools/style-gallery/smoke.cjs）落下的 Electron userData
 tools/style-gallery/.smoke-user-data/
+
+# 无头探针的独立 userData（`TUREAD_USER_DATA=<此目录>`，见 docs/STATUS.md §6）——
+# 会以未跟踪目录出现在仓库里，而且会被 vite 的 watcher 当成页面刷新源（纯噪音）
+.probe-user-data*/

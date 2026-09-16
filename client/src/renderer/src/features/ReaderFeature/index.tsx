@@ -103,12 +103,28 @@ export function ReaderFeature({
    * 正文内容（`body`）**由这里持有**（受控），这样 `reader.composerCommit` 等键盘意图
    * 能够提交"当前输入内容"—— 状态若关在组件里，意图层就够不着（用户要的键盘链条会断）。
    * ⚠ 2026-09-16：面板形态改为**屏幕底部居中**（用户定），故不再持有右键坐标 `x/y`。
+   *
+   * **生命周期：输入框绑在它的对象上**（2026-09-16 用户两次点名，规则只有这一条）：
+   * - 对象 = **选区**（`fromSelection`：右键「加批註」/键盘 `annotateSelection`）或**笔记**（`noteId`）；
+   * - `selection-changed(null)`（显式 `clearSelection`，或书文档手势后已无选区）→ 关掉选区型；
+   * - **它的笔记从库里消失（含在左侧笔记栏删掉那一条）→ 关掉**（见下面的 noteId 效果）；
+   * - 关书 / 换书 / 右键别处 / Enter 保存 / Esc → 一律关闭；
+   * - ⚠ `selection-changed(null)` 的来源已核实：**输入区拿焦点不会产生 null**（焦点移动不触发
+   *   书文档的手势事件），故不需要焦点守卫 —— 直接关就是用户要的语义。
    */
   const [composer, setComposer] = useState<{
     anchor: TextAnchor
     noteId?: string
     body: string
+    fromSelection?: boolean
   } | null>(null)
+  /**
+   * 「看这条笔记」请求（2026-09-16 用户纠正单击语义时引入）：点正文高亮 = **看内容**，不是改内容
+   * → 左侧切到「筆記」并把这一条**定位到正中**（只读呈现）。`tick` 让"同一条再点一次"也重新定位
+   * （与 `readerTarget` 同一手法）。
+   */
+  const [focusNote, setFocusNote] = useState<{ id: string; tick: number } | null>(null)
+  const focusNoteTick = useRef(0)
   /**
    * 当前阅读位置（章号，= `BookLocation.chapterDocIndex`）—— 目录/笔记列表据此把"当前条目"
    * 滚到容器正中（2026-09-16 用户定）。只在**换了章**时 setState，滚动过程中的重复事件不重渲染。
@@ -294,10 +310,14 @@ export function ReaderFeature({
 
   // 正文选区变化（适配器在书文档上观测）。色板已由右键菜单取代（用户 2026-09-14 定：
   // "新建无论是高亮还是批注，最好的方法还是右键"），但**仍要跟踪选区**：
-  // ① 它决定右键菜单里"新建"两项是否可用；② 键盘驱动的流程（预留）没有鼠标坐标，靠它定位。
+  // ① 它决定右键菜单里"新建"两项是否可用；② **输入框的生命周期挂在它上面**（见 composer 注释）；
+  // ③ 键盘驱动的流程（预留）没有鼠标坐标，靠它定位。
   useEffect(() => {
     return container.render.on('selection-changed', (sel) => {
       setSelection(sel)
+      // 选区消失 → 关闭"由选区召唤"的输入框（用户 2026-09-16 报障：输入框没跟着选区走）。
+      // 只关 fromSelection 那种：编辑既有笔记的输入框，其对象是**那条笔记**而不是选区。
+      if (sel === null) setComposer((c) => (c && c.fromSelection ? null : c))
     })
   }, [container])
 
@@ -309,16 +329,31 @@ export function ReaderFeature({
     })
   }, [container])
 
-  // 单击已有高亮 → 直接开它的批注（kookit handleNoteClick 回调，见 CONTRACTS §4.1）
+  // 单击已有高亮 → **不是**开编辑器，而是"看它"（用户 2026-09-16 纠正："我显然是希望看详细内容
+  // 或者其他原因，而不是为了更改"）。落地 = 左侧切到「筆記」并按 `focusNote` 定位到这一条；
+  // 要**改**仍走右键菜单的「編輯批註」。
   useEffect(() => {
     return container.render.on('note-clicked', ({ noteId }) => {
       const target = notesRef.current.find((n) => n.id === noteId)
       if (!target) return
       setMenu(null)
-      // 面板在底部居中（2026-09-16 用户定），不再需要命中坐标
-      setComposer({ anchor: target.anchor, noteId, body: target.body })
+      setComposer(null)
+      setLeftPanel('notes')
+      setTocOpen(true)
+      focusNoteTick.current += 1
+      setFocusNote({ id: noteId, tick: focusNoteTick.current })
     })
   }, [container])
+
+  /**
+   * 输入框的**对象**没了，它自己就该收（用户 2026-09-16 报障：在左侧笔记栏把那一条删掉之后，
+   * 输入框还留在屏幕上）。不依赖"谁去关它"——`notes` 是唯一权威。
+   */
+  useEffect(() => {
+    if (!composer?.noteId) return
+    if (notes.some((n) => n.id === composer.noteId)) return
+    setComposer(null)
+  }, [notes, composer])
 
   /**
    * 新建一条标记（高亮或批注）。
@@ -415,6 +450,9 @@ export function ReaderFeature({
 
   // 打开/关闭受 readerBookId 驱动（host.openReader / host.closeReader）
   useEffect(() => {
+    // 换书 / 关书：两个瞬时浮层都不该留着（它们属于上一本书、上一次交互）
+    setComposer(null)
+    setMenu(null)
     if (!readerBookId) {
       setBook(null)
       setToc([])
@@ -630,7 +668,7 @@ export function ReaderFeature({
       'reader.annotateSelection': () => {
         if (!selection) return
         setMenu(null)
-        setComposer({ anchor: selection.anchor, body: '' })
+        setComposer({ anchor: selection.anchor, body: '', fromSelection: true })
       },
       'reader.composerCommit': () => {
         // 提交**当前输入内容** —— 所以面板正文 state 由本组件持有（见 composer 注释）
@@ -679,7 +717,8 @@ export function ReaderFeature({
       })
       items.push({
         label: '加批註',
-        onClick: () => setComposer({ anchor, body: '' })
+        // fromSelection：这条输入框是"这次选区"的产物 → 选区一没就跟着关（见 composer 注释）
+        onClick: () => setComposer({ anchor, body: '', fromSelection: true })
       })
     }
     if (req.noteId) {
@@ -750,6 +789,7 @@ export function ReaderFeature({
           onNoteJump={(n) => void jumpNote(n)}
           onNoteRemove={(n) => void removeNote(n)}
           activeChapter={currentChapter}
+          focusNote={focusNote}
           controlsOpen={controlsOpen}
           onControlsToggle={() => setControlsOpen((v) => !v)}
           params={params}
