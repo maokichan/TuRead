@@ -138,7 +138,11 @@ export function NoteFlow({
         const id = item.note.id
         const est = toSpan(estimateHeight(item.note))
         return (
-          <div key={id} style={masonry ? { gridRowEnd: `span ${spans[id] ?? est}` } : undefined}>
+          <div
+            key={id}
+            className="note-flow__item"
+            style={masonry ? { gridRowEnd: `span ${spans[id] ?? est}` } : undefined}
+          >
             {/* 测量层：自然高度（不参与跨行计算），网格项的高度由上面的 span 决定 */}
             <div ref={masonry ? getRef(id, est) : undefined} className={masonry ? '' : 'h-full'}>
               <NoteCard

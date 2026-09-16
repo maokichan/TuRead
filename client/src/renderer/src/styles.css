@@ -94,6 +94,14 @@
      （`repeat(auto-fill, minmax(--note-col-w, 1fr))`，与书库网格 auto-fill 同口径）。
      ⚠ NoteFlow.tsx 的首帧高度估算也用这个宽度做基数（改这里要同步那里的 CJK_PER_LINE 口径）。 */
   --note-col-w: 240px;
+  /* 笔记管理的**边界排查开关**（用户 2026-09-16："标注其容器边界，方便以后视觉效果发现问题时
+     直接改出边缘来"）。两个盒子的边都是**常驻 1px 边框**，默认透明 → 改这两个值即可显形：
+     ① `--note-card-edge` = 卡片盒（含 8px 内边距）；
+     ② `--note-flow-edge` = 网格项盒（瀑布流里"跨行盒"的真实高度 —— 排查装箱问题时看它）。
+     也可给任意祖先挂 `.note-edges`（等价于同时打开两个开关，样式样张里有实时切换按钮）。
+     ⚠ 因为全局 `box-sizing: border-box`，**显形不会引起重排** —— "显示边界"不会变成新变量。 */
+  --note-card-edge: transparent;
+  --note-flow-edge: transparent;
 
   --scrollbar: #2f3438;
   /* 视图切换动画的"深色块 + 浅色字"。
@@ -1143,10 +1151,25 @@ textarea {
   align-items: start;
 }
 
+/* 网格项（瀑布流的"跨行盒"）—— 与卡片盒是**两个**盒子：跨行数决定的是它，卡片只是住在里面。
+   排查装箱问题时把它显形（`--note-flow-edge`）就能看出"内容高度 / 精确到的 8px / 余量"三者关系。 */
+.note-flow__item {
+  border: 1px solid var(--note-flow-edge, transparent);
+}
+
+/* 边界排查开关：挂到 .note-flow 的任意祖先上即可同时看见两个盒子（默认透明）。
+   ⚠ 因为全局 `box-sizing: border-box`，显形**不会引起重排**。 */
+.note-edges {
+  --note-card-edge: var(--border);
+  --note-flow-edge: var(--border);
+}
+
 .note-card {
   position: relative;
   padding: 8px;
-  border: 1px solid transparent; /* 常驻占位：选中只换颜色，不改盒模型 */
+  /* 常驻占位：① 选中只换颜色（`--accent-ring`），不改盒模型；② 也是"边界排查"的显形点
+     （`--note-card-edge`，见 :root 的开关说明）—— 两者共用这一条边框，不额外加壳。 */
+  border: 1px solid var(--note-card-edge, transparent);
   cursor: pointer;
   text-align: left;
 }

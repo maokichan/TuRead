@@ -695,6 +695,8 @@ function NotesDemo(): React.JSX.Element {
   const [view, setView] = useState<NoteView>('masonry')
   const [focus, setFocus] = useState<NoteTextFocus>('body')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  /** 边界排查开关（用户 2026-09-16 要的"随时改出边缘来"）：见 styles.css 的 `.note-edges` */
+  const [edges, setEdges] = useState(false)
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-7">
@@ -712,19 +714,29 @@ function NotesDemo(): React.JSX.Element {
         >
           {focus === 'body' ? '批註為主' : '摘錄為主'}
         </button>
+        <button
+          className="text-action text-action--lg"
+          title="显示卡片盒 / 网格跨行盒的边界（排查用，不引起重排）"
+          onClick={() => setEdges((v) => !v)}
+        >
+          {edges ? '隱藏邊界' : '顯示邊界'}
+        </button>
         <span className="text-[11px] text-[var(--muted)]">
-          ← 两个循环按钮（视图切换带三角负片）。单击卡片 = 选中，双击 = 跳转（本页不跳）
+          ← 三个循环按钮（视图切换带三角负片）。单击卡片 = 选中，双击 = 跳转（本页不跳）
         </span>
       </div>
-      <NoteFlow
-        view={view}
-        items={NOTE_FLOW_ITEMS}
-        selectedId={selectedId}
-        textFocus={focus}
-        onSelect={(it) => setSelectedId(it.note.id)}
-        onOpen={noop}
-        onContextMenu={noop}
-      />
+      {/* 边界开关挂在祖先上即可（两个 token 是继承的 CSS 变量）—— 见 styles.css 的 .note-edges */}
+      <div className={edges ? 'note-edges' : ''}>
+        <NoteFlow
+          view={view}
+          items={NOTE_FLOW_ITEMS}
+          selectedId={selectedId}
+          textFocus={focus}
+          onSelect={(it) => setSelectedId(it.note.id)}
+          onOpen={noop}
+          onContextMenu={noop}
+        />
+      </div>
     </div>
   )
 }

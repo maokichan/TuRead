@@ -10,11 +10,13 @@
 import type {
   BookContainer,
   BookFingerprint,
+  BookFormat,
   EditionRecord,
   Holding,
   LibraryEntry,
   LibraryItem,
   Note,
+  NoteColor,
   ReadingSession,
   ReadingState,
   WorkIdentity
@@ -47,6 +49,46 @@ export interface LibraryLevelQuery {
    * `true` 是给将来的"可见/标记/清理"界面留的开关（DATA_MODEL §6.4 F3，未定）。
    */
   includeMissing?: boolean
+}
+
+/**
+ * 笔记管理的查询口径（**v0.4.2**；形态 = `FEATURES.md` §12，视觉 = `STYLE.md` §5.10）。
+ * 读模型性质的类型，故与 `LibraryLevelQuery` 同处端口层（不塞进领域层 —— 里面的
+ * `editionTitle` 是**展示投影**，不是领域概念）。
+ */
+export interface NoteQuery {
+  /** 库作用域：缺省 / null = **全部库**；给值 = 该库**收录**范围内的 edition（UI 默认传当前库）。
+   *  实现 = `holdings` 的 EXISTS 子查询（笔记挂 edition、**不挂库** —— 所以这是**查询口径**）。 */
+  libraryId?: string | null
+  editionId?: string | null
+  color?: NoteColor | null
+  /**
+   * 有无批注正文（`body` 非空）：`true` = 只看批注 / `false` = 只看划线 / 缺省 = 不限。
+   * ⚠ **这是「划线 / 批注」的判据，不是 `kind`** —— 二者在实现里可互相矛盾
+   * （`highlight` 可能带 body、`note` 可能 body 为空），详见 `domain/types.ts` 的 `NoteFilter` 注释。
+   */
+  hasBody?: boolean | null
+  /**
+   * 关键词：对 `excerpt`（摘录）+ `body`（批注）做**子串**匹配。
+   * v1 = `LIKE '%q%'`（2000 条中文笔记实测 0.32 ms）；**将来换 FTS5 时签名与语义都不变**
+   * （换装条件与两个静默坑见 `DATA_MODEL.md` §5 问题 6）。
+   */
+  text?: string | null
+  /** 排序：`updated`（默认，最近改动在前）/ `created` / `edition`（书内阅读序） */
+  orderBy?: 'updated' | 'created' | 'edition'
+  /** 分页（近千条列表的窗口化取数）；缺省 = 全量 */
+  limit?: number
+  offset?: number
+}
+
+/** 跨书列表项 = 笔记本体 + **展示投影**（列表要显示书名，而笔记自己不存书名）。
+ *  ⚠ 不含章标题：v1 只显示「書名 · 節 N」（章标题冗余存列**已定不做**，见 `DATA_MODEL.md` §5 问题 6）。 */
+export interface NoteListItem {
+  note: Note
+  editionTitle: string
+  editionFormat: BookFormat
+  /** 该 edition 被哪些库收录（全局视角下标注来源；按库 sort 排序） */
+  libraryNames: string[]
 }
 
 export interface ILibraryStore {
@@ -166,4 +208,13 @@ export interface ILibraryStore {
   updateNote(id: string, patch: NotePatch): Promise<void>
   /** 删除一条笔记（按 edition 删除内容时由外键级联，不必逐条调本方法） */
   removeNote(id: string): Promise<void>
+
+  // ————— 笔记读模型（**跨书管理**，v0.4.2；笔记管理工具的数据口）—————
+  /**
+   * 跨书列笔记：库作用域 / 按书 / 按色 / 有无批注 / 关键词子串。
+   * 排序默认 `updated` 倒序；`limit`/`offset` 供近千条列表分页取数。
+   */
+  listAllNotes(query?: NoteQuery): Promise<NoteListItem[]>
+  /** 与 `listAllNotes` **同口径**的计数（筛选器要显示"多少条"，不必取回全量再数） */
+  countAllNotes(query?: NoteQuery): Promise<number>
 }

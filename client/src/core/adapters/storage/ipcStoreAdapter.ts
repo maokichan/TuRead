@@ -9,7 +9,9 @@ import type {
   ILibraryStore,
   LibraryListResult,
   LibraryLevelQuery,
-  NotePatch
+  NoteListItem,
+  NotePatch,
+  NoteQuery
 } from '@core/ports/store'
 import type {
   BookContainer,
@@ -222,5 +224,15 @@ export class IpcStoreAdapter implements ILibraryStore {
 
   async removeNote(id: string): Promise<void> {
     await this.bridge.invoke(IPC.storeRemoveNote, id)
+  }
+
+  // ————— 笔记读模型（跨书管理，v0.4.2）—————
+
+  async listAllNotes(query?: NoteQuery): Promise<NoteListItem[]> {
+    return (await this.bridge.invoke(IPC.storeListAllNotes, query ?? {})) as NoteListItem[]
+  }
+
+  async countAllNotes(query?: NoteQuery): Promise<number> {
+    return (await this.bridge.invoke(IPC.storeCountAllNotes, query ?? {})) as number
   }
 }

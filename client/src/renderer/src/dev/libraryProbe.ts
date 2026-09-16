@@ -279,6 +279,68 @@ export function runLibraryProbe(container: ServiceContainer, host: FeatureHost):
       assert(r1b.color === 'red', '颜色可更新（存语义名，非 hex）')
       assert(r1b.updatedAt > beforeUpdate, 'updatedAt 由存储层自动盖戳')
 
+      // ⑥e 读模型（跨书管理，v0.4.2）：body 判据 / 子串 / 通配符转义 / 同口径计数 / 库作用域 / 分页
+      // ⚠ 关键一条：n1 的 `kind` 仍是 'highlight'，但它**有 body** —— 用户 2026-09-16 定：
+      //   "画完线后补 body，那这就是批注，很显然"。所以它必须被算作**批注**：
+      //   判据是 `body` 是否为空，**不是 `kind`**。
+      const allCross = await container.store.listAllNotes({ editionId: noteEditionId })
+      assert(allCross.length === 3, `跨书读模型取到 3 条（实际 ${allCross.length}）`)
+      assert(allCross[0].note.id === n1.id, '默认排序 = updated 倒序（刚改过的那条在最前）')
+      assert(
+        allCross[0].editionTitle !== '' && String(allCross[0].editionFormat).length > 0,
+        '展示投影齐备（书名 + 格式）'
+      )
+      const annotated = await container.store.listAllNotes({ editionId: noteEditionId, hasBody: true })
+      assert(
+        annotated.length === 1 &&
+          annotated[0].note.id === n1.id &&
+          annotated[0].note.kind === 'highlight',
+        `「批注」判据是 body 而非 kind（kind=highlight 但补过 body 的必须算批注；实际 ${annotated.length} 条）`
+      )
+      const plainCount = await container.store.countAllNotes({
+        editionId: noteEditionId,
+        hasBody: false
+      })
+      assert(plainCount === 2, `「划线」= body 为空（实际 ${plainCount} 条）`)
+      const byExcerpt = await container.store.listAllNotes({ editionId: noteEditionId, text: '第三章' })
+      assert(byExcerpt.length === 1 && byExcerpt[0].note.id === n2.id, '关键词命中摘录')
+      const byBody = await container.store.listAllNotes({ editionId: noteEditionId, text: '批注' })
+      assert(byBody.length === 1 && byBody[0].note.id === n1.id, '关键词也命中批注正文（不只摘录）')
+      const wildcard = await container.store.countAllNotes({ editionId: noteEditionId, text: '%' })
+      assert(wildcard === 0, `LIKE 通配符已转义（搜 "%" 不该匹配一切；实际 ${wildcard} 条）`)
+      assert(
+        (await container.store.countAllNotes({ editionId: noteEditionId })) === allCross.length,
+        '计数与列表同口径一致'
+      )
+      const page1 = await container.store.listAllNotes({ editionId: noteEditionId, limit: 2 })
+      const page2 = await container.store.listAllNotes({
+        editionId: noteEditionId,
+        limit: 2,
+        offset: 2
+      })
+      assert(
+        page1.length === 2 && page2.length === 1,
+        `分页 limit=2 → 2 + 1（实际 ${page1.length} + ${page2.length}）`
+      )
+      // 库作用域：笔记挂 edition、**不挂库** → "某库的笔记"是**查询口径**（经 holdings 的 EXISTS）
+      assert(
+        (await container.store.countAllNotes({ libraryId: 'no-such-library' })) === 0,
+        '不存在的库作用域 → 0 条（EXISTS 过滤生效）'
+      )
+      const libNames = allCross[0].libraryNames
+      assert(libNames.length > 0, `展示投影含收录库名（实际 ${libNames.join('/')}）`)
+      const libsNow = await container.store.listLibraries()
+      const ownerLib = libsNow.libraries.find((l) => l.name === libNames[0])!
+      const scoped = await container.store.countAllNotes({
+        libraryId: ownerLib.id,
+        editionId: noteEditionId
+      })
+      assert(scoped === 3, `按"收录了该 edition 的库"筛选 = 3 条（库=${ownerLib.name}，实际 ${scoped}）`)
+      ok(
+        `笔记读模型 OK：body 判据（kind=highlight 也按批注算）/ 子串（含批注正文）/ 通配符转义 / ` +
+          `同口径计数 / 分页 / 库作用域（经 holdings，收录库=${libNames.join('/')}）`
+      )
+
       // ⑥c 重锚：chapter_index/anchor_key/anchor_hint + excerpt **必须一起**改（投影不脱节）
       await container.store.updateNote(n1.id, {
         anchor: {

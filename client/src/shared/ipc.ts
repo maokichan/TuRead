@@ -58,6 +58,9 @@ export const IPC = {
   storeAddNote: 'store:add-note',
   storeUpdateNote: 'store:update-note',
   storeRemoveNote: 'store:remove-note',
+  // 笔记**读模型**（v0.4.2，2026-09-16）：跨书管理用（列表 + 同口径计数）
+  storeListAllNotes: 'store:list-all-notes',
+  storeCountAllNotes: 'store:count-all-notes',
   // 在系统文件管理器中显示文件（库管理弹窗：「所在文件夾」）
   fsShowInFolder: 'fs:show-in-folder',
   // 列目录子目录（虚拟映射模式的层级浏览）

@@ -35,7 +35,13 @@ import type {
   ReadingState,
   WorkIdentity
 } from '@core/domain/types'
-import type { LibraryLevelQuery, LibraryListResult, NotePatch } from '@core/ports/store'
+import type {
+  LibraryLevelQuery,
+  LibraryListResult,
+  NoteListItem,
+  NotePatch,
+  NoteQuery
+} from '@core/ports/store'
 import { normalizeLocation } from '@core/domain/location'
 import { anchorToColumns, columnsToAnchor } from '@core/domain/anchor'
 import { runMigrations } from './migrate'
@@ -842,6 +848,79 @@ export class SqliteStore {
     this.db.prepare('DELETE FROM notes WHERE id = ?').run(id)
   }
 
+  // ————— 笔记读模型（跨书管理，v0.4.2）—————
+
+  /**
+   * 跨书列笔记（笔记管理工具的数据口）。
+   *
+   * 三处口径写死在这里（都对应契约，别在外部再解释一遍）：
+   * ① **库作用域经 `holdings` 的 EXISTS**：笔记挂 edition、**不挂库** → "某库的笔记"是**查询口径**；
+   *    用 EXISTS 而不是 JOIN，是为了不因同一 edition 被多库收录而**重复出行**。
+   * ② **「划线 / 批注」按 `body` 是否为空判**，**不按 `kind`**（二者可矛盾，见 `NoteFilter` 注释）。
+   * ③ **关键词 = 子串**（`LIKE '%q%'`，`excerpt` + `body` 两列）—— 中文语义正确且千条级足够快；
+   *    换 FTS5 时**只换这里**，端口签名与调用方不动（换装条件见 DATA_MODEL §5 问题 6）。
+   */
+  async listAllNotes(query: NoteQuery = {}): Promise<NoteListItem[]> {
+    const { where, args } = buildNoteFilter(query)
+    const order = NOTE_ORDER[query.orderBy ?? 'updated']
+    const limit = Number.isFinite(query.limit) ? Math.max(0, query.limit as number) : null
+    const offset = Number.isFinite(query.offset) ? Math.max(0, query.offset as number) : 0
+    const rows = this.db
+      .prepare(
+        `SELECT n.*, e.title AS edition_title, e.format AS edition_format
+           FROM notes n
+           JOIN editions e ON e.id = n.edition_id
+          WHERE ${where}
+          ORDER BY ${order}
+          ${limit === null ? '' : 'LIMIT ? OFFSET ?'}`
+      )
+      .all(...args, ...(limit === null ? [] : [limit, offset])) as Array<Record<string, unknown>>
+
+    // 展示投影：该 edition 被哪些库收录（库表与收录表都很小，一次拉全再按需取，不做 N+1）
+    const libsByEdition = this.libraryNamesByEdition()
+    return rows.map((r) => {
+      const editionId = r.edition_id as string
+      return {
+        note: fromNoteRow(r),
+        editionTitle: (r.edition_title as string) || '未命名',
+        editionFormat: r.edition_format as NoteListItem['editionFormat'],
+        libraryNames: libsByEdition.get(editionId) ?? []
+      }
+    })
+  }
+
+  /** 与 `listAllNotes` **同口径**的计数（筛选器显示"多少条"，不必取回全量再数） */
+  async countAllNotes(query: NoteQuery = {}): Promise<number> {
+    const { where, args } = buildNoteFilter(query)
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS c
+           FROM notes n
+           JOIN editions e ON e.id = n.edition_id
+          WHERE ${where}`
+      )
+      .get(...args) as { c: number } | undefined
+    return row?.c ?? 0
+  }
+
+  /** edition → 收录它的库名（按库 sort）；供读模型的展示投影用 */
+  private libraryNamesByEdition(): Map<string, string[]> {
+    const rows = this.db
+      .prepare(
+        `SELECT h.edition_id AS eid, l.name AS name
+           FROM holdings h JOIN libraries l ON l.id = h.library_id
+          ORDER BY l.sort, l.name`
+      )
+      .all() as Array<{ eid: string; name: string }>
+    const map = new Map<string, string[]>()
+    for (const r of rows) {
+      const list = map.get(r.eid)
+      if (list) list.push(r.name)
+      else map.set(r.eid, [r.name])
+    }
+    return map
+  }
+
   // ————— 内部 —————
 
   /**
@@ -1027,6 +1106,49 @@ function fromNoteRow(r: Record<string, unknown>): Note {
     createdAt: r.created_at as number,
     updatedAt: r.updated_at as number
   }
+}
+
+/** 笔记读模型的排序口径（`NoteQuery.orderBy`；默认 `updated` = 最近改动在前） */
+const NOTE_ORDER: Record<NonNullable<NoteQuery['orderBy']>, string> = {
+  updated: 'n.updated_at DESC, n.id',
+  created: 'n.created_at DESC, n.id',
+  edition: 'n.edition_id, n.chapter_index, n.id'
+}
+
+/**
+ * `NoteQuery` → WHERE 子句 + 参数。**筛选口径只此一处** —— `listAllNotes` 与 `countAllNotes`
+ * 共用它，否则"列表与计数不一致"这类 bug 迟早出现。
+ */
+function buildNoteFilter(query: NoteQuery): { where: string; args: unknown[] } {
+  const conds: string[] = ['1=1']
+  const args: unknown[] = []
+  if (query.libraryId) {
+    // 库作用域 = 该库**收录**范围内的 edition（笔记挂 edition、不挂库）；
+    // 用 EXISTS 而非 JOIN：同一 edition 被多库收录也不会重复出行
+    conds.push(
+      'EXISTS (SELECT 1 FROM holdings h WHERE h.edition_id = n.edition_id AND h.library_id = ?)'
+    )
+    args.push(query.libraryId)
+  }
+  if (query.editionId) {
+    conds.push('n.edition_id = ?')
+    args.push(query.editionId)
+  }
+  if (query.color) {
+    conds.push('n.color = ?')
+    args.push(query.color)
+  }
+  // 「划线 / 批注」判据 = body 是否为空（**不是 kind**，见 NoteFilter 注释）
+  if (query.hasBody === true) conds.push("n.body <> ''")
+  else if (query.hasBody === false) conds.push("n.body = ''")
+  const text = query.text?.trim()
+  if (text) {
+    // ⚠ LIKE 的通配符要转义：否则用户搜 "100%" 会变成"匹配一切"
+    const escaped = text.replace(/[\\%_]/g, (m) => `\\${m}`)
+    conds.push("(n.excerpt LIKE ? ESCAPE '\\' OR n.body LIKE ? ESCAPE '\\')")
+    args.push(`%${escaped}%`, `%${escaped}%`)
+  }
+  return { where: conds.join(' AND '), args }
 }
 
 function safeParse<T>(raw: string): T | null {

@@ -25,7 +25,7 @@ import type {
 import { WsNetAdapter } from './net/wsNetAdapter'
 import { LibraryManager } from './store/libraryManager'
 import { SqliteStore } from './store/sqliteStore'
-import type { LibraryLevelQuery, NotePatch } from '@core/ports/store'
+import type { LibraryLevelQuery, NotePatch, NoteQuery } from '@core/ports/store'
 
 const EBOOK_EXT_SET = new Set<string>(EBOOK_EXTENSIONS)
 const EBOOK_FILTER = [{ name: '电子书', extensions: [...EBOOK_EXTENSIONS] }]
@@ -186,6 +186,9 @@ export function registerIpc(
     store().updateNote(p.id, p.patch)
   )
   ipcMain.handle(IPC.storeRemoveNote, (_e, id: string) => store().removeNote(id))
+  // 笔记读模型（跨书管理）：查询对象整个过桥；筛选/排序/分页口径全在 store 侧（buildNoteFilter）
+  ipcMain.handle(IPC.storeListAllNotes, (_e, query: NoteQuery) => store().listAllNotes(query))
+  ipcMain.handle(IPC.storeCountAllNotes, (_e, query: NoteQuery) => store().countAllNotes(query))
 
   // 虚拟映射模式的层级浏览：列子目录（不递归，名称+绝对路径，稳定排序）
   ipcMain.handle(IPC.fsListDirectories, async (_e, dir: string) => {

@@ -321,8 +321,14 @@ F6「导出库包」 · F10 Pro 功能边界（见 `DATA_MODEL.md` §6.4 与下�
   首帧按文本长度估算、`ResizeObserver` 实测纠正），并在**样式样张**加了可交互一节（切视图 / 切主次 / 点选中态）。
   **实测**（`tools/style-gallery/smoke.cjs`）：6 张卡片高度 **59 / 88 / 101 / 110 / 220 px 共 5 档** → 证"高度随内容变"；
   `pageErrors=[]`。（样张黑屏已另修，见「工程与测试设施」组。）
+  ⏳ **进展（2026-09-16 第二轮）**：**② 读模型已落并验过** —— `core/ports/store.ts` 增 `NoteQuery` / `NoteListItem` +
+  `listAllNotes` / `countAllNotes`；`SqliteStore` 落地（`buildNoteFilter` **单一筛选口径**供列表与计数共用、
+  库作用域走 `holdings` 的 **EXISTS** 以防多库收录重复出行、`LIKE` **通配符转义**、`updated/created/edition` 三种排序 + 分页）；
+  IPC 两通道 + 主进程 handler + `IpcStoreAdapter`。**`library` 探针新增 12 断言全 PASS**，含
+  「`kind=highlight` 但补过 body 的必须算批注」（body 判据）、"搜 `%` 不该匹配一切"（转义）、
+  "计数与列表同口径"、"经 holdings 的库作用域"。**视觉侧另增**：卡片盒 / 网格跨行盒的**边界显形开关**
+  （`--note-card-edge` / `--note-flow-edge`，默认透明；`.note-edges` 一次打开，样张有实时按钮；**显形不引起重排**）。
   ① `FEATURE_IDS` + registry 条目 + `NotesFeature` 骨架（**激活时重读**）；
-  ② `SqliteStore.listAllNotes/countAllNotes`（`holdings` 连接 + `body` 判据筛选 + 子串 + 排序/分页）+ IPC + 适配器；
   ③ `IClipboard` 端口 + preload **具名方法**（不用泛化 `invoke`）+ `ServiceContainer` 装配；
   ④ `TitleBar` 搜索扩为**按 `FeatureId` 分表**（现只有书库一路，且 `key={activeFeature}` 会重挂输入框）
      + `app.focusSearch` 分流扩到「书库 / 笔记」；
