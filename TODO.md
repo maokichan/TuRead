@@ -398,6 +398,17 @@ F6「导出库包」 · F10 Pro 功能边界（见 `DATA_MODEL.md` §6.4 与下�
 
 ### 工程与测试设施
 
+- [x] ~~**样式样张整页黑屏**（用户 2026-09-16 报："`npm run style` 启动是黑屏的"）~~ **已修（2026-09-16）**：
+  根因 = **数据层换代后样张没跟着走** —— v0.4.0 把 `BookRecord` 拆成 `EditionRecord` + `ReadingState`，
+  样张仍按旧形状给 mock，且 `LibraryToolbar` 的必填 prop `crumbs` 缺失 → **渲染期抛错 → React 卸掉整棵树**，
+  只剩 body 的 `--bg`（一片黑）。⚠ **不是"样式不对"，是"页面没了"**，而样张是 `STYLE.md` §8.0 的
+  **效果确认第一手段** → 基线验收等于瞎了一半。修法 = `tools/style-gallery/main.tsx` 对齐 v0.4.0
+  （`EditionRecord` + `ReadingState` 分开给、补 `readingState`/`onOpenManager`/`crumbs`、
+  `TocPanel`/`ReaderControls` 两段 demo 换成**真实的 `ReaderRail` 组合** 4 态）。
+  **防线已固化**：① `STYLE.md` §8.0 增"改数据层 / 组件 props 后必跑 `typecheck:preview`"（本次 15 处漂移它一个不漏）
+  ② 新增 `tools/style-gallery/smoke.cjs`（Electron 真载入 + 量 DOM + 抓控制台；判据 = 有面板 + 有文字 + 无页面错误，
+  实测 `panels=18 / textLen=3831 / pageErrors=[]`）③ 新增 `npm run typecheck:all`；`client/.gitignore` 忽略其 userData。
+  **剩余（低优）**：把 ② 接进常态检查（现在仍是手动两步：先 `npm run style` 再跑探针）。
 - [ ] **打包产物跑自检时不自退（2026-09-11 实测）**：用**打包后的 exe**（`release/win-unpacked/TuRead.exe`）
   加 `TUREAD_DEV_BOOK` 跑自检，应用**不会自己退出**（开发态 `npm run dev` 正常退出）→ 拿不到
   `[TUREAD-TEST-*]` 文本与退出码，只能靠 userData 落盘间接判断（已用它确认：导入 → 封面 → 打开阅读器 →

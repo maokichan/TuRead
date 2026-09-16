@@ -20,18 +20,32 @@ import { BookRow } from '@renderer/components/BookRow'
 import { BookTile } from '@renderer/components/BookTile'
 import { BookDetailPanel } from '@renderer/components/BookDetailPanel'
 import { LibraryToolbar } from '@renderer/components/LibraryToolbar'
-import { TocPanel } from '@renderer/components/TocPanel'
-import { ReaderControls, DEFAULT_READER_PARAMS } from '@renderer/components/ReaderControls'
+import { ReaderRail, type LeftPanelKind } from '@renderer/components/ReaderRail'
+import { DEFAULT_READER_PARAMS, type ReaderParams } from '@renderer/components/ReaderControls'
 import { StatePill } from '@renderer/components/StatePill'
 import { ChatLog } from '@renderer/components/ChatLog'
 import { MemberList } from '@renderer/components/MemberList'
 import { RoomRow } from '@renderer/components/RoomRow'
 import { ConfirmDialog } from '@renderer/components/ConfirmDialog'
-import type { BookRecord, ChatMessage, RoomInfo, RoomMember } from '@core/domain/types'
+import type {
+  ChatMessage,
+  EditionRecord,
+  Note,
+  ReadingState,
+  RoomInfo,
+  RoomMember
+} from '@core/domain/types'
 
 /* ------------------------------ mock 数据 ------------------------------ */
 
-const BOOK: BookRecord = {
+/**
+ * ⚠ v0.4.0 数据层换代的同步点（2026-09-16 修黑屏）：`BookRecord` **已退役**，
+ * 拆成 `EditionRecord`（内容身份）+ `ReadingState`（阅读状态，逐 edition）。
+ * 样张以前把 `lastReadAt`/`lastLocation` 塞在书行上 → 类型不过、组件 props 缺项，
+ * 最终 `LibraryToolbar` 的 `crumbs` 为 undefined 在渲染期抛错，**整页黑屏**
+ * （body 底色 = `--bg`，React 卸载后就是一片黑）。
+ */
+const BOOK: EditionRecord = {
   id: 'demo-1',
   fingerprint: {
     algorithm: 'md5-sample3-v1',
@@ -41,7 +55,20 @@ const BOOK: BookRecord = {
   metadata: { title: '高级运动营养学（第2版）' },
   format: 'EPUB',
   filePath: 'D:\\Books\\高级运动营养学（第2版）.epub',
-  createdAt: Date.now() - 86400000 * 3,
+  createdAt: Date.now() - 86400000 * 3
+}
+
+const BOOK_PDF: EditionRecord = {
+  ...BOOK,
+  id: 'demo-2',
+  metadata: { title: '机器学习' },
+  format: 'PDF',
+  filePath: 'D:\\Books\\机器学习 (周志华).pdf'
+}
+
+/** 阅读状态（读模型里与 edition JOIN 好，`BookRow`/`BookDetailPanel` 各自收一份） */
+const READING_STATE: ReadingState = {
+  editionId: 'demo-1',
   lastReadAt: Date.now() - 3600000,
   lastLocation: {
     chapterDocIndex: 12,
@@ -51,17 +78,54 @@ const BOOK: BookRecord = {
     percentage: 0.42,
     text: '糖原是运动中最容易被消耗的能源物质，其储备量直接决定高强度运动的持续时间……',
     chapterTitle: '第十二章 运动与糖代谢'
-  }
+  },
+  totalReadMs: 1000 * 60 * 42
 }
 
-const BOOK_PDF: BookRecord = {
-  ...BOOK,
-  id: 'demo-2',
-  metadata: { title: '机器学习' },
-  format: 'PDF',
-  filePath: 'D:\\Books\\机器学习 (周志华).pdf',
-  lastLocation: undefined
-}
+/** 未读（`progressText` 给「未读」；drawer 的指标行给「共 —」） */
+const READING_STATE_PDF: ReadingState | null = null
+
+/** 笔记（给左挂件的「筆記」形态用；形状 = CONTRACTS §2 Note v2） */
+const NOTES: Note[] = [
+  {
+    id: 'n-1',
+    editionId: 'demo-1',
+    kind: 'highlight',
+    anchor: {
+      norm: {
+        chapterIndex: 12,
+        progression: 0.34,
+        quote: {
+          exact: '糖原是运动中最容易被消耗的能源物质',
+          prefix: '在长时间耐力运动中，',
+          suffix: '，其储备量直接决定'
+        }
+      },
+      fragment: { engine: 'kookit-rangy', key: 'eyJzdGFydCI6MTIzLCJlbmQiOjE0MH0=' }
+    },
+    color: 'yellow',
+    body: '',
+    createdAt: Date.now() - 7200000,
+    updatedAt: Date.now() - 7200000
+  },
+  {
+    id: 'n-2',
+    editionId: 'demo-1',
+    kind: 'note',
+    anchor: {
+      norm: {
+        chapterIndex: 4,
+        progression: 0.62,
+        quote: { exact: '每日碳水摄入建议按每公斤体重 3–5 g 计', prefix: '', suffix: '，训练日取上限' }
+      },
+      fragment: { engine: 'kookit-rangy', key: 'eyJzdGFydCI6NDU2LCJlbmQiOjQ3OH0=' }
+    },
+    color: 'red',
+    body: '这里说的是每公斤体重 3–5 g，我要回去核对训练日的剂量。',
+    createdAt: Date.now() - 86400000,
+    updatedAt: Date.now() - 3600000
+  }
+]
 
 /** 假封面（内容图，非界面 chrome）：纯色 SVG data URL，用于展示"有封面"的列表行 */
 const FAKE_COVER =
@@ -71,11 +135,11 @@ const FAKE_COVER =
   )
 
 const MEMBERS: RoomMember[] = [
-  { id: 'Aaaa111', nickName: 'alice', isMe: true, location: BOOK.lastLocation },
+  { id: 'Aaaa111', nickName: 'alice', isMe: true, location: READING_STATE.lastLocation },
   {
     id: 'Bbbb222',
     nickName: 'bob',
-    location: { ...BOOK.lastLocation!, chapterDocIndex: 20, percentage: 0.6 }
+    location: { ...READING_STATE.lastLocation!, chapterDocIndex: 20, percentage: 0.6 }
   },
   { id: 'Cccc333', nickName: 'carol' }
 ]
@@ -213,9 +277,9 @@ export function Gallery(): React.JSX.Element {
 
       {/* 2. 视图切换按钮（唯一带三角负片标记） */}
       <Panel
-        title="视图切换按钮（三角负片标记）"
+        title="书库底部状态栏（视图切换 + 三角负片标记）"
         path="components/LibraryToolbar.tsx + styles.css · .view-switch"
-        note="点击播放 900ms 动画（旧文字被吞没 → 新文字浮出 → 复原）；动画期间按钮 disabled，连点无效。三角取 currentColor（墨色），四套主题都可见"
+        note="视图切换是单个文字按钮：显示**当前**视图名，点击播放 900ms 动画（旧文字被吞没 → 新文字浮出 → 复原）；动画期间按钮 disabled，连点无效。三角取 currentColor（墨色），四套主题都可见。⚠ 2026-09-16：`crumbs`（当前层级面包屑）是**必填** prop —— 缺了会在渲染期抛错、整页黑屏（样张曾因此黑屏）"
       >
         <LibraryToolbar
           view="list"
@@ -225,6 +289,13 @@ export function Gallery(): React.JSX.Element {
           importing={null}
           onCancelImport={noop}
           coverProgress={{ done: 1, total: 2 }}
+          onOpenManager={noop}
+          onScan={noop}
+          crumbs={[
+            { label: '我的書庫', onGo: noop },
+            { label: '運動營養', onGo: noop },
+            { label: '訓練學', onGo: noop }
+          ]}
         />
         <p className="mt-3 mb-0 text-[11px] text-[var(--muted)]">
           ↑ 点左下角「列表」试一次：注意三角标记与 900ms 动画，动画期间再点无效。
@@ -338,6 +409,7 @@ export function Gallery(): React.JSX.Element {
         <div className="flex flex-col gap-1">
           <BookRow
             book={BOOK}
+            readingState={READING_STATE}
             active
             coverUrl={FAKE_COVER}
             onDetail={noop}
@@ -346,6 +418,7 @@ export function Gallery(): React.JSX.Element {
           />
           <BookRow
             book={BOOK_PDF}
+            readingState={READING_STATE_PDF}
             active={false}
             coverUrl={null}
             onDetail={noop}
@@ -378,66 +451,15 @@ export function Gallery(): React.JSX.Element {
       </Panel>
 
       <Panel
-        title="阅读器 · 右侧阅读参数（ReaderControls）"
-        path="components/ReaderControls.tsx"
-        note="高频显示设计的入口（STYLE.md §5.9）：🅐 默认收起，只有贴右缘的窄条（与左侧侧边栏召回条同款、镜像）；🅑 展开后是纯文字档位 + 发丝分割线 + 底部引导线与「收起」。档位只是呈现，回调交出的是数值（缺省档 = 不注入，尊重书自带排版）"
+        title="阅读器 · 挂载线实体（ReaderRail：桌/纸 + 目录 / 笔记 + 参数）"
+        path="components/ReaderRail.tsx（内含 TocPanel / NotesPanel / ReaderControls）"
+        note="沉浸态（STYLE.md §5.8）：全屏的是「桌」不是「正文」—— 纸在居中定宽列里，靠 --desk-bg / --page-edge **用颜色区分**。一条横向挂载线贯穿页面：左段 = 目录 / 笔记垂挂（顶部「目錄 / 筆記」两格文字开关、当前格 --accent），右段 = 阅读参数，中段是纯线。⚠ 2026-09-16 更正：参数面板**默认展开**（v1.0 起），右侧独立召唤条与面板内「收起」均已废除；折叠 = 向上收回线里。目录条目高亮 = **遮罩按到鼠标的距离**（把鼠标在列表上上下移动看过渡），静息更淡"
       >
         <div className="grid gap-6 md:grid-cols-2">
-          {[true, false].map((open) => (
-            <div key={String(open)} className="flex flex-col gap-2">
-              <span className="text-[12.5px] text-[var(--muted)]">
-                {open ? '展開（可調）' : '默認（只有召喚條）'}
-              </span>
-              <div
-                className="reader-paper relative h-[300px] w-full"
-                style={{ '--read-width': '320px' } as React.CSSProperties}
-              >
-                <div className="reader-stage">
-                  <p className="m-0 text-[13px] leading-[1.9] text-[var(--page-text)]">
-                    字號 / 行距 / 段距 注入正文；紙寬 / 內邊距 走宿主 token。
-                  </p>
-                </div>
-                <ReaderControls
-                  open={open}
-                  params={DEFAULT_READER_PARAMS}
-                  onToggle={noop}
-                  onChange={noop}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </Panel>
-
-      <Panel
-        title="阅读器 · 桌/纸 + 挂载线 + 垂挂目录"
-        path="components/TocPanel.tsx · ReaderFeature/index.tsx"
-        note="沉浸态（STYLE.md §5.8 v0.5）：全屏的是「桌」不是「正文」——纸在居中定宽列里，靠 --desk-bg/--page-edge 用颜色区分；目录左缘对齐侧边栏右缘（--sidebar-w）；条目高亮是「遮罩按到鼠标的距离」变化（把鼠标在列表上上下移动看过渡），静息更淡；目录默认展示"
-      >
-        <div className="grid gap-6 md:grid-cols-2">
-          {[true, false].map((open) => (
-            <div key={String(open)} className="flex flex-col gap-2">
-              <span className="text-[12.5px] text-[var(--muted)]">
-                {open ? '目錄展開（默認態）' : '只剩掛載線'}
-              </span>
-              {/* 模拟阅读页：全屏桌 + 居中定宽纸（列宽按样张宽度等比缩小）；
-                  与真实结构一致 —— 挂载线/目录是桌的**兄弟节点**（不参与纸的滚动） */}
-              <div
-                className="relative h-[260px] w-full"
-                style={{ '--read-width': '320px' } as React.CSSProperties}
-              >
-                <div className="reader-paper absolute inset-0">
-                  <div className="reader-stage">
-                    <p className="m-0 text-[13px] leading-[1.9] text-[var(--page-text)]">
-                      紙（正文列 = 宿主容器）：它的 clientWidth 就是 kookit 的排版寬度依據 ——
-                      所以「一行多長」由列寬決定。紙與桌的差別**只靠顏色**（底色 + 1px 邊）。
-                    </p>
-                  </div>
-                </div>
-                <TocPanel open={open} rows={TOC} onJump={noop} onToggle={noop} />
-              </div>
-            </div>
-          ))}
+          <RailDemo label="只剩掛載線（左欄與參數都折疊）" />
+          <RailDemo label="目錄垂掛（默認展示）" leftOpen />
+          <RailDemo label="筆記垂掛（左掛件另一種內容）" leftPanel="notes" leftOpen />
+          <RailDemo label="閱讀參數面板（右段垂掛，默認展開）" controlsOpen />
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-6">
           <StatePill state="connected" />
@@ -477,12 +499,12 @@ export function Gallery(): React.JSX.Element {
         <div className="relative h-[380px] overflow-hidden rounded-xl border border-[var(--border-soft)]">
           {/* 下层内容：用来验证抽屉的透明（抽屉只画文字块，不画底） */}
           <div className="flex flex-col gap-1 p-2">
-            <BookRow book={BOOK} active={false} coverUrl={FAKE_COVER} onDetail={noop} onOpen={noop} onDelete={noop} />
-            <BookRow book={BOOK_PDF} active={false} coverUrl={null} onDetail={noop} onOpen={noop} onDelete={noop} />
-            <BookRow book={BOOK} active={false} coverUrl={null} onDetail={noop} onOpen={noop} onDelete={noop} />
-            <BookRow book={BOOK_PDF} active={false} coverUrl={FAKE_COVER} onDetail={noop} onOpen={noop} onDelete={noop} />
+            <BookRow book={BOOK} readingState={READING_STATE} active={false} coverUrl={FAKE_COVER} onDetail={noop} onOpen={noop} onDelete={noop} />
+            <BookRow book={BOOK_PDF} readingState={READING_STATE_PDF} active={false} coverUrl={null} onDetail={noop} onOpen={noop} onDelete={noop} />
+            <BookRow book={BOOK} readingState={READING_STATE} active={false} coverUrl={null} onDetail={noop} onOpen={noop} onDelete={noop} />
+            <BookRow book={BOOK_PDF} readingState={READING_STATE_PDF} active={false} coverUrl={FAKE_COVER} onDetail={noop} onOpen={noop} onDelete={noop} />
           </div>
-          <BookDetailPanel book={BOOK} coverUrl={null} onClose={noop} onOpen={noop} onDelete={noop} />
+          <BookDetailPanel book={BOOK} readingState={READING_STATE} coverUrl={null} onClose={noop} onOpen={noop} onDelete={noop} />
         </div>
         <button onClick={() => setShowDialog(true)} className="text-action text-action--primary mt-4">
           打开确认弹窗
@@ -509,6 +531,60 @@ export function Gallery(): React.JSX.Element {
 /* ------------------------------ 小工具 ------------------------------ */
 
 function noop(): void {}
+
+/**
+ * 挂载线实体的可交互样张（**只导入真实件**，不复制组件内部逻辑）。
+ * 真实结构 = 桌（相对定位宿主）→ 纸（正文列）+ `ReaderRail`（**兄弟节点**，不参与纸的滚动）。
+ * 桌/纸的几何靠 `--read-width` 等比缩小到样张宽度；`--sidebar-w` 取 :root 值。
+ */
+function RailDemo({
+  label,
+  leftPanel = 'toc',
+  leftOpen = false,
+  controlsOpen = false
+}: {
+  label: string
+  leftPanel?: LeftPanelKind
+  leftOpen?: boolean
+  controlsOpen?: boolean
+}): React.JSX.Element {
+  const [tocOpen, setTocOpen] = useState(leftOpen)
+  const [ctlOpen, setCtlOpen] = useState(controlsOpen)
+  const [panel, setPanel] = useState<LeftPanelKind>(leftPanel)
+  const [params, setParams] = useState<ReaderParams>(DEFAULT_READER_PARAMS)
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-[12.5px] text-[var(--muted)]">{label}</span>
+      <div
+        className="relative h-[300px] w-full"
+        style={{ '--read-width': '320px' } as React.CSSProperties}
+      >
+        <div className="reader-paper absolute inset-0">
+          <div className="reader-stage">
+            <p className="m-0 text-[13px] leading-[1.9] text-[var(--page-text)]">
+              紙（正文列 = 宿主容器）：它的 clientWidth 就是 kookit 的排版寬度依據。點掛載線的左段 / 右段開合掛件。
+            </p>
+          </div>
+        </div>
+        <ReaderRail
+          tocOpen={tocOpen}
+          onTocToggle={() => setTocOpen((v) => !v)}
+          tocRows={TOC}
+          onTocJump={noop}
+          controlsOpen={ctlOpen}
+          onControlsToggle={() => setCtlOpen((v) => !v)}
+          params={params}
+          onParamsChange={(patch) => setParams((p) => ({ ...p, ...patch }))}
+          leftPanel={panel}
+          onLeftPanelChange={setPanel}
+          notes={NOTES}
+          onNoteJump={noop}
+          onNoteRemove={noop}
+        />
+      </div>
+    </div>
+  )
+}
 
 function Panel({
   title,

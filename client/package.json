@@ -18,6 +18,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.test.json",
     "typecheck:preview": "tsc --noEmit -p tsconfig.preview.json",
+    "typecheck:all": "npm run typecheck && npm run typecheck:preview",
     "rebuild:sqlite": "cd node_modules/better-sqlite3 && npx prebuild-install -r electron -t 33.4.11"
   },
   "dependencies": {
