@@ -2,21 +2,17 @@
 
 > 目的：让下一次会话/模型以最低成本恢复上下文。
 > 阅读顺序：本文件 → `MAP.md`（自动加载）→ `TODO.md` → 各端架构文档（见 MAP）。
-> 更新：2026-09-16（**笔记管理：契约 + 视觉与交互全部立案** —— 形态四项裁决（容器/作用域/检索/章节标签）
-> ＋ 视觉与交互十项（瀑布流两态视图、卡片三段、主次两档、三态筛选、单击选中/双击跳转、右键菜单、
-> 「刪除」用词纪律、标题栏笔记作用域检索、选中态试验档、瀑布流×窗口化的冲突登记）＋ 补上跨书跳转缺失的通道。
-> 契约 = `FEATURES.md` §12 + `CONTRACTS.md` v0.4.1/v0.4.2 + `STYLE.md` §5.10（v1.5）+ `DATA_MODEL.md` §5 问题 6。
-> **代码一行未动**（契约先行），实施步骤见 `TODO.md`）。
-> 上一条 2026-09-15（**client v0.1.17：「书的身份」已落地** —— 全局单库 + 书库降为组织模式；
-> 笔记挂 edition、阅读时间按 work 汇总；含迁移器与四处自查修正。逐项见 §4 的 v0.1.17 条目。
-> **⚠ 唯一未做 = 真机验收**。同日做了**文档减重**：竞品调研底稿随 `借物表.md` 一并移出版本控制，
-> `README` 改为面向用户/开发者的介绍，`DATA_MODEL` §6 与 `TODO` 的已完成项大幅收敛）
+> 更新：2026-09-16（**client v0.1.18：笔记管理（跨书）落地** —— 「工具组件」= 同级功能组件的第二例：
+> 读模型 + 網格/瀑布流两态 + **窗口化**（自实现装箱 + 按列二分）+ 状态栏/右键/複製/跳转全链路；
+> 期间修掉**样式样张整页黑屏**并把漂移防线写进验收；⚠ 一处**测量假象**（rAF 被节流）已纠正并加了自检。
+> 逐项见 §4 的 v0.1.18 条目；**真机验收：用户当日通过**）。
+> 上一条 2026-09-15（client v0.1.17：「书的身份」落地 —— 全局单库 + 书库降为组织模式；逐项见 §4）
 
 ## 1. 一句话
 
 TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共同阅读同一本书。
 渲染/解析复用 [kookit](https://github.com/koodo-reader/kookit)（AGPL-3.0，git submodule）；
-同步服务器用 Go，**v0.2.0 已实现**（仓库内 `server/`）；**client v0.1.17**。
+同步服务器用 Go，**v0.2.0 已实现**（仓库内 `server/`）；**client v0.1.18**。
 
 ## 2. 仓库与提交（`D:\PROJECT\TuRead`）
 
@@ -74,9 +70,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | **全局禁选（2026-09-13 用户定）** | **文字选择 = 阅读正文专属**：除阅读页正文外，宿主 UI 任何内容都不响应按住鼠标拖选（`body{user-select:none}`，`input/textarea` 豁免——更名/搜索/新建命名仍可选中复制）。正文在 kookit iframe（独立 document）内，天然不受宿主规则影响，选择能力原样保留。顺带删除 `LibraryFeature` 内容区原有的局部 `select-none`（被全局覆盖，冗余） | `client/src/renderer/src/styles.css`；`client/docs/FEATURES.md` §10/§11 |
 | **书库层级后退/前进（2026-09-13 用户定）** | 对齐**文件资源管理器**逻辑：① **鼠标侧键** XButton1/2 = 后退/前进（仅 `activeFeature==='library'` 接管，`preventDefault` 压掉 Chromium 默认历史导航）② **标题栏返回/前进按钮**，左缘 = `var(--sidebar-w)`（与左侧边栏右缘对齐），只在书库态渲染，不可用禁用（opacity-30）。**历史栈在 `LibraryFeature`**（`histRef` = stack + idx）：条目 = `{containerId, folder, trail}`——**面包屑整条随条目存取**，后退/前进一起还原；`enterContainer`/`enterFolder`/`goToLevel` 全走 `pushEntry`（新导航截断"前进"分支，资源管理器语义），移动/导入等 `commitNav` 是**原地重载、不入栈**；切库广播时历史重置为根。跨兄弟组件用**模块总线** `features/libraryNavBus.ts`（TitleBar 与 LibraryFeature 是 AppShell 兄弟，props 穿 Shell 不值当——`logStore` 先例；TitleBar 以 `useSyncExternalStore` 订阅可用性） | `client/src/renderer/src/features/LibraryFeature/index.tsx`；`features/libraryNavBus.ts`；`components/TitleBar.tsx`；`FEATURES.md` §10/§11 |
 | **面包屑根固定（2026-09-13 用户定）** | 状态栏右下角"当前层级路径"：**根（库名）显示位置固定、子节点向右增生**（原实现容器宽度随内容 + `ml-auto`，路径变深时整体左移、根会跑）。实现 = 容器改**固定宽度** `w-[420px]` + `ml-auto`，内容从左往右流 → 容器左缘锚死。⚠ 过长处理**暂不做**（登记 TODO）。顺带修一个分隔符 bug：`/` 原先渲染在根段**之前**（箱内显示「/ 書庫 測試箱A」）会把根推右 → 改 `index > 0` 才渲染 | `client/src/renderer/src/components/LibraryToolbar.tsx`；`FEATURES.md` §10 |
-| **笔记管理·视觉与交互立案（2026-09-16 用户批复；`STYLE.md` §5.10 v1.5 + `CONTRACTS.md` v0.4.2）** | 起点 = 用户问"能不能把笔记条目做成**瀑布流**、依 `body`/`excerpt` 长度变尺寸" → 立项并逐条裁决：① **视图两态 = 網格 / 瀑布流（默认），无列表形态**；**列宽固定（`--note-col-w` 240px）、只变高**，高度由内容自然决定但**两头有界**（摘录 ≤4 行 / 批注 ≤6 行；下限 = 元行 + 一行摘录）② **卡片 = 纯文字块**（无边框/底色/阴影/圆角 —— 书库封面格的 1px 边框是因为"图需要槽"），三段 = 元行（标记块 + 書名·節 N + 相对时间）／摘录（**加「」**）／批注 ③ **文字主次两档可切换**，默认**批註為主**；差别只有字号 + 颜色（P2 一套字体、中文仅 Bold 切面 → **不做字重对比**）④ **筛选 = 单按钮三态循环** `批註→劃線→全部`（默认批註）；⚠ **判据是 `body` 是否为空、不是 `kind`** —— 两者在实现里可**互相矛盾**（`highlight` 可能带 body：划完线再补写批注；`note` 可能 body 为空：加批註后没写字就回车，`NoteComposer` 明确允许空串）⑤ **交互**：单击**选中** / 双击**跳转**；**卡片零 chrome**（取消 hover 动作区）；**右键 = 挂载线菜单**（`跳轉` / `複製批註`（仅 body 非空）/ `刪除`）—— 用户理由："右键在不同功能组件里语义不同"（已定）＋"**笔记的处理频率比书籍高**"（不让用户多移到状态栏）⑥ **不放开拖选**（守 v1.1 全局禁选），**複製走新增端口 `IClipboard`**（§4.6，桥用**具名方法**）⑦ **用词纪律**：书库「**移除**」= 只删索引、不删源文件 vs 笔记「**刪除**」= **真实删除** —— 两词**不得混用**；确认弹窗写明**不可恢复**且**不给"下次不再提示"** ⑧ **检索 = 标题栏搜索栏·笔记作用域**（须把 `TitleBar` 扩为**按 `FeatureId` 分表的搜索词**，否则书库/笔记的词会串扰）⑨ **选中态 = 试验档**（1px `--accent-ring` 直角矩形 + 卡片**常驻 8px 内边距**防重排抖动；按 §7 纪律单 commit 可回退，若与 P1 冲突 → 回退「元行套负片块」）⑩ **登记冲突**：瀑布流与 `useVirtualRange` 的**等高 `stride` 假设**不兼容（候选三选一，**先量化再选**） | `client/docs/STYLE.md` §5.10（v1.5）；`CONTRACTS.md` v0.4.2；`FEATURES.md` §12 |
-| **笔记管理·窗口化（2026-09-16，用户提示"书库域有过大规模刷新卡死"）** | 现状是**全量渲染**（`NoteFlow` 头注即写明"未做窗口化"）→ 按纪律**先量化**。**⚠ 第一版测量是假象**：探针窗口 `show:false`（从未显示）→ 合成器不出帧 → `rAF` 间隔被拉到 ~850ms，而 commit/refresh 正是用 rAF 计的 → 量出"刷新 1.607s"并据此写下"否决不窗口化"。**修法**：探针关后台节流 + `showInactive()`，并加**计时环境自检**（空闲 rAF > 60ms 直接 FAIL）。**有效 A/B**：窗口化 `commit=22ms / refresh=21ms / DOM 42 张`；全量对照 `commit=519ms / DOM 1000 张` → **窗口化保留，硬理由是"DOM 节点与观察器数不随规模增长"**。实现 = **自实现装箱（最短列优先 + 绝对定位）+ 按列二分窗口化**（几何在 `components/noteLayout.ts`，纯函数 + 11 条单测）；配套**检索防抖 200ms** 与刷新粒度纪律（激活重读只重渲视口 / 筛选变化不重建滚动容器 / 切视图滚动归零）。实现期另修两个真 bug：① 流不在滚动容器顶部时"窗口坐标系"算错 → 一张卡都不渲染；② 测量反馈级联（实测高度量化 8px + 16px 死区）。**口径：探针的假数字/假阴性比 FAIL 更危险** | `client/docs/STYLE.md` §5.10；`components/noteLayout.ts`（+ `.test.ts`）；`tools/style-gallery/smoke.cjs`（`--scale` / `--no-window`） |
-| **笔记管理「工具组件」契约（2026-09-16 用户批复；契约先行、代码未动）** | **四项形态**：① **容器 = 同一套容器、同级功能组件** —— 用户明确纠正："上面所谓的域工具和笔记管理本身都是同级的工具组件，容器一样，最开始对这些功能的定义就是统一容器的**功能组件**" → **不引入 `kind`（域工具/辅助工具）分类**，只新增一条 `FeatureDescriptor`（id `notes`，符号「筆」入正常流，`設` 仍 `pinned` 钉底）② **作用域 = 当前库为默认、可切「全部庫」**（笔记挂 edition → "某库的笔记"是经 `holdings` 的**查询口径**，不是存储口径）③ **检索 = 只搜笔记**（`excerpt` 摘录 + `body` 批注），**v1 用 `LIKE` 子串**（2000 条中文笔记实测 **0.32 ms**），**FTS5 不上**（换装条件 + 两个会静默通过的坑登记在 `DATA_MODEL.md` §5 问题 6）④ **章节标签 = 「書名 · 節 N」**，**章标题不冗余存**。**同时补上一个契约缺口**：跨书跳转原无通道（`FeatureHost` 只有 `openReader(bookId)`）→ 定为 `openReader(editionId, target?: {revealNoteId?})`（**可选参数、向后兼容**）+ `FeatureProps.readerTarget`（**tick 防重复消费**）；ReaderFeature 必须在**笔记载入 + 目标章 `rendered` 之后**再 `resolveAnchor(revealNoteId)`，否则静默落空。另：**笔记管理与阅读器不同屏**（切过去即离开阅读器），故**激活时重读**即可，无需 `notes-changed` 广播 | `client/docs/FEATURES.md` §12；`CONTRACTS.md` §4.4（v0.4.1）；`DATA_MODEL.md` §5 问题 6 |
+| **笔记管理（跨书）—— 契约 / 视觉 / 窗口化（2026-09-16 定案并实施，发版 v0.1.18）** | **① 形态四项**：容器 = **同一套容器、同级功能组件**（「工具组件」**就是**既有「功能组件」，**不引入 `kind` 分类** —— 用户明确纠正过）→ 只加一条 `FeatureDescriptor`（id `notes`、「筆」入正常流，`設` 仍钉底）；作用域 = **当前库为默认、可切全部庫**（笔记挂 edition → 经 `holdings` 的**查询口径**）；检索 = **只搜笔记**（`excerpt` + `body`）、v1 用 `LIKE` 子串（2000 条中文笔记实测 **0.32 ms**）、**FTS5 不上**（换装条件与两个静默坑见 `DATA_MODEL.md` §5 问题 6）；章节标签 = 「書名 · 節 N」，**章标题不冗余存**。**② 视觉与交互**：视图两态 **網格 / 瀑布流（默认），无列表**、列宽固定只变高（摘录 ≤4 行 / 批注 ≤6 行）；卡片 = **纯文字块**（零 chrome）三段 = 元行（标记块 + 書名·節 N + 相对时间）／摘录（**加「」**）／批注；文字主次**两档可切换**（默认**批註為主**，差别只有字号 + 颜色）；筛选 = **单按钮三态循环**（默认批註）；⚠ **判据是 `body` 是否为空、不是 `kind`**（用户原话："画完线后补 body，那这就是批注，很显然"；反向"加批註没写字"的 `kind='note'` 又 body 为空）；单击选中 / 双击跳转；**右键 = 挂载线菜单**（跳轉 / 複製批註（仅 body 非空）/ 刪除）；**不放开拖选**（守全局禁选），複製走新端口 `IClipboard`（preload **具名方法**）；**用词纪律**：书库「移除」= 只删索引 vs 笔记「**刪除**」= **真实删除**，两词不混用（确认弹窗写明不可恢复、**不给"下次不再提示"**）；选中态 = **试验档**（1px `--accent-ring` 直角 + 卡片常驻 8px 内边距，按 §7 可单 commit 回退）。**③ 窗口化**（用户提示"书库域有过大规模刷新卡死"）：实现 = **自实现装箱（最短列优先 + 绝对定位）+ 按列二分**（几何在纯函数 `components/noteLayout.ts`，**14 条单测**）；**有效 A/B** = 窗口化 `commit 22ms / refresh 21ms / DOM 42 张` vs 全量对照 `519ms / 1000 张` → **保留窗口化**（硬理由 = **DOM 与观察器数不随规模增长**）；配套**检索防抖 200ms** 与刷新粒度纪律（激活重读只重渲视口 / 筛选变化不重建滚动容器 / 切视图滚动归零）。⚠ **教训**：第一版量到"刷新 **1.607 s**"是**探针假象** —— `show:false` 的窗口不出帧 → `rAF` 被节流到 ~850ms，而 commit/refresh 正是用 rAF 计的；已给探针加**计时环境自检**（空闲 rAF > 60ms 直接 FAIL）。**口径：探针的假数字/假阴性比 FAIL 更危险。** **④ 契约缺口已补**：`openReader(editionId, target?: {revealNoteId?})`（可选参数、向后兼容）+ `FeatureProps.readerTarget`（**tick 防重复消费**），ReaderFeature 在**笔记载入 + 目标章 `rendered` 之后**再 `resolveAnchor(revealNoteId)`。另：笔记管理与阅读器**不同屏**（切过去即离开阅读器）→ **激活时重读**即可，无需 `notes-changed` 广播 | `client/docs/FEATURES.md` §12；`STYLE.md` §5.10；`CONTRACTS.md` v0.4.1/v0.4.2；`DATA_MODEL.md` §5 问题 6 |
 | **阅读器功能边界判断（2026-09-12 用户定，产品哲学层；同日二次澄清收窄）** | ① **不管理源文件**：阅读器对书籍实体（源文件）不做资产管理——导入=建索引不拷贝、移除=只删索引（现状即如此）；⚠ **不延伸到索引组织层**：容器/书架系统照常演进（2026-09-09 已定案，用户总要用一种方式索引信息），也不依赖/不绑定任何外部管理程序；② **参数控制有必要，但形态克制**：剩余排版参数照常评估落地，形态上坚持召唤式、默认收起、默认暴露集最小，不做 Koodo 式参数墙分散注意力；③ **阅读界面=注意力焦点模式**：不做功能抽屉，不用的功能透明度逐渐提高（淡出）——淡出要慢、召回路径恒定、仅限阅读页。效力高于行业惯例；待吸收进 `STYLE.md` §5.8 | `docs/STATUS.md` §3（本行）；`client/docs/STYLE.md` §5.8 |
 
 ## 4. 版本历史
@@ -85,6 +79,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| v0.1.18 | 2026-09-16 | **笔记管理（跨书）落地** —— 「工具组件」= **同级功能组件**的第二例（不引入分类，只加一条 `FeatureDescriptor`：「筆」入正常流）。① **契约/领域**：`NoteView`/`NoteFilter`/`NoteTextFocus`/`NoteSettings`（v0.4.2）+ 读模型 `listAllNotes`/`countAllNotes`（v0.4.1：`buildNoteFilter` **单一筛选口径**供列表与计数共用、库作用域走 `holdings` 的 **EXISTS** 以免多库收录重复出行、`LIKE` **通配符转义**、三种排序 + 分页）+ `IClipboard` 端口（§4.6，preload **具名方法**，不用泛化 `invoke`）。**⚠ 判据纪律：区分"划线/批注"按 `body` 是否为空，不按 `kind`**（用户原话："画完线后补 body，那这就是批注，很显然"；反向"加批註没写字"的 `kind='note'` 又 body 为空 —— 两个方向都有真实路径）。② **视觉**（`STYLE.md` §5.10）：網格 / **瀑布流（默认）**两态、**无列表**；列宽固定只变高（摘录 ≤4 行 / 批注 ≤6 行）；卡片 = **纯文字块**（零 chrome）三段 = 元行（标记块 + 書名·節 N + 相对时间）／摘录（**加「」**）／批注；文字主次**两档可切换**（默认批註為主）；标记块与选中态（**试验档**，按 §7 可单 commit 回退）；**容器边界可显形**（`--note-card-edge`/`--note-flow-edge`，改一个值就看出边缘，且因 `border-box` **不引起重排**）。③ **窗口化**（用户提示"书库域有过大规模刷新卡死"）：`components/noteLayout.ts` **纯函数**装箱（最短列优先 / 行内等高）+ 按列二分求可见集（**14 条单测**）；`NoteFlow` 只渲染视口 ± overscan、未测条目按文本长度估算位置。**有效 A/B**：窗口化 `commit 22ms / refresh 21ms / DOM 42 张` vs 全量对照 `519ms / 1000 张`。④ **功能**：`NotesFeature` + `NotesToolbar`（状态栏 5 件：视图切换带三角负片 / 三态筛选 批註→劃線→全部 / 层级两态 / 作用域两态 / 筛选计数）、**右键 = 挂载线菜单**（跳轉 / 複製批註（仅 body 非空）/ 刪除）、删除确认（**不可恢复**、**不给"下次不再提示"** —— 与书库「移除」严格区分）、空态报出被隐藏的划线数、**激活时重读** + **检索防抖 200ms**；检索走**标题栏 · 笔记作用域**（`TitleBar` 扩为按 `FeatureId` 分表 + `app.focusSearch` 分流扩域）。⑤ **契约缺口补齐**：`FeatureHost.openReader(editionId, target?: {revealNoteId?})`（**可选参数、向后兼容**）+ `FeatureProps.readerTarget`（**tick 防重复消费**）；ReaderFeature 必须在**笔记载入 + 目标章 `rendered` 之后**再 `resolveAnchor`，否则静默落空。⑥ **顺手修复**：**样式样张整页黑屏**（数据层换代后样张未跟进 → `LibraryToolbar` 必填 prop `crumbs` 缺失致渲染期抛错 → React 卸掉整棵树；修法 = 样张对齐 v0.4.0 + demo 换成真实 `ReaderRail` 组合）+ 把**漂移防线**写进验收（`STYLE.md` §8.0 增"改数据层/组件 props 后必跑 `typecheck:preview`"、新增 `tools/style-gallery/smoke.cjs` 与 `npm run typecheck:all`）。⚠ **一处测量假象（重要）**：第一版量到"整片重渲染 **1.607 s**"并据此写下"否决不窗口化"，复核发现是**探针假象** —— `show:false` 的窗口不出帧 → `rAF` 间隔被拉到 ~850ms，而 commit/refresh 正是用 rAF 计的（计时器不受影响，故 `settleMs` 一直正常、掩盖了问题）；已给探针加**计时环境自检**（空闲 rAF > 60ms 直接 FAIL）。**口径：探针的假数字/假阴性比 FAIL 更危险。** 实现期另修两个真 bug：流不在滚动容器顶部时"窗口坐标系"算错（→ 一张卡都不渲染）、测量反馈级联（→ 量化 8px + 16px 死区）。**验证**：`npm test` **86 断言**（新增 noteLayout 14）、`typecheck:all` 四 project、`library` 探针 **+12 断言**（含"`kind=highlight` 但补过 body 的必须算批注"）、样式样张探针 `ok=true`（含"卡片高度至少 3 种"断言）、规模 A/B、应用启动自检全绿。**真机验收：用户 2026-09-16 通过** |
 | v0.1.17 | 2026-09-15 | **「书的身份」定案并落地：全局单库 + 书库降为组织模式**（定案 = `client/docs/DATA_MODEL.md` §4.2 D1–D12 / §6）。① **存储**从"一库一 `.db`"改为**全应用一个 SQLite 库**（`store.db`）：`works / editions / holdings / libraries / containers(+library_id) / notes.edition_id / reading_state / reading_sessions / edition_toc`；`config.json` 瘦为 `{version, dbPath, 窗口状态}`。② **迁移器** `main/store/migrate.ts`：T1 旧 JSON、**T2 多 `.db` 合并**（**同指纹归并到第一条 edition**、笔记重挂、旧文件留档可回退、单库失败不阻断其余库、`failed` 可重试）。③ **语义全量换层**：端口/适配器/IPC/用例/UI 改 edition + holding；**导入去重改全局**；**映射库禁导入**、新增 **`ScanService` 扫描对账**（`missing` 只标不删）+ 状态栏「掃描」；**Work 做成活列**（阅读时间按 work 汇总的前提）；`edition_toc` 留位。④ **阅读状态**从书行拆出为 `ReadingState`，并进层级读模型（免 N+1）。**实现期四处自查修正**：`addHolding` 不得夺走書箱归属（扫描会吃用户组织）、`upsertEdition` 幂等、纯 JSON 老用户不丢设置、**阻塞级 bug —— 全局库与旧默认库同名撞 schema**（`CREATE TABLE IF NOT EXISTS` 静默跳过旧表 → `no such column`；改 `store.db` + 形状守卫 + 夹具变异测试）。**验证**：`npm test` **72 断言**（新增 `migrate` 15 / 双队列 14 / 分层守卫 9）、typecheck 三 project、`npm run build`、`library` 探针 **44**、`note` 探针、渲染自检 `恢复=ok`、**迁移夹具 T2 59 + T1 37 断言**（走真实主进程入口）。契约 **v0.4.0** / DATA_MODEL **v3**。⚠ **真机验收未做**（多库同一本书的笔记/进度是否真共享、扫描手感） |
 | v0.1.16 | 2026-09-14 | **笔记/划线落地（本地侧，文字类优先；PDF 第二批）**：① **领域层** `core/domain/anchor.ts` —— 选区级锚点两层结构（`Norm` 跨格式可比 + 引擎载荷 `Fragment` 不透明），`compareAnchor` **先 Fragment 后 Norm** 出 exact/strong/weak，含落库映射纯函数；`Note` 收拢 v2（v1 形状退役），`excerpt` 不设字段（是 `quote.exact` 的投影）② **存储/IPC**：`ILibraryStore` 笔记 CRUD（`NotePatch` 白名单）→ `SqliteStore` → `shared/ipc` → `main/ipc` → `IpcStoreAdapter`；**`anchor` 更新时三列 + `excerpt` 一起重写**（投影不许两处各写各的），`updatedAt` 由存储层盖戳 ③ **引擎侧原语**：`getSelectionAnchor`（`fromSelection`）/ `resolveAnchor`（`resolveToView` + `revealNoteId`）/ `remeasureAnchor`（诚实降级为**弱锚点**，因 kookit 搜索不给字符偏移）/ `clearSelection` ④ **右键 = 标记/批注主入口**（用户定）：适配器在**书文档**上听 `contextmenu` / `note-clicked`（宿主收不到 iframe 内事件），UI 弹**「挂载线」菜单**（横向 1px 线 + 功能项自线下方生长，**摒弃圆角/阴影/卡片底**；**形态全站统一、语义按域不同**）⑤ **批注**：`NoteComposer`（**受控**组件 —— 便于键盘意图从外部提交当前输入）+ `NotesPanel`（左挂件「目錄/筆記」开关，共用挂载线几何）⑥ **高亮生命周期**：载入 → 每章 `rendered` 后重挂 → 增删即时改 DOM ⑦ **侧键进阅读器**（XButton1/2 翻页；与书库域按功能态分工）⑧ **键盘接口预留**：4 个 `reader.*` 意图（markSelection/annotateSelection/composerCommit/composerCancel），**键位故意留空**，行为已就位 ⑨ **测试设施**：引入 `vitest`（MIT，devDependency，不进发行物）+ **分层依赖守卫**（7 条规则把六边形纪律机器化，含"防静默通过"与元测试）⑩ **选区配色跟主题**（新增 `--selection-bg` 四套取向，去浏览器默认蓝）⑪ 删 `SelectionPalette`（被右键菜单取代，避免两个入口语义重叠）。验证：`npm test` **42 断言** + typecheck **三 project** + `library` 探针 **39 断言** + **新增 `note` 探针**（选区→锚点→引擎回显→导航→重锚→删除→**重开书自动回挂**→笔记面板列出→右键/批注正文到达引擎/点击高亮）+ 渲染自检无回归。⚠ 真机验收未做；逆向补录 3 个 kookit 静默坑（`KOOKIT.md` §5 #13/#14/#15）。契约 v0.3.12 / STYLE v1.4 |
 | v0.1.15 | 2026-09-13 | **首个打包发行版（用户 2026-09-13 定"功能确定后滚版本放 release"）——把此前 v0.1.13/v0.1.14 只提交未打包的客户端内容一次交付**（逐项明细见 git log，此处按"实现了某某功能"收敛）：① **无边框窗口 + 自绘标题栏**（主题化控制键；标题栏内嵌居中**全局搜索栏**，书库搜书已接线，阅读器/房间占位）② **挂载线实体**（目录左段 + 阅读参数右段共用一条横向线，线延伸整页宽、被纸压着；折叠 = 向上收回线里；遮罩按鼠标距离）③ **阅读器沉浸态**（全屏的是「桌」不是正文 / 纸居中定宽 + 纸内边距 / 阅读页零控件 / 覆盖式侧边栏 / 挂载线目录与参数面板 / 空目录占位 / PDF 改纸宽原地重开）④ **沉浸全屏**（`F11` + 设置开关 + 标题栏退场 + Esc 分流 + 离开阅读器自动还原）⑤ **键鼠意图层骨架**（`domain/input.ts` 绑定表 + `useKeyIntents`）⑥ **iframe 事件桥**（键盘/滚轮被文档边界挡住的根修；分页模式滚轮翻页）⑦ **离屏封面/元数据解析** + TXT 编码修复 + 书库窗口化渲染 ⑧ **SQLite 单库落地 + one-shot 迁移器**（用户实机 327 本已迁移）+ **多书库**（一库一 .db，config.json = 引导文件）+ 書庫管理弹窗 ⑨ **书库双模式（虛擬映射 / 自建書箱）+ 资源管理器式层级浏览 + 書箱一等条目交互**（computer-use 实机验证）⑩ **书/書箱移动全量交互**：拖拽双向 + 右键「移動到」子菜单，`moveContainer` 防成环（CONTRACTS v0.3.8）⑪ **书架三则**：全局禁选（正文专属）、层级后退/前进（历史栈 + 标题栏按钮 + 鼠标侧键）、面包屑根固定。验证：typecheck 双绿；`library` 探针 **20 断言全过**（含書箱移动/防成环）；EPUB 无头自检无回归；**真机验收通过（用户 2026-09-14：全局禁选 ✓ / 鼠标侧键 ✓）**。发行物 = **免安装便携版** `TuRead-0.1.15-win-x64-portable.exe`（用户 2026-09-14 定：非正式版本给免安装版最好；不出 NSIS 安装包）。⚠ 分页模式交互用户复测仍异常（待复现细节，见 TODO 渲染组） |
@@ -125,55 +120,30 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 
 ## 6. 交接快照（2026-09-16 更新）
 
-**工作区状态**：**client v0.1.17 已提交并打 tag**（`client-v0.1.17`，2026-09-15：「书的身份」落地）；
-`client/package.json` version = **0.1.17**，**client 工作树干净**。发行物仍是上一版的免安装便携版
-`client/release/TuRead-0.1.15-win-x64-portable.exe` + `release/win-unpacked/`（**v0.1.17 尚未打包**）。
+**工作区状态**：**client v0.1.18 已提交并打 tag**（`client-v0.1.18`：笔记管理落地）；
+`client/package.json` version = **0.1.18**，**client 工作树干净**。发行物仍是上一版的免安装便携版
+`client/release/TuRead-0.1.15-win-x64-portable.exe` + `release/win-unpacked/`
+（**v0.1.16 ~ v0.1.18 都还没打包** —— 下次出发行物时一并打）。
 ⚠ **工作树里另有 server 侧三处未提交改动**（`server/cmd/server/main.go`、`server/internal/room/manager.go`、
 `server/internal/store/store.go`）—— 来源不明（非本会话所为），**下次动 server 前先确认**。
 kookit 子模块的 `m` 是其自身工作树噪音，**勿动**。
 逐版本过程明细见 §4；**本文件只写"现在在哪"，细节一律指向权威文档**。
 
-**★ 当前主目标（2026-09-16）· 笔记管理 —— 契约 / 视觉 / 读模型 / 窗口化**均已落地，**待真机验收**
-- 权威：形态与交互 = `FEATURES.md` **§12**；视觉 = `STYLE.md` **§5.10**（含**窗口化 A/B 与两个实现期坑**）；
-  契约 = `CONTRACTS.md` **v0.4.1/v0.4.2**；检索 = `DATA_MODEL.md` §5 问题 6。
-- **代码已落**：领域类型（`NoteView`/`NoteFilter`/`NoteTextFocus`/`NoteSettings`）、
-  `NoteCard` + `NoteFlow`（**網格/瀑布流 + 窗口化**，几何在纯函数 `noteLayout.ts` + 11 条单测）、
-  `NotesToolbar`（状态栏 5 件）、`NotesFeature`（激活重读 / 检索防抖 / 右键菜单 / 複製 / 刪除确认）、
-  读模型全链路（`listAllNotes`/`countAllNotes` + IPC + 适配器）、`IClipboard` 端口 + preload **具名方法**、
-  `FeatureHost.openReader(editionId, target?)` + `ReaderFeature` 的**消费时序**、`TitleBar` 按功能域分表。
-- **验证**：`npm test` **86 断言全绿**（新增 noteLayout 14）；`typecheck:all` 四 project 全绿；
-  `library` 探针 **新增 12 断言全 PASS**（含"`kind=highlight` 但补过 body 的必须算批注"）；
-  样式样张探针 `ok=true`（`noteCards=6`、高度 5 档）；规模 A/B 见 §3 决策表。
-- ⏳ **未做**：**真机验收**（进应用点开「筆」看真实笔记、双击跳转落点、右键複製/刪除、千条手感）；
-  **笔记域的 dev 探针**（现在只有单测 + 样张覆盖，功能链路的无头断言还缺 —— 与"单测覆盖缺口"同源）。
+**★ 现在在哪（2026-09-16）· 笔记管理（跨书）已落地并真机验收通过**
+- 权威：形态与交互 = `FEATURES.md` **§12**；视觉 + **窗口化 A/B 与两个实现期坑** = `STYLE.md` **§5.10**；
+  契约 = `CONTRACTS.md` **v0.4.1/v0.4.2**；检索口径 = `DATA_MODEL.md` §5 问题 6；决策汇总 = §3 第一行。
+- 实现清单、验证数字与那次**测量假象**的来龙去脉 = §4 的 **v0.1.18 条目**（本节不重述）。
+- ⏳ **本次没做、下次可做**（按建议优先级）：
+  1. **笔记域的 dev 探针** —— 现在只有单测 + 样张覆盖，**功能链路的无头断言还缺**（与"单测覆盖缺口"同源）；
+  2. **阅读时间专题**（存储半边已落，缺"会话事件口径 → 计时 → 弹窗界面"）；
+  3. **笔记概念收敛**（`NoteKind` 去 `'note'`）—— **待用户放行**，决定已记档；
+  4. **发行物**：打一次便携版（v0.1.16~18 三版内容一起）+ **许可文件随包**（对外发行前必修）；
+  5. **旧账**：分页模式交互（需复现细节）、「重开书偶发空白」（已有可重复复现器）。
 
-**★ 上一轮主目标 · 「书的身份」——契约与代码已落地（2026-09-15），待真机验收**
-- **讨论已结束**：用户 2026-09-14 定最高优先级 → **2026-09-15 给出方向并逐条批复**（D1–D12）。
-  **结论权威 = `client/docs/DATA_MODEL.md` §4.2（已批复表）+ §6（定案与讨论存档）**；
-  **落地步骤与完成状态见 §4 的 v0.1.17 条目**（`TODO.md` 已不保留已完成的实施步骤 —— TODO 只放待办）；本节不再重述讨论过程。
-- **三问的答案（一句话）**：**书库降为组织模式**（一库一 .db → **全局单库**）；
-  **笔记挂 edition、各版一份**（不自动跨版迁移）；**阅读时间逐 edition 记录、按 work 汇总**；
-  **映射库的"移除"只移除可见性**（不能在其中加书，靠**扫描**对账，监听不作首选）。
-- **代码已落（2026-09-15）**：`sqliteStore.ts` 拆 `works/editions/holdings/libraries/containers(+library_id)/
-  notes.edition_id/reading_state/reading_sessions/edition_toc`；`migrate.ts`（T1 旧 JSON / T2 多 `.db` 合并，
-  同指纹归并 + 旧文件留档可回退）；`LibraryManager` 瘦为引导文件 + 全局 store；IPC/适配器/用例/UI 全量换语义；
-  `BookService` 去重改**全局**；**映射库禁导入**、新增 `ScanService` 扫描对账 + 状态栏「掃描」入口；
-  Work 做成**活列**；`edition_toc` 留位。**验证**：`npm test` **72 断言**、`typecheck` 三 project、
-  `npm run build`、`TUREAD_DEV_PROBE=library` 探针 **44 断言全过**（含跨库共享同一 edition）、`note` 探针 全过。
-- **实现期自查修正（三处，都已修 + 探针钉住）**：`addHolding` 不得夺走書箱归属（扫描会吃用户组织）、
-  `upsertEdition` 幂等（并发同指纹不抛错）、纯 JSON 老用户不丢设置（`legacyConfigPath` 兜底）。
-- **迁移的真库验证（2026-09-15）**：`TUREAD_DEV_MIGRATE=fixture|json|verify` 夹具（`src/main/dev/migrateFixture.ts`，
-  **走真实 `out/main` 入口 + 真 Chromium 进程**）—— **T2 多 `.db` 合并 59 断言全过**（含"同指纹跨库只留 1 条
-  edition 且保留第一个库的 `books.id`"、settings 只取旧当前库、旧文件留档、二次启动幂等）+
-  **T1 旧 JSON 37 断言全过**（含 library.json 与旧设置 config.json 的 settings 都并入）。
-  ⚠ 未覆盖（已登记）：真机 300+ 本书库、封面搬运、并发级幂等；迁移器两条口径待定项（F12）。
-- **⚠ 未做**：**真机验收**（用户手上走一遍：多库同一本书的笔记/进度是否真的共享、映射库扫描手感、
-  移除后笔记是否留存）；渲染自检的「恢复=失败」需与既有 P2「重开书偶发空白」对照判定。
-
-**其余待办（按 TODO 分组，摘要）**：真机验收（笔记 UI 手感/观感未验）· 笔记四色取值过目 ·
-笔记概念收敛（`kind` 去 `'note'`，待放行）· 库级笔记索引页（倒查表结论已做，卡在"笔记身份"）·
-配键与设置页可配置快捷键（行为已就位，只差键位）· 書箱排序 · 库管理完善 · 迁移器退役 ·
-房间域详情页返回/前进 · 色序分层色彩方案 · 旧账（分页模式交互 / 「重开书偶发空白」）。
+**★ 上一轮（v0.1.17）·「书的身份」**：全局单库 + 书库降为组织模式 + 迁移器（T1/T2）。
+**结论权威 = `DATA_MODEL.md` §4.2 + §6，逐项与验证 = §4 的 v0.1.17 条目。**
+⚠ 那次真机验收仍有一小块没走（多库同一本书的笔记/进度是否真共享、映射库扫描手感）——
+属"待用户实测"，**不阻塞**任何后续工作。
 
 **笔记落地的硬约束与坑：见 `KOOKIT.md` §5 #13/#14/#15 与 `RENDER_INTERFACE.md` §5**
 （不在本文件重述 —— 那三处静默坑、四条载荷约束、以及"谁在画"的边界，权威都在那两份）。
@@ -186,13 +156,21 @@ kookit 子模块的 `m` 是其自身工作树噪音，**勿动**。
 + 重试），命中时**跳过**相关断言而非误报 FAIL —— 它现在同时是这条旧账的**可重复复现器**。
 
 **验证工具链（回归全靠它们）**：
-- **`npm test`**（vitest，2026-09-14 引入）= **纯逻辑单测**：领域层语义断言（42 断言）+ **分层依赖守卫**
-  （7 条规则，把六边形纪律机器化）。秒级、无需书。
-  ⚠ 与 `npm run dev` 一样受"esbuild 管道 stdio → 受限沙箱 `EPERM`"约束，**需放宽模式跑**。
+- **`npm test`**（vitest）= **纯逻辑单测**（**86 断言**）：领域语义（anchor/location）+ **笔记流几何**
+  （`noteLayout` 14 条）+ 分层依赖守卫 + 迁移/双队列。秒级、无需书。
+  ⚠ 与 `npm run dev` / 任何探针一样受"esbuild 管道 stdio → 受限沙箱 `EPERM`"约束，**需放宽模式跑**。
   口径：**单测验判据、探针验链路**，两类设施互补不替代。
+- **`npm run typecheck:all`** = 四个 tsconfig（node / web / test / **preview**）。
+  ⚠ **preview 覆盖样式样张 —— 改数据层或组件 props 后必跑**：2026-09-16 的"样张整页黑屏"
+  就是漏跑它造成的（15 处漂移它一个不漏）。
+- **样式样张探针**：`npm run style` 起样张，另开终端
+  `node_modules\electron\dist\electron.exe tools\style-gallery\smoke.cjs [url] [--scale=N] [--no-window]`
+  → 判据 = 有面板 + 有文字 + **无页面错误** + 笔记卡片高度多档；`--scale` 另量窗口化规模，
+  并**自检计时环境**（空闲 rAF > 60ms 直接 FAIL —— 防止再出"1.6 s 假数字"）。
 - `TUREAD_USER_DATA=<目录>` = 独立 userData（**验证永远用它，别碰真实书库**）。
-- `TUREAD_DEV_PROBE=library` + `TUREAD_DEV_BOOK=<书>` = 多库/書箱/笔记探针（**39 断言**：
-  20 条多库与書箱 + 19 条笔记；含 Fragment 逐字节往返、重锚三列一致、弱锚点降级）。
+- `TUREAD_DEV_PROBE=library` + `TUREAD_DEV_BOOK=<书>` = 多库/書箱/笔记/**笔记读模型**探针
+  （**56 断言**：20 多库与書箱 + 19 笔记 + **12 读模型** + 5 其他；读模型那批含
+  "`kind=highlight` 但补过 body 的必须算批注"、LIKE 通配符转义、经 `holdings` 的库作用域）。
 - `TUREAD_DEV_PROBE=note` + `TUREAD_DEV_BOOK=<文字类书>` = **笔记/划线全链路探针**（选区→锚点→引擎
   高亮回显→导航→重锚→删除→重开自动回挂→笔记面板→右键/批注/点击）。**唯一能验 Fragment 契约的地方**
   （单测碰不到引擎）。⚠ **样书首章陷阱**：`test_docs/高级运动营养学` 第一章是纯图片扉页、无正文可选，
@@ -206,7 +184,10 @@ kookit 子模块的 `m` 是其自身工作树噪音，**勿动**。
 **⑮ 的真机验收（2026-09-14 用户实测：通过）**：全局禁选 ✓ / 鼠标侧键后退前进 ✓。
 已知边界（既有行为）：**PDF 正文选不中** —— pdf.js 自带文本层 `user-select:none`；要放开另立条目。
 
-**关键对象速查**：`LibraryManager`（主进程库管理器）｜`SqliteStore`（一库一实例，close 后可 init 重开）｜
-`store:*` IPC 一律打「当前库」｜切库信号 = main 广播 `store:library-changed`｜**契约版本 v0.3.12**（CONTRACTS §8）｜
+**关键对象速查**：`LibraryManager`（引导文件 + store 句柄）｜`SqliteStore`（**全应用一个全局 `.db`**，
+close 后可 init 重开）｜切库信号 = main 广播 `store:library-changed`；⚠ **`store:*` 不再"打到当前库"**
+（v0.4.0 起库是库内实体，涉及收录/书箱的调用**显式带 `libraryId`**）｜**契约版本 v0.4.2**（CONTRACTS §8）｜
 笔记链路：`domain/anchor.ts`（锚点纯函数权威）｜`TextAnchor` 二层（Norm + Fragment）｜
-适配器 `renderedChapter`（高亮回显的过滤依据）｜`context-menu`/`note-clicked`（适配器在**书文档**上听，UI 收）。
+**`noteLayout.ts`（笔记流几何：装箱 + 窗口化，纯函数、有单测）**｜适配器 `renderedChapter`（高亮回显的过滤依据）｜
+`context-menu` / `note-clicked`（适配器在**书文档**上听，UI 收）｜
+**`readerTarget`（「带目标打开」载荷：笔记管理 → 阅读器跳转，tick 防重复消费）**。
