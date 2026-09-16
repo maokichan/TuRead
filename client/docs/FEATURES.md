@@ -46,6 +46,7 @@ src/renderer/src/
 │   ├── LibraryFeature/   # 书架 + 导入/删除 + 选中（本地）
 │   ├── ReaderFeature/    # 渲染容器 + 目录跳转 + 进度/位置（本地 + 房间同位落点）
 │   ├── RoomFeature/      # 服务器连接 + 大厅/会话（连接是房间的一部分）
+│   ├── NotesFeature/     # 笔记管理（跨书浏览/检索/跳转；只读 store 读模型，见 §12）
 │   ├── SettingsFeature/  # 全局设置（主题[含跟随系统]/阅读模式/诊断日志）
 │   ├── types.ts          # 功能组件标准容器契约（FeatureDescriptor/FeatureProps/FeatureHost）
 │   ├── registry.ts       # 功能组件注册表（官方插件 = 追加一条 descriptor）
@@ -74,6 +75,7 @@ src/renderer/src/
 | **LibraryFeature** | `books.*`（导入/去重/列表/删除/选中）+ `picker.*`（选文件/选目录/扫描/读文件）+ `covers.*`（封面异步提取） | `selectedBookId`（= 详情抽屉显示的书） | `covers` 的 progress/cover-ready/cover-failed/done |
 | **ReaderFeature** | `render.*`（open/renderTo/翻页/goToChapter/goToPosition）+ `store`（lastLocation 恢复） | 当前书、进度、目录、阅读位置 | `render.location-changed`、`rendered`；房间侧 `location-updated` 落点（未来跟随） |
 | **RoomFeature** | `net.*`（连接服务器）+ `room.*`（joinRoom/leaveRoom/createRoom/sendChat/listRooms）+ presence/chat | 连接配置/状态、`roomPhase`、成员、聊天 | `net.connection-changed`、`room.presence-updated`、`chat-message`、`book-mismatch` |
+| **NotesFeature** | `store` 笔记**读模型**（`listAllNotes` / `countAllNotes`，见 `CONTRACTS.md` §4.4）；跳转 = `host.openReader(editionId, { revealNoteId })` | **无**（纯查询，不持有跨功能状态） | **无**（**激活时重读** —— 它与阅读器**不同屏**，故不会陈旧；见 §12） |
 | **SettingsFeature** | `store`（appearance/readerSettings 持久化）+ 主题应用 | 主题、阅读模式、诊断日志 | 无（启动载入 + 系统主题监听） |
 
 > 房间与阅读是**两个独立 Feature**：翻页（ReaderFeature 内部）只是 RoomFeature 位置的来源——通过用例层 `emitLocation`/`location-updated` 解耦，不互相 import。
@@ -86,8 +88,9 @@ src/renderer/src/
 ### 5.1 视图模式（Shell 层）
 
 ```ts
-/** 视图模式：UI 顶层的“我现在在做什么”（= FeatureId，见 features/types.ts） */
-type FeatureId = 'library' | 'reader' | 'room' | 'settings'
+/** 视图模式：UI 顶层的“我现在在做什么”（= FeatureId，见 features/types.ts）
+ *  ⚠ v0.4.1 起含 `notes`（笔记管理）—— **同级功能组件**，不是另一类容器（§12 定案） */
+type FeatureId = 'library' | 'reader' | 'room' | 'notes' | 'settings'
 ```
 
 切换规则：
@@ -147,6 +150,10 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 8. **侧边栏符号与字体** ✅ 定案：**繁体汉字单字**（書/閱/房/設）以「源流明体」显示（`styles.css` `.feature-nav`；
    **选中态 = 负片块**，2026-09-09），**禁用带彩色 emoji**；设置钉在最下角（`pinned`）。
    字体已于 v0.1.8 **打包进资源**（SIL OFL 1.1，见 §10）；v0.1.11 起与西文 Times New Roman 合为全局统一字体栈（`STYLE.md` §3.1）。
+9. **「工具组件」= 统一容器的「功能组件」（2026-09-16 用户定，纠正一次分类倾向）** ✅ 定案：
+   **不引入 `kind`（域工具 / 辅助工具）之类的二级分类** —— 侧边栏条目**本来就是**统一容器的功能组件，
+   **彼此同级**；笔记管理只是**新增一条 `FeatureDescriptor`**（id `notes`，符号「筆」入正常流，`設` 仍钉底）。
+   容器 / 宿主 / 状态继承 / 跨功能跳转**一律复用既有机制**，不为"工具"另起第二套容器（理由与形态见 §12）。
 
 ## 8. 实施落地（v0.1.6，2026-09-08）
 
@@ -370,7 +377,7 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
   一行（静息淡度与「折疊」同口径）——目录缺失要可见，不静默消失（此前 `toc.length===0` 时挂载线左段
   整个无响应，"目录打不开"像坏了）。真正的目录补全（TXT 分章/PDF 页码/MD 层级）见 TODO「自建目录」。
 
-**主题模型与夜间模式**（见 `STYLE.md` §3.4 / §5.6）
+**主题模型与夜间模式**（见 `STYLE.md` §3.4 / §5 问题 6）
 - **2 主题 × 2 模式**：纯色/羊皮纸（tone）× 深/浅（mode）；数据层沿用四值。
 - **正文页跟随模式**：深色模式 = 该主题的深色纸；非 PDF 正文深色由 `IRenderService.applyTheme` 注入
   （kookit `setStyle` 注入口，一次注入全书生效）。
@@ -381,6 +388,70 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
   按频率决定进挂载线面板还是设置页。
 - **右侧"模型阅读"容器**（预留）：右侧已有阅读参数面板，将来若也要右侧**先定共存形态**；
   原则不变：**只占留白，不挤压纸的语义**。**同步相关控件**待房间同步打通后再定形态。
+
+## 12. 笔记管理工具组件（v0.4.1 定契约，2026-09-16；**未实施**）
+
+> 动机（用户原话）："当用户的笔记积累到近千条，管理和索引也就变得同样重要了"。
+> 入口形态 = **左侧工具组件**（用户 2026-09-15 定；**不再考虑**"书库侧栏第三个入口 / 书库页下的视图"）。
+> 本节只定**形态与容器契约**（契约先行）；实施步骤见根 `../../TODO.md`。
+> 契约：`CONTRACTS.md` §4.4 读模型（v0.4.1）+ `DATA_MODEL.md` §5 问题 6（检索批复）。
+
+### 12.1 定位与容器（用户 2026-09-16 定）
+
+- **「工具组件」不是新分类**：侧边栏条目**就是**统一容器的「功能组件」，**彼此同级**；
+  笔记管理 = **新增一条 `FeatureDescriptor`**。**不引入 `kind`（域工具/辅助工具）之类的二级分类。**
+- 侧栏顺序（= registry 数组序）＝ `書 / 閱 / 房 / 筆`，`設` 仍 `pinned` 钉底
+  —— **`pinned` 只表达"贴底"，不是分类**。
+- 容器、宿主（`AppShell` 单面板）、**常驻挂载 + `display:none` 的状态继承**、
+  跨功能跳转唯一通道 `FeatureHost` —— **全部复用，零新机制**。
+- `FeatureId` 增 `'notes'`（§5.1 已同步）；代码侧 `FEATURE_IDS` / `registry.ts` 待实施同步（契约先行）。
+
+### 12.2 作用域（用户 2026-09-16 定）
+
+- **默认 = 当前库**（= 该库**收录**的那些 edition 的笔记），**可切「全部庫」**。
+- 口径来自 v0.1.17：笔记挂 **edition**、**不挂库** → "某库的笔记"是**经 `holdings` 的查询口径**，
+  **不是存储口径**（所以跨库共享的同一份笔记不因切库而分裂）。
+- 切库广播（`store:library-changed`）时作用域随新库回落；AppShell 既有清理逻辑已覆盖选中/阅读器。
+
+### 12.3 列表内容与筛选（已定项钉死，其余实施期细化）
+
+- **条目标签 = 「書名 · 節 N」**（`editionTitle` + `anchor.norm.chapterIndex + 1`）+ 摘录/批注正文
+  + 颜色块（**功能信息**，非装饰）+ 时间（`updatedAt`）。
+  - **章标题 v1 不做**（`notes` 不存章标题；跨书列表里**书名**才是有用的标签）—— 理由与将来做法见 `DATA_MODEL.md` §5 问题 6。
+- 筛选维度（读模型已备）：**库 / 书 / 颜色 / 有无批注 / 关键词**；排序默认 **`updated` 倒序**。
+- **检索 = 只搜笔记**（`excerpt` 划线原文快照 + `body` 批注正文），v1 = **`LIKE` 子串匹配**；
+  **不搜书的全文** —— "书内搜索"归 `IRenderService.search`（「全局搜索接线」那条待办），
+  "跨书库全文搜索"是**另一个专题**（要抽全书文本，扫描版 PDF 无文本层）。
+- **待定（实施期定，不阻塞契约）**：分组形态（按書 / 按時間 / 平铺）、批量操作（清理 / 导出？）、空态文案。
+- 近千条性能：复用书库现成的 **`useVirtualRange`**（窗口化已有先例）。
+
+### 12.4 跳转链路（本次**唯一新增的机制** —— 补上一个契约缺口）
+
+- **缺口**：`FeatureHost` 原只有 `openReader(bookId)`，**没有"带目标打开"的通道**
+  → TODO 要求的"点击笔记 → 打开他书并落到锚点"此前**无路可走**（`ReaderFeature.jumpNote` 只在"书已开着"时可用）。
+- **定案**：`openReader(editionId, target?: { revealNoteId?: string })` —— **可选参数、向后兼容**
+  （Library / Room 及四个 dev 探针的既有调用不变）；AppShell 持有 `readerTarget`
+  （`{ editionId, revealNoteId?, tick }`，**递增 tick 防重复消费**）随 `FeatureProps` 下发，ReaderFeature 只消费一次。
+- **时序约束（做错会静默落空）**：reveal 依赖 DOM 里那条高亮（`.kookit-note[data-key=…]`），
+  而高亮由 `renderHighlighters` 画、**只对当前渲染节生效**
+  → 必须**等 ①书已打开 ②笔记载入完成 ③目标章 `rendered`** 之后再
+  `resolveAnchor(anchor, { revealNoteId })`；失败**补一次重试**。
+  弱锚点笔记（`fragment=null`）也能落到**章级**落点（`resolveAnchor` 不依赖 Fragment 解算）。
+- **文件缺失时**（映射库 `missing` 的 edition）打开会失败 → **进日志、不静默**（口径同"缺失要可见"）。
+
+### 12.5 与阅读器的关系（由单面板必然推出 —— 写死以免反复）
+
+- **笔记管理与阅读器不同屏**：从阅读态切到笔记管理 = **离开阅读器**（`closeReader` 语义）。
+- **阅读器内看/管当前书的笔记仍走左挂件 `NotesPanel`**（挂载线左段「目錄 / 筆記」开关）；
+  本工具管的是**跨书**（列出他书、跳转他书）。
+- 附带好处：**工具"激活时重读"就足以保证数据新鲜**（两者不可能同屏）
+  → **不需要新增 `notes-changed` 广播 / IPC 通道**；将来若真出现同屏形态，再补广播。
+
+### 12.6 视觉（动手之前的**前置条件**）
+
+- 渲染层红线（`MAP.md` 红线 / `STYLE.md`）：**新组件不得自创视觉语汇**
+  → 列表行、筛选器、空态的视觉**先在 `STYLE.md` 立案**（可参照 §5.5 抽屉与 §5.8 挂载线的既有语汇），
+  再动 UI 代码。
 
 > 本文为设计权威：任何改动先更新此处再动代码；新决策追加进 §7 并同步 `STATUS.md` 决策表；
 > **视觉语汇一律以 `STYLE.md` 为准**。

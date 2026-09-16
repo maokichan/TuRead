@@ -1,6 +1,6 @@
 # 客户端契约（Client Contracts）
 
-> 状态：**v0.4.0**（当前）—— 修订历史见 §8。分层 = **能力服务（ports）** 与 **应用服务（用例）** 两层。
+> 状态：**v0.4.1**（当前）—— 修订历史见 §8。分层 = **能力服务（ports）** 与 **应用服务（用例）** 两层。
 > 术语：**六边形架构（端口-适配器）为骨架，DDD 命名为层内词汇**，对照表见 `ARCHITECTURE.md` §1。
 > 范围：**仅 client** 的层与接口契约；同步协议（信封/消息集/转发规范）由 server 定义，见 `../../server/docs/API.md`。
 > 迁移：将 1:1 落到 `client/src/core/{domain,ports,usecases}/`。
@@ -640,8 +640,50 @@ interface ILibraryStore {
   addNote(note: Note): Promise<void>;
   updateNote(id: string, patch: NotePatch): Promise<void>;
   removeNote(id: string): Promise<void>;
+
+  // —— 笔记读模型（**跨书管理**，v0.4.1 新增；形态定案 = FEATURES.md §12）——
+  /** 跨书列笔记：库作用域 / 按书 / 按色 / 有无批注 / 关键词子串 —— 笔记管理工具的数据口 */
+  listAllNotes(query?: NoteQuery): Promise<NoteListItem[]>;
+  /** 与 listAllNotes **同口径**的计数（筛选器要显示"多少条"，不必取回全量再数） */
+  countAllNotes(query?: NoteQuery): Promise<number>;
 }
 ```
+
+> **v0.4.1 新增：笔记读模型（跨书管理）**（2026-09-16；四项形态裁决见 `FEATURES.md` §12）
+>
+> ```ts
+> interface NoteQuery {
+>   /** 库作用域：缺省 / null = **全部库**；给值 = 该库**收录**范围内的 edition（UI 默认传当前库） */
+>   libraryId?: string | null
+>   editionId?: string | null
+>   color?: NoteColor | null
+>   /** 有无批注正文（`body` 非空）：true / false；缺省 = 不限 */
+>   hasBody?: boolean | null
+>   /** 关键词：对 `excerpt`（摘录）+ `body`（批注）做**子串**匹配。
+>    *  ⚠ 语义是"包含"（v1 = `LIKE '%q%'`），**不是错别字容错**；将来换 FTS5 时签名与语义都不变。 */
+>   text?: string | null
+>   orderBy?: 'updated' | 'created' | 'edition'
+>   limit?: number
+>   offset?: number
+> }
+>
+> /** 跨书列表项 = 笔记本体 + **展示投影**（列表要显示书名，而笔记自己不存书名） */
+> interface NoteListItem {
+>   note: Note
+>   editionTitle: string
+>   editionFormat: string
+>   /** 该 edition 被哪些库收录（全局视角下标注来源） */
+>   libraryNames: string[]
+> }
+> ```
+>
+> 口径与约束：
+> - **藏在端口后面**：`Note` 实体**不变**，读模型是派生视图，领域层与 usecase 看不见（结论出处 = `DATA_MODEL.md` §5 问题 6）。
+> - **`text` 的实现可换、语义不变**：v1 = `LIKE '%q%'`（**只搜笔记**：`excerpt` 划线的书籍原文快照 + `body` 批注正文；**不搜书的全文**）。实测 2000 条中文笔记 0.32 ms/次；为何不上 FTS5、以及换装条件见 `DATA_MODEL.md` §5 问题 6。
+> - **`libraryId` 过滤经 `holdings` 连接**：笔记挂 edition、**不挂库** —— "当前库的笔记" = 该库**收录**的那些 edition 的笔记（这正是 v0.1.17「书库降为组织模式」的推论）。
+> - **不含章标题**：v1 列表显示「**書名 · 節 N**」（`note.anchor.norm.chapterIndex`）；章标题冗余存列**已定不做**（`DATA_MODEL.md` §5 问题 6）。
+> - **索引已备**（v3 schema，无需新增）：`idx_notes_updated`（跨书按时间）、`idx_notes_edition`（按书）、`idx_notes_owner`。
+> - **不做 `searchNotes` 独立方法**：关键词是 `NoteQuery.text` 的一个筛选维度 —— 换实现（LIKE→FTS5）不动签名，也不给调用方两个语义重叠的入口。
 
 > **v0.4.0 相对 v0.3.x 的签名变更**（`typecheck` 是扫尾手段）：
 > - `BookRecord` → 拆成 `EditionRecord`（内容）+ `Holding`（收录）；`listBooks*` → `listItemsAtLevel`；
@@ -824,6 +866,7 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.4.1 | 2026-09-16 | **笔记管理（跨书）读模型**：§4.4 `ILibraryStore` 增 **`listAllNotes(query?)` / `countAllNotes(query?)`** 与两个读模型类型 **`NoteQuery`**（库作用域 / 按书 / 色 / 有无批注 / `text` 子串关键词 / 排序分页）与 **`NoteListItem`**（`note` + 展示投影 `editionTitle`/`editionFormat`/`libraryNames`）。**`Note` 实体与 `notes` schema 零改动**（读模型是派生视图，藏在端口后）。口径：**关键词是 `NoteQuery.text` 的一个筛选维度，不另立 `searchNotes`** —— 换实现（v1 `LIKE` → 将来 FTS5）**签名与语义不变**；`libraryId` 过滤**经 `holdings` 连接**（笔记挂 edition、不挂库）；**不含章标题**（v1 列表显示「書名 · 節 N」）。形态裁决（容器=同一套容器同级功能组件 / 作用域=当前库为默认可切全局 / 检索=只搜笔记 / 章节标签）见 `FEATURES.md` §12 与 `DATA_MODEL.md` §5 问题 6 |
 | v0.4.0 | 2026-09-15 | **书的身份：全局单库 + 书库降为组织模式**（定案 = `DATA_MODEL.md` §4.2/§6，D1–D12）。新增 **§2.2**：`WorkIdentity`（作品身份，**只留接口**）/ `EditionRecord`（内容身份，**全局唯一键 = 指纹**）/ `Holding`（**收录**："哪个书库里有这本书"）/ `LibraryItem`（读模型组合）+ **四条不变量**。连带：`LibraryEntry` **去 `dbPath`**、`mode` 改 **`'mapped' \| 'curated'`**；`BookContainer` **增 `libraryId`**（树在库内）；`Note.bookId` → **`editionId`**（各版一份、不自动跨版迁移）；**`BookRecord` 退役**（拆 `EditionRecord` + `Holding`）。§4.4 增 `upsertEdition`/`findEditionByFingerprint`/`addHolding`/`removeHolding`/`listItemsAtLevel`/`reading_state`/`reading_sessions` 方法，并给出**签名变更清单**（`moveBookToContainer` → `moveHolding`；封面方法参数改 `editionId`；库管理职责收敛进 `SqliteStore`） |
 | v0.3.12 | 2026-09-14 | **右键成为标记/批注主入口（用户定）+ 批注落地**：① §4.1 增 `'context-menu'`（`RenderContextMenuRequest{x,y,anchor,noteId}` —— 适配器换算坐标并判定"是否点在笔记上"）与 `'note-clicked'`（点击高亮回调；`x/y` 由**量元素矩形**得出，因 kookit 该回调只给 `{target}` 无鼠标坐标）。两个事件都**必须**在适配器发（右键/点击若落在正文 iframe 内，宿主收不到，同 iframeBridge 根因）。② **UI 形态**（用户定）：右键菜单与批注面板统一为**"挂载线形态"** —— 光标处弹一条横向 1px 线、功能项自线下方生长，**摒弃圆角/阴影/卡片底**；**形态全站统一、语义按域不同**（书库 = 文件管理／阅读器 = 标记·批注）。③ **删 `SelectionPalette`**：选色板被右键菜单取代（"新建无论是高亮还是批注，最好的方法还是右键"），避免两个入口语义重叠；`selection-changed` 保留（决定菜单「新建」是否可用 + 键盘流程定位）。④ **批注**：`NoteComposer` 为**受控组件**（正文 state 由 ReaderFeature 持有 —— 以便键盘意图能**从外部提交当前输入**）；`kind` 记录**创建来路**（选色 → `highlight`／写批注 → `note`），编辑正文不改 kind。⑤ **键盘接口预留**：`DEFAULT_BINDINGS` 增 `reader.markSelection` / `annotateSelection` / `composerCommit` / `composerCancel` —— **键位故意留空**，行为已就位，待配键方案定下后只填表。⑥ **侧键**：阅读器内 `XButton1/2` = 翻页（与书库域的后退/前进**按功能态分工**；同一物理键跨域语义不同是用户明确要求）。⑦ **逆向补充**（KOOKIT §5 #14/#15）：`handleNoteClick` 是 `doc.body` 上的 capture 委托且**要求 `mousedown` 与 `click` 坐标相差 ≤ 5px**（防拖选误触）→ 只在"点"而非"拖"时触发；桌面端**无任何 kookit 右键处理**（触屏/右键接线是死代码），右键槽位自由 |
 | v0.3.11 | 2026-09-14 | **笔记 UI 接线（Stage 4 收口）+ 一处 kookit 逆向更正**：① §4.1 `selection-changed` 载荷改为 `RenderSelection`（锚点 + **宿主视口坐标矩形**，适配器换算好 —— UI 不必知道 iframe 位置与内部滚动）；新增 `clearSelection()`（选区在书文档里，宿主清不掉；清完同时广播 null 让 UI 收起色板）。② **逆向事实更正（重要，坑号 KOOKIT §5#13）**：kookit **文字类**（`GeneralRender`）触发的是 `this.trigger("rendered")` —— **不带章号**；只有 `PdfRender` 带 `[chapterDocIndex]`。此前按"事件带章号"实现 → 文字类得到 `undefined`，而 `undefined === null` 为假、又不触发任何告警 → `renderHighlighters` 的章节过滤**静默 0 命中**（高亮永不出现、日志干净）。现改为以**位置**为权威（`getPosition().chapterDocIndex`，见 `resolveRenderedChapter`），并在 `location-changed` 时自愈纠正 |

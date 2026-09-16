@@ -2,16 +2,19 @@
 
 > 目的：让下一次会话/模型以最低成本恢复上下文。
 > 阅读顺序：本文件 → `MAP.md`（自动加载）→ `TODO.md` → 各端架构文档（见 MAP）。
-> 更新：2026-09-15（**client v0.1.17：「书的身份」已落地** —— 全局单库 + 书库降为组织模式；
+> 更新：2026-09-16（**笔记管理「工具组件」契约已定** —— 四项形态裁决（容器/作用域/检索/章节标签）
+> ＋ 补上跨书跳转原本缺失的通道；契约 = `FEATURES.md` §12 + `CONTRACTS.md` v0.4.1 + `DATA_MODEL.md` §5 问题 6。
+> **代码一行未动**（契约先行），实施步骤见 `TODO.md`）。
+> 上一条 2026-09-15（**client v0.1.17：「书的身份」已落地** —— 全局单库 + 书库降为组织模式；
 > 笔记挂 edition、阅读时间按 work 汇总；含迁移器与四处自查修正。逐项见 §4 的 v0.1.17 条目。
-> **⚠ 唯一未做 = 真机验收**。此外本日做了**文档减重**：竞品调研底稿随 `借物表.md` 一并移出版本控制，
+> **⚠ 唯一未做 = 真机验收**。同日做了**文档减重**：竞品调研底稿随 `借物表.md` 一并移出版本控制，
 > `README` 改为面向用户/开发者的介绍，`DATA_MODEL` §6 与 `TODO` 的已完成项大幅收敛）
 
 ## 1. 一句话
 
 TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共同阅读同一本书。
 渲染/解析复用 [kookit](https://github.com/koodo-reader/kookit)（AGPL-3.0，git submodule）；
-同步服务器用 Go，**v0.2.0 已实现**（仓库内 `server/`）；**client v0.1.16**。
+同步服务器用 Go，**v0.2.0 已实现**（仓库内 `server/`）；**client v0.1.17**。
 
 ## 2. 仓库与提交（`D:\PROJECT\TuRead`）
 
@@ -69,6 +72,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | **全局禁选（2026-09-13 用户定）** | **文字选择 = 阅读正文专属**：除阅读页正文外，宿主 UI 任何内容都不响应按住鼠标拖选（`body{user-select:none}`，`input/textarea` 豁免——更名/搜索/新建命名仍可选中复制）。正文在 kookit iframe（独立 document）内，天然不受宿主规则影响，选择能力原样保留。顺带删除 `LibraryFeature` 内容区原有的局部 `select-none`（被全局覆盖，冗余） | `client/src/renderer/src/styles.css`；`client/docs/FEATURES.md` §10/§11 |
 | **书库层级后退/前进（2026-09-13 用户定）** | 对齐**文件资源管理器**逻辑：① **鼠标侧键** XButton1/2 = 后退/前进（仅 `activeFeature==='library'` 接管，`preventDefault` 压掉 Chromium 默认历史导航）② **标题栏返回/前进按钮**，左缘 = `var(--sidebar-w)`（与左侧边栏右缘对齐），只在书库态渲染，不可用禁用（opacity-30）。**历史栈在 `LibraryFeature`**（`histRef` = stack + idx）：条目 = `{containerId, folder, trail}`——**面包屑整条随条目存取**，后退/前进一起还原；`enterContainer`/`enterFolder`/`goToLevel` 全走 `pushEntry`（新导航截断"前进"分支，资源管理器语义），移动/导入等 `commitNav` 是**原地重载、不入栈**；切库广播时历史重置为根。跨兄弟组件用**模块总线** `features/libraryNavBus.ts`（TitleBar 与 LibraryFeature 是 AppShell 兄弟，props 穿 Shell 不值当——`logStore` 先例；TitleBar 以 `useSyncExternalStore` 订阅可用性） | `client/src/renderer/src/features/LibraryFeature/index.tsx`；`features/libraryNavBus.ts`；`components/TitleBar.tsx`；`FEATURES.md` §10/§11 |
 | **面包屑根固定（2026-09-13 用户定）** | 状态栏右下角"当前层级路径"：**根（库名）显示位置固定、子节点向右增生**（原实现容器宽度随内容 + `ml-auto`，路径变深时整体左移、根会跑）。实现 = 容器改**固定宽度** `w-[420px]` + `ml-auto`，内容从左往右流 → 容器左缘锚死。⚠ 过长处理**暂不做**（登记 TODO）。顺带修一个分隔符 bug：`/` 原先渲染在根段**之前**（箱内显示「/ 書庫 測試箱A」）会把根推右 → 改 `index > 0` 才渲染 | `client/src/renderer/src/components/LibraryToolbar.tsx`；`FEATURES.md` §10 |
+| **笔记管理「工具组件」契约（2026-09-16 用户批复；契约先行、代码未动）** | **四项形态**：① **容器 = 同一套容器、同级功能组件** —— 用户明确纠正："上面所谓的域工具和笔记管理本身都是同级的工具组件，容器一样，最开始对这些功能的定义就是统一容器的**功能组件**" → **不引入 `kind`（域工具/辅助工具）分类**，只新增一条 `FeatureDescriptor`（id `notes`，符号「筆」入正常流，`設` 仍 `pinned` 钉底）② **作用域 = 当前库为默认、可切「全部庫」**（笔记挂 edition → "某库的笔记"是经 `holdings` 的**查询口径**，不是存储口径）③ **检索 = 只搜笔记**（`excerpt` 摘录 + `body` 批注），**v1 用 `LIKE` 子串**（2000 条中文笔记实测 **0.32 ms**），**FTS5 不上**（换装条件 + 两个会静默通过的坑登记在 `DATA_MODEL.md` §5 问题 6）④ **章节标签 = 「書名 · 節 N」**，**章标题不冗余存**。**同时补上一个契约缺口**：跨书跳转原无通道（`FeatureHost` 只有 `openReader(bookId)`）→ 定为 `openReader(editionId, target?: {revealNoteId?})`（**可选参数、向后兼容**）+ `FeatureProps.readerTarget`（**tick 防重复消费**）；ReaderFeature 必须在**笔记载入 + 目标章 `rendered` 之后**再 `resolveAnchor(revealNoteId)`，否则静默落空。另：**笔记管理与阅读器不同屏**（切过去即离开阅读器），故**激活时重读**即可，无需 `notes-changed` 广播 | `client/docs/FEATURES.md` §12；`CONTRACTS.md` §4.4（v0.4.1）；`DATA_MODEL.md` §5 问题 6 |
 | **阅读器功能边界判断（2026-09-12 用户定，产品哲学层；同日二次澄清收窄）** | ① **不管理源文件**：阅读器对书籍实体（源文件）不做资产管理——导入=建索引不拷贝、移除=只删索引（现状即如此）；⚠ **不延伸到索引组织层**：容器/书架系统照常演进（2026-09-09 已定案，用户总要用一种方式索引信息），也不依赖/不绑定任何外部管理程序；② **参数控制有必要，但形态克制**：剩余排版参数照常评估落地，形态上坚持召唤式、默认收起、默认暴露集最小，不做 Koodo 式参数墙分散注意力；③ **阅读界面=注意力焦点模式**：不做功能抽屉，不用的功能透明度逐渐提高（淡出）——淡出要慢、召回路径恒定、仅限阅读页。效力高于行业惯例；待吸收进 `STYLE.md` §5.8 | `docs/STATUS.md` §3（本行）；`client/docs/STYLE.md` §5.8 |
 
 ## 4. 版本历史
@@ -108,19 +112,34 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 - 本地代理 `127.0.0.1:7897`（Clash Verge rev）；npm registry 直连；GitHub 直连被墙（走代理 + OpenSSL）；curl.exe 不可用
 - go 沙箱下 telemetry 报错是噪音；`GOPROXY=https://goproxy.cn,direct`；`go build` 把 GOCACHE 指到工作区
 - 测试：`go test ./...`（白盒在源码旁）+ `server/test/e2e/`（黑盒走 HTTP/WS）
+- **跑碰 better-sqlite3 的临时探针（2026-09-16 实测）**：原生模块是 **electron-v130 ABI**，
+  **系统 Node（v24 / MODULE_VERSION 137）`require` 会 `ERR_DLOPEN_FAILED`**
+  → 改用 `client/node_modules/electron/dist/electron.exe <脚本.cjs>` 跑；且 **Windows 下 Electron 的 stdout 抓不到**
+  （GUI 子系统）→ **结果写文件再读**；脚本末尾 `app.quit()` 会打一条
+  `platform_channel.cc Check failed: 拒绝访问 (0x5)` 的 FATAL 噪音（**文件已写完，不影响结论**）。
 - kookit 子模块的 `CLAUDE.md` 规则：**禁止在其仓库内 git commit / push**
 
-## 6. 交接快照（2026-09-14 更新）
+## 6. 交接快照（2026-09-16 更新）
 
-**工作区状态**：**client v0.1.16 已发版**（tag `client-v0.1.16`，2026-09-14：笔记/划线落地）。
-上一版 v0.1.15 的发行物 = 免安装便携版 `client/release/TuRead-0.1.15-win-x64-portable.exe` +
-`release/win-unpacked/`。kookit 子模块的 `m` 是其自身工作树噪音，**勿动**。
-逐版本过程明细见 §4（v0.1.16 条目）；**本文件只写"现在在哪"，细节一律指向权威文档**。
+**工作区状态**：**client v0.1.17 已提交并打 tag**（`client-v0.1.17`，2026-09-15：「书的身份」落地）；
+`client/package.json` version = **0.1.17**，**client 工作树干净**。发行物仍是上一版的免安装便携版
+`client/release/TuRead-0.1.15-win-x64-portable.exe` + `release/win-unpacked/`（**v0.1.17 尚未打包**）。
+⚠ **工作树里另有 server 侧三处未提交改动**（`server/cmd/server/main.go`、`server/internal/room/manager.go`、
+`server/internal/store/store.go`）—— 来源不明（非本会话所为），**下次动 server 前先确认**。
+kookit 子模块的 `m` 是其自身工作树噪音，**勿动**。
+逐版本过程明细见 §4；**本文件只写"现在在哪"，细节一律指向权威文档**。
 
-**★ 当前主目标 · 「书的身份」——契约与代码已落地（2026-09-15），待真机验收**
+**★ 当前主目标（2026-09-16 起）· 笔记管理工具组件 —— 契约已定，待实施**
+- 四项形态裁决与跨书跳转通道见 §3 决策表同名行；契约 = `FEATURES.md` **§12**（形态与容器）+
+  `CONTRACTS.md` **v0.4.1**（§4.4 笔记读模型 `listAllNotes`/`countAllNotes`）+ `DATA_MODEL.md` **§5 问题 6**（检索批复）。
+- **代码一行未动**（契约先行）：实施按序 ①~⑤，落在 `TODO.md` 的「笔记管理」条目下。
+- ⚠ 动手前两个前置：**视觉先在 `STYLE.md` 立案**（渲染层红线：新组件不得自创视觉语汇）；
+  `FeatureHost.openReader` 扩**可选**参数（向后兼容 —— Library / Room / 四个 dev 探针的既有调用不变）。
+
+**★ 上一轮主目标 · 「书的身份」——契约与代码已落地（2026-09-15），待真机验收**
 - **讨论已结束**：用户 2026-09-14 定最高优先级 → **2026-09-15 给出方向并逐条批复**（D1–D12）。
   **结论权威 = `client/docs/DATA_MODEL.md` §4.2（已批复表）+ §6（定案与讨论存档）**；
-  **落地步骤与完成状态 = `TODO.md` 文首 ★ 块九步**；本节不再重述讨论过程。
+  **落地步骤与完成状态见 §4 的 v0.1.17 条目**（`TODO.md` 已不保留已完成的实施步骤 —— TODO 只放待办）；本节不再重述讨论过程。
 - **三问的答案（一句话）**：**书库降为组织模式**（一库一 .db → **全局单库**）；
   **笔记挂 edition、各版一份**（不自动跨版迁移）；**阅读时间逐 edition 记录、按 work 汇总**；
   **映射库的"移除"只移除可见性**（不能在其中加书，靠**扫描**对账，监听不作首选）。
