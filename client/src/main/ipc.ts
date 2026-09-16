@@ -4,7 +4,7 @@
  * ⚠ v0.4.0（2026-09-15「书的身份」）：`store:*` 不再"打到当前库"——**全应用一个全局 .db**，
  * 书库是**库内实体**；写在收录/内容上的操作都**显式带 libraryId**（见 `ILibraryStore`）。
  */
-import { ipcMain, dialog, BrowserWindow, shell } from 'electron'
+import { ipcMain, dialog, BrowserWindow, shell, clipboard } from 'electron'
 import { promises as fs } from 'node:fs'
 import type { Dirent } from 'node:fs'
 import { extname, join } from 'node:path'
@@ -189,6 +189,11 @@ export function registerIpc(
   // 笔记读模型（跨书管理）：查询对象整个过桥；筛选/排序/分页口径全在 store 侧（buildNoteFilter）
   ipcMain.handle(IPC.storeListAllNotes, (_e, query: NoteQuery) => store().listAllNotes(query))
   ipcMain.handle(IPC.storeCountAllNotes, (_e, query: NoteQuery) => store().countAllNotes(query))
+
+  // 剪贴板（v0.4.2）：只接受**纯文本**（具名通道，不是泛化 invoke —— 见 preload 注释）
+  ipcMain.handle(IPC.clipboardWriteText, (_e, text: string) => {
+    clipboard.writeText(String(text ?? ''))
+  })
 
   // 虚拟映射模式的层级浏览：列子目录（不递归，名称+绝对路径，稳定排序）
   ipcMain.handle(IPC.fsListDirectories, async (_e, dir: string) => {

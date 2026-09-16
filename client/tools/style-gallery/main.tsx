@@ -331,8 +331,10 @@ interface ScaleMetrics {
   commitMs: number
   settleMs: number
   refreshMs: number
+  /** DOM 里真实的卡片数（**窗口化后应远小于 N** —— 这是"只渲染视口内"的直接证据） */
   cardCount: number
-  spanCount: number
+  /** 参与定位的条目数（同为窗口化证据） */
+  placedCount: number
 }
 
 /* ------------------------------ 主题切换 ------------------------------ */
@@ -801,19 +803,20 @@ function NotesDemo(): React.JSX.Element {
  * - `refreshMs`：**整片重渲染**用时（切换文字主次档 = 全部卡片重新渲染，等价于筛选/重读后的刷新）。
  * 结果挂到 `window.__notesScale`，由 `tools/style-gallery/smoke.cjs --scale=N` 读走。
  */
-function ScaleProbe({ n }: { n: number }): React.JSX.Element {
+function ScaleProbe({ n, windowing = true }: { n: number; windowing?: boolean }): React.JSX.Element {
   const [items] = useState<NoteFlowItem[]>(() => makeScaleItems(n))
   const [focus, setFocus] = useState<NoteTextFocus>('body')
   const t0 = useRef(performance.now())
   const m = useRef<Partial<ScaleMetrics>>({})
 
-  /** 等跨行数稳定（连续 250ms 无变化即认为收敛）—— 不碰组件内部，纯从 DOM 观测 */
+  /** 等位置稳定（连续 250ms 无变化即认为收敛）—— 不碰组件内部，纯从 DOM 观测。
+   *  ⚠ 窗口化后 DOM 里只有视口内的条目，所以这里量的是"这一屏"的位置稳定性。 */
   const waitSpansStable = useCallback((cb: () => void) => {
     let last = ''
     let since = performance.now()
     const id = window.setInterval(() => {
       const sig = [...document.querySelectorAll('.note-flow__item')]
-        .map((e) => (e as HTMLElement).style.gridRowEnd)
+        .map((e) => (e as HTMLElement).style.top)
         .join('|')
       const now = performance.now()
       if (sig === '' || sig !== last) {
@@ -842,14 +845,14 @@ function ScaleProbe({ n }: { n: number }): React.JSX.Element {
           requestAnimationFrame(() => {
             m.current.refreshMs = Math.round(performance.now() - t1)
             m.current.cardCount = document.querySelectorAll('.note-card').length
-            m.current.spanCount = document.querySelectorAll('.note-flow__item[style]').length
+            m.current.placedCount = document.querySelectorAll('.note-flow__item').length
             ;(window as unknown as { __notesScale?: ScaleMetrics }).__notesScale = {
               n,
               commitMs: m.current.commitMs ?? -1,
               settleMs: m.current.settleMs ?? -1,
               refreshMs: m.current.refreshMs ?? -1,
               cardCount: m.current.cardCount ?? -1,
-              spanCount: m.current.spanCount ?? -1
+              placedCount: m.current.placedCount ?? -1
             }
           })
         )
@@ -864,13 +867,15 @@ function ScaleProbe({ n }: { n: number }): React.JSX.Element {
   return (
     <div className="cjk-ui min-h-screen bg-[var(--bg)] px-8 py-7 text-[var(--text)]">
       <p className="m-0 mb-4 text-[12px] text-[var(--muted)]">
-        压力场景：{n} 条笔记 · 瀑布流（**无窗口化**）—— 结果在 window.__notesScale
+        压力场景：{n} 条笔记 · 瀑布流（{windowing ? '窗口化' : '**全量渲染（A/B 对照）**'}）
+        —— 结果在 window.__notesScale
       </p>
       <NoteFlow
         view="masonry"
         items={items}
         selectedId={null}
         textFocus={focus}
+        windowing={windowing}
         onSelect={noop}
         onOpen={noop}
         onContextMenu={noop}
@@ -920,10 +925,13 @@ function Specimen({
   )
 }
 
-/** 入口：带 `?notes-scale=N` 时只跑压力场景（测量要干净，不与样张其它节混在一起） */
+/** 入口：带 `?notes-scale=N` 时只跑压力场景（测量要干净，不与样张其它节混在一起）。
+ *  `&no-window=1` = 关掉窗口化（**A/B 对照**，见 smoke.cjs --no-window）。 */
 function Root(): React.JSX.Element {
-  const scaleN = Number(new URLSearchParams(window.location.search).get('notes-scale') ?? '')
-  return Number.isFinite(scaleN) && scaleN > 0 ? <ScaleProbe n={scaleN} /> : <Gallery />
+  const params = new URLSearchParams(window.location.search)
+  const scaleN = Number(params.get('notes-scale') ?? '')
+  if (!Number.isFinite(scaleN) || scaleN <= 0) return <Gallery />
+  return <ScaleProbe n={scaleN} windowing={params.get('no-window') !== '1'} />
 }
 
 createRoot(document.getElementById('root') as HTMLElement).render(<Root />)

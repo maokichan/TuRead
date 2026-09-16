@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { EBOOK_EXTENSIONS, IPC } from '@shared/ipc'
 import { createContainer, type ServiceContainer } from '@core/container'
 import { FEATURES } from './features/registry'
-import type { FeatureHost, FeatureId } from './features/types'
+import type { FeatureHost, FeatureId, ReaderTarget } from './features/types'
 import { pushLog } from './features/logStore'
 import { TitleBar } from './components/TitleBar'
 import { runDevSelfCheck } from './dev/selfCheck'
@@ -31,6 +31,12 @@ export default function AppShell(): React.JSX.Element {
   const [readerBookId, setReaderBookId] = useState<string | null>(null)
   /** 阅读态下侧边栏是否被手动钉住（STYLE.md §5.8：进入阅读默认退场，贴缘按钮可切换） */
   const [sidebarPinned, setSidebarPinned] = useState(false)
+  /**
+   * 「带目标打开」载荷（v0.4.2，2026-09-16）：笔记管理双击条目时要把"打开后跳到哪条笔记"
+   * 带进阅读器。**tick 递增**用来防重复消费（同一个目标只跳一次）。见 `ReaderTarget`。
+   */
+  const [readerTarget, setReaderTarget] = useState<ReaderTarget | null>(null)
+  const readerTargetTick = useRef(0)
 
   const selectedBookIdRef = useRef<string | null>(null)
   const readerBookIdRef = useRef<string | null>(null)
@@ -62,11 +68,18 @@ export default function AppShell(): React.JSX.Element {
           })()
         }
       },
-      openReader: (bookId) => {
-        selectedBookIdRef.current = bookId
-        readerBookIdRef.current = bookId
-        setSelectedBookId(bookId)
-        setReaderBookId(bookId)
+      openReader: (editionId, target) => {
+        selectedBookIdRef.current = editionId
+        readerBookIdRef.current = editionId
+        setSelectedBookId(editionId)
+        setReaderBookId(editionId)
+        // 「带目标打开」（笔记管理跳转）：可选参数，未给时不产生任何额外状态
+        readerTargetTick.current += 1
+        setReaderTarget(
+          target?.revealNoteId
+            ? { editionId, revealNoteId: target.revealNoteId, tick: readerTargetTick.current }
+            : null
+        )
         setActiveFeature('reader')
       },
       /**
@@ -77,6 +90,7 @@ export default function AppShell(): React.JSX.Element {
       closeReader: () => {
         readerBookIdRef.current = null
         setReaderBookId(null)
+        setReaderTarget(null)
         setActiveFeature('library')
       },
       selectBook: (id) => {
@@ -143,6 +157,12 @@ export default function AppShell(): React.JSX.Element {
 
   // 书库搜索词（标题栏搜索栏的单一真相；StatePill 同款 props 下发）
   const [libraryQuery, setLibraryQuery] = useState('')
+  /**
+   * 笔记检索词（标题栏搜索栏的**笔记作用域**，2026-09-16）。
+   * ⚠ 与书库**各持一份**、互不串扰：TitleBar 的输入框带 `key={activeFeature}`，按功能**重挂**，
+   * 所以这里也按功能分表存，切回来还是自己的词。
+   */
+  const [notesQuery, setNotesQuery] = useState('')
 
   // 拖拽导入（2026-09-13 用户定）：外部文件拖进窗口 → 导入**当前书库**（进 ImportQueue，
   // 指纹去重/进度/失败上报全部走既有链路）。非电子书扩展名直接忽略并日志说明。
@@ -215,6 +235,8 @@ export default function AppShell(): React.JSX.Element {
         activeFeature={activeFeature}
         libraryQuery={libraryQuery}
         onLibraryQueryChange={setLibraryQuery}
+        notesQuery={notesQuery}
+        onNotesQueryChange={setNotesQuery}
       />
       <div className="relative flex min-h-0 flex-1">
       {sidebarVisible && (
@@ -285,6 +307,9 @@ export default function AppShell(): React.JSX.Element {
                 activeFeature={activeFeature}
                 libraryQuery={libraryQuery}
                 onLibraryQueryChange={setLibraryQuery}
+                notesQuery={notesQuery}
+                onNotesQueryChange={setNotesQuery}
+                readerTarget={readerTarget}
               />
             </div>
           )

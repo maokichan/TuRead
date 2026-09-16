@@ -9,8 +9,24 @@ import type { ComponentType } from 'react'
 import type { ServiceContainer } from '@core/container'
 
 /** 内置功能组件 id。官方插件扩展时追加新的 id 字面量（不与内置冲突即可）。 */
-export const FEATURE_IDS = ['library', 'reader', 'room', 'settings'] as const
+export const FEATURE_IDS = ['library', 'reader', 'room', 'notes', 'settings'] as const
 export type FeatureId = (typeof FEATURE_IDS)[number]
+
+/**
+ * 「带目标打开」的载荷（v0.4.2，2026-09-16）—— 补上笔记管理要的**契约缺口**：
+ * 原 `openReader(bookId)` 打开书后只做"恢复上次位置"，**没有任何通道**能把"打开后跳到哪条笔记"
+ * 带进去，于是"点击笔记 → 打开他书并落到锚点"无路可走。
+ *
+ * ⚠ 时序（做错会**静默落空**）：reveal 依赖 DOM 里那条高亮（`.kookit-note[data-key=…]`），
+ * 而高亮由 `renderHighlighters` 画、**只对当前渲染节生效** → 消费者必须等
+ * ①书已打开 ②笔记载入完成 ③目标章 `rendered` 之后再 `resolveAnchor(anchor, { revealNoteId })`。
+ * `tick` 用来**防重复消费**（同一个目标只跳一次；新的目标必然换 tick）。
+ */
+export interface ReaderTarget {
+  editionId: string
+  revealNoteId?: string
+  tick: number
+}
 
 /**
  * 功能组件宿主 —— 跨功能导航与状态继承的唯一通道。
@@ -21,9 +37,11 @@ export interface FeatureHost {
   navigate(featureId: FeatureId): void
   /**
    * 打开阅读器并打开指定书（本地打开 / 房间加入后的状态继承都走这里）。
+   * `target` 是 **v0.4.2 新增的可选参数**（向后兼容：既有调用一律不变）——
+   * 笔记管理用它把"打开后跳到哪条笔记"带进来，见 `ReaderTarget`。
    * 副作用：把该书设为当前选中书 + 切到阅读功能组件。
    */
-  openReader(bookId: string): void
+  openReader(editionId: string, target?: Omit<ReaderTarget, 'editionId' | 'tick'>): void
   /** 关闭阅读器（清空 readerBookId） */
   closeReader(): void
   /** 设置当前选中书籍（跨功能：Library 选中 → Room 标定 / Reader 打开） */
@@ -48,6 +66,11 @@ export interface FeatureProps {
   /** 书库搜索词（自绘标题栏的搜索栏产出，2026-09-12；只有 LibraryFeature 消费） */
   libraryQuery?: string
   onLibraryQueryChange?: (q: string) => void
+  /** 笔记管理的检索词（标题栏搜索栏的**笔记作用域**，2026-09-16） */
+  notesQuery?: string
+  onNotesQueryChange?: (q: string) => void
+  /** 阅读器的"带目标打开"载荷（笔记管理跳转用；见 `ReaderTarget`） */
+  readerTarget?: ReaderTarget | null
 }
 
 /** 功能组件注册描述 —— 官方插件 = 新增一条 descriptor 注册进 registry。 */

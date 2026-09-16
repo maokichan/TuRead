@@ -31,6 +31,8 @@ const { app, BrowserWindow } = require('electron')
 const URL = process.argv[2] || 'http://localhost:5199/tools/style-gallery/index.html'
 /** `--scale=N`：附加跑压力场景（笔记管理瀑布流的规模数字，见 STYLE §5.10 的窗口化决策） */
 const SCALE = Number((process.argv.find((a) => a.startsWith('--scale=')) ?? '').split('=')[1] ?? 0)
+/** `--no-window`：压力场景关掉窗口化（A/B 对照） */
+const NO_WINDOW = process.argv.includes('--no-window')
 const OUT = path.join(os.tmpdir(), 'turead-gallery-smoke.json')
 const logs = []
 
@@ -41,6 +43,17 @@ app.commandLine.appendSwitch('disable-gpu')
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ show: false, width: 1280, height: 1200 })
+  /**
+   * ⚠ **计时环境的两个前提**（2026-09-16 踩过：一个假数字差点进了决策文档）：
+   * ① 从未显示过的窗口（`show:false`）**合成器不出帧** → `requestAnimationFrame` 的间隔被拉到
+   *    ~850ms（实测），于是所有"基于 rAF 的耗时"（如 `refreshMs`）都会虚高成 ~1.7s。
+   * ② 隐藏窗口还会节流计时器。
+   * 故：关掉后台节流，并**用 `showInactive()` 让窗口真的出帧**（不抢焦点）。
+   * 页面侧还有一道自检：空闲 rAF 间隔（见下方 `rafGapMs`），环境不可信就直接判 FAIL ——
+   * **探针的假阴性/假数字比 FAIL 更危险**，它会把真回归盖住。
+   */
+  win.webContents.setBackgroundThrottling(false)
+  win.showInactive()
   win.webContents.on('console-message', (_e, level, message, line, sourceId) => {
     logs.push({ kind: 'console', level, message: String(message).slice(0, 500), line, sourceId })
   })
@@ -51,7 +64,12 @@ app.whenReady().then(async () => {
     logs.push({ kind: 'gone', message: JSON.stringify(details) })
   })
 
+  // ⚠ 预热加载：Vite 在"配置变了/首次请求"时会**重新优化依赖并整页 reload**，
+  // 那次 reload 会让随后的测量拿到空 DOM（实测出现过 rootChildren=0 的**假阴性** ——
+  // 探针假阴性比 FAIL 更危险，它会把真回归盖住）。故先空跑一次，再正式载入测量。
   try {
+    await win.loadURL(URL)
+    await new Promise((r) => setTimeout(r, 1200))
     await win.loadURL(URL)
   } catch (e) {
     logs.push({ kind: 'loadURL-throw', message: String(e) })
@@ -60,6 +78,14 @@ app.whenReady().then(async () => {
 
   let stats = null
   try {
+    // ⚠ 先把笔记流滚进视野再量：窗口化（正确地）不渲染视口外的条目，
+    // 而样张里这一节在首屏之下 —— 不滚过去就量到 0 张卡（曾因此假通过一次断言）。
+    await win.webContents.executeJavaScript(`(() => {
+      const el = document.querySelector('.note-flow')
+      if (el) el.scrollIntoView({ block: 'center' })
+      return true
+    })()`)
+    await new Promise((r) => setTimeout(r, 600))
     stats = await win.webContents.executeJavaScript(`(() => {
       const root = document.getElementById('root')
       const body = document.body
@@ -90,15 +116,25 @@ app.whenReady().then(async () => {
       (l.kind === 'console' && l.level >= 2 && !/Content-Security-Policy/.test(l.message)) ||
       l.kind !== 'console'
   )
-  // 「条目大小随内容变」（STYLE §5.10）：笔记卡片 ≥2 张时，实测高度至少要出现 3 种
-  // —— 样张里的批注长短刻意拉开（1 行 / 2 行 / 6 行截断），若全等高就是回归。
-  // 没渲染笔记卡片时本条自动豁免（样张不含该节也不该 FAIL）。
-  const notesOk = !stats || stats.noteCards < 2 || (stats.noteHeights?.length ?? 0) >= 3
+  // 「条目大小随内容变」+「笔记流真的渲染出来了」（STYLE §5.10）：
+  // ⚠ 这条曾**假通过** —— 一次 bug 让样张的笔记流渲染出 0 张卡，而旧判据写的是
+  //   `noteCards < 2 || ...`（0 张时**豁免**）→ 探针没响。故改为**必须**有卡片、
+  //   且实测高度至少 3 种（样张里的批注长短刻意拉开）。若将来要撤掉这一节，**得显式改探针**，
+  //   不许它悄悄豁免（探针假阴性比 FAIL 更危险）。
+  const notesOk =
+    !stats || (stats.noteFlows > 0 && stats.noteCards >= 2 && (stats.noteHeights?.length ?? 0) >= 3)
   // 压力场景（可选）：`?notes-scale=N` → 读 window.__notesScale（笔记管理瀑布流的规模数字）
   let scale = null
+  let rafGapMs = -1
   if (SCALE > 0) {
     try {
-      await win.loadURL(`${URL}?notes-scale=${SCALE}`)
+      await win.loadURL(`${URL}?notes-scale=${SCALE}${NO_WINDOW ? '&no-window=1' : ''}`)
+      // 计时环境自检：空闲时 rAF 的平均间隔（> 60ms 说明被节流 → 所有 rAF 指标不可信）
+      rafGapMs = await win.webContents.executeJavaScript(`new Promise((res) => {
+        const t0 = performance.now()
+        requestAnimationFrame(() => requestAnimationFrame(() => res(Math.round((performance.now() - t0) / 2))))
+      })`)
+      if (rafGapMs > 60) logs.push({ kind: 'timing-env', message: `rAF 间隔 ${rafGapMs}ms（被节流）—— rAF 类指标不可信` })
       const deadline = Date.now() + 120000
       while (Date.now() < deadline) {
         scale = await win.webContents.executeJavaScript('window.__notesScale || null')
@@ -118,18 +154,20 @@ app.whenReady().then(async () => {
         stats.textLen > 500 &&
         pageErrors.length === 0 &&
         notesOk &&
-        (SCALE <= 0 || scale)
+        (SCALE <= 0 || (scale && rafGapMs <= 60))
     ),
     url: URL,
     notesOk,
     stats,
     scale,
+    /** 空闲 rAF 间隔（计时环境是否可信；> 60ms 时上面的 commit/refresh 数字都不要当真） */
+    rafGapMs,
     pageErrors
   }
   fs.writeFileSync(OUT, JSON.stringify({ verdict, logs }, null, 2))
   console.log(
     `[style-gallery smoke] ${verdict.ok ? 'OK' : 'FAIL'}` +
-      (scale ? ` | scale n=${scale.n} commit=${scale.commitMs}ms settle=${scale.settleMs}ms refresh=${scale.refreshMs}ms cards=${scale.cardCount}` : '') +
+      (scale ? ` | scale n=${scale.n} commit=${scale.commitMs}ms settle=${scale.settleMs}ms refresh=${scale.refreshMs}ms cards=${scale.cardCount}/${scale.n} rafGap=${rafGapMs}ms` : '') +
       ` → ${OUT}`
   )
   app.exit(verdict.ok ? 0 : 1)

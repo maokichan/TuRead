@@ -10,6 +10,7 @@ import type { INetService } from '@core/ports/net'
 import type { IBookIdentityService } from '@core/ports/identity'
 import type { ILibraryStore } from '@core/ports/store'
 import type { IBookPicker } from '@core/ports/picker'
+import type { IClipboard } from '@core/ports/clipboard'
 import type { IRoomSession } from '@core/usecases/RoomSession'
 import type { IBookService } from '@core/usecases/BookService'
 import type { ICoverQueue } from '@core/usecases/CoverQueue'
@@ -20,6 +21,7 @@ import type { IImageThumbnailer } from '@core/ports/image'
 import { IpcNetAdapter } from '@core/adapters/net/ipcNetAdapter'
 import { IpcStoreAdapter } from '@core/adapters/storage/ipcStoreAdapter'
 import { IpcPickerAdapter } from '@core/adapters/picker/ipcPickerAdapter'
+import { IpcClipboardAdapter } from '@core/adapters/clipboard/ipcClipboardAdapter'
 import { FingerprintService } from '@core/adapters/identity/fingerprint'
 import { KookitRenderAdapter } from '@core/adapters/render/kookitRenderAdapter'
 import { OffscreenMetadataExtractor } from '@core/adapters/render/offscreenMetadataExtractor'
@@ -39,6 +41,8 @@ export interface ServiceContainer {
   identity: IBookIdentityService
   store: ILibraryStore
   picker: IBookPicker
+  /** v0.4.2：剪贴板（笔记管理「複製批註」）—— 端口化，UI 不直接摸桥 */
+  clipboard: IClipboard
   // 应用服务（usecases）
   room: IRoomSession
   books: IBookService
@@ -58,6 +62,7 @@ export function createContainer(bridge: TureadBridge): ServiceContainer {
   const identity: IBookIdentityService = new FingerprintService()
   const store: ILibraryStore = new IpcStoreAdapter(bridge)
   const picker: IBookPicker = new IpcPickerAdapter(bridge)
+  const clipboardWriter: IClipboard = new IpcClipboardAdapter(bridge)
 
   const room: IRoomSession = new RoomSession(net, render, identity)
   const books: IBookService = new BookService(identity, store)
@@ -74,5 +79,5 @@ export function createContainer(bridge: TureadBridge): ServiceContainer {
     store
   )
 
-  return { render, net, identity, store, picker, room, books, covers, imports, scan }
+  return { render, net, identity, store, picker, clipboard: clipboardWriter, room, books, covers, imports, scan }
 }

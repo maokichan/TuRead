@@ -1122,39 +1122,26 @@ textarea {
    "图需要槽"，文字卡没有图就不该有框架（P1/P3）。
    选中态是**试验档**（§5.10）：1px `--accent-ring` 直角矩形 → 所以卡片**常驻 8px 内边距 +
    1px 透明边框**（否则选中时盒模型变化会挤动文字、整片流重排）。 */
+/* 笔记流：**自己装箱 + 绝对定位**（几何在 `components/noteLayout.ts`，纯函数、有单测）。
+   ⚠ 为什么不用 CSS grid 的 `span`（2026-09-16 改）：窗口化要求"不渲染就知道第 i 条在哪"，
+   而 grid 的自动布局把位置算在浏览器里、取不回来 → 无法只渲染视口内的条目（1000 条实测
+   一次整片重渲染 1.6s，见 `STYLE.md` §5.10）。故位置由 JS 给，CSS 只负责"盒子怎么长"。
+   顺带也甩掉了 `grid-auto-rows` + `gap` 那套行跨算术（`N×8+(N−1)×16` 会让空隙随内容漂移）。 */
 .note-flow {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--note-col-w, 240px), 1fr));
-  column-gap: 16px;
+  position: relative;
 }
 
-/* 網格 = **等高行**：同行卡片撑到最高者（内容差异只体现在内部截断，不体现在高度） */
-.note-flow--grid {
-  row-gap: 16px;
-  align-items: stretch;
+/* 网格项 = 绝对定位的条目盒（`top/left/width` 由 noteLayout 给；瀑布流下高度由内容撑开）。
+   ⚠ 与卡片盒是**两个**盒子：排查装箱问题时把 `--note-flow-edge` 显形，能同时读出
+   "内容高度 / 装箱用的高度 / 该列的累计高度"三者关系。 */
+.note-flow__item {
+  position: absolute;
+  border: 1px solid var(--note-flow-edge, transparent);
 }
 
+/* 網格 = 等高行：行内条目同高（由装箱器取该行最高者），卡片撑满 */
 .note-flow--grid .note-card {
   height: 100%;
-}
-
-/* 瀑布流 = **按列装箱**：行高单位 8px，卡片按实测高度跨行（`grid-row-end: span N`）。
-   ⚠ 两条容易算错的：
-   ① **`row-gap` 必须是 0** —— 若与 `grid-auto-rows` 同时给，跨 N 行的可用高度是
-      `N×8 + (N−1)×16`，空隙随内容长度漂移（16~39px 不均）；行距改由跨行数里的余量承担
-      （`N = ceil((h + 16) / 8)`，余量 <8px → 实际行距 16~24px，肉眼均匀）。
-   ② **不能用 CSS `columns`** —— 它是**列优先**，会把时间倒序的视觉流读乱；网格 + span 是行优先的
-      （晚的在前、从左到右）。 */
-.note-flow--masonry {
-  grid-auto-rows: 8px;
-  row-gap: 0;
-  align-items: start;
-}
-
-/* 网格项（瀑布流的"跨行盒"）—— 与卡片盒是**两个**盒子：跨行数决定的是它，卡片只是住在里面。
-   排查装箱问题时把它显形（`--note-flow-edge`）就能看出"内容高度 / 精确到的 8px / 余量"三者关系。 */
-.note-flow__item {
-  border: 1px solid var(--note-flow-edge, transparent);
 }
 
 /* 边界排查开关：挂到 .note-flow 的任意祖先上即可同时看见两个盒子（默认透明）。

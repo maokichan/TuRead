@@ -82,7 +82,9 @@ export const IPC = {
   winMaximizedChanged: 'win:maximized-changed',
   // 沉浸全屏（2026-09-13）：渲染层（阅读器/标题栏）请求切换 OS 全屏；main 广播状态回渲染层
   winSetFullScreen: 'win:set-fullscreen',
-  winFullScreenChanged: 'win:fullscreen-changed'
+  winFullScreenChanged: 'win:fullscreen-changed',
+  // 剪贴板写入（v0.4.2）：笔记管理的「複製批註」—— 走 preload 的**具名方法**，不用泛化 invoke
+  clipboardWriteText: 'clipboard:write-text'
 } as const
 
 /** 可导入的电子书扩展名（对话框过滤 + 目录扫描共用，唯一定义处） */
@@ -97,6 +99,8 @@ export interface TureadBridge {
   subscribe(channel: string, listener: (payload: unknown) => void): () => void
   /** 拖拽导入（2026-09-13）：Electron ≥29 移除 File.path，取真实路径须经 preload 的 webUtils */
   getPathForFile(file: File): string
+  /** 写系统剪贴板（v0.4.2）：**具名方法**而非泛化 invoke —— 笔记管理的「複製批註」用 */
+  writeClipboardText(text: string): Promise<void>
   /** dev-only：TUREAD_DEV_BOOK 环境变量指定的书（启动即打开，用于无头验证渲染链路） */
   devBook?: string
   /** dev-only：TUREAD_DEV_PROBE 环境变量指定的探针名（如 pdf-width，无头复现专项现象） */

@@ -8,12 +8,18 @@ import type { FeatureDescriptor } from './types'
 import { LibraryFeature } from './LibraryFeature'
 import { ReaderFeature } from './ReaderFeature'
 import { RoomFeature } from './RoomFeature'
+import { NotesFeature } from './NotesFeature'
 import { SettingsFeature } from './SettingsFeature'
 
-/** 侧边栏顺序 = 数组顺序；pinned 项由 AppShell 单独渲染到最下角 */
+/**
+ * 侧边栏顺序 = 数组顺序；pinned 项由 AppShell 单独渲染到最下角。
+ * ⚠ `notes`（筆）与書/閱/房 **同级同容器**（用户 2026-09-16 明确：不引入"域工具/辅助工具"分类，
+ * 「工具组件」就是统一容器的「功能组件」）；`pinned` 只表达"贴底"，不是分类。
+ */
 export const FEATURES: FeatureDescriptor[] = [
   { id: 'library', icon: '書', label: '书架', component: LibraryFeature },
   { id: 'reader', icon: '閱', label: '阅读', component: ReaderFeature },
   { id: 'room', icon: '房', label: '房间', component: RoomFeature },
+  { id: 'notes', icon: '筆', label: '筆記', component: NotesFeature },
   { id: 'settings', icon: '設', label: '设置', component: SettingsFeature, pinned: true }
 ]

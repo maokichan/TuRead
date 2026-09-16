@@ -59,7 +59,8 @@ export function ReaderFeature({
   container,
   host,
   readerBookId,
-  activeFeature
+  activeFeature,
+  readerTarget
 }: FeatureProps): React.JSX.Element {
   const [book, setBook] = useState<BookRecord | null>(null)
   const [readerMode, setReaderMode] = useState<ReaderMode>('scroll')
@@ -227,6 +228,35 @@ export function ReaderFeature({
    * ③ 新增/删除由 `createNote`/`removeNote` 自己改 DOM，**不必**整批重挂（重挂会 clear 再画一遍）。
    */
 
+  /**
+   * 「带目标打开」的消费（v0.4.2，2026-09-16）—— 笔记管理双击条目：打开他书 + 跳到那条笔记。
+   *
+   * ⚠ **时序是硬约束**（顺序错会**静默落空**）：reveal 依赖 DOM 里那条高亮
+   * （`.kookit-note[data-key=…]`），而高亮由 `renderHighlighters` 画、**只对当前渲染节生效**
+   * → 必须等 ①书已打开 ②笔记载入完成 ③目标章 `rendered` 之后再 `resolveAnchor(revealNoteId)`。
+   * 故这里只**登记**"待跳"，由上述两个时机尝试；成功即清空（`tick` 防重复消费），
+   * 找不到那条笔记时**保持待跳**（等载入/渲染的下一个时机），失败进日志不静默。
+   */
+  const pendingReveal = useRef<{ tick: number; noteId: string } | null>(null)
+  useEffect(() => {
+    if (!readerTarget?.revealNoteId) return
+    if (book && readerTarget.editionId !== book.id) return // 书还没换过来，下一轮再登记
+    pendingReveal.current = { tick: readerTarget.tick, noteId: readerTarget.revealNoteId }
+  }, [readerTarget, book])
+
+  const tryRevealPending = useCallback((): void => {
+    const pending = pendingReveal.current
+    if (!pending) return
+    const target = notesRef.current.find((n) => n.id === pending.noteId)
+    if (!target) return // 笔记还没载入 → 保持待跳
+    pendingReveal.current = null
+    void container.render
+      .resolveAnchor(target.anchor, { revealNoteId: pending.noteId })
+      .catch((err) => {
+        host.pushLog(`跳轉筆記失敗：${(err as Error).message}`)
+      })
+  }, [container, host])
+
   // 载入本书笔记（打开/切书时）→ 载入完补挂一次（约束②）
   useEffect(() => {
     if (!book) {
@@ -240,18 +270,21 @@ export function ReaderFeature({
       notesRef.current = list
       setNotes(list)
       void container.render.renderHighlighters(list)
+      // 笔记载入完成 = 消费"带目标打开"的第 ② 个时机（见上面 pendingReveal 注释）
+      tryRevealPending()
     })
     return () => {
       cancelled = true
     }
-  }, [container, book])
+  }, [container, book, tryRevealPending])
 
   // 每渲染完一章 → 回显该章高亮（约束①；适配器内部按当前节过滤）
   useEffect(() => {
     return container.render.on('rendered', () => {
       void container.render.renderHighlighters(notesRef.current)
+      tryRevealPending()
     })
-  }, [container])
+  }, [container, tryRevealPending])
 
   // 正文选区变化（适配器在书文档上观测）。色板已由右键菜单取代（用户 2026-09-14 定：
   // "新建无论是高亮还是批注，最好的方法还是右键"），但**仍要跟踪选区**：

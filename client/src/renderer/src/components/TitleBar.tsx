@@ -18,20 +18,35 @@ interface TitleBarProps {
   activeFeature: string
   libraryQuery: string
   onLibraryQueryChange: (q: string) => void
+  /** 笔记检索词（笔记作用域，2026-09-16）——与书库**各持一份**，切功能不串词 */
+  notesQuery: string
+  onNotesQueryChange: (q: string) => void
 }
 
 /** 全局搜索的作用域占位（2026-09-12 用户定：书库搜书 / 阅读器搜书内内容 / 房间搜房间与服务器；
+ *  2026-09-16 增**笔记作用域**（搜笔记的摘录 + 批注正文）；
  *  2026-09-13 用户定：不展示快捷键提示——快捷键属于说明书，不属于界面）。
- *  书库过滤已实装（LibraryFeature）；阅读器=IRenderService.search（返回形状 CONTRACTS §7 待定）、
- *  房间=搜房间列表/服务器书目——两者只有占位与回车事件，后端接线见 TODO「全局搜索接线」。 */
+ *  书库过滤已实装（LibraryFeature）；笔记作用域已实装（NotesFeature）；
+ *  阅读器=IRenderService.search（返回形状 CONTRACTS §7 待定）、房间=搜房间列表/服务器书目
+ *  ——两者只有占位与回车事件，后端接线见 TODO「全局搜索接线」。 */
 const PLACEHOLDERS: Record<string, string> = {
   library: '搜索書庫…（標題 / 路徑）',
   reader: '搜索本書內容…（未接線）',
   room: '搜索房間 / 服務器書目…（未接線）',
+  notes: '搜索筆記…（摘錄 / 批註）',
   default: '搜索…'
 }
 
-export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: TitleBarProps): React.JSX.Element {
+/** 搜索词接线的功能域（其余域只有占位）：书库 + 笔记 */
+const QUERY_WIRED = new Set(['library', 'notes'])
+
+export function TitleBar({
+  activeFeature,
+  libraryQuery,
+  onLibraryQueryChange,
+  notesQuery,
+  onNotesQueryChange
+}: TitleBarProps): React.JSX.Element {
   const [maximized, setMaximized] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -56,15 +71,18 @@ export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: 
   // 经 libraryNavBus 到达；状态（可否后退/前进）用外部 store 订阅
   const navState = useSyncExternalStore(libraryNavBus.subscribe, libraryNavBus.getState)
 
-  // Ctrl+F 聚焦搜索——走意图层（app.focusSearch，domain/input.ts）；处理函数内分流：仅书库态。
+  // Ctrl+F 聚焦搜索——走意图层（app.focusSearch，domain/input.ts）；处理函数内分流：书库 / 笔记。
   // Esc 清空留在输入框自身的 onKeyDown（元素级语义，v2 再入表）
   useKeyIntents('app', {
     'app.focusSearch': () => {
-      if (activeFeature !== 'library') return
+      if (!QUERY_WIRED.has(activeFeature)) return
       inputRef.current?.focus()
       inputRef.current?.select()
     }
   })
+
+  const queryValue = activeFeature === 'notes' ? notesQuery : activeFeature === 'library' ? libraryQuery : undefined
+  const setQuery = activeFeature === 'notes' ? onNotesQueryChange : onLibraryQueryChange
 
   const control = (
     label: string,
@@ -138,11 +156,11 @@ export function TitleBar({ activeFeature, libraryQuery, onLibraryQueryChange }: 
         <input
           key={activeFeature}
           ref={inputRef}
-          value={activeFeature === 'library' ? libraryQuery : undefined}
-          onChange={(e) => onLibraryQueryChange(e.target.value)}
+          value={queryValue}
+          onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
-              onLibraryQueryChange('')
+              setQuery('')
               inputRef.current?.blur()
             }
           }}
