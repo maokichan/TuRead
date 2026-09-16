@@ -119,7 +119,9 @@ app.whenReady().then(async () => {
    *    两段**等宽**且**各贴线的一端**（等宽 + 贴齐 ⟺ 互为镜像，不需要中心点算式）；
    * ② **宽度不得由纸宽派生** —— 把 `--read-width` 现场改掉，两挂件宽度必须**一点不变**
    *    （v1.8 曾把宽度写成纸宽的函数，用户判定"可笑之极"）；
-   * ③ **目录当前条目居中** —— 位置钉在第 12 章，量那一条的中心与滚动容器中心之差。
+   * ③ **面板不许压到纸上** —— 挂件宽是固定的，所以让位的是**纸**（`.reader-stage` 的 min() 夹取）；
+   * ④ **左抽屉顶部的两格页签关于抽屉中心对称**（用户 2026-09-16 点名的那一条）；
+   * ⑤ **目录当前条目居中** —— 位置钉在第 12 章，量那一条的中心与滚动容器中心之差。
    */
   let geometry = null
   try {
@@ -152,7 +154,34 @@ app.whenReady().then(async () => {
         tocWidth: Math.round(t.width),
         paramsWidth: Math.round(p.width),
         tocMaxH: getComputedStyle(toc).maxHeight,
-        paramsMaxH: getComputedStyle(params).maxHeight
+        paramsMaxH: getComputedStyle(params).maxHeight,
+        /* ③ **面板不许压到纸上**：量纸（#page-area = .reader-stage）与两挂件的矩形，判据 = 横向不相交 */
+        paperLeft: null,
+        paperRight: null,
+        paperClear: true,
+        /* ④ **两格页签关于抽屉中心对称**：量两格中心到抽屉中心的距离差 + 两格之间的中点是否落在中心上 */
+        tabsSymDelta: null,
+        tabMidDelta: null
+      }
+      const paperEl = demo.querySelector('.reader-stage')
+      if (paperEl) {
+        const pr = paperEl.getBoundingClientRect()
+        first.paperLeft = Math.round(pr.left - box.left)
+        first.paperRight = Math.round(pr.right - box.left)
+        first.paperClear = pr.left >= t.right - 1 && pr.right <= p.left + 1
+      }
+      const tabs = demo.querySelectorAll('.left-tabs__tab')
+      if (tabs.length === 2) {
+        const ra = tabs[0].getBoundingClientRect()
+        const rb = tabs[1].getBoundingClientRect()
+        /* ⚠ 参照必须是**抽屉自己的几何中心**（用户原话"相对于挂载线下左侧抽屉栏的几何中心"），
+           不是演示框中心 —— 第一版拿 box 中心比，量出 tabMidDelta=-192 的**假 FAIL**。 */
+        const drawerCenter = (t.left + t.right) / 2
+        first.tabsSymDelta = Math.round(
+          Math.abs(drawerCenter - (ra.left + ra.right) / 2) -
+            Math.abs((rb.left + rb.right) / 2 - drawerCenter)
+        )
+        first.tabMidDelta = Math.round((ra.right + rb.left) / 2 - drawerCenter)
       }
       // 换一个纸宽再量宽度（判据 ②：宽度不许是纸的函数）
       demo.style.setProperty('--read-width', '520px')
@@ -188,7 +217,6 @@ app.whenReady().then(async () => {
     composer = await win.webContents.executeJavaScript(`(() => {
       const el = document.querySelector('.note-composer')
       if (!el) return { error: 'composer not mounted' }
-      const r = el.getBoundingClientRect()
       const cs = getComputedStyle(el)
       const ta = el.querySelector('textarea')
       // ⚠ 两个量法上的坑（第一版判据在这里**假 FAIL** 过）：
@@ -197,20 +225,54 @@ app.whenReady().then(async () => {
       // ② 居中要跟 **documentElement.clientWidth** 比：window.innerWidth 含滚动条
       //    → 页面长到出现滚动条时，fixed 元素（按视口定位）会被判成偏了 5~8px。
       const cw = document.documentElement.clientWidth
-      const rw = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--read-width')) || 760
-      const paperW = Math.min(cw, rw)
-      return {
-        visibleText: (el.innerText || '').trim().length,
-        placeholder: ta ? ta.placeholder : null,
-        background: cs.backgroundColor,
-        borderTopPx: Number.parseFloat(cs.borderTopWidth),
-        centerDelta: Math.round(r.left + r.width / 2 - cw / 2),
-        /* 「填充阅读纸、两侧各留 5% 缝」= 宽 = 纸宽 × 0.9（纸宽 = min(视口, --read-width)） */
-        widthDelta: Math.round(r.width - paperW * 0.9),
-        heightPx: Math.round(r.height),
-        dpr: window.devicePixelRatio,
-        focusIsTextarea: document.activeElement === ta
+      /* ⚠ 期望的"纸宽"要与 styles.css 的 :root 变量 --page-w **同一口径**（探针独立重算一遍，
+         算式见那里的注释）：min(视口, 用户档位, 视口 - 2×(侧边栏 + 挂件 + 缝))，下限 160。
+         ⚠ 让位量里必须含 --sidebar-w：纸是窗口居中的、挂件是从侧边栏右缘起算的。 */
+      const rootCs2 = getComputedStyle(document.documentElement)
+      const rw2 = Number.parseFloat(rootCs2.getPropertyValue('--read-width')) || 760
+      const sw2 = Number.parseFloat(rootCs2.getPropertyValue('--sidebar-w')) || 56
+      const pw2 = Number.parseFloat(rootCs2.getPropertyValue('--rail-panel-w')) || 280
+      const gap2 = Number.parseFloat(rootCs2.getPropertyValue('--rail-gap')) || 16
+      const paperW = Math.min(cw, rw2, Math.max(160, cw - 2 * (sw2 + pw2 + gap2)))
+      const lineH = ta ? Number.parseFloat(getComputedStyle(ta).fontSize) * 1.55 : 0
+      const emptyH = Math.round(el.getBoundingClientRect().height)
+      // ③b **自增长**（用户 2026-09-16）：默认至少两行、内容多了自己撑起来、上限五行后转滚动。
+      //    用原生 setter 写值再派发 input（React 受控组件必须这样喂）。
+      let grownH = null
+      let taScroll = null
+      let taClient = null
+      if (ta) {
+        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set
+        setter.call(ta, 'a\\nb\\nc\\nd\\ne\\nf\\ng\\nh')
+        ta.dispatchEvent(new Event('input', { bubbles: true }))
       }
+      return new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (ta) {
+            grownH = Math.round(el.getBoundingClientRect().height)
+            taScroll = ta.scrollHeight
+            taClient = ta.clientHeight
+          }
+          resolve({
+            visibleText: (el.innerText || '').trim().length,
+            placeholder: ta ? ta.placeholder : null,
+            background: cs.backgroundColor,
+            borderTopPx: Number.parseFloat(cs.borderTopWidth),
+            centerDelta: Math.round(el.getBoundingClientRect().left + el.getBoundingClientRect().width / 2 - cw / 2),
+            /* 「填充阅读纸、两侧各留 5% 缝」= 宽 = 纸宽 × 0.9（纸宽 = min(视口, --read-width)） */
+            widthDelta: Math.round(el.getBoundingClientRect().width - paperW * 0.9),
+            emptyHeightPx: emptyH,
+            grownHeightPx: grownH,
+            lineHeightPx: Math.round(lineH * 100) / 100,
+            taValueLen: ta ? ta.value.length : -1,
+            fieldSizing: ta ? getComputedStyle(ta).getPropertyValue('field-sizing') : 'n/a',
+            taScrollH: taScroll,
+            taClientH: taClient,
+            dpr: window.devicePixelRatio,
+            focusIsTextarea: document.activeElement === ta
+          })
+        }))
+      })
     })()`)
     await win.webContents.executeJavaScript(
       `(() => { const b = document.getElementById('demo-composer-toggle'); if (b) b.click(); return true })()`
@@ -255,9 +317,25 @@ app.whenReady().then(async () => {
   const widthIndependentOk = Boolean(
     geometry && !geometry.error && geometry.widthAtOtherPaper === geometry.tocWidth && geometry.widthAtOtherPaper2 === geometry.paramsWidth
   )
+  /** 面板不许压到纸上（用户 2026-09-16："会盖住页面的内容"）—— 让位的是纸，不是线 */
+  const paperClearOk = Boolean(geometry && !geometry.error && geometry.paperClear === true)
+  /** 左抽屉顶部的两格页签关于抽屉中心对称（用户 2026-09-16 点名的那一条） */
+  const tabsSymOk = Boolean(
+    geometry &&
+      !geometry.error &&
+      geometry.tabsSymDelta !== null &&
+      Math.abs(geometry.tabsSymDelta) <= 1 &&
+      Math.abs(geometry.tabMidDelta ?? 99) <= 1
+  )
   const followedOk = Boolean(
     geometry && !geometry.error && (geometry.scrollable ?? -1) > 40 && geometry.hitFound && Math.abs(geometry.centeredDelta ?? 999) <= 8
   )
+  /**
+   * 输入栏：零文字 + 纯色底 + 发丝描边 + 居中 + 宽 = 纸宽×0.9 + **自增长**（用户 2026-09-16）：
+   * 空态 ≈ **两行**高、灌 8 行后 ≈ **五行**高（封顶）且内容溢出转滚动。
+   * 判据用实测行高算，不写死 px（DPR/字体差异都不会把它变成假 FAIL）。
+   */
+  const lineH = composer?.lineHeightPx ?? 23.25
   const composerOk = Boolean(
     composer &&
       !composer.error &&
@@ -269,7 +347,11 @@ app.whenReady().then(async () => {
       composer.borderTopPx <= 1.5 && // 发丝级（125% 缩放下实测 0.8px，见上面的量法说明）
       Math.abs(composer.centerDelta ?? 999) <= 2 &&
       Math.abs(composer.widthDelta ?? 999) <= 2 &&
-      (composer.heightPx ?? 999) <= 56 &&
+      (composer.emptyHeightPx ?? 0) >= 1.7 * lineH &&
+      (composer.emptyHeightPx ?? 0) <= 2.9 * lineH &&
+      (composer.grownHeightPx ?? 0) >= 4.2 * lineH &&
+      (composer.grownHeightPx ?? 0) <= 5.9 * lineH &&
+      (composer.taScrollH ?? 0) > (composer.taClientH ?? 0) && // 到了上限就转滚动，而不是继续长高
       composer.focusIsTextarea === true
   )
   // 压力场景（可选）：`?notes-scale=N` → 读 window.__notesScale（笔记管理瀑布流的规模数字）
@@ -305,15 +387,19 @@ app.whenReady().then(async () => {
         notesOk &&
         mirrorOk &&
         widthIndependentOk &&
+        paperClearOk &&
+        tabsSymOk &&
         followedOk &&
         composerOk &&
         (SCALE <= 0 || (scale && rafGapMs <= 60))
     ),
     url: URL,
     notesOk,
-    /** 几何判据（2026-09-16）：镜像 / 宽度不随纸变 / 当前条目居中 / 输入栏零文字且贴纸宽 */
+    /** 几何判据（2026-09-16）：镜像 / 宽度不随纸变 / 纸不被压住 / 页签对称 / 当前条目居中 / 输入栏 */
     mirrorOk,
     widthIndependentOk,
+    paperClearOk,
+    tabsSymOk,
     followedOk,
     composerOk,
     stats,
@@ -327,7 +413,7 @@ app.whenReady().then(async () => {
   fs.writeFileSync(OUT, JSON.stringify({ verdict, logs }, null, 2))
   console.log(
     `[style-gallery smoke] ${verdict.ok ? 'OK' : 'FAIL'}` +
-      ` | mirror=${mirrorOk ? 'ok' : 'FAIL'} fixedWidth=${widthIndependentOk ? 'ok' : 'FAIL'} followed=${followedOk ? 'ok' : 'FAIL'} composer=${composerOk ? 'ok' : 'FAIL'}` +
+      ` | mirror=${mirrorOk ? 'ok' : 'FAIL'} fixedWidth=${widthIndependentOk ? 'ok' : 'FAIL'} paperClear=${paperClearOk ? 'ok' : 'FAIL'} tabsSym=${tabsSymOk ? 'ok' : 'FAIL'} followed=${followedOk ? 'ok' : 'FAIL'} composer=${composerOk ? 'ok' : 'FAIL'}` +
       (scale ? ` | scale n=${scale.n} commit=${scale.commitMs}ms settle=${scale.settleMs}ms refresh=${scale.refreshMs}ms cards=${scale.cardCount}/${scale.n} rafGap=${rafGapMs}ms` : '') +
       ` → ${OUT}`
   )

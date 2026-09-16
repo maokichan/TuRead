@@ -395,6 +395,8 @@ export function Gallery(): React.JSX.Element {
   const [showDialog, setShowDialog] = useState(false)
   /** 阅读器两个浮层的开关（右键挂载菜单 / 批注输入栏）—— 形态复核用，默认都关着 */
   const [overlay, setOverlay] = useState({ composer: false, menu: false })
+  /** 输入栏的正文（受控组件 —— 样张自己持有，见下面的注释） */
+  const [composerText, setComposerText] = useState('')
   const toggleOverlay = (k: 'composer' | 'menu'): void =>
     setOverlay((o) => ({ ...o, [k]: !o[k] }))
 
@@ -677,12 +679,20 @@ export function Gallery(): React.JSX.Element {
           </span>
         </div>
         {overlay.menu && <ContextMenu x={220} y={140} items={MENU_ITEMS} onClose={() => toggleOverlay('menu')} />}
+        {/* ⚠ 输入栏是**受控**组件：样张必须自己持有正文 state，否则 React 会把值重置为空
+            —— 那样"自增长（两行→五行）"这条判据在样张里根本测不出来（第一版就是这么假通过的） */}
         {overlay.composer && (
           <NoteComposer
-            value=""
-            onChange={noop}
-            onSave={() => toggleOverlay('composer')}
-            onCancel={() => toggleOverlay('composer')}
+            value={composerText}
+            onChange={setComposerText}
+            onSave={() => {
+              setComposerText('')
+              toggleOverlay('composer')
+            }}
+            onCancel={() => {
+              setComposerText('')
+              toggleOverlay('composer')
+            }}
           />
         )}
       </Panel>
@@ -795,6 +805,13 @@ function RailDemo({
             '--read-width': '260px',
             /* 样张里没有真实侧边栏 → 置 0，这样"线"就是演示框本身（贴齐判据才量得准） */
             '--sidebar-w': '0px',
+            /* 演示框只有 ~564px：按比例收窄挂件，好让"**纸给挂件让位**"也能量出来
+               （见 styles.css 的 .reader-stage 与 smoke.cjs 的 paperClearOk） */
+            '--rail-panel-w': '180px',
+            /* 纸宽的**生效值**：真实算式在 styles.css 的 `:root --page-w`（那里要吃 documentElement
+               上的 `--read-width`）；演示框里的纸是固定演示宽，直接钉一个值，免得算式在本地的
+               覆盖下再算一遍（重复算式正是 v1.9 那次"输入栏比纸宽"的根因） */
+            '--page-w': '172px',
             /* "同高"：两个挂件的高度上限是同一个 token（样张里收窄以免溢出演示框） */
             '--rail-panel-h': '260px'
           } as React.CSSProperties
@@ -821,6 +838,7 @@ function RailDemo({
           notes={NOTES}
           onNoteJump={noop}
           onNoteRemove={noop}
+          onNoteEdit={noop}
           activeChapter={activeChapter}
         />
       </div>

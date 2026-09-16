@@ -20,6 +20,8 @@ export interface NotesPanelProps {
   header?: React.ReactNode
   onJump: (note: Note) => void
   onRemove: (note: Note) => void
+  /** 打开这条的**编辑**（底部输入栏；用户 2026-09-16：抽屉里必须保留编辑功能） */
+  onEdit: (note: Note) => void
   onToggle: () => void
   /** 当前阅读位置（章号）：**当前条目自动滚到容器正中**（2026-09-16 用户定，与目录同一判据） */
   activeChapter?: number
@@ -38,6 +40,7 @@ export function NotesPanel({
   header,
   onJump,
   onRemove,
+  onEdit,
   onToggle,
   activeChapter = 0,
   focusNote = null
@@ -91,7 +94,19 @@ export function NotesPanel({
                 onClick={() => onJump(n)}
               >
                 <span className="note-row__text">{short}</span>
-                <span className="note-row__where">節 {n.anchor.norm.chapterIndex + 1}</span>
+                <span className="note-row__where">
+                  節 {n.anchor.norm.chapterIndex + 1}
+                  {/* 「註」= 这条**带批注正文**（判据是 `body`，不是 `kind`）——
+                      用户 2026-09-16："需要在视觉上有一个符号…区分这个是批注，而不是高亮" */}
+                  {n.body !== '' && (
+                    <span className="note-row__kind" title="帶批註正文">
+                      　註
+                    </span>
+                  )}
+                </span>
+              </button>
+              <button className="note-row__edit" title="編輯這條批註" onClick={() => onEdit(n)}>
+                編輯
               </button>
               <button className="note-row__remove" title="移除這條筆記" onClick={() => onRemove(n)}>
                 移除

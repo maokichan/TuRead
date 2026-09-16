@@ -359,8 +359,24 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
        *
        * 走**真实 UI 路径**：右键 →（菜单里）「加批註」→ 输入框挂载 → 引擎 `clearSelection()`
        * （= 选区真的消失）→ 输入框必须跟着消失。几何判据 = 宽 = 纸宽 × 0.9（两侧各 5% 缝）、
-       * 与纸**同轴**（中心一致）、**单行高**（比三轮文本矮得多）。
+       * 与纸**同轴**（中心一致）、**空态两行 / 上限五行**（自增长）。
        */
+      // ⑨b-0 **挂件不许压到纸上**（用户 2026-09-16："当纸宽调到宽的时候…会盖住页面的内容"）——
+      //      真机量与样张机检同名判据，两边都要过（挂件宽固定 → 让位的是纸）
+      {
+        const paperR = stage()?.getBoundingClientRect()
+        const tocR = document.querySelector('.toc-list')?.getBoundingClientRect()
+        const paramsR = document.querySelector('.reader-controls')?.getBoundingClientRect()
+        if (paperR && tocR && paramsR) {
+          assert(
+            paperR.left >= tocR.right - 1 && paperR.right <= paramsR.left + 1,
+            `纸不被两挂件压住（纸 x[${Math.round(paperR.left)}..${Math.round(paperR.right)}]，` +
+              `左挂件右缘 ${Math.round(tocR.right)}，右挂件左缘 ${Math.round(paramsR.left)}）`
+          )
+        } else {
+          fact('挂件未挂载（已折叠？）→ 跳过"纸不被压住"断言')
+        }
+      }
       const composerEl = (): HTMLElement | null => document.querySelector('.note-composer')
       const menuItem = (label: string): HTMLElement | null =>
         (Array.from(document.querySelectorAll<HTMLElement>('.context-menu__item')).find(
@@ -381,6 +397,8 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
         assert(box !== null, '点「加批註」后输入框挂载')
         const paperRect = stage()?.getBoundingClientRect()
         const boxRect = box?.getBoundingClientRect()
+        const ta = box?.querySelector('textarea') ?? null
+        const lineH = ta ? Number.parseFloat(getComputedStyle(ta).fontSize) * 1.55 : 23.25
         if (boxRect && paperRect) {
           const expectedW = paperRect.width * 0.9
           assert(
@@ -391,11 +409,35 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
             Math.abs(boxRect.left + boxRect.width / 2 - (paperRect.left + paperRect.width / 2)) <= 2,
             `输入框与纸同轴（纸心 ${(paperRect.left + paperRect.width / 2).toFixed(1)}，框心 ${(boxRect.left + boxRect.width / 2).toFixed(1)}）`
           )
-          // 单行高：容器 = 1 行（15px×1.55≈23px）+ 6px×2 内边距 + 2px 边 ≈ 37px；三轮文本会到 ~80px
+          // 空态 = **两行**（用户 2026-09-16："默认输入栏的高度至少是两行"）；
+          // 判据用实测行高算，不写死 px
           assert(
-            boxRect.height <= 48,
-            `输入框是**矮**的（实际 ${boxRect.height.toFixed(1)}px，判据 ≤48px）`
+            boxRect.height >= 1.7 * lineH && boxRect.height <= 2.9 * lineH,
+            `输入栏空态 ≈ 两行（实际 ${boxRect.height.toFixed(1)}px ≈ ${(boxRect.height / lineH).toFixed(1)} 行）`
           )
+          // **自增长 + 五行封顶**（用户 2026-09-16："设立一个上限是三行或者五行，当内容多的时候
+          // 会自动撑起来"）：灌 8 行文字 → 框长到五行高，且内容溢出转滚动
+          if (ta) {
+            const nativeSetter = Object.getOwnPropertyDescriptor(
+              HTMLTextAreaElement.prototype,
+              'value'
+            )?.set
+            nativeSetter?.call(ta, 'a\nb\nc\nd\ne\nf\ng\nh')
+            ta.dispatchEvent(new Event('input', { bubbles: true }))
+            await wait(300)
+            const grown = boxRect ? (box?.getBoundingClientRect().height ?? 0) : 0
+            assert(
+              grown >= 4.2 * lineH && grown <= 5.9 * lineH,
+              `灌 8 行后封顶在五行（实际 ${grown.toFixed(1)}px ≈ ${(grown / lineH).toFixed(1)} 行）`
+            )
+            assert(
+              ta.scrollHeight > ta.clientHeight,
+              `到上限后转滚动而不是继续长高（scrollH ${ta.scrollHeight} > clientH ${ta.clientHeight}）`
+            )
+            nativeSetter?.call(ta, '')
+            ta.dispatchEvent(new Event('input', { bubbles: true }))
+            await wait(150)
+          }
         }
         // 关键：选区消失 → 输入框必须跟着消失（用户报障的那条）
         container.render.clearSelection()
@@ -423,6 +465,12 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
         await wait(300)
         const input = document.querySelector<HTMLTextAreaElement>('.note-composer__input')
         assert(input !== null, '再次呼出输入框（保存路径的起点）')
+        // 先**真的写点正文**（受控组件要用原生 setter + input 事件喂），这样落库的那条
+        // 是"带批注正文"的——下面 ⑨d 的「編輯」才有内容可带出来，⑨c 的「註」标记也才成立
+        const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+        setValue?.call(input, '探針批註正文')
+        input?.dispatchEvent(new Event('input', { bubbles: true }))
+        await wait(150)
         input?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
         await wait(600)
         assert(composerEl() === null, 'Enter 提交后输入框关闭（保存路径）')
@@ -457,6 +505,34 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
       )
       const firstText = rows[0]?.querySelector('.note-row__text')?.textContent ?? ''
       assert(firstText.length > 0, `筆記行顯示原文摘錄（「${firstText}」）`)
+      // 「註」符号：带批注正文的那条必须在行里有个**视觉符号**（用户 2026-09-16："需要在视觉上
+      // 有一个符号或者方法区分说这个是批注，而不是高亮"）——判据是 `body` 非空，不看 `kind`。
+      // ⚠ 与"带正文的条数"比，而不是与总条数比（否则库里一旦有纯划线就假 FAIL）
+      const withBody = (await container.store.listNotes(edition.id)).filter((n) => n.body !== '')
+        .length
+      const kindMarks = document.querySelectorAll('.note-row__kind').length
+      assert(
+        kindMarks === withBody && withBody > 0,
+        `带批注正文的笔记行显示「註」符号（符号数=${kindMarks}，带正文的 ${withBody} 条）`
+      )
+
+      // ⑨d 抽屉里的「編輯」（用户 2026-09-16："保留目录的编辑功能，当打开编辑的时候，焦点自动
+      // 切换到输入栏"）：点行内「編輯」→ 输入栏挂载 + 带出该条正文 + 焦点在输入区
+      const editBtn = document.querySelector<HTMLButtonElement>('.note-row__edit')
+      assert(editBtn !== null, '笔记行有「編輯」入口（抽屉里保留编辑功能）')
+      editBtn?.click()
+      await wait(300)
+      const edBox = composerEl()
+      const edTa = edBox?.querySelector('textarea') ?? null
+      assert(edBox !== null, '点「編輯」后输入栏挂载')
+      assert(
+        (edTa?.value ?? '').length > 0,
+        `输入栏带出该条正文（长度 ${(edTa?.value ?? '').length}）`
+      )
+      assert(document.activeElement === edTa, '焦点自动落在输入区（打开编辑即焦点）')
+      edTa?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await wait(250)
+      assert(composerEl() === null, 'Esc 关闭编辑输入栏')
       // 清理：把这条 UI 造出来的笔记从库里删掉（探针要可重复跑；引擎侧的高亮随进程结束）
       const leftover = (await container.store.listNotes(edition.id)).find((n) => !beforeIds.has(n.id))
       if (leftover) await container.store.removeNote(leftover.id)

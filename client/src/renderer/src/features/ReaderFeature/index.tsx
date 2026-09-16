@@ -432,6 +432,14 @@ export function ReaderFeature({
     [container, host]
   )
 
+  /** 从左侧笔记栏「編輯」打开该条的编辑（用户 2026-09-16：抽屉的编辑功能必须保留）——
+   *  焦点由 `NoteComposer` 挂载即聚焦保证（同一入口，键盘/鼠标都在输入栏落点）。
+   *  与"点高亮 = 看内容"的分工：看 = 左侧定位；改 = 这里或右键菜单「編輯批註」。 */
+  const editNote = useCallback((note: Note): void => {
+    setMenu(null)
+    setComposer({ anchor: note.anchor, noteId: note.id, body: note.body })
+  }, [])
+
   /** 删除一条笔记：先落库删，再让引擎摘掉 DOM 里的高亮（否则划线会留到换章为止） */
   const removeNote = useCallback(
     async (note: Note): Promise<void> => {
@@ -532,9 +540,18 @@ export function ReaderFeature({
     if (activeFeature === 'reader' && readerBookId && autoFullscreenRef.current) {
       void window.turead.invoke(IPC.winSetFullScreen, true)
     } else if (activeFeature !== 'reader') {
+      /**
+       * 离开阅读器：先退出全屏。⚠ **若离开时正处于沉浸全屏，窗口保持"大"（最大化）而不是回到小窗口**
+       * （用户 2026-09-16 定："如果进入阅读器，且状态是F11的话，那么即便退出窗口也应该最大化"）——
+       * 用户在阅读器里选了全屏，退出后不该被缩回原来那个小窗。
+       * 顺序与竞态都在主进程处理（全屏未落地时挂到 leave-full-screen 上再最大化，见 main 的
+       * `win:set-maximized`）。
+       */
+      const wasFullscreen = fullscreen
       void window.turead.invoke(IPC.winSetFullScreen, false)
+      if (wasFullscreen) void window.turead.invoke(IPC.winSetMaximized, true)
     }
-  }, [activeFeature, readerBookId])
+  }, [activeFeature, readerBookId, fullscreen])
 
   // 激活到阅读器时热更新主题（设置里改主题后返回阅读器不重开书也生效，STYLE.md §3.4）
   useEffect(() => {
@@ -788,6 +805,7 @@ export function ReaderFeature({
           notes={notes}
           onNoteJump={(n) => void jumpNote(n)}
           onNoteRemove={(n) => void removeNote(n)}
+          onNoteEdit={editNote}
           activeChapter={currentChapter}
           focusNote={focusNote}
           controlsOpen={controlsOpen}

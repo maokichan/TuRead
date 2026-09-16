@@ -8,6 +8,9 @@
  *   → 焦点态由容器自身给强调边（`:focus-within`），"作为焦点存在"；
  * - **操作逻辑不变**：挂载即聚焦、`Enter` 提交、`Shift+Enter` 换行、`Esc` 取消。
  *   ⚠ 按钮去掉后，**移除既有笔记**只剩右键菜单一条路径（`ContextMenu` 的「移除」，仍在）。
+ * - **自增长（2026-09-16 用户定）**：默认**至少两行**，内容多时自己撑起来（`rows=2` 只是无
+ *   `field-sizing` 时的兜底），**上限五行**，超过在框内滚动 —— 见 `styles.css`
+ *   （`field-sizing: content` + `min/max-height`）。
  *
  * **受控组件**（`value` + `onChange`）：正文 state 由调用方（ReaderFeature）持有。
  * 为什么不让组件自己存：用户要的"手不离开键盘做笔记"链条需要**从外部提交**（将来配键后
@@ -56,7 +59,7 @@ export function NoteComposer({
           }
         }}
         className="note-composer__input"
-        rows={1}
+        rows={2}
         aria-label="批註"
       />
     </div>

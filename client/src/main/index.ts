@@ -219,6 +219,26 @@ void app.whenReady().then(async () => {
   ipcMain.handle(IPC.winSetFullScreen, (e, v: boolean) =>
     BrowserWindow.fromWebContents(e.sender)?.setFullScreen(v === true)
   )
+  /**
+   * 显式最大化（2026-09-16）：退出阅读器时若刚从沉浸全屏出来 → 窗口留下"大"的状态。
+   * ⚠ 全屏未退干净时**不能**立刻 maximize（Windows 会用"原 bounds"把最大化覆盖掉）——
+   * 故还在全屏就先挂到 `leave-full-screen` 上再最大化；调用是**幂等**的"设为最大化"。
+   */
+  ipcMain.handle(IPC.winSetMaximized, (e, v: boolean) => {
+    const w = BrowserWindow.fromWebContents(e.sender)
+    if (!w || w.isDestroyed()) return
+    if (v !== true) {
+      if (w.isMaximized()) w.unmaximize()
+      return
+    }
+    if (w.isFullScreen()) {
+      w.once('leave-full-screen', () => {
+        if (!w.isDestroyed() && !w.isMaximized()) w.maximize()
+      })
+      return
+    }
+    if (!w.isMaximized()) w.maximize()
+  })
 
   createWindow()
 

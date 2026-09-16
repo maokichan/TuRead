@@ -83,6 +83,10 @@ export const IPC = {
   // 沉浸全屏（2026-09-13）：渲染层（阅读器/标题栏）请求切换 OS 全屏；main 广播状态回渲染层
   winSetFullScreen: 'win:set-fullscreen',
   winFullScreenChanged: 'win:fullscreen-changed',
+  // 显式**最大化**（2026-09-16）：退出阅读器时若刚从沉浸全屏出来，窗口要保持"大"而不是缩回小窗
+  // （用户定："如果进入阅读器，且状态是F11的话，那么即便退出窗口也应该最大化"）。
+  // ⚠ 不能复用 `win:maximize-toggle`：那会在"本来就最大化"时反向缩回，而这里要的是**幂等的"设为最大化"**。
+  winSetMaximized: 'win:set-maximized',
   // 剪贴板写入（v0.4.2）：笔记管理的「複製批註」—— 走 preload 的**具名方法**，不用泛化 invoke
   clipboardWriteText: 'clipboard:write-text'
 } as const

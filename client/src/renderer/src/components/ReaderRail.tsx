@@ -35,6 +35,8 @@ interface ReaderRailProps {
   notes: Note[]
   onNoteJump: (note: Note) => void
   onNoteRemove: (note: Note) => void
+  /** 打开某条的编辑（底部输入栏）—— 抽屉里的编辑入口，见 NotesPanel */
+  onNoteEdit: (note: Note) => void
   /** 当前阅读位置（章号）：两个挂件的"当前条目"都据此滚到正中（2026-09-16 用户定） */
   activeChapter: number
   /** 「看这条笔记」请求（点正文高亮触发）：左侧切到筆記并把这条定位到正中（只读，不改内容） */
@@ -55,6 +57,7 @@ export function ReaderRail({
   notes,
   onNoteJump,
   onNoteRemove,
+  onNoteEdit,
   activeChapter,
   focusNote
 }: ReaderRailProps): React.JSX.Element {
@@ -120,6 +123,7 @@ export function ReaderRail({
             header={leftTabs}
             onJump={onNoteJump}
             onRemove={onNoteRemove}
+            onEdit={onNoteEdit}
             onToggle={onTocToggle}
             activeChapter={activeChapter}
             focusNote={focusNote}

@@ -92,6 +92,25 @@
      --toc-veil-rest = 静息遮罩不透明度（越大越淡、越"退场"）；--toc-line-top = 挂载线纵向位置。 */
   --rail-panel-w: 280px;
   --rail-panel-h: 62vh;
+  /* 两挂件与纸之间必须留的缝隙 —— **纸宽会被它夹住**（见 .reader-stage）：
+     ⚠ 这一条不是"线的长度由纸决定"（线仍是固定的），而是反过来：**纸给两挂件让位**。
+     理由（用户 2026-09-16）："当纸宽调到宽的时候，左侧的目录以及右侧的参数…会盖住页面的内容"。 */
+  --rail-gap: 16px;
+  /* **纸宽的生效值**（唯一定义处）：用户选的档位 ∩ "给两挂件让位后的可用宽"。
+     ⚠ 让位量里**必须含 `--sidebar-w`**：纸是**窗口居中**的，而挂载线/挂件是**从侧边栏右缘起算**的
+     （左挂件贴线的左端）→ 只按 `2×(挂件+缝)` 减会少算半个侧边栏，左侧仍会压纸（2026-09-16 实测：
+     1200 宽窗口下 纸 x[296..904] 与左挂件 [56..336] 重叠 40px）。
+     `.reader-stage` 与 `.note-composer`（宽 = 它的 0.9）**都读这一个值**，不许各自再算一次
+     （v1.9 就是两处各算一次 → 输入栏比被夹窄的纸还宽，被探针抓出来）。
+     下限 160px：窗口窄到极限时宁可重叠，也要保住可读的正文列。 */
+  --page-w: min(
+    100%,
+    var(--read-width, 760px),
+    max(
+      160px,
+      calc(100% - 2 * (var(--sidebar-w, 56px) + var(--rail-panel-w, 280px) + var(--rail-gap, 16px)))
+    )
+  );
   --toc-line-top: 44px;
   --toc-veil-rest: 0.74;
   /* 笔记管理（跨书）流的**列宽**（STYLE.md §5.10）：固定值、只变高，列数随窗口自适应
@@ -320,9 +339,14 @@ textarea {
 /* ---------- kookit 硬编码契约（KOOKIT.md §5）: 宿主容器必须可滚动、iframe 不设 height:100% ----------
    宿主容器 = **正文列**（STYLE.md §5.8 v0.4）：它的 clientWidth 就是 kookit 的排版宽度依据
    （getPageWidth / handleImageSize），所以"一行多长"由列宽决定 —— 不需要新端口。
-   列宽 = `--read-width`（由 SettingsFeature 写到 documentElement，默认 760px）。 */
+   列宽 = min(用户选的 `--read-width`（默认 760px）, 可用宽) —— **必须给两侧挂件让位**
+   （用户 2026-09-16："当纸宽调到宽的时候，左侧的目录以及右侧的参数…会盖住页面的内容，
+   我们需要想办法解决这个问题"）。让位的是**纸**、不是"线"：挂件宽是固定 token（见 .reader-rail）。
+   下限 160px：窗口窄到极限时宁可重叠，也要保住可读的正文列（那时两挂件本来也放不下）。 */
+/* ⚠ 2026-09-16 修正：列宽 = `--page-w`（唯一定义处见 :root）—— 它已经是
+   "用户档位 ∩ 给两挂件让位后的可用宽"，这里不再自己算一遍 min()（重复算式必然与纸脱节）。 */
 .reader-stage {
-  width: min(100%, var(--read-width, 760px));
+  width: var(--page-w, 760px);
   height: 100%;
   margin: 0 auto;
   /* 纸列建层压住挂载线（2026-09-12 用户定：挂载线"被书页压着"）——
@@ -990,7 +1014,9 @@ textarea {
    操作逻辑不变（Enter 提交 / Shift+Enter 换行 / Esc 取消，挂载即聚焦）。
    直角（挂载线语汇，§3.3 的圆角规则不适用于本形态）。焦点态由容器自身给强调边。 */
 .note-composer {
-  width: calc(min(100%, var(--read-width, 760px)) * 0.9);
+  /* 宽 = **纸宽的 0.9**（两侧各 5% 缝）—— 读的是 `--page-w`（纸宽的**生效值**，见 :root），
+     不是原始的 `--read-width`：纸被挂件夹窄时输入栏必须跟着窄（否则比纸还宽）。 */
+  width: calc(var(--page-w, 760px) * 0.9);
   background: var(--panel-2);
   border: 1px solid var(--border);
   padding: 6px;
@@ -1000,7 +1026,11 @@ textarea {
   border-color: var(--accent);
 }
 
-/* 输入区自身不再描边/给底色：容器已经是"纯色带边框"，重复一层会变成两个盒子 */
+/* 输入区自身不再描边/给底色：容器已经是"纯色带边框"，重复一层会变成两个盒子。
+   **自增长**（用户 2026-09-16 定）：默认**至少两行**、内容多时自己撑起来、**上限五行**，
+   超过则在框内上下滚动（原来是固定一行 + 滚动）。
+   `field-sizing: content` 是 Chromium 123+ 的能力（Electron 33 = Chromium 130 ✓）——
+   不必用 JS 量 scrollHeight；min/max 用行高倍数表达，换字号不必同步改数字。 */
 .note-composer__input {
   display: block;
   width: 100%;
@@ -1013,20 +1043,28 @@ textarea {
   line-height: 1.55;
   resize: none;
   outline: none;
+  field-sizing: content;
+  min-height: calc(2 * 1.55em);
+  max-height: calc(5 * 1.55em);
+  overflow-y: auto;
 }
 
 /* ── 左挂件内容开关（目錄 / 筆記，2026-09-14）──────────────────────
    两格都是文字（STYLE.md §5.1）；当前格用 --accent（与全站"当前选中"同一语汇）。
-   放在挂载线下方、列表上方，占位不参与滚动。 */
+   放在挂载线下方、列表上方，占位不参与滚动。
+   ⚠ 2026-09-16（用户定）：两格**等分抽屉宽度、文字各自居中** → **关于抽屉的几何中心对称**
+   （原来是靠左的两格文字；用户："目录和笔记仍然不是相对于挂载线下左侧抽屉栏的几何中心
+   镜像对齐的"）。故不加 gap —— 中点必须正好落在抽屉中心上。 */
 .left-tabs {
   display: flex;
-  gap: 12px;
   padding: 0 0 4px 0;
   border-bottom: 1px solid var(--border-soft);
   margin-bottom: 4px;
 }
 
 .left-tabs__tab {
+  flex: 1 1 0;
+  text-align: center;
   font-family: var(--font-serif-cn);
   font-size: 14px;
   line-height: 1.5;
@@ -1090,6 +1128,17 @@ textarea {
   color: var(--muted);
 }
 
+/* 元行的「註」= **批註**标记（用户 2026-09-16 定："我们仍然需要在视觉上有一个符号或者方法区分
+   说这个是批注，而不是高亮"）。判据 = `body` 非空（与全站一致，**不看 `kind`**）；
+   符号用汉字单字（§5.3 只允许汉字单字符号），颜色给 `--text`（比旁边的 `--muted` 節 N 强一档）。 */
+.note-row__kind {
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+/* 行内动作：**編輯** 与 **移除** 同款（静息隐形、hover 才显形 —— 行本身是"读"的对象）。
+   ⚠ 编辑入口必须在抽屉里也有（用户 2026-09-16：点高亮改成"看内容"之后，改不能只剩右键菜单）。 */
+.note-row__edit,
 .note-row__remove {
   flex: none;
   font-family: var(--font-serif-cn);
@@ -1103,8 +1152,13 @@ textarea {
   transition: opacity 200ms ease-out;
 }
 
+.note-row:hover .note-row__edit,
 .note-row:hover .note-row__remove {
   opacity: 1;
+}
+
+.note-row__edit:hover {
+  color: var(--accent);
 }
 
 .note-row__remove:hover {
