@@ -95,7 +95,9 @@ F6「导出库包」 · F10 Pro 功能边界（见 `DATA_MODEL.md` §6.4 与下�
   - **远期**：滑杆自由调节 + 按屏幕尺寸/字号自适应（数据层已是数值，换 UI 不改模型）。
   - **右侧"模型阅读"容器（预留）**：⚠ 右侧现在已经有阅读参数面板 → 将来模型阅读若也要右侧，
     **先定共存形态**（同侧切换 / 上下分区 / 独立第三区）；原则不变：只占留白，不挤压纸的语义。
-  - **同步相关控件**：本产品是同步阅读器，阅读页还需要同步相关控件；**待房间同步打通后再定形态**。
+  - **同步相关控件**：本产品是同步阅读器，阅读页还需要同步相关控件；✅ **已定形态（2026-09-17 v0.4.3）**：
+    入口 = 挂载线右段的第二格「**聊天**」（与「閱讀參數」共处一根挂载线，只在经房间进入的书上存在；
+    见 `FEATURES.md` §11 与 `STYLE.md` §5.8）。其余同步控件（跟随模式等）见「同步」组的 `location-updated` 条目。
 - [ ] **(2026-09-13 用户登记) Veil（遮罩按距离）优化**：现实现 = 逐条目测量矩形 + 逐条目写
   CSS 变量（`TocPanel.paintVeil` / `ReaderControls.paintVeil`，每帧 mousemove 重画）。用户提出：
   未来未必要这种逐元素/逐像素思路，可用更智能的方法（如纯 CSS 距离驱动、合成器层遮罩、
@@ -363,30 +365,35 @@ F6「导出库包」 · F10 Pro 功能边界（见 `DATA_MODEL.md` §6.4 与下�
 
 ### 同步（云端 · RoomFeature）
 
-- [ ] **(P2) join 握手无超时**：`pendingJoin` 只被 room.join-ack resolve，断线/丢包时挂死；
-  加 10s 超时走 `server-error`（`usecases/RoomSession.ts:101`）
-- [ ] **(P2 · 2026-09-15 行为审查登记，与上条同处) `pendingJoin` 是单槽 + 节流发送无 rejection 处理**：
-  ① `joinRoom`（`RoomSession.ts:112-117`）用 `this.pendingJoin = resolve` **覆盖式**赋值 → **两次并发
-  join 会让第一次永久挂起**（上条只登记了"无超时"，没覆盖这个）；② `throttleSend`/其定时器
-  （:308/:316）用 `void this.net.send(...)` → 断线后产生**未处理 rejection**（只落到
-  `[dev] unhandledrejection` 控制台噪声）。处置：pendingJoin 改队列/带代次，或整体取消上一次 join。
-- [ ] **(P2 · 同步域暂缓；2026-09-15 行为审查登记) WS 重连状态机可双连接 / 越权发 `connected`**：
-  ① `connect()`（`main/net/wsNetAdapter.ts:30-41`）**不清 pending `reconnectTimer`、不关旧 `ws`**
-  就新建连接 → 用户重试 / 服务器不可达时**双连接 / 重连风暴**；② `openSocket` 里 `ws.on('error')`
-  已 `reject(err)` 向调用方报失败，但随后的 `close`（:138-144）因 `explicitlyClosed` 仍为假而
-  `scheduleReconnect()` → 适配器**在后台静默重试并稍后发出 `connected`**（调用方以为失败、UI 却变已连）。
-  处置：`connect()` 入口先 `disconnect()` 式清场；失败路径置"本次连接已作废"标志，close 不再续连。
-- [ ] **(P2 · 同步域暂缓；2026-09-15 行为审查登记) REST 无超时**：`request()`
-  （`main/net/wsNetAdapter.ts:65-97`）与 `ensureMemberToken()`（:99-109）的 `fetch` **无 timeout /
-  无 AbortSignal** → 服务器挂死时 create/join/refresh 按钮永久卡住。处置：`AbortSignal.timeout()` +
-  超时归到 `server-error`。附带：`connect()` 失败后 `memberToken` 仍保留（:35-39 先赋值后 `openSocket`），
-  后续 `request()` 会带陈旧 token。
+> **2026-09-17（v0.4.3）本轮收口**：**客户端与真实 server 已打通**（`TUREAD_DEV_PROBE=room` 16 条断言全 PASS，
+> 见 `docs/STATUS.md` §6）。直接根因 = **连接模型与服务器文本不一致**：`server/docs/API.md`「WebSocket」与
+> `transport/ws.go` 都要求**握手就带 `?room=&nick=`**（缺任一或昵称 >12 字直接关连接），而客户端此前是
+> "先连一条通用连接、再发 room.join" → 服务器上根本走不到 join。本轮按服务器文本改成**按房间建连**
+> （`connect` = 只领成员 token；`openRoom/closeRoom` = 房间连接），并顺手关掉下列 P2/P3 旧账。
+> 契约 = `CONTRACTS.md` v0.4.3；协议词汇唯一解释处 = `core/domain/protocol.ts`。
 
-- [ ] **(P3) 协议形状收拢**：信封 type 字符串与 payload 形状散落在 RoomSession 的
-  switch-case 与 REST body 里 → 抽 `core/domain/protocol.ts`（常量 + 归一化），
-  防止"各处自行解释"的腐化（与定位系统同类问题）
-- [ ] **(P3) JoinResult 类型重复**：domain 与 RoomSession 各一份、reason 枚举不一致 → 收敛 domain
-- [ ] **(P3) emitLocation 绕过节流**：手动路径直接 send，与 onRenderLocation 的 300ms 节流不一致 → 统一走 throttleSend
+- [ ] **(P2 · 服务器侧) 加入失败的 reason 字符串与 `API.md` 不一致**（`server` 归属，本轮**只做了客户端容错**）：
+  `internal/room/manager.go` 的三个 error 是**空格分词**（`"room not found"` / `"book mismatch"` / `"room full"`），
+  `transport/ws.go:188/204/209` 另硬编码了 `"bad payload"` / `"room not found"`，而 `API.md` 与客户端契约写的是
+  **连字符**形式 → 旧客户端精确匹配会把 `book-mismatch` 静默降级成 `server-error`（"书不匹配"提示永不出现）。
+  客户端已按 `normalizeJoinReason`（`core/domain/protocol.ts`，含单测）**容错归一**；**服务器侧仍需裁一次**
+  （改 error 串 = 改 `API.md`，或反之）—— 契约先行，同 commit 改 `server/docs/API.md` + `client/docs/CONTRACTS.md`。
+- [ ] **(P2 · 服务器侧) `POST /rooms` 的 `owner` 昵称没有长度校验**（人类开发者 2026-09 在 `manager.go` 留问，
+  本轮核实并答复）：昵称 ≤12 字的限制**只在 WS 握手**（`ws.go:114` `maxNickLen`，含测试 `TestNickLengthLimit`），
+  而建房的 `POST /rooms`（`rest.go:115` `RegisterUser(ownerToken, req.Owner, …)`）与 `Store.RegisterUser`
+  **都没有长度校验** → 建房者可用超长昵称写进 `users.nick`，随后**自己 WS join 会被握手拒绝**（进不去自己的房）。
+  处置候选：`handleCreateRoom` 加与 `ws.go` 同一判据（`utf8.RuneCountInString ≤ 12`）并同步 `API.md`「用户」一节。
+- [ ] **(P2 · 本轮遗留) 多人场景未验**：`room` 探针是**单连接**（一个成员），故这三条真机判据都还没有证据 ——
+  ① `room.presence` 的"**除发送者外**"广播（join/位置变化/离开）；② 成员离开后不残留离线成员；
+  ③ 两人位置 diff 触发的 `location-updated`。候选：探针里经主进程再开一条裸 WS（第二个 token），
+  或起两个客户端实例（`TUREAD_DEV_ACCESS` 同一把钥匙即可，成员 token 由 IP 签发 → 同机同 token 会互踢，
+  故必须**显式给第二个成员 token**）。⚠ 服务器有"同 token 踢旧连接"（单设备登录），双人验证要先绕开它。
+- [ ] **(登记) 聊天消息没有长度/频率约束**：服务器与客户端都未限制单条长度与发送频率（只有"空文本不落库"）。
+  长消息（几千字）与刷屏在 v1 未定形态 —— 需要时再定（服务器限长 + 客户端提示）。
+- [ ] **(待真机复看) 阅读器聊天室的手感**（探针只证链路与几何，证不了手感）：消息到达时**自动滚到底**是否
+  打断"正在上翻历史"的阅读、遮罩按距离在**长消息**下的可读性（静息 0.74 是否太淡）、输入框自增长到五行的
+  手感、`c` 键与页签切换的顺手程度。⚠ 若判定"聊天不该跟着遮罩变淡"，改法是一行（`ChatPanel` 去掉行内遮罩，
+  或给聊天单独一个 `--chat-veil-rest`）。
 - [ ] **location-updated 同位 UI（跟随模式）**：RoomFeature 消费 ReaderFeature 的跳转回调（FEATURES §9）
 - [ ] **client 管理界面**：admin 操作（删房间/删副本）在客户端完成——协议已支持（REST + admin token）
 

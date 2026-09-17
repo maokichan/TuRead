@@ -689,7 +689,9 @@ textarea {
 /* ---------- 阅读参数（挂载线右段垂挂；2026-09-12 用户定，二次纠正定稿）----------
    原右侧独立召唤条 + 面板内「收起」废除。参数面板挂在横向挂载线**右段下方**，
    开合 = 点挂载线右段，**折叠 = 向上收回线里**；内容统一中间对齐。
-   宽度 = `--rail-panel-w`（与左挂件**同值**）→ 与左挂件关于线的中心镜像（见 .reader-rail 一节）。 */
+   宽度 = `--rail-panel-w`（与左挂件**同值**）→ 与左挂件关于线的中心镜像（见 .reader-rail 一节）。
+   ⚠ 2026-09-17：右段成为"两格内容的抽屉"（參數 / 聊天）→ 面板顶部可以有页签，页签**不随档位滚动**
+   （档位区另装一层 `.reader-controls__body`；与左抽屉的 header + rows 分层同构）。 */
 .reader-controls {
   position: absolute;
   top: calc(var(--toc-line-top, 28px) + 1px);
@@ -699,11 +701,17 @@ textarea {
   flex-direction: column;
   width: var(--rail-panel-w, 280px);
   max-height: var(--rail-panel-h, 62vh);
+}
+
+/* 档位区：自身滚动（滚动条不占位），页签留在面板顶部 */
+.reader-controls__body {
+  min-height: 0;
+  flex: 1;
   overflow-y: auto;
   scrollbar-width: none;
 }
 
-.reader-controls::-webkit-scrollbar {
+.reader-controls__body::-webkit-scrollbar {
   width: 0;
 }
 
@@ -839,6 +847,13 @@ textarea {
   flex-direction: column;
   max-height: var(--rail-panel-h, 62vh);
   background: none;
+}
+
+/* 右抽屉（2026-09-17 用户定）：与左抽屉**同一套语汇**，只是贴线的另一端（`left` → `right`）。
+   聊天室（ChatPanel）用它；几何因此天然与「閱讀參數」面板对齐（同 token、同镜像口径）。 */
+.toc-list--right {
+  left: auto;
+  right: 0;
 }
 
 .toc-list__rows {
@@ -1049,20 +1064,23 @@ textarea {
   overflow-y: auto;
 }
 
-/* ── 左挂件内容开关（目錄 / 筆記，2026-09-14）──────────────────────
+/* ── 抽屉顶部的内容开关（左：目錄 / 筆記；右：參數 / 聊天）──────────────────
    两格都是文字（STYLE.md §5.1）；当前格用 --accent（与全站"当前选中"同一语汇）。
    放在挂载线下方、列表上方，占位不参与滚动。
    ⚠ 2026-09-16（用户定）：两格**等分抽屉宽度、文字各自居中** → **关于抽屉的几何中心对称**
    （原来是靠左的两格文字；用户："目录和笔记仍然不是相对于挂载线下左侧抽屉栏的几何中心
-   镜像对齐的"）。故不加 gap —— 中点必须正好落在抽屉中心上。 */
-.left-tabs {
+   镜像对齐的"）。故不加 gap —— 中点必须正好落在抽屉中心上。
+   ⚠ 2026-09-17：右抽屉（參數 / 聊天）**复用同一对类名**（原 `.left-tabs` 更名 `.rail-tabs`）——
+   两侧是同一件东西，不该有两套样式；机检 `tabsSymOk` 也据此逐侧量对称。 */
+.rail-tabs {
   display: flex;
+  flex: none;
   padding: 0 0 4px 0;
   border-bottom: 1px solid var(--border-soft);
   margin-bottom: 4px;
 }
 
-.left-tabs__tab {
+.rail-tabs__tab {
   flex: 1 1 0;
   text-align: center;
   font-family: var(--font-serif-cn);
@@ -1075,8 +1093,92 @@ textarea {
   cursor: pointer;
 }
 
-.left-tabs__tab--on {
+.rail-tabs__tab--on {
   color: var(--accent);
+}
+
+/* ── 聊天室（ChatPanel，右抽屉第二格；2026-09-17 用户定）──────────────────
+   形态与左抽屉同族：容器全透明、条目自线下垂挂、遮罩按到鼠标的距离（`--toc-veil`）、
+   结尾「折疊」与引导分割线。这里只加"一条消息长什么样"与输入区。
+
+   ⚠ 遮罩口径与目录一致：静息更淡（`--toc-veil-rest`）、**靠近只揭开、远端不更暗** ——
+   聊天是可读内容，把鼠标放到列表上即逐条揭开（与目录"扫读"的手感相同）。
+   消息行 = 抬头（昵称 + 时间，12.5px muted）+ 正文（15px 全强度）：
+   层级靠字号与留白，不靠底色（§5.1/P3）。 */
+.chat-row {
+  position: relative;
+  padding: 5px 12px 5px 0;
+  font-family: var(--font-serif-cn);
+}
+
+.chat-row__head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.chat-row__nick {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-row__time {
+  margin-left: auto;
+  flex: none;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.chat-row__text {
+  position: relative;
+  z-index: 1;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text);
+  /* 长消息折行（与目录条目的单行省略不同：聊天必须能读全） */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 输入区 = §5.2 例外①（输入类必须可见可点）：发丝描边 + 直角（挂载线语汇）。
+   与 `.note-composer` 同一操作口径：Enter 送出 / Shift+Enter 换行 / 自增长到五行封顶转滚动。 */
+.chat-composer {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--muted) 40%, transparent);
+}
+
+.chat-composer__input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+  font-family: var(--font-serif-cn);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  field-sizing: content;
+  min-height: calc(1 * 1.5em);
+  max-height: calc(5 * 1.5em);
+  overflow-y: auto;
+}
+
+.chat-composer__input:focus {
+  border-color: var(--accent);
 }
 
 /* ── 笔记行（NotesPanel，2026-09-14）──────────────────────────────

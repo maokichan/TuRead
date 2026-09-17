@@ -15,12 +15,14 @@ import { createContainer, type ServiceContainer } from '@core/container'
 import { FEATURES } from './features/registry'
 import type { FeatureHost, FeatureId, ReaderTarget } from './features/types'
 import { pushLog } from './features/logStore'
+import { bindRoomSession } from './features/roomSession'
 import { TitleBar } from './components/TitleBar'
 import { runDevSelfCheck } from './dev/selfCheck'
 import { runPdfWidthProbe } from './dev/pdfWidthProbe'
 import { runPagedInteractProbe } from './dev/pagedInteractProbe'
 import { runLibraryProbe } from './dev/libraryProbe'
 import { runNoteProbe } from './dev/noteProbe'
+import { runRoomProbe } from './dev/roomProbe'
 
 const EBOOK_EXT_SET = new Set<string>(EBOOK_EXTENSIONS)
 
@@ -121,8 +123,16 @@ export default function AppShell(): React.JSX.Element {
       runNoteProbe(container, host)
       return
     }
+    if (window.turead.devProbe === 'room') {
+      runRoomProbe(container, host)
+      return
+    }
     return runDevSelfCheck(container, host)
   }, [container, host])
+
+  // 房间会话共享态的绑定（v0.4.3）：阅读器右抽屉的「聊天」与「房间」功能组件读同一份
+  // 消息/成员/连接状态（避免两处各持一份而分叉）。容器只有一个 → 挂载时绑一次。
+  useEffect(() => bindRoomSession(container), [container])
 
   // 切换书库（2026-09-13）：旧库的 bookId 在新库无意义 → 清选中与阅读器状态。
   // 若正在阅读，closeReader 顺带回到书库（LibraryFeature 同步收到广播重载书单）

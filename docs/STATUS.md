@@ -5,6 +5,11 @@
 > 那些的归属是 `client/docs/{STYLE,FEATURES,CONTRACTS,DATA_MODEL,KOOKIT,RENDER_INTERFACE}.md`。
 > 阅读顺序：本文件 → [`MAP.md`](../MAP.md)（自动加载）→ [`TODO.md`](../TODO.md) → 各端架构文档。
 
+> **更新 2026-09-17 · 房间功能上线（client 未滚版本，等用户验收）**：用户定调"临时暂停其他一切功能开发，
+> 直接上线房间功能"，本轮落成 **阅读器聊天室**（挂载线右段两格：参數 / 聊天）并**首次把房间同步与真实 server
+> 打通**（根因 = 连接模型与服务器文本不一致，见 §6「本轮落成」）。**版本口径：验收之后才滚 0.2.0，不打包**；
+> 契约 = `CONTRACTS.md` **v0.4.3**，视觉 = `STYLE.md` §5.8 **v1.12**，交接 = §6。
+
 > **更新 2026-09-16 · client v0.1.19 发版**：把 **v0.1.16 ~ v0.1.18 三版未打包的内容 + 本轮
 > 「阅读器跟随与镜像」（v1.8~v1.11 四轮）** 一次收口 —— 详细过程见 §4，视觉/几何口径见
 > `STYLE.md` §5.8/§5.10 与 §10 v1.8~v1.11。
@@ -42,6 +47,8 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | 定位系统 | `BookLocation` 三级角色（key/hint/display），原语收拢进 `core/domain/location.ts`，任何组件不得自行解释位置字段 | `CONTRACTS.md` §2.1 |
 | 书籍标定 | Work/Edition 两层；Work 不设 author/publisher；`content-hash-v1` + `md5-sample3-v1` | `docs/ARCHITECTURE.md` §1 |
 | 认证 / 房间 / 聊天室 / 同步边界 | token 双闸（无账号密码）；房间定义落库 + 运行时纯内存（空房 TTL 12h）；聊天随房间级联；**只同步 BookLocation 与聊天**，笔记/划线 v1 明确排除 | `server/docs/{ARCHITECTURE,API}.md` |
+| **房间连接模型（v0.4.3，2026-09-17）** | **连接粒度 = 房间**：`connect` = 只领成员 token（不建 WS），**进房间才 `openRoom`（握手带 `?room=&nick=`）**、离房即 `closeRoom`；大厅/建房/聊天历史走 REST；断线重连后**重发 join** + `after=` 增量补拉 | `CONTRACTS.md` §4.2/§5.1；`server/docs/API.md`「WebSocket」 |
+| **阅读器聊天室（v0.4.3，2026-09-17 用户定）** | 挂载线**右段两格**（`閱讀參數 / 聊天`，与左段目錄/筆記同构）；聊天**只在经房间进入的那本书**上存在；消息由渲染层共享态统一持有（房间组件与阅读器同一份）；**生命周期归属于房间** | `STYLE.md` §5.8；`FEATURES.md` §11；`features/roomSession.ts` |
 | 副本分发 / 配置 | server 保存并分发副本（内容寻址），edition 信息由客户端随副本上传；TOML + 环境变量 + 热重载 | `server/docs/API.md`；`OPS.md` |
 | 客户端样式 | **Tailwind v4**；`styles.css` 只留主题语义 token / 全局 base / kookit 契约 | `FEATURES.md`；`styles.css` |
 | **渲染层风格基线（准则）** | **文字即界面**（动作/导航一律文字，边框仅输入类与浮层）；**全局统一字体**；负片仅两处；中文排版硬规则；层级靠排版不靠颜色 | `client/docs/STYLE.md`（**渲染层开发先读**） |
@@ -110,52 +117,82 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
   命名管道 → **必然 `EPERM` / FATAL**，需在放宽模式下跑；`TUREAD_USER_DATA` 要落在工作区内。
 - kookit 子模块的 `CLAUDE.md` 规则：**禁止在其仓库内 git commit / push**
 
-## 6. 交接快照（2026-09-16 · client v0.1.19）
+## 6. 交接快照（2026-09-17 · **client v0.1.19 + 房间聊天室（v0.4.3）待验收**）
 
-**工作区状态**：client v0.1.19 已提交（`client-v0.1.19` tag）；`client/package.json` = **0.1.19**；
-client 工作树干净。⚠ **工作树里另有 server 侧三处未提交改动**（`server/cmd/server/main.go`、
-`server/internal/room/manager.go`、`server/internal/store/store.go`）—— 来源不明（非本会话所为），
-**下次动 server 前先确认**。kookit 子模块的 `m` 是其自身工作树噪音，**勿动**。
-**发行物**：`client/release/`（已 gitignore）里**只有 v0.1.15 那次的便携版 exe/zip**；
-**v0.1.16~v0.1.19 尚未打包**。⚠ **要不要打包、什么时候打、由谁打，由用户决定**
-（用户 2026-09-16：打包交给另一个 agent）—— agent **不得**因为"滚了版本号"就自行打包，见 §2。
+> **本轮（2026-09-17）用户指示**："专注 TuRead client，今天将会进入 0.2.0 —— 临时暂停其他一切功能开发，
+> 直接上线房间功能，为阅读器增加一个生命周期归属于房间的聊天室，与参数调整控件对应；
+> **房间同步的所有功能都直接参照于服务器相关文本以及纪律**"。
+> **版本口径（用户当场定）**：功能做完 → 用户**验收之后**再滚 0.2.0；**不打包**。
+> 故本轮**已提交但未滚版本、未打 tag、未打包**，`client/package.json` 仍是 **0.1.19**。
 
-**★ 现在在哪**：**本地阅读侧收口完成**（详见 §4 v0.1.19 一行 + `STYLE.md` §10 v1.8~v1.11）。
-视觉/几何/交互的**权威在 `client/docs/STYLE.md` §5.8/§5.10 与 `FEATURES.md` §11/§12**；
-数据与契约在 `DATA_MODEL.md` / `CONTRACTS.md`（契约版本 **v0.4.2**）。**本文件不重述规则**。
+**★ 本轮落成（未滚版本；契约 = `CONTRACTS.md` v0.4.3，视觉 = `STYLE.md` §5.8 v1.12）**
+1. **房间同步首次与真实 server 打通**（这是"房间是半成品"的直接根因）：服务器 WS **握手就要 `?room=&nick=`**
+   （`transport/ws.go`，缺任一/昵称 >12 字直接关连接），而客户端旧模型是"先连一条通用连接、再发 room.join"
+   → 在服务器上根本走不到 join。现改成**按房间建连**：`connect` = 只领成员 token，`openRoom/closeRoom` = 房间连接。
+2. **阅读器聊天室**：挂载线**右段两格**「閱讀參數 / 聊天」（与左段目錄/筆記同构），
+   **只在经房间进入的那本书上有这一格**；消息与「房间」组件的会话视图**同一份**（`features/roomSession.ts`）；
+   `c` 键 = 聊天这一面。形态逐字依据见 `STYLE.md` §5.8 新增行。
+3. **协议词汇收拢** `core/domain/protocol.ts`（type 常量 / **reason 容错归一** / 昵称约束 / 握手地址 /
+   历史路径 / 聊天合并 + 15 条单测）—— 起因是**实测的服务器/文档偏差**：服务器下发的是
+   `"book mismatch"`（空格分词），旧客户端按连字符精确匹配 → "书不匹配"被静默降级成 server-error。
+4. **顺手关掉的旧账**（`TODO.md` 同步组已销案）：join 握手 10s 超时 / pendingJoin 单槽覆盖 / post 失败仍续连 /
+   REST 无超时 / `emitLocation` 绕过节流 / `JoinResult` 两处重复 / 协议形状散落。
+5. **验证**：`typecheck:all` 四 project 全绿；`npm test` **113 断言**（+15）；样式样张 `smoke.cjs`
+   **八条几何机检全绿**（新增 `chatDrawerOk` / `noRoomTabsOk`）；**真机房间探针对真 server 16 条断言全 PASS**。
+   ⚠ 服务器侧两处**未修**（本轮只做客户端）：reason 字符串与 `API.md` 不一致、`POST /rooms` 的 `owner` 昵称无长度校验
+   —— 均已按"契约先行"登记 `TODO.md` 同步组，**答复见下面「人类开发者提问」**。
+
+**★ 人类开发者在 server 代码里留的提问（`internal/room/manager.go` 的注释）**
+> "我是人类开发者，你如果读到这里记得回复我的问题：**似乎房间没有做出名字长度限制？**"
+
+**答复**：**房间没有"名字"这个字段**（房间只有 8 位 hex 号 + 绑定的 edition；大厅里显示的 `title` 是
+`work.title`，即书的名字），所以不存在"房间名长度限制"。**昵称**的长度限制**存在**，但**只在 WS 握手**：
+`transport/ws.go:24` `maxNickLen = 12` + `:114` `utf8.RuneCountInString(nick) > maxNickLen` → 直接关连接
+（有测试 `TestNickLengthLimit`）。**缺口在建房这条路径**：`POST /rooms`（`rest.go:60` 只校验 `owner != ""`）
+→ `RegisterUser(ownerToken, req.Owner, role)` 把 **任意长度**的昵称写进 `users.nick`；后果是**建房者自己
+之后 WS join 会被握手拒绝**（超长昵称 → 关连接 → 进不去自己的房）。处置建议 = 把 `handleCreateRoom` 的
+`owner` 与 `ws.go` 用**同一判据**（rune 数 ≤12）并同步 `API.md`「用户」一节；已登记 `TODO.md`。
+
+**工作区状态**：client 本轮改动**已提交** —— `feat(client)!: 房间功能上线——阅读器聊天室 + 房间同步对齐服务器文本（契约 v0.4.3）`
+（**未打 tag**、未打包）；`client/package.json` = 0.1.19。
+⚠ 交接时用 `git log -1` 取确切 hash：**别把 hash 写进这个文件**（自引用哈希每 amend 一次就过期，已踩过一次）。
+⚠ **server 侧三处未提交改动来源不明**（`cmd/server/main.go`、`internal/room/manager.go`、`internal/store/store.go`
+—— 其中 `manager.go` 就是上面那条提问所在），**本轮未动 server**，下次动 server 前先与用户确认。
+kookit 子模块的 `m` 是其自身工作树噪音，**勿动**。
+**发行物**：`client/release/` 里仍只有 v0.1.15 那次便携版；v0.1.16 起**全部未打包**（用户定：打包另派 agent）。
 
 **★ 下一步（按建议优先级；唯一待办清单在 `TODO.md`）**
-1. **笔记内容导出**（用户 2026-09-16 立项，形态待定：范围 / 筛选 / 格式 / 落点 IPC）。
-2. **划线样式（下划线 / 波浪线 / 删除线）+ 批注与高亮的视觉区分**（用户立项；**kookit 原生支持四种
-   `styleType`，已逆向核实并抄进 TODO**；待定：样与色是否正交、schema v3→v4、菜单形态、描边色 token）。
-3. **交互模式大改**（用户 2026-09-16 明确："交互模式也很有问题…是要大改的"）—— 对应 `TODO.md`
-   「键鼠操作 / 意图层」+「配键体系」两组条目：书库域意图收编、用户自定义绑定表 + 设置页冲突检测、
-   以及主流键鼠交互模式调研。
-4. **阅读时间专题**（`MAP.md` 记的"下一个专题"：会话事件口径 → 计时 → 弹窗界面 → 按 work/库/时间汇总）。
-5. **PDF 翻页专题**（用户定调"以后作为一个专题去聊"：期望形态 = 浏览器 PDF / Koodo 那样；
-   线索已抄进 `TODO.md` PDF 专区）。
-6. **旧账**：「重开书偶发空白」（`note` 探针是它的可重复复现器，见下）、PDF 正文选不中等。
-7. **发行物**：打便携版 + **许可文件随包**（对外发行前必修）。
+1. **等用户验收本轮房间聊天室** → 通过后滚 **client 0.2.0** + `client-v0.2.0` tag（打包仍另说）。
+   真机复看清单：右抽屉两格切换 / `c` 键 / 自动滚到底是否打断上翻 / 长消息下遮罩是否太淡 /
+   输入框自增长 / 加入→自动跳阅读器后聊天是否就在那儿 / 离开房间后页签确实消失。
+2. **服务器侧两处对齐**（`TODO.md` 同步组前两条）：reason 字符串、`POST /rooms` 昵称长度校验。
+3. **多人场景补验**（`TODO.md`）：presence "除发送者外"广播、成员离开、双人位置 diff —— 探针目前是单连接。
+4. 之后回到既有主线：笔记内容导出 / 划线样式 / 交互模式大改 / 阅读时间专题 / PDF 翻页专题 / 旧账。
 
 **验证工具链（回归全靠它们；口径：单测验判据、探针验链路）**
-- **`npm test`** = 纯逻辑单测（**98 断言**：anchor/location 语义 + `compareNoteOrder` + `readerFollow`
-  + `noteLayout` 14 + 分层守卫 + 迁移/双队列）。秒级、无需书。
+- **`npm test`** = 纯逻辑单测（**113 断言**：anchor/location 语义 + `compareNoteOrder` + `readerFollow`
+  + `noteLayout` 14 + **`protocol` 15（v0.4.3 新增）** + 分层守卫 + 迁移/双队列）。秒级、无需书。
 - **`npm run typecheck:all`** = 四个 tsconfig（node / web / test / **preview**）。
   ⚠ **preview 覆盖样式样张 —— 改数据层或组件 props 后必跑**（"样张整页黑屏"就是漏跑它）。
   ⚠ `tsconfig.test.json` **不设 `jsx`** → 纯 `.ts` 不能 import `.tsx` 的类型（数据形状要住纯模块里）。
 - **样式样张**：`npm run style` 起样张；另开终端
   `node_modules\electron\dist\electron.exe tools\style-gallery\smoke.cjs [url] [--scale=N] [--no-window]`
-  → 判据 = 有面板 + 有文字 + **无页面错误** + 笔记卡片高度多档 + **六条几何机检**
-  （`mirrorOk` / `widthIndependentOk` / `paperClearOk` / `tabsSymOk` / `followedOk` / `composerOk`；
-  逐条条件见 `STYLE.md` §8.0）。⚠ 探针的**假数字/假绿**比 FAIL 更危险：`--scale` 会自检计时环境
-  （空闲 rAF > 60ms 直接 FAIL）；样张里**受控组件必须自己持有 state**；模板字符串里**不能写反引号**。
+  → 判据 = 有面板 + 有文字 + **无页面错误** + 笔记卡片高度多档 + **八条几何机检**
+  （`mirrorOk` / `widthIndependentOk` / `paperClearOk` / `tabsSymOk` / `followedOk` /
+  **`chatDrawerOk` / `noRoomTabsOk`（v0.4.3 新增）** / `composerOk`；逐条条件见 `STYLE.md` §8.0）。
+  ⚠ 探针的**假数字/假绿**比 FAIL 更危险：`--scale` 会自检计时环境（空闲 rAF > 60ms 直接 FAIL）；
+  样张里**受控组件必须自己持有 state**；模板字符串里**不能写反引号**（改完先 `node --check`）。
 - **真机探针**（都需要 `TUREAD_USER_DATA=<独立目录>`，**别碰真实书库**）：
   - `TUREAD_DEV_BOOK=<书>` 单跑 = 渲染自检（四格式；输出 `[TUREAD-TEST-OK]`）
-  - `TUREAD_DEV_PROBE=library` = 多库/書箱/**笔记读模型**探针（文档旧记 56 断言，2026-09-16 实测 50 行 PASS）
-  - `TUREAD_DEV_PROBE=note` = **笔记/划线全链路**（选区→锚点→引擎回显→导航→重锚→删除→重开自动回挂→
-    笔记面板→右键坐标→输入栏生命周期/自增长→点高亮→抽屉「編輯」）。**唯一能验 Fragment 契约的地方**。
-    ⚠ 样书首章是纯图片扉页，探针会自动逐章找有正文的章。⚠ 它**最多连试两轮重开**，180s 会被吃满 →
-    可用 `TUREAD_DEV_TIMEOUT_MS` 放宽（排障用）。
+  - `TUREAD_DEV_PROBE=library` = 多库/書箱/**笔记读模型**探针
+  - `TUREAD_DEV_PROBE=note` = **笔记/划线全链路**。⚠ 样书首章是纯图片扉页，探针会自动逐章找有正文的章；
+    它**最多连试两轮重开**，180s 会被吃满 → 可用 `TUREAD_DEV_TIMEOUT_MS` 放宽（排障用）。
+  - **`TUREAD_DEV_PROBE=room`（v0.4.3 新增，唯一"要真 server"的探针）**：会话 → 建房 → **按房间握手** →
+    标定 → 聊天回执 → 空文本不落库 → 历史 REST → 离房断连但历史仍在 → 再进房预载 → 共享会话态登记/复位
+    （**16 条断言**）。需要 `TUREAD_DEV_SERVER`（默认 `http://127.0.0.1:8080`）与 `TUREAD_DEV_ACCESS`；
+    服务器侧建议用**一次性 data 目录**（`TUREAD_ADDR=:8099` + `TUREAD_DATA_DIR=$env:TEMP\...`），
+    别拿入库的 `server/data/turead.db` 做探针。⚠ 负向断言（"未进房间时 send 必失败"）会在 Electron 日志里
+    留一行 `Error occurred in handler for 'net:send'` —— **那是预期的**，不是失败。
   - `TUREAD_DEV_PROBE=paged-interact` / `pdfWidth` = 单页交互 / PDF 纸宽量化（无产品断言，看事实行）
   - `TUREAD_DEV_SQLITE=1` = 原生模块 spike；`TUREAD_DEV_BOOK` **打包产物**跑自检不自退（已知问题，见 TODO）
 - 换 Electron 版本后 `npm run rebuild:sqlite`；打包走代理（`NETWORK.md`）。
@@ -171,13 +208,20 @@ client 工作树干净。⚠ **工作树里另有 server 侧三处未提交改�
 
 **待真机复看（探针证不了手感/窗口状态）**：① **退出阅读器保持最大化**；② 输入栏自增长手感；
 ③ 抽屉「編輯」的 hover 显形；④ 挂载线两段与纸的观感（尤其窄窗口下纸被夹窄）；
-⑤ v0.1.17 遗留（多库同一本书的笔记/进度是否真共享、映射库扫描手感）。
+⑤ v0.1.17 遗留（多库同一本书的笔记/进度是否真共享、映射库扫描手感）；
+⑥ **本轮聊天室的六项**（见上「下一步」第 1 条与 `TODO.md` 的"待真机复看"条目）。
 
 **关键对象速查**：`LibraryManager`（引导文件 + store 句柄）｜`SqliteStore`（**全应用一个全局 `.db`**，
 close 后可 init 重开）｜切库信号 = main 广播 `store:library-changed`；⚠ **`store:*` 不再"打到当前库"**
-（库是库内实体，涉及收录/书箱的调用显式带 `libraryId`）｜**契约版本 v0.4.2**（`CONTRACTS.md` §8）｜
+（库是库内实体，涉及收录/书箱的调用显式带 `libraryId`）｜**契约版本 v0.4.3**（`CONTRACTS.md` §8）｜
 笔记链路：`domain/anchor.ts`（锚点纯函数权威）｜`TextAnchor` 二层（Norm + Fragment）｜
 `components/readerFollow.ts`（跟随判据 + 落点，纯函数 + 单测）｜`components/noteLayout.ts`（笔记流几何）｜
 适配器 `renderedChapter`（高亮回显的过滤依据）｜`hostOffset()`（iframe→宿主坐标，逐层累加）｜
 `context-menu` / `note-clicked`（适配器在**书文档**上听，UI 收）｜`readerTarget`（「带目标打开」载荷，tick 防重复消费）｜
 `win:set-maximized`（退出阅读器时"全屏 → 最大化"）。
+**房间链路速查（v0.4.3）**：`domain/protocol.ts`（**协议词汇唯一解释处**：type 常量 / reason 归一 /
+昵称约束 / 握手地址 / 历史路径 / 聊天合并）｜`INetService.openRoom/closeRoom`（**按房间建连**；
+`connect` 只领 token）｜`IRoomSession`（`chat-history` 事件 + `listMessages` + 10s join 超时 + 重连重发 join）｜
+`features/roomSession.ts`（**渲染层共享会话态**：房间组件与阅读器聊天室同一份）｜
+`components/ChatPanel.tsx`（右抽屉第二格；`.toc-list--right`）｜`ReaderRail` 的 `rightPanel` / `rail-tabs`｜
+`dev/roomProbe.ts`（**唯一要真 server 的探针**）。

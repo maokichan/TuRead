@@ -20,7 +20,7 @@ import { BookRow } from '@renderer/components/BookRow'
 import { BookTile } from '@renderer/components/BookTile'
 import { BookDetailPanel } from '@renderer/components/BookDetailPanel'
 import { LibraryToolbar } from '@renderer/components/LibraryToolbar'
-import { ReaderRail, type LeftPanelKind } from '@renderer/components/ReaderRail'
+import { ReaderRail, type LeftPanelKind, type RightPanelKind } from '@renderer/components/ReaderRail'
 import { ContextMenu, type ContextMenuItem } from '@renderer/components/ContextMenu'
 import { NoteComposer } from '@renderer/components/NoteComposer'
 import { NoteFlow, type NoteFlowItem } from '@renderer/components/NoteFlow'
@@ -650,6 +650,12 @@ export function Gallery(): React.JSX.Element {
           <RailDemo label="左欄 + 右欄都展開（鏡像與固定寬度的基準）" leftOpen controlsOpen />
           <RailDemo label="筆記垂掛（左掛件另一種內容，同樣跟隨位置）" leftPanel="notes" leftOpen />
           <RailDemo label="閱讀參數面板（右段垂掛，默認展開）" controlsOpen />
+          <RailDemo
+            label="房間會話中的右抽屜·聊天（參數 / 聊天兩格）"
+            controlsOpen
+            withChat
+            rightPanel="chat"
+          />
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-6">
           <StatePill state="connected" />
@@ -781,7 +787,9 @@ function RailDemo({
   leftPanel = 'toc',
   leftOpen = false,
   controlsOpen = false,
-  activeChapter = 12
+  activeChapter = 12,
+  rightPanel = 'params',
+  withChat = false
 }: {
   label: string
   leftPanel?: LeftPanelKind
@@ -789,11 +797,27 @@ function RailDemo({
   controlsOpen?: boolean
   /** 当前阅读位置（章号）：目录/笔记的"当前条目"据此滚到正中（2026-09-16 用户定） */
   activeChapter?: number
+  /** 右挂件当前内容（2026-09-17：參數 / 聊天） */
+  rightPanel?: RightPanelKind
+  /** 是否带聊天室（= 经房间进入的这本书；不带则右段不出现页签行） */
+  withChat?: boolean
 }): React.JSX.Element {
   const [tocOpen, setTocOpen] = useState(leftOpen)
   const [ctlOpen, setCtlOpen] = useState(controlsOpen)
   const [panel, setPanel] = useState<LeftPanelKind>(leftPanel)
+  const [right, setRight] = useState<RightPanelKind>(rightPanel)
   const [params, setParams] = useState<ReaderParams>(DEFAULT_READER_PARAMS)
+  // ⚠ 受控输入：样张必须自己持有草稿（传死值会测不出输入区）
+  const [draft, setDraft] = useState('')
+  const chat = withChat
+    ? {
+        roomId: 'a1b2c3d4',
+        messages: CHAT,
+        draft,
+        onDraftChange: setDraft,
+        onSend: () => setDraft('')
+      }
+    : null
   return (
     <div className="flex flex-col gap-2">
       <span className="text-[12.5px] text-[var(--muted)]">{label}</span>
@@ -840,6 +864,9 @@ function RailDemo({
           onNoteRemove={noop}
           onNoteEdit={noop}
           activeChapter={activeChapter}
+          rightPanel={right}
+          onRightPanelChange={setRight}
+          chat={chat}
         />
       </div>
     </div>

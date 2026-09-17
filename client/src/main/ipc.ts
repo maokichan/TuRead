@@ -42,6 +42,8 @@ export function registerIpc(
   net.on('connection-changed', (state) => send(IPC.netConnectionChanged, state))
 
   ipcMain.handle(IPC.netConnect, (_e, config: NetConfig) => net.connect(config))
+  ipcMain.handle(IPC.netOpenRoom, (_e, roomId: string) => net.openRoom(roomId))
+  ipcMain.handle(IPC.netCloseRoom, () => net.closeRoom())
   ipcMain.handle(IPC.netDisconnect, () => net.disconnect())
   ipcMain.handle(IPC.netSend, (_e, env: MessageEnvelope) => net.send(env))
   ipcMain.handle(IPC.netRequest, (_e, opts: HttpRequestOptions) => net.request(opts))

@@ -6,7 +6,7 @@
 
 多人房间共读阅读器：多个用户进同一房间共同阅读同一本书。
 渲染/解析复用 kookit（AGPL-3.0，git submodule）；同步服务器用 Go。
-**server v0.2.0 已实现；client 本地阅读侧端到端可用，同步未与真实 server 打通。**
+**server v0.2.0 已实现；client 本地阅读侧端到端可用，房间同步已与真实 server 打通（阅读器内聊天室已落地）。**
 
 ## 关键文档（按阅读顺序）
 
@@ -39,10 +39,12 @@
 
 ## 当前状态（只留指针；**状态细节的唯一归属是 `docs/STATUS.md`**）
 
-- **版本**：client **v0.1.19** / server **v0.2.0**。**本地阅读侧端到端可用**；
-  **同步未与真实 server 打通**（房间是半成品）。
+- **版本**：client **v0.1.19**（**房间功能已落地、等用户验收后再滚 0.2.0**）/ server **v0.2.0**。
+  本地阅读侧端到端可用；**房间同步已与真实 server 打通**（真机 `TUREAD_DEV_PROBE=room` 验）。
 - **现在在哪 / 下一步 / 验证工具链** → `docs/STATUS.md` **§6 交接快照**（会话交接先读它）。
 - **逐版本过程明细** → `docs/STATUS.md` **§4 版本历史**。
-- **待办（唯一一份）** → `TODO.md`；**下一个专题 = 阅读时间（弹窗与界面，会话口径待定）**。
+- **房间/聊天室**：契约 = `client/docs/CONTRACTS.md` **v0.4.3**；形态 = `FEATURES.md` §11；
+  视觉 = `client/docs/STYLE.md` §5.8（**v1.12：右段两格「参數 / 聊天」**）；协议词汇 = `core/domain/protocol.ts`。
+- **待办（唯一一份）** → `TODO.md`；**下一个专题 = 阅读时间（弹窗与界面）**。
 - **插件态度**：v1 不做插件运行时，**ports 即插件边界**（官方插件 = 注册进 ServiceContainer 的
   适配器 + 追加 `FeatureDescriptor` 进 registry）。

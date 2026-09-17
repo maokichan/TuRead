@@ -11,6 +11,12 @@ const devBook = devBookArg ? devBookArg.slice('--turead-dev-book='.length) : und
 const devProbeArg = process.argv.find((a) => a.startsWith('--turead-dev-probe='))
 const devProbe = devProbeArg ? devProbeArg.slice('--turead-dev-probe='.length) : undefined
 
+// 房间探针（v0.4.3）要连的真实服务器（TUREAD_DEV_SERVER / TUREAD_DEV_ACCESS）
+const devServerArg = process.argv.find((a) => a.startsWith('--turead-dev-server='))
+const devServer = devServerArg ? devServerArg.slice('--turead-dev-server='.length) : undefined
+const devAccessArg = process.argv.find((a) => a.startsWith('--turead-dev-access='))
+const devAccess = devAccessArg ? devAccessArg.slice('--turead-dev-access='.length) : undefined
+
 const bridge: TureadBridge = {
   invoke: (channel, payload) => ipcRenderer.invoke(channel, payload),
   subscribe: (channel, listener) => {
@@ -26,7 +32,9 @@ const bridge: TureadBridge = {
   // 笔记管理的「複製批註」用；通道白名单化的第一步，方向见 TODO「IPC 桥信任边界过宽」
   writeClipboardText: (text) => ipcRenderer.invoke(IPC.clipboardWriteText, text) as Promise<void>,
   devBook,
-  devProbe
+  devProbe,
+  devServer,
+  devAccess
 }
 
 contextBridge.exposeInMainWorld('turead', bridge)

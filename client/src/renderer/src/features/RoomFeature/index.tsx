@@ -1,17 +1,29 @@
 /**
- * 功能组件：房间（RoomFeature）—— 服务器连接 + 大厅/会话（连接是房间组件的一部分）。
+ * 功能组件：房间（RoomFeature）—— 服务器会话 + 大厅/会话（连接是房间组件的一部分）。
+ *
  * 状态继承：进入房间成功后 host.openReader(bookId) —— 自动切到阅读器并打开对应书；
- * 房间会话（成员/聊天）在本组件内保留，侧边栏切回「房间」即见。
+ * 房间会话（成员/聊天）在**跨功能共享态** `features/roomSession.ts` 里（v0.4.3 起）——
+ * 阅读器右抽屉的「聊天」页签读的是同一份，两处不会分叉。
+ *
+ * ⚠ **v0.4.3：连接模型按服务器文本改了**（`server/docs/API.md`）：
+ * - 「連接」= 建立**会话**（`POST /auth/token` 取成员 token），大厅（REST）随之可用；
+ * - **房间 WebSocket 在进入房间时才建立**（服务器握手就要 `?room=&nick=`，缺任一直接关连接）；
+ * - 「離開房間」= 断开这条房间连接（聊天的生命周期归属于房间）。
  */
 import { useCallback, useEffect, useState } from 'react'
-import type { BookRecord, ChatMessage, ConnectionState, RoomInfo, RoomMember } from '@core/domain/types'
+import type { BookRecord, ConnectionState, RoomInfo } from '@core/domain/types'
 import type { FeatureProps } from '../types'
 import { RoomRow } from '../../components/RoomRow'
 import { ChatLog } from '../../components/ChatLog'
 import { MemberList } from '../../components/MemberList'
 import { StatePill } from '../../components/StatePill'
-
-type RoomView = 'lobby' | 'session'
+import {
+  beginRoomSession,
+  endRoomSession,
+  sendRoomChat,
+  setRoomError,
+  useRoomView
+} from '../roomSession'
 
 // STYLE.md §5.1：**动作即文字** —— 样式统一定义在 styles.css 的 `.text-action` 家族
 // （18px 加粗衬线、无框无底色；主/次动作靠色温区分，不靠边框）。
@@ -26,26 +38,26 @@ const inputCls =
 const h3Cls = 'mb-1.5 mt-2 text-[12.5px] tracking-[0.6px] text-[var(--muted)] uppercase'
 
 export function RoomFeature({ container, host, selectedBookId }: FeatureProps): React.JSX.Element {
-  // ---- 服务器连接（房间组件的一部分） ----
+  // ---- 服务器连接（会话） ----
   const [url, setUrl] = useState('http://127.0.0.1:8080')
   const [token, setToken] = useState('')
   const [nick, setNick] = useState('alice')
-  const [connState, setConnState] = useState<ConnectionState>('disconnected')
+  /** 会话已建立（成员 token 到手）—— 大厅走 REST，不需要 WS */
+  const [sessionReady, setSessionReady] = useState(false)
   const [memberId, setMemberId] = useState<string | null>(null)
   const [connError, setConnError] = useState<string | null>(null)
 
-  // ---- 房间 ----
-  const [view, setView] = useState<RoomView>('lobby')
+  // ---- 房间会话（跨功能共享态：与阅读器右抽屉的「聊天」同一份） ----
+  const view = useRoomView()
+  const joinedRoomId = view.roomId
+
+  // ---- 大厅 ----
   const [rooms, setRooms] = useState<RoomInfo[]>([])
   const [roomIdInput, setRoomIdInput] = useState('')
-  const [joinedRoomId, setJoinedRoomId] = useState<string | null>(null)
-  const [sessionBookTitle, setSessionBookTitle] = useState('')
-  const [members, setMembers] = useState<RoomMember[]>([])
-  const [chat, setChat] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const [joining, setJoining] = useState(false)
 
-  // 连接状态订阅 + 恢复已保存的连接配置
+  // 会话状态订阅 + 恢复已保存的连接配置（WS 状态由会话层转发，进房间后才有意义）
   useEffect(() => {
     void container.store
       .getSetting<{ serverUrl?: string; nickName?: string }>('serverConfig', {})
@@ -54,24 +66,17 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
         if (cfg.nickName) setNick(cfg.nickName)
       })
     return container.net.on('connection-changed', (s) => {
-      setConnState(s)
+      // 会话建立后 WS 才有状态；'connected' 只可能来自房间连接
       if (s === 'connected') void container.net.getMemberId().then(setMemberId)
-      else setMemberId(null)
     })
   }, [container])
 
-  // 常驻订阅（功能组件常驻挂载 → 会话事件即使在阅读器中也持续累积，状态继承）
-  useEffect(() => {
-    const unsubs = [
-      container.room.on('presence-updated', (ms) => setMembers(ms)),
-      container.room.on('chat-message', (msg) => setChat((prev) => [...prev, msg])),
-      container.room.on('system-message', (msg) => host.pushLog(`[${msg.type}] ${msg.text}`)),
-      container.room.on('book-mismatch', ({ local, room }) =>
-        host.pushLog(`书不匹配：本地 ${local.hash} vs 房间 ${room.hash}`)
-      )
-    ]
-    return () => unsubs.forEach((u) => u())
-  }, [container, host])
+  /** 展示用连接态：不在房间里时，"已建立会话"就是大厅可用的状态（WS 尚未建立） */
+  const displayConn: ConnectionState = joinedRoomId
+    ? view.connection
+    : sessionReady
+      ? 'connected'
+      : 'disconnected'
 
   const getSelectedBook = useCallback(async (): Promise<BookRecord | null> => {
     if (!selectedBookId) return null
@@ -91,17 +96,28 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
   const connect = useCallback(async () => {
     setConnError(null)
     try {
+      // 会话 = 成员 token（REST 用）；房间 WS 在 enterRoom 里按房间建立
       await container.net.connect({ serverUrl: url, accessToken: token, nickName: nick })
       const id = await container.net.getMemberId()
       setMemberId(id)
+      setSessionReady(true)
       void container.store.setSetting('serverConfig', { serverUrl: url, nickName: nick })
       void refreshRooms()
     } catch (err) {
       setConnError((err as Error).message)
+      setSessionReady(false)
     }
   }, [container, url, token, nick, refreshRooms])
 
-  /** 进入房间：标定加入 → 成功后状态继承（会话视图 + 自动打开阅读器与书） */
+  const disconnect = useCallback(async () => {
+    endRoomSession()
+    await container.net.disconnect()
+    setSessionReady(false)
+    setMemberId(null)
+    setRooms([])
+  }, [container])
+
+  /** 进入房间：按房间建连 → 标定加入 → 成功后状态继承（会话视图 + 自动打开阅读器与书） */
   const enterRoom = useCallback(
     async (roomId: string, book?: BookRecord | null) => {
       const target = book ?? (await getSelectedBook())
@@ -112,24 +128,31 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
       const rid = roomId.trim().toLowerCase()
       if (!rid) return
       setJoining(true)
+      setRoomError(null)
       try {
         // v0.4.0：房间的初始位置取该书的**阅读状态**（已从书行拆到 `ReadingState`）——
         // 原来 `joinRoom` 自己读 `book.lastLocation`，现在由调用方显式给。
         const state = await container.books.getReadingState(target.id)
         const res = await container.room.joinRoom(rid, target, state?.lastLocation ?? null)
         if (res.ok) {
-          setJoinedRoomId(rid)
-          setSessionBookTitle(target.metadata.title)
-          setView('session')
-          setChat([])
+          // 会话归属交给共享态：阅读器据此决定要不要出现「聊天」页签
+          beginRoomSession({
+            roomId: res.room.roomId,
+            editionId: target.id,
+            bookTitle: target.metadata.title
+          })
           setRoomIdInput('')
-          host.pushLog(`已加入房间 ${rid}`)
+          host.pushLog(`已加入房间 ${res.room.roomId}`)
           host.openReader(target.id) // 状态继承：自动切到阅读器并打开对应书
         } else {
-          host.pushLog(`加入失败：${res.reason}`)
+          const text = `加入失敗：${res.reason}`
+          setRoomError(text)
+          host.pushLog(text)
         }
       } catch (err) {
-        host.pushLog(`加入失败：${(err as Error).message}`)
+        const text = `加入失败：${(err as Error).message}`
+        setRoomError(text)
+        host.pushLog(text)
       } finally {
         setJoining(false)
       }
@@ -157,11 +180,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
   const leaveRoom = useCallback(async () => {
     try {
       await container.room.leaveRoom()
-      setJoinedRoomId(null)
-      setSessionBookTitle('')
-      setView('lobby')
-      setChat([])
-      setMembers([])
+      endRoomSession()
       host.pushLog('已离开房间')
     } catch (err) {
       host.pushLog(`离开失败：${(err as Error).message}`)
@@ -170,40 +189,50 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
 
   const sendChat = useCallback(async () => {
     if (!chatInput.trim() || !joinedRoomId) return
-    await container.room.sendChat(chatInput)
-    setChatInput('')
-  }, [chatInput, joinedRoomId, container])
+    try {
+      await sendRoomChat(chatInput)
+      setChatInput('')
+    } catch (err) {
+      host.pushLog(`發送失敗：${(err as Error).message}`)
+    }
+  }, [chatInput, joinedRoomId, host])
 
-  if (view === 'session' && joinedRoomId) {
+  if (joinedRoomId) {
     return (
       <section className="cjk-ui flex h-full flex-col gap-3">
         <header className="flex items-center justify-between">
           <h2 className="m-0 font-[var(--font-serif-cn)] text-[15px] font-bold">房间会话</h2>
           <div className="flex items-center gap-2">
             <span className="font-[var(--mono)] text-[12px] text-[var(--accent)]">{joinedRoomId}</span>
-            <StatePill state={connState} />
+            <StatePill state={displayConn} />
           </div>
         </header>
 
         <div className="flex flex-col gap-1.5 text-[13px]">
           <div className="flex gap-3">
             <span className="w-[72px] flex-none text-[var(--muted)]">当前书籍</span>
-            <span className="truncate">{sessionBookTitle || '—'}</span>
+            <span className="truncate">{view.bookTitle || '—'}</span>
           </div>
           <div className="flex gap-3">
             <span className="w-[72px] flex-none text-[var(--muted)]">在线成员</span>
-            <span>{members.length} 人</span>
+            <span>{view.members.length} 人</span>
           </div>
+          {view.error && (
+            <div className="flex gap-3">
+              <span className="w-[72px] flex-none text-[var(--muted)]">提示</span>
+              <span className="text-[var(--err)]">{view.error}</span>
+            </div>
+          )}
         </div>
 
         <div>
           <h3 className={h3Cls}>成员</h3>
-          <MemberList members={members} />
+          <MemberList members={view.members} />
         </div>
 
         <div className="min-h-0 flex-1">
           <h3 className={h3Cls}>聊天</h3>
-          <ChatLog messages={chat} />
+          <ChatLog messages={view.messages} />
           <div className="mt-2 flex gap-2">
             <input
               className={`${inputCls} flex-1`}
@@ -219,10 +248,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
         </div>
 
         <div className="flex-none">
-          <button
-            className="text-action text-action--danger"
-            onClick={() => void leaveRoom()}
-          >
+          <button className="text-action text-action--danger" onClick={() => void leaveRoom()}>
             离开房间
           </button>
         </div>
@@ -234,12 +260,12 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
     <section className="cjk-ui flex h-full flex-col gap-3">
       <header className="flex items-center justify-between">
         <h2 className="m-0 font-[var(--font-serif-cn)] text-[15px] font-bold">房间</h2>
-        <StatePill state={connState} />
+        <StatePill state={displayConn} />
       </header>
 
       <details className="rounded-xl border border-[var(--border)] bg-[var(--panel)] p-3 open:pb-4">
         <summary className="cursor-pointer text-[12.5px] font-semibold text-[var(--muted)] select-none">
-          服务器连接{connState === 'connected' ? ` · ${memberId ?? ''}` : ''}
+          服务器连接{sessionReady ? ` · ${memberId ?? ''}` : ''}
         </summary>
         <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
           <label className="flex flex-col gap-1.5">
@@ -249,7 +275,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="http://host:8080"
-              disabled={connState === 'connected'}
+              disabled={sessionReady}
             />
           </label>
           <label className="flex flex-col gap-1.5">
@@ -259,7 +285,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder="access_token（可留空）"
-              disabled={connState === 'connected'}
+              disabled={sessionReady}
             />
           </label>
           <label className="flex flex-col gap-1.5">
@@ -270,18 +296,22 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
               onChange={(e) => setNick(e.target.value)}
               maxLength={12}
               placeholder="≤ 12 字"
-              disabled={connState === 'connected'}
+              disabled={sessionReady}
             />
           </label>
         </div>
+        <p className="mt-3 mb-0 text-[12.5px] text-[var(--muted)]">
+          「連接」= 建立會話（領取成員憑證，大廳可用）。房間連線在**進入房間**時建立 ——
+          伺服器握手就要求房間號與暱稱，暱稱上限 12 字。
+        </p>
         <div className="mt-3 flex items-center gap-2">
-          <button className={btnPrimary} onClick={() => void connect()} disabled={connState === 'connected'}>
+          <button className={btnPrimary} onClick={() => void connect()} disabled={sessionReady}>
             连接
           </button>
           <button
             className="text-action text-action--danger"
-            onClick={() => void container.net.disconnect()}
-            disabled={connState === 'disconnected'}
+            onClick={() => void disconnect()}
+            disabled={!sessionReady}
           >
             断开
           </button>
@@ -291,15 +321,16 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
 
       <div className="flex items-center justify-between">
         <h3 className="m-0 text-[12.5px] tracking-[0.6px] text-[var(--muted)] uppercase">房间大厅</h3>
-        <button className={btnGhost} onClick={() => void refreshRooms()} disabled={connState !== 'connected'}>
+        <button className={btnGhost} onClick={() => void refreshRooms()} disabled={!sessionReady}>
           刷新
         </button>
       </div>
 
       <div className="flex flex-wrap items-baseline gap-4 text-[12.5px]">
-        {connState !== 'connected' && (
+        {!sessionReady && (
           <span className="text-[var(--muted)]">未连接服务器，先在上方展开「服务器连接」配置</span>
         )}
+        {sessionReady && view.error && <span className="text-[var(--err)]">{view.error}</span>}
         {!selectedBookId && (
           <span className="text-[var(--muted)]">
             未选择书籍
@@ -338,7 +369,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
           <button
             className={btnPrimary}
             onClick={() => void createRoom()}
-            disabled={!selectedBookId || connState !== 'connected' || joining}
+            disabled={!selectedBookId || !sessionReady || joining}
           >
             创建房间
           </button>

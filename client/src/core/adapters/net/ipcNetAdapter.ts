@@ -25,6 +25,14 @@ export class IpcNetAdapter extends TypedEmitter<NetServiceEvents> implements INe
     await this.bridge.invoke(IPC.netConnect, config)
   }
 
+  async openRoom(roomId: string): Promise<void> {
+    await this.bridge.invoke(IPC.netOpenRoom, roomId)
+  }
+
+  async closeRoom(): Promise<void> {
+    await this.bridge.invoke(IPC.netCloseRoom)
+  }
+
   async disconnect(): Promise<void> {
     this.config = null
     await this.bridge.invoke(IPC.netDisconnect)

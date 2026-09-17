@@ -483,7 +483,7 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
       // 笔记面板：行数应与库里一致（左挂件「筆記」页签）
       const stored = (await container.store.listNotes(edition.id)).length
       if (
-        !Array.from(document.querySelectorAll<HTMLButtonElement>('.left-tabs__tab')).some((b) =>
+        !Array.from(document.querySelectorAll<HTMLButtonElement>('.rail-tabs__tab')).some((b) =>
           (b.textContent ?? '').includes('筆記')
         )
       ) {
@@ -491,13 +491,13 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
         document.querySelector<HTMLButtonElement>('.reader-rail__zone--toc')?.click()
         await wait(300)
       }
-      Array.from(document.querySelectorAll<HTMLButtonElement>('.left-tabs__tab'))
+      Array.from(document.querySelectorAll<HTMLButtonElement>('.rail-tabs__tab'))
         .find((b) => (b.textContent ?? '').includes('筆記'))
         ?.click()
       await wait(300)
       const rows = document.querySelectorAll('.note-row')
       fact(
-        `筆記页签现场：页签=${Array.from(document.querySelectorAll('.left-tabs__tab')).map((b) => (b.textContent ?? '').trim()).join('|') || '（无）'} toc行=${document.querySelectorAll('.toc-row').length} 笔记行=${rows.length} 库中=${stored} 空态=「${document.querySelector('.toc-list__empty')?.textContent ?? ''}」`
+        `筆記页签现场：页签=${Array.from(document.querySelectorAll('.rail-tabs__tab')).map((b) => (b.textContent ?? '').trim()).join('|') || '（无）'} toc行=${document.querySelectorAll('.toc-row').length} 笔记行=${rows.length} 库中=${stored} 空态=「${document.querySelector('.toc-list__empty')?.textContent ?? ''}」`
       )
       assert(
         stored > 0 && rows.length === stored,

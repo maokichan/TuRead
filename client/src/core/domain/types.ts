@@ -3,6 +3,7 @@
  * 依据：client/docs/CONTRACTS.md §2（权威）+ server/docs/API.md「数据形状参考」（wire 形状）。
  * 共享词汇 = 领域层，被所有层共享。
  */
+import type { JoinFailureReason } from './protocol'
 
 /**
  * 阅读位置 —— 房间同步的最小载荷，与 kookit getPosition() 对齐。
@@ -458,9 +459,13 @@ export interface SystemMessage {
   type: 'join' | 'leave' | 'info' | 'error'
 }
 
+/**
+ * 加入结果（v0.4.3 收敛到领域层：原来 domain 与 `RoomSession` 各留一份、reason 枚举还不一致 ——
+ * 见 `TODO.md` 的 P3「JoinResult 类型重复」）。失败原因的词汇与归一判据在 `protocol.ts`。
+ */
 export type JoinResult =
   | { ok: true; room: RoomState }
-  | { ok: false; reason: 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-error' }
+  | { ok: false; reason: JoinFailureReason }
 
 /**
  * 消息信封：传输层只搬运信封，不理解语义 —— 语义由上层用例解释。
@@ -516,7 +521,13 @@ export interface Edition {
 /** room.join-ack 的 payload（reason 仅失败时有；edition/members 成功时有） */
 export interface JoinAck {
   ok: boolean
-  reason?: 'book-mismatch' | 'room-not-found' | 'room-full' | 'bad payload'
+  /**
+   * ⚠ **不收窄成字面量联合**（v0.4.3 修正）：服务器实际下发的是
+   * `"book mismatch" / "room full" / "room not found"`（`internal/room/manager.go` 的 error 串，
+   * **空格分词**）与 `"bad payload"`，而 `API.md` 与旧契约写的是连字符形式 —— 精确匹配会把
+   * "书不匹配"静默降级成 server-error。故按字符串收，归一交给 `protocol.ts` 的 `normalizeJoinReason`。
+   */
+  reason?: string
   roomId?: string
   edition?: Edition
   members?: RoomMember[]

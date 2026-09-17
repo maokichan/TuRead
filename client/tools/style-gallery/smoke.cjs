@@ -170,7 +170,7 @@ app.whenReady().then(async () => {
         first.paperRight = Math.round(pr.right - box.left)
         first.paperClear = pr.left >= t.right - 1 && pr.right <= p.left + 1
       }
-      const tabs = demo.querySelectorAll('.left-tabs__tab')
+      const tabs = demo.querySelectorAll('.rail-tabs__tab')
       if (tabs.length === 2) {
         const ra = tabs[0].getBoundingClientRect()
         const rb = tabs[1].getBoundingClientRect()
@@ -205,6 +205,63 @@ app.whenReady().then(async () => {
     })()`)
   } catch (e) {
     logs.push({ kind: 'geometry-throw', message: String(e) })
+  }
+
+  /**
+   * ————— 右抽屉 · 聊天室机检（2026-09-17）—————
+   *
+   * 用户定的两条（逐字）：
+   * ① "右抽屜，像是目錄和筆記共用一個掛載線一樣，和右邊的閱讀參數面板處於一根掛載線，
+   *    **但是沒有通過房間進入一本書就不會有這個項**，樣式和左側抽屜一樣"
+   *    → 房间里：右抽屉两格页签（參數 / 聊天）关于**右抽屉中心**对称、与参数面板**同宽同高上限**、
+   *      贴线的右端、聊天行与输入框都在；输入框是输入类（§5.2 例外①）→ 发丝描边。
+   *    → 非房间：右抽屉（展开态）里**一格页签都不该有** —— "这一项不存在"要机器可证。
+   * ② 与左抽屉同族：容器 / 页签 / 遮罩的类名与几何同源（这条由 `mirrorOk` + `tabsSymOk` 的
+   *    同款量法覆盖，这里只量"右抽屉自己"的对称与同宽）。
+   */
+  let chatGeometry = null
+  try {
+    chatGeometry = await win.webContents.executeJavaScript(`(() => {
+      const demos = Array.prototype.slice.call(document.querySelectorAll('[data-rail-demo]'))
+      const chatDemo = demos.filter((el) => (el.dataset.railDemo || '').indexOf('聊天') >= 0)[0]
+      const paramOnlyDemo = demos.filter((el) => (el.dataset.railDemo || '').indexOf('閱讀參數面板') >= 0)[0]
+      if (!chatDemo) return { error: 'chat demo not found', demoCount: demos.length }
+      const box = chatDemo.getBoundingClientRect()
+      const chat = chatDemo.querySelector('.toc-list--right')
+      const tabs = chatDemo.querySelectorAll('.rail-tabs__tab')
+      const rows = chatDemo.querySelectorAll('.chat-row')
+      const input = chatDemo.querySelector('.chat-composer__input')
+      const paramPanel = paramOnlyDemo ? paramOnlyDemo.querySelector('.reader-controls') : null
+      const out = {
+        chatFound: !!chat,
+        tabs: tabs.length,
+        rows: rows.length,
+        inputFound: !!input,
+        inputBorderTopPx: input ? Number.parseFloat(getComputedStyle(input).borderTopWidth) : -1,
+        chatWidth: chat ? Math.round(chat.getBoundingClientRect().width) : -1,
+        paramsWidth: paramPanel ? Math.round(paramPanel.getBoundingClientRect().width) : -1,
+        chatFlushRight: chat ? Math.round(box.right - chat.getBoundingClientRect().right) : -1,
+        chatMaxH: chat ? getComputedStyle(chat).maxHeight : null,
+        paramsMaxH: paramPanel ? getComputedStyle(paramPanel).maxHeight : null,
+        tabsSymDelta: null,
+        tabMidDelta: null,
+        /* 非房间阅读（"閱讀參數面板"那一格）：右抽屉展开态下的页签数，必须是 0 */
+        noRoomTabs: paramOnlyDemo ? paramOnlyDemo.querySelectorAll('.rail-tabs__tab').length : -1
+      }
+      if (chat && tabs.length === 2) {
+        const cr = chat.getBoundingClientRect()
+        const drawerCenter = (cr.left + cr.right) / 2
+        const ra = tabs[0].getBoundingClientRect()
+        const rb = tabs[1].getBoundingClientRect()
+        out.tabsSymDelta = Math.round(
+          Math.abs(drawerCenter - (ra.left + ra.right) / 2) - Math.abs((rb.left + rb.right) / 2 - drawerCenter)
+        )
+        out.tabMidDelta = Math.round((ra.right + rb.left) / 2 - drawerCenter)
+      }
+      return out
+    })()`)
+  } catch (e) {
+    logs.push({ kind: 'chat-geometry-throw', message: String(e) })
   }
 
   // ③ 批注输入栏：点开再量（React 状态 → 渲染，等一拍）
@@ -331,6 +388,29 @@ app.whenReady().then(async () => {
     geometry && !geometry.error && (geometry.scrollable ?? -1) > 40 && geometry.hitFound && Math.abs(geometry.centeredDelta ?? 999) <= 8
   )
   /**
+   * 右抽屉 · 聊天室（2026-09-17 用户定）：两格页签关于**右抽屉中心**对称 + 与参数面板同宽同高上限
+   * + 贴线的右端 + 聊天行渲染 + 输入框是输入类（发丝描边）。
+   * ⚠ 参照必须是**抽屉自己的中心**（同 `tabsSymOk` 的教训：拿演示框中心比会量出假 FAIL）。
+   */
+  const chatDrawerOk = Boolean(
+    chatGeometry &&
+      !chatGeometry.error &&
+      chatGeometry.chatFound &&
+      chatGeometry.tabs === 2 &&
+      chatGeometry.rows >= 1 &&
+      chatGeometry.inputFound &&
+      chatGeometry.inputBorderTopPx > 0 &&
+      chatGeometry.inputBorderTopPx <= 1.5 &&
+      Math.abs(chatGeometry.chatFlushRight ?? 99) <= 1 &&
+      chatGeometry.chatWidth === chatGeometry.paramsWidth &&
+      chatGeometry.chatMaxH === chatGeometry.paramsMaxH &&
+      chatGeometry.tabsSymDelta !== null &&
+      Math.abs(chatGeometry.tabsSymDelta) <= 1 &&
+      Math.abs(chatGeometry.tabMidDelta ?? 99) <= 1
+  )
+  /** 「沒有通過房間進入一本書就不會有這個項」：非房间阅读的右抽屉里**一格页签都没有** */
+  const noRoomTabsOk = Boolean(chatGeometry && !chatGeometry.error && chatGeometry.noRoomTabs === 0)
+  /**
    * 输入栏：零文字 + 纯色底 + 发丝描边 + 居中 + 宽 = 纸宽×0.9 + **自增长**（用户 2026-09-16）：
    * 空态 ≈ **两行**高、灌 8 行后 ≈ **五行**高（封顶）且内容溢出转滚动。
    * 判据用实测行高算，不写死 px（DPR/字体差异都不会把它变成假 FAIL）。
@@ -390,20 +470,26 @@ app.whenReady().then(async () => {
         paperClearOk &&
         tabsSymOk &&
         followedOk &&
+        chatDrawerOk &&
+        noRoomTabsOk &&
         composerOk &&
         (SCALE <= 0 || (scale && rafGapMs <= 60))
     ),
     url: URL,
     notesOk,
-    /** 几何判据（2026-09-16）：镜像 / 宽度不随纸变 / 纸不被压住 / 页签对称 / 当前条目居中 / 输入栏 */
+    /** 几何判据（2026-09-16）：镜像 / 宽度不随纸变 / 纸不被压住 / 页签对称 / 当前条目居中 / 输入栏
+     *  ＋（2026-09-17）右抽屉聊天室 `chatDrawerOk` / 非房间无页签 `noRoomTabsOk` */
     mirrorOk,
     widthIndependentOk,
     paperClearOk,
     tabsSymOk,
     followedOk,
+    chatDrawerOk,
+    noRoomTabsOk,
     composerOk,
     stats,
     geometry,
+    chatGeometry,
     composer,
     scale,
     /** 空闲 rAF 间隔（计时环境是否可信；> 60ms 时上面的 commit/refresh 数字都不要当真） */
@@ -413,7 +499,7 @@ app.whenReady().then(async () => {
   fs.writeFileSync(OUT, JSON.stringify({ verdict, logs }, null, 2))
   console.log(
     `[style-gallery smoke] ${verdict.ok ? 'OK' : 'FAIL'}` +
-      ` | mirror=${mirrorOk ? 'ok' : 'FAIL'} fixedWidth=${widthIndependentOk ? 'ok' : 'FAIL'} paperClear=${paperClearOk ? 'ok' : 'FAIL'} tabsSym=${tabsSymOk ? 'ok' : 'FAIL'} followed=${followedOk ? 'ok' : 'FAIL'} composer=${composerOk ? 'ok' : 'FAIL'}` +
+      ` | mirror=${mirrorOk ? 'ok' : 'FAIL'} fixedWidth=${widthIndependentOk ? 'ok' : 'FAIL'} paperClear=${paperClearOk ? 'ok' : 'FAIL'} tabsSym=${tabsSymOk ? 'ok' : 'FAIL'} followed=${followedOk ? 'ok' : 'FAIL'} chatDrawer=${chatDrawerOk ? 'ok' : 'FAIL'} noRoomTabs=${noRoomTabsOk ? 'ok' : 'FAIL'} composer=${composerOk ? 'ok' : 'FAIL'}` +
       (scale ? ` | scale n=${scale.n} commit=${scale.commitMs}ms settle=${scale.settleMs}ms refresh=${scale.refreshMs}ms cards=${scale.cardCount}/${scale.n} rafGap=${rafGapMs}ms` : '') +
       ` → ${OUT}`
   )

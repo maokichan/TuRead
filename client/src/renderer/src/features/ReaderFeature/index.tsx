@@ -29,7 +29,7 @@ import type {
 import type { RenderContextMenuRequest, RenderSelection } from '@core/ports/render'
 import type { FeatureProps } from '../types'
 import type { TocRow } from '../../components/TocPanel'
-import { ReaderRail, type LeftPanelKind } from '../../components/ReaderRail'
+import { ReaderRail, type LeftPanelKind, type RightPanelKind } from '../../components/ReaderRail'
 import {
   ReaderControls,
   DEFAULT_READER_PARAMS,
@@ -39,6 +39,7 @@ import { useKeyIntents } from '../../components/useKeyIntents'
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
 import { NoteComposer } from '../../components/NoteComposer'
 import { bridgeIframeDocuments } from '../../components/iframeBridge'
+import { sendRoomChat, useRoomView } from '../roomSession'
 import { IPC } from '@shared/ipc'
 
 type ReaderMode = NonNullable<RenderOptions['readerMode']>
@@ -91,6 +92,14 @@ export function ReaderFeature({
   const notesRef = useRef<Note[]>([])
   /** 左挂件当前内容（目錄 / 筆記；同一几何，顶部开关切换）——不持久化，重开书回目录 */
   const [leftPanel, setLeftPanel] = useState<LeftPanelKind>('toc')
+  /**
+   * 右挂件当前内容（參數 / 聊天；2026-09-17 用户定：与左挂件同构 —— 同一几何、顶部两格开关）。
+   * 默认「參數」（阅读参数是常伴工具，不该被聊天挤掉默认位）；聊天室**只在经房间进入的这本书**上
+   * 存在（判据见下面的 `railChat`），所以非房间阅读时这个 state 恒为 `params`、右段不出现页签行。
+   */
+  const [rightPanel, setRightPanel] = useState<RightPanelKind>('params')
+  /** 聊天草稿（受控：内容归本组件持有，便于将来键盘意图直接提交；发送成功才清空） */
+  const [chatDraft, setChatDraft] = useState('')
   /** 当前正文选区（适配器在**书文档**上观测后广播；null = 无选区） */
   const [selection, setSelection] = useState<RenderSelection | null>(null)
   /**
@@ -130,6 +139,29 @@ export function ReaderFeature({
    * 滚到容器正中（2026-09-16 用户定）。只在**换了章**时 setState，滚动过程中的重复事件不重渲染。
    */
   const [currentChapter, setCurrentChapter] = useState(0)
+
+  /**
+   * 房间会话共享态（2026-09-17）—— 聊天室的**生命周期归属于房间**：
+   * - `roomId` 有值 = 正在某个房间里；`editionId` = 这次会话绑定的本地 edition；
+   * - **聊天室只在"经房间进入的那本书"的阅读页出现**（用户 2026-09-17：
+   *   "沒有通過房間進入一本書就不會有這個項"）→ 判据 = `roomId && editionId === readerBookId`；
+   * - 消息/成员与「房间」功能组件**共用同一份**（`features/roomSession.ts`），不各持一份。
+   */
+  const room = useRoomView()
+  const chatAvailable = Boolean(room.roomId && room.editionId && room.editionId === readerBookId)
+  const railChat = chatAvailable && room.roomId
+    ? {
+        roomId: room.roomId,
+        messages: room.messages,
+        draft: chatDraft,
+        onDraftChange: setChatDraft,
+        onSend: (text: string) => {
+          void sendRoomChat(text)
+            .then(() => setChatDraft(''))
+            .catch((err) => host.pushLog(`發送失敗：${(err as Error).message}`))
+        }
+      }
+    : null
 
   /**
    * 应用参数到渲染层。分工（`STYLE.md` §5.9）：
@@ -461,6 +493,9 @@ export function ReaderFeature({
     // 换书 / 关书：两个瞬时浮层都不该留着（它们属于上一本书、上一次交互）
     setComposer(null)
     setMenu(null)
+    // 右挂件回「參數」并清掉聊天草稿（聊天属于上一本书的房间会话；页签本身随会话消失）
+    setRightPanel('params')
+    setChatDraft('')
     if (!readerBookId) {
       setBook(null)
       setToc([])
@@ -671,7 +706,24 @@ export function ReaderFeature({
         if (readerMode !== 'scroll') void pageTurn('next')
       },
       'reader.toggleToc': () => setTocOpen((v) => !v),
-      'reader.toggleControls': () => setControlsOpen((v) => !v),
+      // `p` = 「閱讀參數」这一面：右抽屉开着但在「聊天」页签上时，先切回參數（否则"按 p 没反应"）
+      'reader.toggleControls': () => {
+        if (controlsOpen && rightPanel === 'params') setControlsOpen(false)
+        else {
+          setRightPanel('params')
+          setControlsOpen(true)
+        }
+      },
+      // `c` = 「聊天」这一面（v0.4.3）：右抽屉开着且已在聊天上 → 收起；否则切到聊天并展开。
+      // 不在房间里（这本书不是经房间进来的）→ 无此面，按键不做事。
+      'reader.toggleChat': () => {
+        if (!chatAvailable) return
+        if (controlsOpen && rightPanel === 'chat') setControlsOpen(false)
+        else {
+          setRightPanel('chat')
+          setControlsOpen(true)
+        }
+      },
       // F11 = **进入**全屏（幂等）。⚠ 不做成切换（用户 2026-09-16："在阅读器内按F11是在切换全屏
       // 状态，不是在进入全屏"）—— 退出全屏走 Esc（`reader.back` 的分流）；离开阅读器时若仍在全屏，
       // 由下面的 effect 退出并保持最大化。
@@ -815,6 +867,9 @@ export function ReaderFeature({
           onControlsToggle={() => setControlsOpen((v) => !v)}
           params={params}
           onParamsChange={changeParams}
+          rightPanel={rightPanel}
+          onRightPanelChange={setRightPanel}
+          chat={railChat}
         />
       )}
 

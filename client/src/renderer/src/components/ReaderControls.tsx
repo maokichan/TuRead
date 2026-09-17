@@ -95,9 +95,19 @@ interface ReaderControlsProps {
   onChange: (patch: Partial<ReaderParams>) => void
   /** 折叠面板（底部「折疊」按钮；挂载线右段 / `p` 亦可） */
   onToggle: () => void
+  /**
+   * 顶部插槽（挂载线右挂件的「參數 / 聊天」两格开关，由 ReaderRail 生成并与 ChatPanel 共用）。
+   * 非房间阅读时没有第二格 → 不传（不出现页签行，与 v1.10 之前的形态一致）。
+   */
+  header?: React.ReactNode
 }
 
-export function ReaderControls({ params, onChange, onToggle }: ReaderControlsProps): React.JSX.Element {
+export function ReaderControls({
+  params,
+  onChange,
+  onToggle,
+  header
+}: ReaderControlsProps): React.JSX.Element {
   const boxRef = useRef<HTMLDivElement | null>(null)
 
   /** 遮罩按距离（与 TocPanel.paintVeil 同一机制，读写分离）：近 → 揭开，远 → 静息（--reader-veil-rest） */
@@ -159,47 +169,52 @@ export function ReaderControls({ params, onChange, onToggle }: ReaderControlsPro
       onMouseMove={(e) => paintVeil(e.clientY)}
       onMouseLeave={() => paintVeil(null)}
     >
-      <Row
-        label="字號"
-        options={FONT_SIZES}
-        value={params.fontSize}
-        onPick={(v) => onChange({ fontSize: v })}
-      />
-      <Row
-        label="行距"
-        options={LINE_HEIGHTS}
-        value={params.lineHeight}
-        onPick={(v) => onChange({ lineHeight: v })}
-      />
-      <Row
-        label="段距"
-        options={PARAGRAPH_SPACING}
-        value={params.paragraphSpacing}
-        onPick={(v) => onChange({ paragraphSpacing: v })}
-      />
-      <Row
-        label="紙寬"
-        options={READER_WIDTHS}
-        value={params.readerWidth}
-        onPick={(v) => onChange({ readerWidth: v })}
-      />
-      <Row
-        label="內邊距"
-        options={PAGE_PAD}
-        value={params.pagePadX}
-        onPick={(v) => onChange({ pagePadX: v })}
-      />
-      <Row
-        label="佈局"
-        options={READER_MODES}
-        value={params.readerMode}
-        onPick={(v) => onChange({ readerMode: v })}
-      />
-      {/* 底部「折疊」：与目录列表的折疊同款（居中 + 引导分割线，样式类见 styles.css） */}
-      <div className="reader-controls__fold">
-        <button className="text-action" onClick={onToggle}>
-          折疊
-        </button>
+      {/* 页签（有聊天室时才有）留在面板顶部不随档位滚动 —— 与左抽屉的 header/rows 分层同构；
+          折叠态由外层的 max-height 兜住 */}
+      {header}
+      <div className="reader-controls__body">
+        <Row
+          label="字號"
+          options={FONT_SIZES}
+          value={params.fontSize}
+          onPick={(v) => onChange({ fontSize: v })}
+        />
+        <Row
+          label="行距"
+          options={LINE_HEIGHTS}
+          value={params.lineHeight}
+          onPick={(v) => onChange({ lineHeight: v })}
+        />
+        <Row
+          label="段距"
+          options={PARAGRAPH_SPACING}
+          value={params.paragraphSpacing}
+          onPick={(v) => onChange({ paragraphSpacing: v })}
+        />
+        <Row
+          label="紙寬"
+          options={READER_WIDTHS}
+          value={params.readerWidth}
+          onPick={(v) => onChange({ readerWidth: v })}
+        />
+        <Row
+          label="內邊距"
+          options={PAGE_PAD}
+          value={params.pagePadX}
+          onPick={(v) => onChange({ pagePadX: v })}
+        />
+        <Row
+          label="佈局"
+          options={READER_MODES}
+          value={params.readerMode}
+          onPick={(v) => onChange({ readerMode: v })}
+        />
+        {/* 底部「折疊」：与目录列表的折疊同款（居中 + 引导分割线，样式类见 styles.css） */}
+        <div className="reader-controls__fold">
+          <button className="text-action" onClick={onToggle}>
+            折疊
+          </button>
+        </div>
       </div>
     </div>
   )

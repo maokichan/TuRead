@@ -561,11 +561,25 @@ interface NetServiceEvents {
 }
 
 interface INetService extends EventEmitter<NetServiceEvents> {
+  /**
+   * v0.4.3：**建立会话**（语义收窄）—— 只做身份与准入：带二级令牌调 `POST /auth/token`
+   * 申请/复用成员 token，并记住服务器地址；**不建立 WebSocket**。
+   * 为什么改：服务器在 **WS 握手时**就要求 `room` 与 `nick`（`server/docs/API.md`「WebSocket」：
+   * `GET /ws?room=<id>&nick=<name>`；`transport/ws.go`：缺任一/昵称 >12 字即关连接）——
+   * 旧模型（先连一条通用连接、再发 `room.join`）在服务器上**根本走不到 join**。
+   */
   connect(config: NetConfig): Promise<void>;
+  /** v0.4.3：**按房间建立 WebSocket**（握手带 `?room=&nick=`，token 双闸走 header）。
+   *  ⚠ 同一成员 token 的新连接会**踢掉旧连接**（单设备登录）→ 换房前必须先 `closeRoom()`。 */
+  openRoom(roomId: string): Promise<void>;
+  /** v0.4.3：关闭房间连接。**聊天的生命周期归属于房间** —— 离开房间即断开（历史留在服务器，
+   *  随房间级联清理）；断线重连由适配器负责，重连后由用例层**重发 `room.join`**
+   *  （服务器侧成员/订阅是瞬态的，否则会变成"在房间里却不是成员"的幽灵）。 */
+  closeRoom(): Promise<void>;
   disconnect(): Promise<void>;
-  send(envelope: MessageEnvelope): Promise<void>;
+  send(envelope: MessageEnvelope): Promise<void>;   // 只在 openRoom 之后有效
   getMemberId(): Promise<string | null>;        // v0.2.1：当前成员 token（服务端签发；未连接/未取得为 null）
-  request<T>(options: HttpRequestOptions): Promise<HttpResult<T>>;  // v0.2.1：REST 传输（自带 token 双闸头）
+  request<T>(options: HttpRequestOptions): Promise<HttpResult<T>>;  // v0.2.1：REST 传输（自带 token 双闸头；**不需要 WS**）
 }
 
 interface HttpRequestOptions {                  // v0.2.1
@@ -592,6 +606,10 @@ interface NetConfig {
 ```
 
 > 本服务**不假设任何业务语义**：不发"加入房间"命令、不懂"标定"——它只负责连接与收发信封。业务语义在用例层（§5.1）。
+> ⚠ v0.4.3：**连接粒度 = 房间**（不是进程/会话）。`openRoom` 之前 `send` 必然失败（探针里有一条专门的负向断言）；
+> 大厅/建房/聊天历史全走 REST，因此"没进房间"时也能用 —— 这也是 `connect` 不再建 WS 的前提。
+> 协议词汇（type 常量 / 失败 reason 归一 / 昵称约束 / 握手地址 / 历史路径与合并）**唯一解释处 =
+> `core/domain/protocol.ts`**（含单测），适配器与用例层都不得再自行解释字符串。
 
 ### 4.3 IBookIdentityService —— 书籍标定（指纹/元数据）
 
@@ -780,19 +798,30 @@ interface RoomSessionEvents {
   'location-updated': (location: BookLocation, from: RoomMember) => void;
   'presence-updated': (members: RoomMember[]) => void;
   'chat-message': (msg: ChatMessage) => void;       // v0.1.5：聊天广播（含自己发的 = server 回执）
+  /** v0.4.3：聊天历史（加入房间 = 最近一页全量；断线重连 = `after=<最后一条 id>` 增量）。
+   *  与 `chat-message` 分开是因为**来源不同**（REST 追加日志 vs WS 广播）；两者会给同一 id
+   *  → 消费者一律走 `protocol.mergeChatMessages`（按 id 去重、升序）。 */
+  'chat-history': (messages: ChatMessage[]) => void;
   'system-message': (msg: SystemMessage) => void;
   'connection-changed': (state: 'connected' | 'disconnected' | 'reconnecting') => void;
   'book-mismatch': (detail: { local: BookFingerprint; room: BookFingerprint }) => void;
 }
 
 interface IRoomSession extends EventEmitter<RoomSessionEvents> {
-  /** 加入房间并完成标定：上报本地指纹 → 通过则订阅房间状态 */
-  joinRoom(roomId: string, book: BookRecord): Promise<JoinResult>;
+  /** 加入房间并完成标定：**按房间建连**（`net.openRoom`，握手带 room+nick）→ 上报指纹 → 等 join-ack。
+   *  v0.4.3：等 ack **有 10s 超时**（超时归 `server-error`，不挂死）；并发 join 时旧的那次立即结束
+   *  （单槽 + 代次，不覆盖式挂赋值）；成功后**预载聊天历史**（`chat-history`）。
+   *  v0.4.0：`lastLocation` 由调用方给（阅读状态已拆到 `ReadingState`）。 */
+  joinRoom(roomId: string, book: BookRecord, lastLocation?: BookLocation | null): Promise<JoinResult>;
+  /** 离开房间：解绑 join 期订阅 + **断开房间连接**（`net.closeRoom`，聊天生命周期随房间结束） */
   leaveRoom(): Promise<void>;
-  /** 手动广播当前位置（通常不需要：翻页由内部监听 render 自动广播） */
+  /** 手动广播当前位置（通常不需要：翻页由内部监听 render 自动广播；**与自动路径同一节流出口**） */
   emitLocation(location?: BookLocation): Promise<void>;
-  /** 发送聊天消息：server 落库后广播 room.message 回执（含发送者）；历史经 REST GET /rooms/{id}/messages 拉取 */
+  /** 发送聊天消息：server 落库后广播 `room.message` 回执（含发送者）；空文本（全空白）不发 */
   sendChat(text: string): Promise<void>;
+  /** v0.4.3：拉取聊天历史（`GET /rooms/{roomID}/messages?after=&limit=`，追加日志；
+   *  after 缺省 = 从头、limit 默认 50 / 上限 500 —— 越界服务器返回 400，故客户端先夹取） */
+  listMessages(roomId: string, opts?: { after?: number; limit?: number }): Promise<ChatMessage[]>;
   getRoomState(): RoomState | null;
   getMyMemberId(): string | null;                                     // v0.2.1
   /** v0.2.1：创建房间并注册 work/edition（POST /rooms；协议固定 content-hash-v1） */
@@ -822,16 +851,20 @@ interface SystemMessage {
   type: 'join' | 'leave' | 'info' | 'error';
 }
 
+/** v0.4.3 收敛：原来 domain 与 `RoomSession` 各留一份、reason 枚举还不一致 → 只在领域层定义一次。
+ *  `JoinFailureReason` 的**归一判据** = `domain/protocol.ts` 的 `normalizeJoinReason`（见下）。 */
+type JoinFailureReason = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-error';
 type JoinResult =
   | { ok: true; room: RoomState }
-  | { ok: false; reason: 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-error' };
+  | { ok: false; reason: JoinFailureReason };
 ```
 
 **内部编排（举例，说明"用例 = 编排多个能力服务"）：**
-1. `joinRoom()` → 用 `IBookIdentityService.computeFingerprint` 算指纹 → 经 `INetService.send` 发 `room.join` 信封 → 服务端标定。
-2. 标定失败 → 发 `book-mismatch` 事件；成功 → 缓存 `RoomState`，并把 `IRenderService` 的 `location-changed` 监听接上（节流 → `INetService.send` 广播 `room.location`）。
+1. `joinRoom()` → `net.openRoom(roomId)`（**握手带 `?room=&nick=`**，服务器要求）→ 用 `IBookIdentityService` 给出的本地指纹经 `INetService.send` 发 `room.join` 信封 → 服务端标定（`join-ack`）。标定失败 → 归一 reason（`normalizeJoinReason`，容错服务器的空格分词）→ `book-mismatch` 事件 + `JoinResult.reason`；成功后 **`GET /rooms/{id}/messages` 预载一页历史**（`chat-history`）。
+2. 成功 → 缓存 `RoomState`，并把 `IRenderService` 的 `location-changed` 监听接上（节流 → `INetService.send` 广播 `room.location`）。
 3. **远端位置派生（v0.2.4）**：server 不单独下发 `room.location` 信封，而是广播 **`room.presence` 全量成员快照**（含每人位置，见 `server/docs/API.md` 转发规则）→ `RoomSession` 以 join-ack members 为基线、逐次 presence diff，**成员位置变化才 `emit location-updated`**（位置先归一、比较走 `sameLocation`）；`IRoomSession` 不自己翻页，翻页是 UI 的事（可将来加"跟随模式"开关）。
 4. **订阅生命周期（v0.2.4）**：`net` 订阅属构造期随实例存活；`joinRoom` 期只挂 `render.location-changed`（`joinUnsubs`），`leaveRoom` 只解绑 join 期订阅 → 离开后可重新 join（修 v0.1.3 遗留 P1 误解绑）。
+5. **断线重连（v0.4.3）**：适配器按房间自动重连（握手地址不变），但服务器侧**成员/订阅是瞬态的** → 用例层在 `connection-changed === 'connected'` 且已入房时**重发 `room.join`**，随后 `after=<最后一条 id>` **增量补拉**聊天。不重发的后果是"在房间里却不是成员"的幽灵（收不到 presence 与广播）。
 
 ### 5.2 IBookService —— 书架 + 导入（应用服务）
 
@@ -918,6 +951,7 @@ interface ServiceContainer {
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v0.4.3 | 2026-09-17 | **房间同步对齐服务器文本 + 阅读器聊天室**（用户定：「房間同步的所有功能都直接參照於伺服器相關文本以及紀律」）。**根因**：`server/docs/API.md`「WebSocket」写的是 `GET /ws?room=<id>&nick=<name>`，`transport/ws.go` 在**握手时**就校验 room/nick（缺任一或昵称 >12 字直接关连接），而客户端是"先连一条通用连接、再发 `room.join`" → **在服务器上根本走不到 join**（`STATUS.md` 里"同步未与真实 server 打通"的直接根因）。契约改动：① §4.2 `INetService` 的 `connect` **语义收窄为"建立会话"**（只领成员 token，不建 WS），新增 **`openRoom(roomId)` / `closeRoom()`**（**按房间建连**；同一 token 新连接会踢旧连接 → 换房先关）；REST 补**超时**（`AbortSignal.timeout`）。② §5.1 `IRoomSession` 增 **`listMessages(roomId, {after, limit})`** 与 **`'chat-history'`** 事件（加入 = 最近一页、重连 = `after=最后一条 id` 增量），`joinRoom` 等 ack **10s 超时**、并发 join 不再覆盖式挂起，重连后**自动重发 join**；`emitLocation` 与自动路径**同一节流出口**；`JoinResult`/`JoinFailureReason` 收敛到 §2 一处（原 domain 与用例层各一份）。③ 新增领域模块 **`core/domain/protocol.ts`**（type 常量 / **reason 归一** / 昵称约束 / 握手地址 / 历史路径 / 聊天合并，全部纯函数 + 单测）—— ⚠ 归一的原因是**实测的服务器/文档偏差**：服务器下发 `"book mismatch" / "room full" / "room not found"`（空格分词，`internal/room/manager.go` 的 error 串），旧客户端按连字符精确匹配 → `book-mismatch` 被静默降级成 `server-error`。④ UI：阅读器**右抽屉两格**（`閱讀參數 / 聊天`，与左抽屉同构），聊天室**只在经房间进入的那本书上存在**（形态 = `FEATURES.md` §11，视觉 = `STYLE.md` §5.8），消息由渲染层共享态 `renderer/src/features/roomSession.ts` 统一持有（房间组件与阅读器同一份，避免分叉）。**验证**：`npm test` 113 断言（+15 新）、样式样张 `smoke.cjs` 八条几何机检（+`chatDrawerOk` / `noRoomTabsOk`）、**真机 `TUREAD_DEV_PROBE=room` 对真 server 16 条断言全 PASS**（新增探针 `dev/roomProbe.ts`）。⚠ 服务器侧两处**未修**（本轮只做客户端，已登记 `TODO.md`）：reason 字符串与文档不一致、`POST /rooms` 的 `owner` 昵称无长度校验 |
 | v0.4.2 | 2026-09-16 | **笔记管理（跨书）的视图 / 筛选 / 主次 / 设置类型 + 剪贴板端口**（视觉立案 = `STYLE.md` §5.10，形态 = `FEATURES.md` §12）：§2 增 **`NoteView`**（`'grid'` 網格 / `'masonry'` 瀑布流，**默认瀑布流、无列表形态**）、**`NoteTextFocus`**（`'body'` / `'excerpt'`，卡片文字主次**两档可切换**，默认 `body` = 批註為主）、**`NoteFilter`**（`'annotated'` / `'highlight'` / `'all'`，**单按钮三态循环**，默认只看批注）、**`NoteSettings`**（`view` / `filter` / `textFocus` / `scope`，持久化于全局 settings 表的 `noteSettings` 键）。⚠ **`NoteFilter` 的判据是 `body` 是否为空、不是 `kind`** —— 两者在实现里可互相矛盾（`highlight` 可能有 body、`note` 可能没有），按 `kind` 分组会分错。§4.6 新增 **`IClipboard`**（`writeText`）+ §6 `ServiceContainer` 增 `clipboard` —— 供卡片右键「複製批註」；**立端口而非让 UI 直用 `navigator.clipboard`**（纪律同 `IBookPicker`；桥用**具名方法**，与「IPC 信任边界」收敛方向一致）。顺手修正三处文档滞后：`LibrarySettings`/`ReaderSettings`/`ReaderTypography` 注释里的"持久化于 config.json"→ **全局 settings 表**（v0.4.0 起设置一律全局，D9），以及两处 `*/interface` 粘连的排版 |
 | v0.4.1 | 2026-09-16 | **笔记管理（跨书）读模型**：§4.4 `ILibraryStore` 增 **`listAllNotes(query?)` / `countAllNotes(query?)`** 与两个读模型类型 **`NoteQuery`**（库作用域 / 按书 / 色 / 有无批注 / `text` 子串关键词 / 排序分页）与 **`NoteListItem`**（`note` + 展示投影 `editionTitle`/`editionFormat`/`libraryNames`）。**`Note` 实体与 `notes` schema 零改动**（读模型是派生视图，藏在端口后）。口径：**关键词是 `NoteQuery.text` 的一个筛选维度，不另立 `searchNotes`** —— 换实现（v1 `LIKE` → 将来 FTS5）**签名与语义不变**；`libraryId` 过滤**经 `holdings` 连接**（笔记挂 edition、不挂库）；**不含章标题**（v1 列表显示「書名 · 節 N」）。形态裁决（容器=同一套容器同级功能组件 / 作用域=当前库为默认可切全局 / 检索=只搜笔记 / 章节标签）见 `FEATURES.md` §12 与 `DATA_MODEL.md` §5 问题 6 |
 | v0.4.0 | 2026-09-15 | **书的身份：全局单库 + 书库降为组织模式**（定案 = `DATA_MODEL.md` §4.2/§6，D1–D12）。新增 **§2.2**：`WorkIdentity`（作品身份，**只留接口**）/ `EditionRecord`（内容身份，**全局唯一键 = 指纹**）/ `Holding`（**收录**："哪个书库里有这本书"）/ `LibraryItem`（读模型组合）+ **四条不变量**。连带：`LibraryEntry` **去 `dbPath`**、`mode` 改 **`'mapped' \| 'curated'`**；`BookContainer` **增 `libraryId`**（树在库内）；`Note.bookId` → **`editionId`**（各版一份、不自动跨版迁移）；**`BookRecord` 退役**（拆 `EditionRecord` + `Holding`）。§4.4 增 `upsertEdition`/`findEditionByFingerprint`/`addHolding`/`removeHolding`/`listItemsAtLevel`/`reading_state`/`reading_sessions` 方法，并给出**签名变更清单**（`moveBookToContainer` → `moveHolding`；封面方法参数改 `editionId`；库管理职责收敛进 `SqliteStore`） |

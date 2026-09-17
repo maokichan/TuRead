@@ -89,6 +89,9 @@ export const DEFAULT_BINDINGS: KeyBindingTable = {
   'reader.spacePage': [' '], // 仅分页模式翻页（scroll 模式 Space 归滚动，处理函数内分流）
   'reader.toggleToc': ['t'],
   'reader.toggleControls': ['p'],
+  // v0.4.3（2026-09-17）：右抽屉第二面 —— 聊天室（只在"经房间进入的这本书"上有；见 ReaderRail）。
+  // `c` 与 `p` 是同一对语义（各自的"面"），故与 `t`/`p` 并列登记，不走预留区。
+  'reader.toggleChat': ['c'],
   // ⚠ 语义是**进入**全屏（幂等），不是切换 —— 用户 2026-09-16："在阅读器内按F11是在切换全屏状态，
   //   不是在进入全屏"。退出全屏走 `reader.back`（Esc：先退全屏、再退阅读器）。
   'reader.enterFullscreen': ['f11'],

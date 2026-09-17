@@ -85,6 +85,9 @@ function registerMetadataRelay(): void {
 function createWindow(): void {
   const devBook = process.env['TUREAD_DEV_BOOK']
   const devProbe = process.env['TUREAD_DEV_PROBE']
+  /** 房间探针（v0.4.3）：要连的真实服务器地址与二级令牌（可选；留空 = 探针用默认地址） */
+  const devServer = process.env['TUREAD_DEV_SERVER']
+  const devAccess = process.env['TUREAD_DEV_ACCESS']
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -101,7 +104,9 @@ function createWindow(): void {
       sandbox: true,
       additionalArguments: [
         ...(devBook ? [`--turead-dev-book=${devBook}`] : []),
-        ...(devProbe ? [`--turead-dev-probe=${devProbe}`] : [])
+        ...(devProbe ? [`--turead-dev-probe=${devProbe}`] : []),
+        ...(devServer ? [`--turead-dev-server=${devServer}`] : []),
+        ...(devAccess ? [`--turead-dev-access=${devAccess}`] : [])
       ]
     }
   })

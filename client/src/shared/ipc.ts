@@ -6,6 +6,9 @@
 export const IPC = {
   netConnect: 'net:connect',
   netDisconnect: 'net:disconnect',
+  // 房间 WS 连接是按房间建立的（服务器握手就要 room+nick，v0.4.3）—— 与"会话"分成两个动作
+  netOpenRoom: 'net:open-room',
+  netCloseRoom: 'net:close-room',
   netSend: 'net:send',
   netRequest: 'net:request',
   netGetMemberId: 'net:get-member-id',
@@ -109,4 +112,7 @@ export interface TureadBridge {
   devBook?: string
   /** dev-only：TUREAD_DEV_PROBE 环境变量指定的探针名（如 pdf-width，无头复现专项现象） */
   devProbe?: string
+  /** dev-only：TUREAD_DEV_SERVER / TUREAD_DEV_ACCESS —— 房间探针要连的真实服务器（v0.4.3） */
+  devServer?: string
+  devAccess?: string
 }
