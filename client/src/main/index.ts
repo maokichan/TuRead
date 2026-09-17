@@ -88,6 +88,9 @@ function createWindow(): void {
   /** 房间探针（v0.4.3）：要连的真实服务器地址与二级令牌（可选；留空 = 探针用默认地址） */
   const devServer = process.env['TUREAD_DEV_SERVER']
   const devAccess = process.env['TUREAD_DEV_ACCESS']
+  /** 双开联调（v0.4.3）：room-peer 的房间号与昵称（留空 = 自动取大厅里最新的一间 / 默认昵称） */
+  const devRoom = process.env['TUREAD_DEV_ROOM']
+  const devNick = process.env['TUREAD_DEV_NICK']
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -106,7 +109,9 @@ function createWindow(): void {
         ...(devBook ? [`--turead-dev-book=${devBook}`] : []),
         ...(devProbe ? [`--turead-dev-probe=${devProbe}`] : []),
         ...(devServer ? [`--turead-dev-server=${devServer}`] : []),
-        ...(devAccess ? [`--turead-dev-access=${devAccess}`] : [])
+        ...(devAccess ? [`--turead-dev-access=${devAccess}`] : []),
+        ...(devRoom ? [`--turead-dev-room=${devRoom}`] : []),
+        ...(devNick ? [`--turead-dev-nick=${devNick}`] : [])
       ]
     }
   })
@@ -145,16 +150,24 @@ function createWindow(): void {
     // ⚠ 2026-09-16：`note` 探针**最多连试两轮重开**（每轮 3 次 × 15s）—— 命中「重开书偶发空白」
     //   时 180s 会被吃满并报「超时未完成」（那不是回归，是跑不完）。故允许用
     //   `TUREAD_DEV_TIMEOUT_MS` 覆盖（排障用；默认不变，避免把"卡死"也一起放过）。
+    // ⚠ 2026-09-17：**双开联调**（`TUREAD_DEV_PROBE=room-peer` + `TUREAD_DEV_KEEPALIVE=1`）时
+    //   第二个实例要**一直活着**当"另一个 client"用（要的就是一个真实窗口，不是跑完即退的探针）：
+    //   此时不设自动退出计时器；失败标记仍会退出（否则失败会静默变成一个"看着正常"的窗口）。
+    const keepAlive = process.env['TUREAD_DEV_KEEPALIVE'] === '1'
     const timeoutMs = Number(process.env['TUREAD_DEV_TIMEOUT_MS'] ?? '') || 180000
-    const timeout = setTimeout(() => {
-      console.error('[TUREAD-TEST-FAIL] 超时未完成')
-      app.exit(2)
-    }, timeoutMs)
+    const timeout = keepAlive
+      ? null
+      : setTimeout(() => {
+          console.error('[TUREAD-TEST-FAIL] 超时未完成')
+          app.exit(2)
+        }, timeoutMs)
     win.webContents.on('console-message', (_e, level, message) => {
       if (message.startsWith('[TUREAD-TEST-')) {
         console.log(message)
-        clearTimeout(timeout)
-        app.exit(message.startsWith('[TUREAD-TEST-OK') ? 0 : 1)
+        if (timeout) clearTimeout(timeout)
+        if (!keepAlive || message.startsWith('[TUREAD-TEST-FAIL')) {
+          app.exit(message.startsWith('[TUREAD-TEST-OK') ? 0 : 1)
+        }
       } else if (level >= 2 && !message.startsWith('[dev]')) {
         // dev-only 诊断：转发渲染进程的 error/warning（CSP 拦截、JS 异常等）
         console.log(`[renderer:${level === 3 ? 'error' : 'warn'}] ${message}`)

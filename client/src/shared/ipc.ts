@@ -115,4 +115,7 @@ export interface TureadBridge {
   /** dev-only：TUREAD_DEV_SERVER / TUREAD_DEV_ACCESS —— 房间探针要连的真实服务器（v0.4.3） */
   devServer?: string
   devAccess?: string
+  /** dev-only：TUREAD_DEV_ROOM / TUREAD_DEV_NICK —— **双开联调**（room-peer）：房间号与昵称（v0.4.3） */
+  devRoom?: string
+  devNick?: string
 }

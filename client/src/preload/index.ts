@@ -17,6 +17,12 @@ const devServer = devServerArg ? devServerArg.slice('--turead-dev-server='.lengt
 const devAccessArg = process.argv.find((a) => a.startsWith('--turead-dev-access='))
 const devAccess = devAccessArg ? devAccessArg.slice('--turead-dev-access='.length) : undefined
 
+// 双开联调（v0.4.3，TUREAD_DEV_PROBE=room-peer）：房间号与昵称
+const devRoomArg = process.argv.find((a) => a.startsWith('--turead-dev-room='))
+const devRoom = devRoomArg ? devRoomArg.slice('--turead-dev-room='.length) : undefined
+const devNickArg = process.argv.find((a) => a.startsWith('--turead-dev-nick='))
+const devNick = devNickArg ? devNickArg.slice('--turead-dev-nick='.length) : undefined
+
 const bridge: TureadBridge = {
   invoke: (channel, payload) => ipcRenderer.invoke(channel, payload),
   subscribe: (channel, listener) => {
@@ -34,7 +40,9 @@ const bridge: TureadBridge = {
   devBook,
   devProbe,
   devServer,
-  devAccess
+  devAccess,
+  devRoom,
+  devNick
 }
 
 contextBridge.exposeInMainWorld('turead', bridge)

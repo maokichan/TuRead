@@ -46,7 +46,16 @@ export class WsNetAdapter extends TypedEmitter<NetServiceEvents> {
     // 重复 connect：先把上一条房间连接清干净（否则换服务器会留下旧 socket）
     await this.closeRoom()
     this.config = config
-    if (config.memberToken) {
+    /**
+     * dev-only **双开联调**（2026-09-17）：服务器按 IP 签发成员 token（同一 IP 7 天内复用同一把），
+     * 而"同一 token 的新连接会踢掉旧连接"（单设备登录）→ **同机两个 client 会互相踢**。
+     * `TUREAD_DEV_MEMBER_TOKEN` 让第二个实例显式用另一个 token（格式同服务端：7 位字母数字）。
+     * 这是服务器已登记的 NAT 限制（`API.md`「NAT 限制（已知接受）」）在开发期的绕行手段 —— 不进产品 UI。
+     */
+    const devToken = process.env['TUREAD_DEV_MEMBER_TOKEN']
+    if (devToken) {
+      this.memberToken = devToken
+    } else if (config.memberToken) {
       this.memberToken = config.memberToken
     } else {
       this.memberToken = await this.ensureMemberToken()

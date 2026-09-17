@@ -39,8 +39,8 @@
 
 ## 当前状态（只留指针；**状态细节的唯一归属是 `docs/STATUS.md`**）
 
-- **版本**：client **v0.1.19**（**房间功能已落地、等用户验收后再滚 0.2.0**）/ server **v0.2.0**。
-  本地阅读侧端到端可用；**房间同步已与真实 server 打通**（真机 `TUREAD_DEV_PROBE=room` 验）。
+- **版本**：client **v0.2.0** / server **v0.2.0**。本地阅读侧端到端可用；
+  **房间同步已与真实 server 打通**（真机 `TUREAD_DEV_PROBE=room` 验），阅读器右抽屉有「聊天」格。
 - **现在在哪 / 下一步 / 验证工具链** → `docs/STATUS.md` **§6 交接快照**（会话交接先读它）。
 - **逐版本过程明细** → `docs/STATUS.md` **§4 版本历史**。
 - **房间/聊天室**：契约 = `client/docs/CONTRACTS.md` **v0.4.3**；形态 = `FEATURES.md` §11；

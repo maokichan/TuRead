@@ -23,6 +23,7 @@ import { runPagedInteractProbe } from './dev/pagedInteractProbe'
 import { runLibraryProbe } from './dev/libraryProbe'
 import { runNoteProbe } from './dev/noteProbe'
 import { runRoomProbe } from './dev/roomProbe'
+import { runRoomPeer } from './dev/roomPeer'
 
 const EBOOK_EXT_SET = new Set<string>(EBOOK_EXTENSIONS)
 
@@ -125,6 +126,10 @@ export default function AppShell(): React.JSX.Element {
     }
     if (window.turead.devProbe === 'room') {
       runRoomProbe(container, host)
+      return
+    }
+    if (window.turead.devProbe === 'room-peer') {
+      runRoomPeer(container, host)
       return
     }
     return runDevSelfCheck(container, host)

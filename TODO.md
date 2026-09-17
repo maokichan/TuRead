@@ -383,18 +383,26 @@ F6「导出库包」 · F10 Pro 功能边界（见 `DATA_MODEL.md` §6.4 与下�
   而建房的 `POST /rooms`（`rest.go:115` `RegisterUser(ownerToken, req.Owner, …)`）与 `Store.RegisterUser`
   **都没有长度校验** → 建房者可用超长昵称写进 `users.nick`，随后**自己 WS join 会被握手拒绝**（进不去自己的房）。
   处置候选：`handleCreateRoom` 加与 `ws.go` 同一判据（`utf8.RuneCountInString ≤ 12`）并同步 `API.md`「用户」一节。
-- [ ] **(P2 · 本轮遗留) 多人场景未验**：`room` 探针是**单连接**（一个成员），故这三条真机判据都还没有证据 ——
-  ① `room.presence` 的"**除发送者外**"广播（join/位置变化/离开）；② 成员离开后不残留离线成员；
-  ③ 两人位置 diff 触发的 `location-updated`。候选：探针里经主进程再开一条裸 WS（第二个 token），
-  或起两个客户端实例（`TUREAD_DEV_ACCESS` 同一把钥匙即可，成员 token 由 IP 签发 → 同机同 token 会互踢，
-  故必须**显式给第二个成员 token**）。⚠ 服务器有"同 token 踢旧连接"（单设备登录），双人验证要先绕开它。
+- [ ] **(P2 · 本轮部分已验证) 多人场景**
+  ✅ **2026-09-17 双开实测通过**（用户当晚两个 client 同房，读同一本 81.7MB PDF）：第二人**加入时的 presence 广播**
+  （第一人看到成员 2 人）、**双向聊天**（各自都收到对方与自己的回执）、**第二人的位置上报**
+  （同文件 → 标定通过 → 真实 `room.location`）。⚠ 仍缺：① **成员离开后不残留离线成员**（需要真人退房、在对方窗口观察）；
+  ② `room.presence` 的"**除发送者外**"这条在两人场景下等价于"对方收到"，三人及以上未验；
+  ③ **正式的双端身份方案** —— 服务器按 IP 签发 token + 同 token 踢旧连接（单设备登录），同机多开必互相踢，
+  这是 `API.md`「NAT 限制（已知接受）」；联调期用 dev-only 的 `TUREAD_DEV_MEMBER_TOKEN` 指定第二个 token 绕开
+  （见 `main/net/wsNetAdapter.ts` 注释；**不进产品 UI**）。候选：客户端 nonce 区分连接（服务器侧改动）。
 - [ ] **(登记) 聊天消息没有长度/频率约束**：服务器与客户端都未限制单条长度与发送频率（只有"空文本不落库"）。
   长消息（几千字）与刷屏在 v1 未定形态 —— 需要时再定（服务器限长 + 客户端提示）。
 - [ ] **(待真机复看) 阅读器聊天室的手感**（探针只证链路与几何，证不了手感）：消息到达时**自动滚到底**是否
   打断"正在上翻历史"的阅读、遮罩按距离在**长消息**下的可读性（静息 0.74 是否太淡）、输入框自增长到五行的
   手感、`c` 键与页签切换的顺手程度。⚠ 若判定"聊天不该跟着遮罩变淡"，改法是一行（`ChatPanel` 去掉行内遮罩，
   或给聊天单独一个 `--chat-veil-rest`）。
+- [ ] **无书成员的 UI 入口**（v0.4.4 用例层已就绪，`joinRoom(roomId, null)`）：服务器允许"手上没有这本书"的成员
+  加入并返回 edition 供下载（`API.md`「room.join」/「副本存储与分发流程」）→ 客户端要补的是流程：
+  进房后 `GET /books/{editionID}/file` 下载 → 落盘 → `books.importBook` → `host.openReader`；
+  以及"进房前没有这本书"时的选择界面。⚠ 与「书籍来源（仅本地导入 vs 服务器共享书库）」这条跨端待办同源。
 - [ ] **location-updated 同位 UI（跟随模式）**：RoomFeature 消费 ReaderFeature 的跳转回调（FEATURES §9）
+
 - [ ] **client 管理界面**：admin 操作（删房间/删副本）在客户端完成——协议已支持（REST + admin token）
 
 ### 标准化与书籍身份

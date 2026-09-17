@@ -4,10 +4,9 @@
 渲染/解析复用 [kookit](https://github.com/koodo-reader/kookit)（AGPL-3.0）；同步服务器用 Go。
 
 > **现在的状态**：**本地阅读侧已经能用**（导入 / 书架与书库 / 四格式渲染 / 沉浸式阅读器 /
-> 笔记与划线 / 跨书笔记管理 / 主题与阅读参数），**房间功能已落地**：客户端与真实服务器**已经打通**
+> 笔记与划线 / 跨书笔记管理 / 主题与阅读参数），**房间功能已上线**：客户端与真实服务器**已打通**
 > （建房 / 进房 / 成员与位置快照 / 聊天），阅读器右抽屉多了「聊天」一格 —— 只在**经房间进入的那本书**上出现。
-> 逐版本明细见 [`docs/STATUS.md`](docs/STATUS.md) §4；当前版本 **client v0.1.19 / server v0.2.0**
-> （房间这一轮**等用户验收后再滚 0.2.0**）。
+> 逐版本明细见 [`docs/STATUS.md`](docs/STATUS.md) §4；当前版本 **client v0.2.0 / server v0.2.0**。
 
 ---
 
@@ -96,6 +95,9 @@ go build -o turead-server ./cmd/server
 TUREAD_USER_DATA=./.probe TUREAD_DEV_BOOK="<书的绝对路径>" npm run dev
 # 笔记/划线全链路探针（选区→锚点→引擎回显→导航→重锚→删除）
 TUREAD_USER_DATA=./.probe TUREAD_DEV_PROBE=note TUREAD_DEV_BOOK="<文字类书>" npm run dev
+# 房间同步对真服务器的链路探针（会话/建房/按房间握手/聊天回执/历史 → 16 条断言）
+TUREAD_USER_DATA=./.probe TUREAD_DEV_PROBE=room TUREAD_DEV_BOOK="<任意书>" \
+  TUREAD_DEV_SERVER="http://127.0.0.1:8080" TUREAD_DEV_ACCESS="<二级令牌，可空>" npm run dev
 # 样式样张的几何机检（另开一个终端先跑 npm run style）
 node_modules/electron/dist/electron.exe tools/style-gallery/smoke.cjs
 ```
@@ -124,15 +126,25 @@ node_modules/electron/dist/electron.exe tools/style-gallery/smoke.cjs
 
 ### 版本与提交约定
 
-- 两端版本号独立滚动：server `v0.2.x` / client `v0.1.x`；tag 带端名前缀（`client-v0.1.19`）。
+- 两端版本号独立滚动：server `v0.2.x` / client `v0.2.x`；tag 带端名前缀（`client-v0.2.0`）。
 - **提交与 tag 由 agent 执行；版本号是否滚动由用户决定**（详见 `docs/STATUS.md` §2）。
 
 ---
 
+## 相关项目
+
+- **[CoRead](https://github.com/V2tin19/CoRead)**（[V2tin19 / LofiLee](https://github.com/V2tin19)）——
+  朋友的**平行项目**：同为"多人房间共读阅读器"，做的是**网页端**那一侧（本仓库做桌面端）。
+  它由 Koodo Reader 的定制分支裁剪而来、同样以 `kookit` 为渲染内核，批注侧重「随心笔记 / 涂鸦」，
+  共读服务端是一个零依赖 Node 进程；**两仓库独立实现、无代码往来**，互为参照。AGPL-3.0。
+
 ## 关于源项目
 
-TuRead 的原型是 [V2tin19/TuRead](https://github.com/V2tin19/TuRead)（早期 Express/socket.io 原型，已弃用）。
-本仓库是重新实现（渲染基于 kookit、同步服务器用 Go），与原型的代码与提交历史**无继承关系**。
+TuRead 最早的原型来自朋友那条线（`V2tin19/TuRead`，Express/socket.io 时期；**该地址现已 404**）。
+那位作者现在公开的是 [**CoRead**](https://github.com/V2tin19/CoRead) —— 从原始仓库**裁剪并脱敏**出的
+干净副本（无 git 历史、只保留网页端），见上「相关项目」。
+本仓库是**重新实现**（渲染复用 kookit、同步服务器用 Go），与原型的代码与提交历史**无继承关系**：
+两条线并行演进，互为参照，不共享代码。
 
 ## 许可证
 

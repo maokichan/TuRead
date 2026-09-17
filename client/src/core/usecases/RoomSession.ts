@@ -18,6 +18,7 @@ import type { INetService } from '@core/ports/net'
 import type { IRenderService } from '@core/ports/render'
 import type { IBookIdentityService } from '@core/ports/identity'
 import { TypedEmitter } from '@core/ports/emitter'
+import { extToFormat } from '@core/domain/format'
 import { normalizeLocation, sameLocation } from '@core/domain/location'
 import {
   ROOM_MSG,
@@ -75,8 +76,10 @@ export interface IRoomSession {
   on(event: 'book-mismatch', listener: RoomSessionEvents['book-mismatch']): () => void
 
   /** 加入房间并完成标定：按房间建连（握手带 room+nick）→ 上报本地指纹 → 通过则订阅房间状态。
+   *  v0.4.3：`book` 允许 `null` = **无书成员**（服务器明确支持：`fingerprint: null` 可加入并拿回 edition
+   *  供下载，见 `API.md`「room.join」）—— 用例层补齐这个能力；UI 入口待定。
    *  v0.4.0：`lastLocation` 由调用方给（原来从 `book.lastLocation` 读 —— 阅读状态已拆到 `ReadingState`）。 */
-  joinRoom(roomId: string, book: BookRecord, lastLocation?: BookLocation | null): Promise<JoinResult>
+  joinRoom(roomId: string, book: BookRecord | null, lastLocation?: BookLocation | null): Promise<JoinResult>
   leaveRoom(): Promise<void>
   /** 手动广播当前位置（通常不需要：翻页由内部监听 render 自动广播） */
   emitLocation(location?: BookLocation): Promise<void>
@@ -152,7 +155,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
 
   async joinRoom(
     roomId: string,
-    book: BookRecord,
+    book: BookRecord | null,
     lastLocation?: BookLocation | null
   ): Promise<JoinResult> {
     if (this.roomId) await this.leaveRoom()
@@ -161,7 +164,8 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
 
     this.myId = await this.net.getMemberId()
     this.joinedBook = book
-    this.joinedFormat = book.format
+    // 无书成员（book = null）：位置比较的格式键晚一步从 join-ack 的 edition 扩展名推出来
+    this.joinedFormat = book ? book.format : null
     this.roomId = rid
     this.lastChatId = 0
 
@@ -181,7 +185,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     const ack = await this.sendJoin()
     if (!ack || !ack.ok) {
       const reason = normalizeJoinReason(ack?.reason)
-      if (reason === 'book-mismatch' && ack?.edition) {
+      if (reason === 'book-mismatch' && ack?.edition && book) {
         this.emit('book-mismatch', {
           local: book.fingerprint,
           room: {
@@ -198,6 +202,9 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
 
     // ③ 成功：登记成员并接上 render 位置事件
     const members = (ack.members ?? []).map((m) => this.decorateMe(m))
+    // 无书成员：位置比较的格式键从房间绑定的 edition 扩展名推（否则 presence diff 整条不工作，
+    // 见 deriveRemoteLocations 的 `!this.joinedFormat` 早退）
+    if (!this.joinedFormat && ack.edition?.ext) this.joinedFormat = extToFormat(`x.${ack.edition.ext}`)
     this.state = {
       roomId: ack.roomId ?? rid,
       bookId: ack.edition ? String(ack.edition.id) : undefined,
@@ -317,7 +324,8 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     try {
       await this.net.send({
         type: ROOM_MSG.join,
-        payload: { fingerprint: this.joinedBook.fingerprint }
+        // 无书成员 = fingerprint: null（服务器允许加入并返回 edition 供下载，见 API.md「room.join」）
+        payload: { fingerprint: this.joinedBook?.fingerprint ?? null }
       })
     } catch (err) {
       this.clearPendingJoin()
