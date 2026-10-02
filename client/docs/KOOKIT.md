@@ -171,11 +171,29 @@ GeneralRender (GeneralRender.ts，事件基类)
   每页一个 section），不依赖 OCR；笔记走页码+视口坐标。
 - **扫描版 PDF**：`isScannedPDF` 走 `PdfTextRender`，OCR 是插槽（`external-engine`，
   `config.externalWorker = { recognize }`），无需改 kookit 源码；引擎实现单独立项。
-- **PDF 夜间模式 = 像素处理（方案记录，2026-09-08）**：PDF 页面是**位图**（pdfjs 渲染到 canvas），
-  改 CSS 文字颜色对它无效 —— 夜间模式必须走**像素级处理**：对页面 canvas 取 `getImageData` → 反相/降亮度
-  → `putImageData`，或对页面容器整体施加 `filter: invert(...)` 后再补偿色相。
-  扫描版 PDF 同理（本就无文字层）。**不要**按 EPUB 的思路去改文字颜色。
-  正式实现单独立项（见根 `TODO.md`「PDF 夜间模式」）。
+- **PDF 夜间模式 = 逐像素烘焙（已实现，2026-10-02）**：PDF 页面是**位图**（pdfjs 渲染到 canvas），
+  改 CSS 文字颜色对它无效。旧实现是 `#koodoPDFLayer` 挂 `filter: invert(1) hue-rotate(180deg)` ——
+  filter 让合成器**每帧**都对整张大图重做像素变换，是滚动掉帧的共犯。现改为 kookit
+  `PdfRender.bakeDarkModePixels`：每页渲染完成时对主画布 `getImageData` → **逐像素复算原
+  filter 的精确数学**（invert(1) → hue-rotate(180deg) 规范矩阵（含钳制）→ contrast(0.95)）
+  → `putImageData`，开销变成每页一次，色彩观感与旧实现逐位一致（2026-10-02 二次修订：
+  首版用"HSL 亮度反转保留色相"的近似，彩色像素与 filter 有可见偏差，已弃）。`#fabric` 批注画布不烘焙（保持批注原色）。暗色随开书配置生效，
+  改主题仍需重开（`applyTheme` 对 PDF 是运行时 no-op）。扫描版 OCR 路径（`PdfTextRender`）
+  独立渲染、本无暗色处理，存量缺口另立项。
+- **PDF 滚动模式渲染调度（kookit 侧，2026-10-02）**：滚动卡手的根因在 kookit `PdfRender` ——
+  旧写法滚动只 debounce 100ms 就开火，且当前页渲染 + 3 页预渲染**并发**抢主线程。
+  现改为：① 滚动回调挂 `requestIdleCallback`（300ms 兜底），滚动帧先落地；② 预渲染串行进
+  后台队列（`pdfPrefetchChain` + `pdfPrefetchGen` 代次令牌，新位置让过期队列整批作废），
+  当前页仍同步渲染且被调用方 await。
+- **PDF 滚动模式页卡边缘（适配器侧，2026-10-02）**：滚动模式本就是"每页独立容器 + 2% 页间
+  距"，但页边界不可见。适配器 `renderTo` 在 PDF scroll 模式往书文档注入
+  `.pdf-container{border:1px solid <--page-edge>}`（`turead-pdf-page-edge`，先注入后量
+  iframe 总高）；分页模式不注入。页眉页脚**不裁**（用户 2026-10-02 定：远期再议，候选 =
+  kookit 现成 `pdfCrop` 百分比裁切 + 每书记忆）。
+- **PDF 专属纸宽档位（2026-10-02）**：`readerSettings.readerWidthPdf`（默认 1080，档位
+  840/1080/1320），仅 PDF 消费；`--read-width` 在**开书前**按本书格式切换（PDF canvas 按
+  渲染时刻容器宽定像素，晚切一帧就按旧宽画了）。仍受 `--page-w` 的挂件让位 `min()` 约束
+  （用户定：不动 §5.8 几何契约）。改 PDF 纸宽 = 原地重开（同文字纸宽口径）。
 - **OCR 多端一致性**（已知边界）：页码跨端稳定；count/text/笔记 range 随 OCR 引擎变化，
   同步回跳与笔记回显只在同引擎族内有效。
 

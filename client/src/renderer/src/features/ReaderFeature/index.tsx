@@ -169,9 +169,10 @@ export function ReaderFeature({
    * - **正文排版** → `applyTypography` 注入正文 iframe
    */
   const applyParams = useCallback(
-    (p: ReaderParams) => {
+    (p: ReaderParams, isPdf: boolean) => {
       const root = document.documentElement
-      root.style.setProperty('--read-width', `${p.readerWidth}px`)
+      // PDF 用专属宽档（位图页比文字列宽才舒服，2026-10-02 用户定）；仍受 --page-w 的让位 min() 约束
+      root.style.setProperty('--read-width', `${isPdf ? p.readerWidthPdf : p.readerWidth}px`)
       root.style.setProperty('--page-pad-x', `${p.pagePadX}px`)
       void container.render.applyTypography({
         fontSize: p.fontSize ?? undefined,
@@ -189,9 +190,10 @@ export function ReaderFeature({
       const next = { ...prev, ...patch }
       paramsRef.current = next
       setParams(next)
-      applyParams(next)
+      applyParams(next, book?.format === 'PDF')
       void container.store.patchSetting('readerSettings', {
         readerWidth: next.readerWidth,
+        readerWidthPdf: next.readerWidthPdf,
         pagePadX: next.pagePadX,
         fontSize: next.fontSize,
         lineHeight: next.lineHeight,
@@ -208,11 +210,11 @@ export function ReaderFeature({
       // PDF 改纸宽 = 整页重开填充（2026-09-13 用户定：纸宽变了 PDF 应当跟着缩放填充）。
       // kookit PdfRender 用渲染时刻的 clientWidth 定 canvas 像素、无重排入口（PDF 专区原首条），
       // CSS 变量改宽度不会触发重算 —— 原地重开（flushLastLocation 已保位置）是唯一可靠路径。
-      if (
-        book?.format === 'PDF' &&
-        patch.readerWidth !== undefined &&
-        patch.readerWidth !== prev.readerWidth
-      ) {
+      // 2026-10-02：PDF 有了专属档位（readerWidthPdf），同样走重开。
+      const widthChanged =
+        (patch.readerWidth !== undefined && patch.readerWidth !== prev.readerWidth) ||
+        (patch.readerWidthPdf !== undefined && patch.readerWidthPdf !== prev.readerWidthPdf)
+      if (book?.format === 'PDF' && widthChanged) {
         setReopenTick((t) => t + 1)
       }
     },
@@ -228,12 +230,14 @@ export function ReaderFeature({
         paragraphSpacing: cfg.paragraphSpacing ?? DEFAULT_READER_PARAMS.paragraphSpacing,
         pagePadX: cfg.pagePadX ?? DEFAULT_READER_PARAMS.pagePadX,
         readerWidth: cfg.readerWidth ?? DEFAULT_READER_PARAMS.readerWidth,
+        readerWidthPdf: cfg.readerWidthPdf ?? DEFAULT_READER_PARAMS.readerWidthPdf,
         readerMode: cfg.readerMode ?? DEFAULT_READER_PARAMS.readerMode
       }
       paramsRef.current = loaded
       setParams(loaded)
       setReaderMode(loaded.readerMode)
-      applyParams(loaded)
+      // 此时尚无"当前书"格式信息 → 先按文字类应用；开书 effect 里会按本书格式再切一次
+      applyParams(loaded, false)
     })
   }, [container, applyParams])
 
@@ -518,6 +522,9 @@ export function ReaderFeature({
         // v0.4.0：阅读状态已从书行拆到 `ReadingState`，**首次定位的目标位置必须显式传入**
         // （适配器不再读 `record.lastLocation` —— 见 CONTRACTS §2 与 RenderOptions.lastLocation）
         const state = await container.books.getReadingState(latest.id)
+        // 纸宽按**本书格式**切换（PDF 专属档，2026-10-02）——必须在 open/renderTo 之前：
+        // kookit PDF 按渲染时刻的容器宽定 canvas 像素，晚切一帧这页就按旧宽度画了
+        applyParams(paramsRef.current, latest.format === 'PDF')
         await container.render.open(latest, {
           readerMode: mode,
           animation: 'none',
@@ -870,6 +877,7 @@ export function ReaderFeature({
           rightPanel={rightPanel}
           onRightPanelChange={setRightPanel}
           chat={railChat}
+          isPdf={book?.format === 'PDF'}
         />
       )}
 

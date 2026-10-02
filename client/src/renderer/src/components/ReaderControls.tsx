@@ -29,8 +29,10 @@ export interface ReaderParams {
   paragraphSpacing: number | null
   /** 纸内边距 px（宿主 token --page-pad-x） */
   pagePadX: number
-  /** 纸宽 px（宿主 token --read-width） */
+  /** 纸宽 px（宿主 token --read-width；文字类消费） */
   readerWidth: number
+  /** **PDF 专属**纸宽 px（PDF 时面板显示这一行、`--read-width` 换用它；改 = 重开书） */
+  readerWidthPdf: number
   /** 布局模式（kookit 渲染配置，**改 = 重开书生效**）。2026-09-13 用户定：从设置页移入参数栏（单一写者） */
   readerMode: ReaderModeValue
 }
@@ -43,6 +45,7 @@ export const DEFAULT_READER_PARAMS: ReaderParams = {
   paragraphSpacing: null,
   pagePadX: 44,
   readerWidth: 760,
+  readerWidthPdf: 1080,
   readerMode: 'scroll'
 }
 
@@ -84,6 +87,13 @@ const READER_WIDTHS: Option<number>[] = [
   { value: 920, label: '寬' }
 ]
 
+/** PDF 专属档位：PDF 是位图页，比文字列宽才舒服（2026-10-02 用户定"纸宽应进一步扩大"） */
+const READER_WIDTHS_PDF: Option<number>[] = [
+  { value: 840, label: '窄' },
+  { value: 1080, label: '中' },
+  { value: 1320, label: '寬' }
+]
+
 const READER_MODES: Option<ReaderModeValue>[] = [
   { value: 'scroll', label: '滾動' },
   { value: 'single', label: '單頁' },
@@ -95,6 +105,8 @@ interface ReaderControlsProps {
   onChange: (patch: Partial<ReaderParams>) => void
   /** 折叠面板（底部「折疊」按钮；挂载线右段 / `p` 亦可） */
   onToggle: () => void
+  /** 当前书是否 PDF：PDF 时「紙寬」行显示专属档位（readerWidthPdf） */
+  isPdf?: boolean
   /**
    * 顶部插槽（挂载线右挂件的「參數 / 聊天」两格开关，由 ReaderRail 生成并与 ChatPanel 共用）。
    * 非房间阅读时没有第二格 → 不传（不出现页签行，与 v1.10 之前的形态一致）。
@@ -106,7 +118,8 @@ export function ReaderControls({
   params,
   onChange,
   onToggle,
-  header
+  header,
+  isPdf
 }: ReaderControlsProps): React.JSX.Element {
   const boxRef = useRef<HTMLDivElement | null>(null)
 
@@ -193,9 +206,9 @@ export function ReaderControls({
         />
         <Row
           label="紙寬"
-          options={READER_WIDTHS}
-          value={params.readerWidth}
-          onPick={(v) => onChange({ readerWidth: v })}
+          options={isPdf ? READER_WIDTHS_PDF : READER_WIDTHS}
+          value={isPdf ? params.readerWidthPdf : params.readerWidth}
+          onPick={(v) => onChange(isPdf ? { readerWidthPdf: v } : { readerWidth: v })}
         />
         <Row
           label="內邊距"

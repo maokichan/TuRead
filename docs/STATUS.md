@@ -64,7 +64,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | **数据存储 v3（全局单库）** | 全应用一个 SQLite 库 = 一份用户数据（作品/电子版/收录/书库/书箱/笔记/阅读状态/设置）；JSON 只剩**引导文件**；**书库 = 组织模式**，成员关系 = **收录（holdings）**；笔记挂 edition、阅读时间逐 edition 记按 work 汇总；设置一律全局 | `DATA_MODEL.md` §1/§2/§4.2 |
 | 「书的身份」三问定案 | 书库降为组织模式 + 全局单库；**映射库**（移除 = 移除可见性，靠**扫描**对账）vs **自建库**；笔记不自动跨版迁移；Work 只留接口；**Pro = 功能分层非订阅** | `DATA_MODEL.md` §4.2 D1–D12 + §6；`TODO.md` |
 | 笔记管理（跨书） | 「筆」= **同级功能组件**（不引入分类）；網格/瀑布流两态 + 窗口化；筛选判据是 **`body` 是否为空，不是 `kind`**；检索 = 标题栏·笔记作用域 | `FEATURES.md` §12；`STYLE.md` §5.10；`CONTRACTS.md` v0.4.1/v0.4.2 |
-| PDF 纸宽填充 + 单页交互 | PDF 改纸宽 = **原地重开**（kookit PdfRender 无重排入口）；单页模式交互两处真根因（嵌套 iframe 桥盲区、点击带滚轮死区）已修 | `kookitRenderAdapter.ts`；`dev/pagedInteractProbe.ts` |
+| PDF 纸宽填充 + 单页交互 | PDF 改纸宽 = **原地重开**（kookit PdfRender 无重排入口）；单页模式交互两处真根因（嵌套 iframe 桥盲区、点击带滚轮死区）已修；**PDF 滚动模式 = 页卡流**（每页独立 + 页间距 + 1px 页边）+ **PDF 专属纸宽档位**（`readerWidthPdf`，2026-10-02）；暗色 = 开书时逐像素烘焙（`bakeDarkModePixels`，口径 = 原 CSS filter 精确复算） | `kookitRenderAdapter.ts`；`client/docs/KOOKIT.md` §7 |
 | iframe 事件桥 | 键盘/滚轮落在书文档里到不了宿主 → `components/iframeBridge.ts`（同源 iframe 挂同一套监听，**按键只看界面不看焦点**）；分页模式滚轮翻页 | `iframeBridge.ts`；`useKeyIntents.ts` |
 | **右键菜单坐标（v1.9 修的真 bug）** | 适配器曾把**书文档的 `clientX/clientY`** 当宿主坐标发出 → 菜单出现在非内容处；现由 `hostOffset()` 沿 `frameElement` 链**逐层累加**。⚠ 旧探针把 bug 断言成了契约，已纠正 | `kookitRenderAdapter.ts`；`dev/noteProbe.ts` |
 | 全局禁选 | **文字选择 = 阅读正文专属**（宿主 UI 一律不可拖选，`input/textarea` 豁免） | `styles.css`；`FEATURES.md` §10/§11 |

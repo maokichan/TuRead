@@ -244,8 +244,10 @@ export interface ReaderTypography {
 export interface ReaderSettings {
   /** 布局模式（低频参数，设置页管；重开书生效） */
   readerMode?: RenderOptions['readerMode']
-  /** 纸宽 px（宿主 token `--read-width`） */
+  /** 纸宽 px（宿主 token `--read-width`；文字类消费） */
   readerWidth?: number
+  /** **PDF 专属**纸宽 px（PDF 位图页比文字列宽才舒服，2026-10-02 用户定；仍受挂件让位约束） */
+  readerWidthPdf?: number
   /** 纸内边距 px（宿主 token `--page-pad-x`） */
   pagePadX?: number
   /** 正文排版三件套（语义同 `ReaderTypography`，拍平存储） */

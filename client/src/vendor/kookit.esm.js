@@ -34426,6 +34426,8 @@ class PdfRender extends GeneralRender {
         this.scale = 1;
         this.enablePDFSelectionOptimization = "no";
         this.scrollPDFInterval = null;
+        this.pdfPrefetchChain = Promise.resolve();
+        this.pdfPrefetchGen = 0;
         this.templateChapterDocIndex = 0;
         this.pdfTextLineHeightRecord = {};
         this.pdfTextLineHeightFixed = null;
@@ -34555,10 +34557,20 @@ class PdfRender extends GeneralRender {
                     if (scrollTimeout) {
                         clearTimeout(scrollTimeout);
                     }
-                    scrollTimeout = setTimeout(() => __awaiter(this, void 0, void 0, function* () {
-                        yield this.handlePDFScrollEvent(doc);
-                        yield this.record();
-                    }), 100); // Debounce selection events
+                    scrollTimeout = setTimeout(() => {
+                        const handle = () => __awaiter(this, void 0, void 0, function* () {
+                            yield this.handlePDFScrollEvent(doc);
+                            yield this.record();
+                        });
+                        // 渲染调度挂到 idle：滚动帧先落地，避免与滚动本身抢主线程（卡手根因之一）
+                        const ric = window.requestIdleCallback;
+                        if (typeof ric === "function") {
+                            ric(() => void handle(), { timeout: 300 });
+                        }
+                        else {
+                            void handle();
+                        }
+                    }, 100); // Debounce selection events
                 });
             }
             else {
@@ -35546,7 +35558,7 @@ class PdfRender extends GeneralRender {
                 return;
             }
             if (this.isDarkMode === "yes") {
-                docLayer.style.filter = "invert(1) hue-rotate(180deg) contrast(0.95)";
+                this.bakeDarkModePixels(docLayer);
             }
             if (this.backgroundColor === "rgba(233, 216, 188,1)" &&
                 this.isScannedPDF === "yes") {
@@ -35651,6 +35663,62 @@ class PdfRender extends GeneralRender {
             }
             this.trigger("rendered", [chapterDocIndex]);
         });
+    }
+    /**
+     * 夜间模式逐像素烘焙：把主画布（#canvas 内的 pdfjs canvas）一次性反转成夜间色，
+     * 不再在 #koodoPDFLayer 上挂 CSS filter —— filter 会让合成器在滚动的每一帧都对
+     * 整张大图重做像素变换（滚动掉帧的共犯），烘焙把这笔开销变成每页一次。
+     * 色彩口径 = **逐像素复算原 filter 的精确数学**（invert(1) → hue-rotate(180deg) 矩阵
+     * → contrast(0.95)，与 CSS 规范同式、含钳制），保证与旧实现观感一致。
+     * #fabric 批注画布不烘焙，保持批注原色。
+     */
+    bakeDarkModePixels(docLayer) {
+        const canvases = docLayer.querySelectorAll("canvas");
+        for (const canvas of canvases) {
+            if (canvas.classList.contains("fabric"))
+                continue;
+            this.invertCanvasLightness(canvas);
+        }
+    }
+    invertCanvasLightness(canvas) {
+        const ctx = canvas.getContext && canvas.getContext("2d");
+        if (!ctx)
+            return;
+        try {
+            const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = image.data;
+            // hue-rotate(180deg) 的线性矩阵（CSS Filter Effects 规范式，cos180=-1, sin180=0）；
+            // 三行系数各自求和 = 1，灰阶像素经矩阵后保持不变，无需单列快路径。
+            const M = [
+                [-0.574, 1.43, 0.144],
+                [0.426, 0.43, 0.144],
+                [0.426, 1.43, -0.856],
+            ];
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i + 3] === 0)
+                    continue;
+                // invert(1)：sRGB 分量各自取反（alpha 不动，与 filter 对合成结果的语义一致）
+                const r = 1 - data[i] / 255;
+                const g = 1 - data[i + 1] / 255;
+                const b = 1 - data[i + 2] / 255;
+                // hue-rotate(180deg)：矩阵乘法后钳到 [0,1]
+                const oR0 = M[0][0] * r + M[0][1] * g + M[0][2] * b;
+                const oG0 = M[1][0] * r + M[1][1] * g + M[1][2] * b;
+                const oB0 = M[2][0] * r + M[2][1] * g + M[2][2] * b;
+                // 矩阵输出钳到 [0,1]（与 filter 的钳制语义一致）
+                const oR = oR0 < 0 ? 0 : oR0 > 1 ? 1 : oR0;
+                const oG = oG0 < 0 ? 0 : oG0 > 1 ? 1 : oG0;
+                const oB = oB0 < 0 ? 0 : oB0 > 1 ? 1 : oB0;
+                // contrast(0.95)：围绕中灰压缩
+                data[i] = Math.round(((oR - 0.5) * 0.95 + 0.5) * 255);
+                data[i + 1] = Math.round(((oG - 0.5) * 0.95 + 0.5) * 255);
+                data[i + 2] = Math.round(((oB - 0.5) * 0.95 + 0.5) * 255);
+            }
+            ctx.putImageData(image, 0, 0);
+        }
+        catch (e) {
+            console.warn(e);
+        }
     }
     applyFabricBrush(canvas) {
         if (!canvas)
@@ -36133,20 +36201,32 @@ class PdfRender extends GeneralRender {
             if (chapterDocIndex >= this.chapterDocList.length || chapterDocIndex < 0) {
                 return;
             }
-            else if (chapterDocIndex > 3) {
+            // 当前页立即渲染（调用方 await 它，保证可见页先出）；
+            // 预渲染不再并发起 3 个（旧写法 4 个重活同时上主线程，滚动卡手根因），
+            // 改为串行进后台队列，且更新的位置会让过期队列整批作废。
+            if (chapterDocIndex > 3) {
                 yield this.handleUnloadPDFChapter(chapterDocIndex - 4);
             }
             yield this.handleRenderPDFChapter(chapterDocIndex);
-            this.handleRenderPDFChapter(chapterDocIndex + 1);
             if (this.platform === "ios") {
                 //ios 性能太差，先不预渲染后续章节了
                 return;
             }
-            this.handleRenderPDFChapter(chapterDocIndex + 2);
-            this.handleRenderPDFChapter(chapterDocIndex + 3);
-            // 预渲染会把 fabric.document 切到后续页，恢复为当前页 iframe，
-            // 保证用户在当前页绘制时 fabric 的 mousemove/mouseup 监听器挂在正确 document 上
-            this.activateFabricDocument(chapterDocIndex);
+            this.pdfPrefetchGen++;
+            const gen = this.pdfPrefetchGen;
+            const chain = this.pdfPrefetchChain.then(() => __awaiter(this, void 0, void 0, function* () {
+                for (let offset = 1; offset <= 3; offset++) {
+                    if (gen !== this.pdfPrefetchGen)
+                        return; // 已被更新的位置取代
+                    yield this.handleRenderPDFChapter(chapterDocIndex + offset);
+                }
+                // 预渲染会把 fabric.document 切到后续页，恢复为当前页 iframe，
+                // 保证用户在当前页绘制时 fabric 的 mousemove/mouseup 监听器挂在正确 document 上
+                if (gen === this.pdfPrefetchGen) {
+                    this.activateFabricDocument(chapterDocIndex);
+                }
+            }));
+            this.pdfPrefetchChain = chain.then(() => undefined, () => undefined);
         });
     }
     activateFabricDocument(chapterDocIndex) {

@@ -77,6 +77,8 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   private scrollTimer: number | null = null
   /** 当前主题（open 时由 options.theme 写入；applyTheme 热更新；深色 → 注入正文 CSS） */
   private theme: ResolvedTheme | null = null
+  /** 布局模式（open 时由 options.readerMode 写入；PDF 页卡边缘只在 scroll 模式注入） */
+  private readerMode: RenderOptions['readerMode'] = 'scroll'
   /**
    * 当前排版参数（`applyTypography` 写入）。**跨书保留**（是用户偏好，不是某本书的状态），
    * `close()` 不清它 —— 换书后 renderTo 末尾的注入会用同一份值。
@@ -100,6 +102,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     // this.rendition，就会覆盖后发起的书 —— 用代次令牌让过期的那次直接作废。
     const token = ++this.openToken
     this.theme = options?.theme ?? null
+    this.readerMode = options?.readerMode ?? 'scroll'
     this.lastLocation = options?.lastLocation ?? null
     const [Kookit, buffer] = await Promise.all([loadKookit(), this.readFile(record.filePath)])
     if (token !== this.openToken) {
@@ -184,6 +187,16 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
       const iframe = element.querySelector('iframe')
       const doc = iframe?.contentDocument
       if (iframe && doc?.body) {
+        // PDF 滚动模式页卡边缘（2026-10-02 用户定）：页与页之间要有可见边界 —— 给每页
+        // 容器描 1px 纸边（颜色取宿主 --page-edge，随主题；换主题本就要重开，不虑失配）。
+        // 先注入后量高：边框 2px/页 要计入 iframe 总高。分页模式页本身占满视口，不注入。
+        if (this.readerMode === 'scroll') {
+          const edge = this.readCssVar('--page-edge') || '#ccd0d4'
+          const style = doc.createElement('style')
+          style.id = 'turead-pdf-page-edge'
+          style.textContent = `.pdf-container{border:1px solid ${edge};}`
+          doc.head.appendChild(style)
+        }
         iframe.height = `${doc.body.scrollHeight + 300}px`
       }
     }

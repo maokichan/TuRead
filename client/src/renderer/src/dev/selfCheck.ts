@@ -341,9 +341,10 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
        */
       const nightLine = await (async (): Promise<string> => {
         try {
-          // PDF 是位图：`applyTheme` 对 PDF **本来就是 no-op**（深色走像素处理，TODO 单独立项）
+          // PDF 是位图：`applyTheme` 对 PDF **本来就是 no-op**（深色随开书配置逐像素烘焙，
+          // kookit PdfRender.bakeDarkModePixels，2026-10-02 起；改主题需重开生效）
           // → 不能对 PDF 断言"注入必须存在"，否则是对着正确行为报假阴性（2026-09-11 实测）。
-          if (edition.format === 'PDF') return '夜間注入=跳过(PDF 位圖，待像素處理)'
+          if (edition.format === 'PDF') return '夜間注入=跳过(PDF 位圖，深色開書烘焙)'
           const before = readDocState()
           if (!before.doc) return '夜間注入=跳过(无正文)'
           const beforeText = before.textLen

@@ -63,6 +63,8 @@ interface ReaderRailProps {
   onRightPanelChange: (kind: RightPanelKind) => void
   /** 聊天室数据；null = 这本书没有房间会话 → 右段不出现「聊天」页签 */
   chat: RailChatProps | null
+  /** 当前书是否 PDF：参数面板「紙寬」行换用 PDF 专属档位（2026-10-02） */
+  isPdf?: boolean
 }
 
 /** 两格文字开关（左「目錄 / 筆記」与右「參數 / 聊天」共用同一形态与类名） */
@@ -110,7 +112,8 @@ export function ReaderRail({
   focusNote,
   rightPanel,
   onRightPanelChange,
-  chat
+  chat,
+  isPdf
 }: ReaderRailProps): React.JSX.Element {
   /**
    * 左挂件顶部的内容开关（目錄 / 筆記）。两格**都是文字**（§5.1），当前格用 `--accent` ——
@@ -208,6 +211,7 @@ export function ReaderRail({
             onChange={onParamsChange}
             onToggle={onControlsToggle}
             header={rightTabs}
+            isPdf={isPdf}
           />
         ))}
     </>
