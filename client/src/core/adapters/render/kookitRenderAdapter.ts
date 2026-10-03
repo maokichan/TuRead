@@ -178,9 +178,19 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
 
   async renderTo(element: HTMLElement): Promise<void> {
     if (!this.rendition) throw new Error('未打开书籍（先调 open）')
+    // 代次令牌（审计 B-1）：open 内部等"读文件+解析"期间可能已被下一次 open/close 作废，
+    // 但调用方拿到 open 的 resolve 后仍会跑 renderTo —— 对已换成新书的状态执行
+    // innerHTML='' + renderTo，会与新书的 renderTo 交错（「重开书偶发空白」的症状形状）。
+    // 记住进入时的代次，await 返回后一旦不等即作废：不再做注入/定位/挂监听。
+    const token = this.openToken
+    const rendition = this.rendition
     this.element = element
     element.innerHTML = ''
-    await this.rendition.renderTo(element)
+    await rendition.renderTo(element)
+    if (token !== this.openToken) {
+      console.warn('[render] renderTo 作废（代次守卫）：本次打开已被更新的 open/close 取代')
+      return
+    }
     // PDF scroll 模式：kookit 的 handleIframeHeight（把 iframe 拉到正文高度）只被文字类渲染调用，
     // PDF 的页面容器全在外层 iframe 里（每页一个固定 paddingTop 的 div，懒渲染 canvas），
     // 无人拉高 iframe → 宿主（scroll 模式的滚动发生地，KOOKIT.md §5.10）永远不可滚。
@@ -207,11 +217,11 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     //   必须再补一次导航调用（goToChapterIndex(0) / goToPosition）才真正渲染章节；
     //   record() 只算位置不渲染，用它会导致正文空白（v0.1.1 遗留根因）。
     //   harness 验证的成功序列是 renderTo → record() → goToChapterIndex(0)，这里保持同序。
-    await this.rendition.record()
+    await rendition.record()
     if (this.lastLocation) {
-      await this.rendition.goToPosition(JSON.stringify(this.lastLocation))
+      await rendition.goToPosition(JSON.stringify(this.lastLocation))
     } else {
-      await this.rendition.goToChapterIndex(0)
+      await rendition.goToChapterIndex(0)
     }
     // 坑 §5.10：文字类渲染【不监听宿主容器 scroll】—— 用户手动滚动既不触发位置事件，
     // 也不会有人补 record()，位置永远停在"上一次翻页/初始定位"的旧值（进度条、lastLocation

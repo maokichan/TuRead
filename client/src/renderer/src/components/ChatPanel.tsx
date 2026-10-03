@@ -99,6 +99,8 @@ export function ChatPanel({
           rows={1}
           onChange={(e) => onDraftChange(e.target.value)}
           onKeyDown={(e) => {
+            // IME 组合守卫（审计 B-5）：组合中的 Enter = 确认候选词，不是发送
+            if (e.nativeEvent.isComposing) return
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
               submit()

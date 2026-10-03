@@ -22,6 +22,8 @@ const RECONNECT_DELAY_MS = 2000
 const MAX_RECONNECT_ATTEMPTS = 5
 /** REST 超时（TODO P2「REST 无超时」）：服务器挂死时按钮不能永久卡住 */
 const REST_TIMEOUT_MS = 15000
+/** WS 握手超时（审计 A-2）：openRoom 全程此前无超时兜底 */
+const OPEN_TIMEOUT_MS = 15000
 
 export class WsNetAdapter extends TypedEmitter<NetServiceEvents> {
   private config: NetConfig | null = null
@@ -29,6 +31,8 @@ export class WsNetAdapter extends TypedEmitter<NetServiceEvents> {
   /** 当前房间（`openRoom` 成功时置，`closeRoom` 清）—— 重连时用它重建同一条握手地址 */
   private roomId: string | null = null
   private ws: WebSocket | null = null
+  /** 在途握手（审计 A-2）：teardown/invalidate 作废 socket 时必须 reject 它，否则调用链永久挂起 */
+  private pendingOpen: { ws: WebSocket; reject: (err: Error) => void } | null = null
   private explicitlyClosed = false
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -169,6 +173,10 @@ export class WsNetAdapter extends TypedEmitter<NetServiceEvents> {
     }
     const ws = this.ws
     this.ws = null
+    // 审计 A-2：握手（CONNECTING）中的 socket 被 removeAllListeners 后不会再有任何事件，
+    // 正在 await openSocket() 的调用链会永久挂起 → teardown/invalidate 必须主动 reject
+    const pending = this.pendingOpen
+    this.pendingOpen = null
     if (ws) {
       ws.removeAllListeners()
       try {
@@ -177,17 +185,21 @@ export class WsNetAdapter extends TypedEmitter<NetServiceEvents> {
         // 关闭已死连接时的异常无需上报
       }
     }
+    pending?.reject(new Error('连接已作废（连接被关闭/重建）'))
   }
 
   /** 作废某条连接：摘掉监听并关闭（其 close 不再触发，因此不会续连） */
   private invalidateSocket(ws: WebSocket): void {
     if (this.ws === ws) this.ws = null
+    const pending = this.pendingOpen?.ws === ws ? this.pendingOpen : null
+    this.pendingOpen = null
     ws.removeAllListeners()
     try {
       ws.close()
     } catch {
       // 关闭已死连接时的异常无需上报
     }
+    pending?.reject(new Error('连接已作废（被更新的连接取代）'))
   }
 
   private openSocket(): Promise<void> {
@@ -201,11 +213,21 @@ export class WsNetAdapter extends TypedEmitter<NetServiceEvents> {
         }
       })
       this.ws = ws
+      // 审计 A-2：登记在途握手，供 teardown/invalidate 作废时 reject（否则永不结算）
+      this.pendingOpen = { ws, reject }
       /** 本次连接是否握手成功 —— 失败过的那次**不后台续连**（TODO P2「越权发 connected」） */
       let opened = false
+      // 握手超时兜底：openRoom 全程此前无超时（JOIN_TIMEOUT_MS 只覆盖 sendJoin 之后的等待）
+      const openTimer = setTimeout(() => {
+        if (opened) return
+        this.invalidateSocket(ws)
+        reject(new Error(`连接超时（${OPEN_TIMEOUT_MS / 1000}s 内握手未完成）`))
+      }, OPEN_TIMEOUT_MS)
 
       ws.on('open', () => {
         opened = true
+        clearTimeout(openTimer)
+        this.pendingOpen = null
         this.reconnectAttempts = 0
         this.emitState('connected')
         resolve()
@@ -219,6 +241,9 @@ export class WsNetAdapter extends TypedEmitter<NetServiceEvents> {
       })
       ws.on('error', (err) => {
         if (opened) return // 连上之后的错误交给 close 走重连
+        clearTimeout(openTimer)
+        // 先摘掉 pending 再 invalidate：错误详情由这里的 reject 带出（invalidate 的兜底 reject 只在其他路径）
+        if (this.pendingOpen?.ws === ws) this.pendingOpen = null
         this.invalidateSocket(ws)
         reject(err)
       })

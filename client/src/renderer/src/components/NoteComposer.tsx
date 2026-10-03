@@ -50,6 +50,8 @@ export function NoteComposer({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
+          // IME 组合守卫（审计 B-5）：组合中的 Enter = 确认候选词，不是提交/取消
+          if (e.nativeEvent.isComposing) return
           if (e.key === 'Escape') {
             e.preventDefault()
             onCancel()

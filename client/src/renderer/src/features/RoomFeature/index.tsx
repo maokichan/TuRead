@@ -238,7 +238,8 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
               className={`${inputCls} flex-1`}
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && void sendChat()}
+              // IME 组合守卫（审计 B-5）：组合中的 Enter = 确认候选词，不是发送
+              onKeyDown={(e) => !e.nativeEvent.isComposing && e.key === 'Enter' && void sendChat()}
               placeholder="发消息，回车发送…"
             />
             <button className={btnGhost} onClick={() => void sendChat()} disabled={!chatInput.trim()}>

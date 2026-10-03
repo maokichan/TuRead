@@ -145,8 +145,9 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
       net.on('message', (env) => this.handleEnvelope(env)),
       net.on('connection-changed', (s) => {
         this.emit('connection-changed', s)
-        // 断线重连：服务器侧已是全新连接 → 重发 join（否则是"在房间里却不是成员"的幽灵）
-        if (s === 'connected' && this.joined && this.roomId && this.joinedBook) {
+        // 断线重连：服务器侧已是全新连接 → 重发 join（否则是"在房间里却不是成员"的幽灵）。
+        // 无书成员（joinedBook = null）同样要重入 —— 审计 A-1 摘除守卫时一并对齐
+        if (s === 'connected' && this.joined && this.roomId) {
           void this.rejoin()
         }
       })
@@ -308,7 +309,6 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
 
   /** 发 room.join 并等 join-ack（带超时 + 单槽代次，见 pendingJoin 注释） */
   private async sendJoin(): Promise<JoinAck | null> {
-    if (!this.joinedBook) return null
     const gen = ++this.joinGen
     this.clearPendingJoin()
     const wait = new Promise<JoinAck | null>((resolve) => {
@@ -324,9 +324,10 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     try {
       await this.net.send({
         type: ROOM_MSG.join,
-        // 无书成员 = fingerprint: null（服务器允许加入并返回 edition 供下载，见 API.md「room.join」）。
-        // joinedBook 已在函数入口判空（同步不变量），不再走可选链把编程错误伪装成"无书成员"
-        payload: { fingerprint: this.joinedBook.fingerprint }
+        // 无书成员（joinedBook = null）= fingerprint: null —— 服务器允许加入并返回 edition
+        // 供下载（API.md「room.join」；CONTRACTS v0.4.4）。⚠ 审计 A-1：此前的 `!joinedBook`
+        // 守卫让"带 null 指纹的 room.join"永远发不出去，与契约背离的死代码，2026-10-03 摘除。
+        payload: { fingerprint: this.joinedBook?.fingerprint ?? null }
       })
     } catch (err) {
       this.clearPendingJoin()
@@ -356,9 +357,9 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     this.memberLocs.clear()
   }
 
-  /** 断线重连后重发 join（服务器侧成员表已随旧连接消失） */
+  /** 断线重连后重发 join（服务器侧成员表已随旧连接消失）；无书成员同样要重入（审计 A-1） */
   private async rejoin(): Promise<void> {
-    if (!this.roomId || !this.joinedBook) return
+    if (!this.roomId) return
     const ack = await this.sendJoin()
     const reason = normalizeJoinReason(ack?.reason)
     if (!ack || !ack.ok) {

@@ -538,6 +538,9 @@ export function ReaderFeature({
           theme: currentTheme(),
           ...(state?.lastLocation ? { lastLocation: state.lastLocation } : {})
         })
+        // 审计 B-1：open 期间用户可能已换书/关书 —— 作废的流程不得再对 stage 执行
+        // renderTo（与接管者的渲染交错，正是「重开书偶发空白」的症状形状之一）
+        if (cancelled) return
         if (stageRef.current) await container.render.renderTo(stageRef.current)
         if (cancelled) return
         setBook(latest)
