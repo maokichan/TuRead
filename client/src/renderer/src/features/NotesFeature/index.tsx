@@ -224,7 +224,7 @@ export function NotesFeature({ container, host, activeFeature, notesQuery }: Fea
             }}
           />
         ) : (
-          <div className="pt-6 text-[12px] text-[var(--muted)] opacity-70">{emptyText}</div>
+          <div className="pt-6 text-[12.5px] text-[var(--muted)] opacity-70">{emptyText}</div>
         )}
       </div>
 

@@ -15,9 +15,9 @@ export function RoomRow({ room, onEnter }: RoomRowProps): React.JSX.Element {
       title="点击进入该房间"
       className="grid w-full grid-cols-[90px_1fr_56px_120px_70px] items-center gap-2.5 py-3 text-left text-[13px] text-[var(--muted)] transition-colors hover:text-[var(--text)]"
     >
-      <span className="font-[var(--mono)] text-[12px]">{room.roomId}</span>
+      <span className="font-ui text-[12.5px]">{room.roomId}</span>
       <span className="truncate">{room.title || '无标题'}</span>
-      <b className="justify-self-start font-[var(--mono)] text-[9.5px] font-bold tracking-[0.4px] text-[var(--accent)]">
+      <b className="justify-self-start font-ui text-[11px] font-bold tracking-label text-[var(--accent)]">
         {room.ext}
       </b>
       <span className="truncate">{room.ownerNick}</span>

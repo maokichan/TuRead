@@ -7,7 +7,7 @@ export function MemberList({ members }: { members: RoomMember[] }): React.JSX.El
       {members.map((m) => (
         <span
           key={m.id}
-          className={`rounded-full border px-2.5 py-1 text-[12px] ${
+          className={`rounded-full border px-2.5 py-1 text-[12.5px] ${
             m.isMe
               ? 'border-[var(--accent-ring)] text-[var(--accent)]'
               : 'border-[var(--border)] text-[var(--muted)]'
@@ -17,7 +17,7 @@ export function MemberList({ members }: { members: RoomMember[] }): React.JSX.El
           {m.isMe ? '（我）' : ''}
         </span>
       ))}
-      {members.length === 0 && <span className="text-[12px] text-[var(--muted)]">（无）</span>}
+      {members.length === 0 && <span className="text-[12.5px] text-[var(--muted)]">（无）</span>}
     </div>
   )
 }

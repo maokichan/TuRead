@@ -536,7 +536,7 @@ export function Gallery(): React.JSX.Element {
           </Specimen>
         </div>
         <div className="mt-4 flex flex-wrap items-baseline gap-5 border-t border-[var(--border-soft)] pt-4">
-          {[11, 12.5, 13, 14, 15, 17, 18, 19, 20].map((s) => (
+          {[11, 12.5, 13, 14, 15, 17, 18, 19, 22].map((s) => (
             <span key={s} style={{ fontSize: `${s}px` }} className="text-[var(--muted)]">
               {s}
             </span>

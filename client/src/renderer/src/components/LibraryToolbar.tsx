@@ -70,7 +70,7 @@ export function LibraryToolbar({
     /* 状态栏（2026-09-09 定）：**所有元素统一左对齐**（不再左右对称分布），
        分割线随内容区宽度铺开（此前 max-w-[720px] 收得太短），`pt-4` 让线上移。 */
     <footer className="flex-none">
-      <div className="flex items-center gap-7 border-t border-[var(--border)] pt-4 pb-1 text-[12px]">
+      <div className="flex items-center gap-7 border-t border-[var(--border)] pt-4 pb-1 text-[12.5px]">
         <button
           onClick={toggleView}
           disabled={flashing}
@@ -120,7 +120,7 @@ export function LibraryToolbar({
             **根固定、子节点向右增生**（2026-09-13 用户定）：容器取固定宽度再 ml-auto 推到右侧，
             内容从左缘（固定）向右生长——路径变深时根的位置不动，不再整体左移。
             过长的截断/滚动策略暂不做（用户定：先不管）。 */}
-        <div className="ml-auto flex w-[420px] flex-none items-center gap-1.5 overflow-hidden text-[12px] text-[var(--muted)]">
+        <div className="ml-auto flex w-[420px] flex-none items-center gap-1.5 overflow-hidden text-[12.5px] text-[var(--muted)]">
           {crumbs.map((c, i) => (
             <Crumb key={`${c.label}-${i}`} crumb={c} index={i} last={i === crumbs.length - 1} />
           ))}
@@ -212,7 +212,7 @@ function ImportMenu({
         /* 浮层（STYLE.md §5.2 例外③）保留一层底色；**左缘与「導入」按钮左缘对齐**
            （原来右对齐，菜单整体偏到按钮左侧，看起来"没对齐"—— 2026-09-09 修）。
            菜单项本身是文字行，无边框无分隔线。 */
-        <div className="absolute bottom-full left-0 z-10 mb-2 flex w-40 flex-col items-start gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] p-2.5 shadow-lg">
+        <div className="absolute bottom-full left-0 z-10 mb-2 flex w-40 flex-col items-start gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] p-2.5">
           <button
             onClick={() => {
               setOpen(false)

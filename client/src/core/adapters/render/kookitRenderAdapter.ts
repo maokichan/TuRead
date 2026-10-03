@@ -164,6 +164,8 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
       buildNamespace(Kookit)
     )
     const raw = await rendition.getMetadata()
+    // 临时 rendition 持有 iframe/DOM 资源（close() 路径同样要 removeContent），取完即清，防泄漏
+    rendition.removeContent()
     return {
       title: (raw.name ?? '').trim(),
       author: raw.author || undefined,
@@ -682,13 +684,6 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     this.emit('selection-changed', { anchor, rect: this.selectionRect() })
   }
 
-  /**
-   * 选区矩形 → **宿主视口坐标**（色板摆放用）。
-   * 换算只做一次加法，不需要额外补滚动量：`getBoundingClientRect()` 在书文档里本就是相对该
-   * iframe 视口的，加上 iframe 自身在宿主里的位置即得宿主视口坐标（宿主的滚动已经体现在
-   * iframe 的 rect 里）。
-   * 取不到（iframe/选区已消失）→ 全零矩形：UI 退到默认摆放位置，而不是崩。
-   */
   /**
    * 选区矩形 → **宿主视口坐标**（浮层摆放用）。
    * `getBoundingClientRect()` 在书文档里本就是相对该 iframe 视口的，加上**逐层**的 iframe

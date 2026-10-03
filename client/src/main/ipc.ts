@@ -124,15 +124,15 @@ export function registerIpc(
   ipcMain.handle(IPC.storeListLibraries, () => store().listLibraries())
   ipcMain.handle(
     IPC.storeCreateLibrary,
-    async (
-      _e,
-      p: { name?: string; mode?: 'mapped' | 'curated'; rootPath?: string } | string
-    ) => {
-      // 兼容旧调用（直接传字符串 name）：按自建库处理
-      const input: { name?: string; mode: 'mapped' | 'curated'; rootPath?: string } =
-        typeof p === 'string'
-          ? { name: p, mode: 'curated' }
-          : { name: p?.name, mode: p?.mode ?? 'curated', rootPath: p?.rootPath }
+    async (_e, p: { name?: string; mode?: 'mapped' | 'curated'; rootPath?: string }) => {
+      // （2026-10-03 清理：原"直接传字符串 name"的旧调用兼容 shim 已删 —— 渲染侧唯一
+      // 调用方 IpcStoreAdapter.createLibrary 只发对象，shim 只会掩盖误传参）
+      if (!p?.name) throw new Error('創建書庫缺少名稱')
+      const input: { name: string; mode: 'mapped' | 'curated'; rootPath?: string } = {
+        name: p.name,
+        mode: p.mode ?? 'curated',
+        rootPath: p.rootPath
+      }
       const entry: LibraryEntry = await store().createLibrary(input)
       send(IPC.storeLibraryChanged, entry)
       return entry

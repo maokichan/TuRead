@@ -37,8 +37,8 @@ export function BookRow({
 }: BookRowProps): React.JSX.Element {
   const title = book.metadata.title || '未命名'
   const meta = (
-    <span className="flex items-center gap-2 text-[10.5px] text-[var(--muted)]">
-      <b className="text-[10.5px] font-bold tracking-[0.4px] text-[var(--accent)]">{book.format}</b>
+    <span className="flex items-center gap-2 text-[11px] text-[var(--muted)]">
+      <b className="text-[11px] font-bold tracking-label text-[var(--accent)]">{book.format}</b>
       <span>{formatSize(book.fingerprint.size)}</span>
       <span>{progressText(readingState)}</span>
     </span>
@@ -90,7 +90,7 @@ export function BookRow({
       {/* 内容层：起始更靠左，自然压住封面右缘（标题 + 详情，两种封面情况完全一致） */}
       <div className="relative flex h-full flex-col justify-center gap-0.5 pr-3 pl-[30%]">
         {/* 列表标题：源流明体、放大、**不加粗**（2026-09-08 定） */}
-        <span className="truncate font-[var(--font-serif-cn)] text-[17px] leading-tight font-normal">
+        <span className="truncate font-ui text-[17px] leading-tight font-normal">
           {title}
         </span>
         {meta}

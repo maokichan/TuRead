@@ -117,7 +117,7 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
 
   return (
     <section className="flex h-full flex-col gap-5">
-      <h2 className="m-0 font-[var(--font-serif-cn)] text-[18px] font-bold">設置</h2>
+      <h2 className="m-0 font-ui text-[18px] font-bold">設置</h2>
 
       {/* 分组结构（STYLE.md §5.1）：**去掉圆角容器**，用副标题 + 分割线划分 —— 设置项会越来越多 */}
       <Field
@@ -126,7 +126,7 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
       >
         <div className="flex flex-wrap items-center gap-5">
           <div className="flex items-center gap-3">
-            <span className="text-[12px] text-[var(--muted)]">主題</span>
+            <span className="text-[12.5px] text-[var(--muted)]">主題</span>
             {TONES.map((t) => (
               <button
                 key={t.value}
@@ -138,7 +138,7 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
             ))}
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-[12px] text-[var(--muted)]">模式</span>
+            <span className="text-[12.5px] text-[var(--muted)]">模式</span>
             {MODES.map((m) => (
               <button
                 key={m.value}
@@ -205,7 +205,7 @@ function Field({
 }): React.JSX.Element {
   return (
     <section className={`border-t border-[var(--border)] pt-4 pb-2 ${className}`}>
-      <h3 className="m-0 mb-2 font-[var(--font-serif-cn)] text-[14px] font-bold">{title}</h3>
+      <h3 className="m-0 mb-2 font-ui text-[14px] font-bold">{title}</h3>
       {hint && <p className="m-0 mb-3 text-[11px] text-[var(--muted)]">{hint}</p>}
       {children}
     </section>

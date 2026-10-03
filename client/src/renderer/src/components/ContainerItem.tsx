@@ -180,10 +180,10 @@ export function ContainerItem({
               }
             }}
             onBlur={commitRename}
-            className="h-8 w-full rounded-sm border border-[var(--accent)] bg-[var(--bg)] px-2 font-[var(--font-serif-cn)] text-[15px] text-[var(--text)] outline-none"
+            className="h-8 w-full rounded-sm border border-[var(--accent)] bg-[var(--bg)] px-2 font-ui text-[15px] text-[var(--text)] outline-none"
           />
         ) : (
-          <span className="truncate font-[var(--font-serif-cn)] text-[17px] leading-tight font-normal">
+          <span className="truncate font-ui text-[17px] leading-tight font-normal">
             {name}
           </span>
         )}

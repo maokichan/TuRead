@@ -242,7 +242,7 @@ export default function AppShell(): React.JSX.Element {
     <div className="relative flex h-screen flex-col">
       {dragOver && (
         /* 拖拽提示（pointer-events-none：不挡 drop 事件，drop 在 window 层处理） */
-        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-soft)]">
           <span className="text-[15px] text-[var(--text)]">鬆開以導入到當前書庫</span>
         </div>
       )}

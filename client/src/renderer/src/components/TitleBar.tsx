@@ -103,7 +103,8 @@ export function TitleBar({
   )
 
   // 全屏：整条平滑收起（2026-09-13 用户定：加过渡动画，替代瞬间消失/出现的闪烁感）。
-  // 高度 44→0 的过渡同时回收布局空间；不用 return null（那是一帧跳变，正是闪烁来源）
+  // 高度 44→0 的过渡同时回收布局空间；不用 return null（那是一帧跳变，正是闪烁来源）。
+  // 过渡曲线在 styles.css `.titlebar`（组件内不写动效，与遮罩/动画同一集中口径）。
   return (
     <header
       className="titlebar relative flex h-11 flex-none items-stretch border-b border-[var(--border)] bg-[var(--panel)]"
@@ -111,13 +112,12 @@ export function TitleBar({
         height: fullscreen ? 0 : undefined,
         opacity: fullscreen ? 0 : 1,
         borderBottomWidth: fullscreen ? 0 : undefined,
-        overflow: 'hidden',
-        transition: 'height 240ms ease-out, opacity 180ms ease-out'
+        overflow: 'hidden'
       }}
     >
       {/* 左：应用名（拖拽区的一部分，纯文字不拦截） */}
       <div className="flex select-none items-center pl-3 pr-2">
-        <span className="text-[13px] tracking-wide text-[var(--muted)]">TuRead</span>
+        <span className="text-[13px] tracking-label text-[var(--muted)]">TuRead</span>
       </div>
 
       {/* 后退/前进（2026-09-13 用户定，资源管理器逻辑）：只服务书库层级导航（历史栈在 LibraryFeature）。

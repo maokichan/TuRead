@@ -97,7 +97,7 @@ export function BookDetailPanel({
           <div className={`${ROW} bg-[var(--negative-bg)] px-1.5 text-[var(--negative-text)]`}>
             <Marquee
               duration={18}
-              className="w-full font-[var(--font-serif-cn)] text-[12.5px] font-bold"
+              className="w-full font-ui text-[12.5px] font-bold"
             >
               {title}
             </Marquee>

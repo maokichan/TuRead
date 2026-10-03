@@ -35,7 +35,7 @@ const btnGhost = 'text-action'
 // 例外①（STYLE.md §5.2）：输入类必须可见可点 —— 唯一保留边框的控件
 const inputCls =
   'rounded-lg border border-[var(--border)] bg-[var(--input-bg)] px-2.5 py-2 text-[13px] outline-none focus:border-[var(--accent)]'
-const h3Cls = 'mb-1.5 mt-2 text-[12.5px] tracking-[0.6px] text-[var(--muted)] uppercase'
+const h3Cls = 'mb-1.5 mt-2 text-[12.5px] tracking-label text-[var(--muted)] uppercase'
 
 export function RoomFeature({ container, host, selectedBookId }: FeatureProps): React.JSX.Element {
   // ---- 服务器连接（会话） ----
@@ -201,9 +201,9 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
     return (
       <section className="cjk-ui flex h-full flex-col gap-3">
         <header className="flex items-center justify-between">
-          <h2 className="m-0 font-[var(--font-serif-cn)] text-[15px] font-bold">房间会话</h2>
+          <h2 className="m-0 font-ui text-[15px] font-bold">房间会话</h2>
           <div className="flex items-center gap-2">
-            <span className="font-[var(--mono)] text-[12px] text-[var(--accent)]">{joinedRoomId}</span>
+            <span className="font-ui text-[12.5px] text-[var(--accent)]">{joinedRoomId}</span>
             <StatePill state={displayConn} />
           </div>
         </header>
@@ -259,7 +259,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
   return (
     <section className="cjk-ui flex h-full flex-col gap-3">
       <header className="flex items-center justify-between">
-        <h2 className="m-0 font-[var(--font-serif-cn)] text-[15px] font-bold">房间</h2>
+        <h2 className="m-0 font-ui text-[15px] font-bold">房间</h2>
         <StatePill state={displayConn} />
       </header>
 
@@ -269,7 +269,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
         </summary>
         <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] text-[var(--muted)]">地址</span>
+            <span className="text-[12.5px] text-[var(--muted)]">地址</span>
             <input
               className={inputCls}
               value={url}
@@ -279,7 +279,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] text-[var(--muted)]">二级令牌</span>
+            <span className="text-[12.5px] text-[var(--muted)]">二级令牌</span>
             <input
               className={inputCls}
               value={token}
@@ -289,7 +289,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] text-[var(--muted)]">昵称</span>
+            <span className="text-[12.5px] text-[var(--muted)]">昵称</span>
             <input
               className={inputCls}
               value={nick}
@@ -320,7 +320,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
       </details>
 
       <div className="flex items-center justify-between">
-        <h3 className="m-0 text-[12.5px] tracking-[0.6px] text-[var(--muted)] uppercase">房间大厅</h3>
+        <h3 className="m-0 text-[12.5px] tracking-label text-[var(--muted)] uppercase">房间大厅</h3>
         <button className={btnGhost} onClick={() => void refreshRooms()} disabled={!sessionReady}>
           刷新
         </button>
@@ -357,7 +357,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
 
       <div className="flex flex-none items-end gap-3">
         <label className="flex flex-1 flex-col gap-1.5">
-          <span className="text-[12px] text-[var(--muted)]">房间号（8 位 hex）</span>
+          <span className="text-[12.5px] text-[var(--muted)]">房间号（8 位 hex）</span>
           <input
             className={inputCls}
             value={roomIdInput}

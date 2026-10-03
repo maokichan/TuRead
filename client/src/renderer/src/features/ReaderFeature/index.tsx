@@ -192,7 +192,10 @@ export function ReaderFeature({
       paramsRef.current = next
       setParams(next)
       applyParams(next, book?.format === 'PDF')
-      void container.store.patchSetting('readerSettings', {
+      // 布局模式是 kookit 渲染配置（open 时消费）→ 落库后重开书（STYLE §5.9 #9）。
+      // readerMode 已含在本包 patch 里（2026-10-03 清理：不再单独二次写同一字段），
+      // 重开等落库完成再触发，保证重开时读到的是新档位
+      const saved = container.store.patchSetting('readerSettings', {
         readerWidth: next.readerWidth,
         readerWidthPdf: next.readerWidthPdf,
         pagePadX: next.pagePadX,
@@ -201,12 +204,11 @@ export function ReaderFeature({
         paragraphSpacing: next.paragraphSpacing,
         readerMode: next.readerMode
       })
-      // 布局模式是 kookit 渲染配置（open 时消费）→ 落库后重开书（STYLE §5.9 #9）
       if (patch.readerMode !== undefined && patch.readerMode !== prev.readerMode) {
         setReaderMode(patch.readerMode)
-        void container.store
-          .patchSetting('readerSettings', { readerMode: patch.readerMode })
-          .then(() => setReopenTick((t) => t + 1))
+        void saved.then(() => setReopenTick((t) => t + 1))
+      } else {
+        void saved
       }
       // PDF 改纸宽 = 整页重开填充（2026-09-13 用户定：纸宽变了 PDF 应当跟着缩放填充）。
       // kookit PdfRender 用渲染时刻的 clientWidth 定 canvas 像素、无重排入口（PDF 专区原首条），

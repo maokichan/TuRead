@@ -106,7 +106,7 @@ export function FittedTitle({
         <span
           ref={textRef}
           style={fit}
-          className="title-cover block max-w-full text-center font-bold tracking-[0.01em]"
+          className="title-cover block max-w-full text-center font-bold"
         >
           {text}
         </span>

@@ -111,17 +111,17 @@ export function LibraryManagerDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-dim)] p-6"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[70vh] w-full max-w-[560px] flex-col rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4 shadow-2xl"
+        className="flex max-h-[70vh] w-full max-w-[560px] flex-col rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4"
       >
         <h3 className="m-0 text-[14px] font-semibold">書庫管理</h3>
-        <p className="mt-1 mb-3 text-[12px] text-[var(--muted)]">
+        <p className="mt-1 mb-3 text-[12.5px] text-[var(--muted)]">
           每個書庫是一份獨立的庫（一個 .db 文件）；點擊書庫名切換。
         </p>
 
@@ -159,7 +159,7 @@ export function LibraryManagerDialog({
                         <button
                           onClick={() => void onSwitch(l.id).then(onClose)}
                           disabled={isCurrent}
-                          className={`truncate text-[13.5px] ${
+                          className={`truncate text-[13px] ${
                             isCurrent
                               ? 'cursor-default font-semibold text-[var(--text)]'
                               : 'text-[var(--text)] hover:text-[var(--accent)]'
@@ -172,7 +172,7 @@ export function LibraryManagerDialog({
                       </div>
                       {/* v0.4.0：一库一 .db 已作废（全部数据在一个全局库）→ 改显示**库的模式与跟踪目录** */}
                       <div
-                        className="mt-0.5 truncate text-[11.5px] text-[var(--muted)]"
+                        className="mt-0.5 truncate text-[11px] text-[var(--muted)]"
                         title={l.rootPath ?? undefined}
                       >
                         {l.mode === 'mapped'
@@ -199,7 +199,7 @@ export function LibraryManagerDialog({
                 className="h-7 w-full rounded-sm border border-[var(--border)] bg-[var(--bg)] px-2 text-[13px] text-[var(--text)] outline-none focus:border-[var(--accent)]"
               />
               <div className="flex items-start gap-6">
-                <label className="flex cursor-pointer items-start gap-1.5 text-[12px] text-[var(--muted)]">
+                <label className="flex cursor-pointer items-start gap-1.5 text-[12.5px] text-[var(--muted)]">
                   <input
                     type="radio"
                     checked={createMode === 'mapped'}
@@ -213,7 +213,7 @@ export function LibraryManagerDialog({
                     </span>
                   </span>
                 </label>
-                <label className="flex cursor-pointer items-start gap-1.5 text-[12px] text-[var(--muted)]">
+                <label className="flex cursor-pointer items-start gap-1.5 text-[12.5px] text-[var(--muted)]">
                   <input
                     type="radio"
                     checked={createMode === 'curated'}
@@ -227,7 +227,7 @@ export function LibraryManagerDialog({
                 </label>
               </div>
               {createMode === 'mapped' && (
-                <div className="flex items-center gap-3 text-[12px]">
+                <div className="flex items-center gap-3 text-[12.5px]">
                   <button
                     onClick={async () => setCreateRoot(await onPickDirectory())}
                     className="text-action"

@@ -324,8 +324,9 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     try {
       await this.net.send({
         type: ROOM_MSG.join,
-        // 无书成员 = fingerprint: null（服务器允许加入并返回 edition 供下载，见 API.md「room.join」）
-        payload: { fingerprint: this.joinedBook?.fingerprint ?? null }
+        // 无书成员 = fingerprint: null（服务器允许加入并返回 edition 供下载，见 API.md「room.join」）。
+        // joinedBook 已在函数入口判空（同步不变量），不再走可选链把编程错误伪装成"无书成员"
+        payload: { fingerprint: this.joinedBook.fingerprint }
       })
     } catch (err) {
       this.clearPendingJoin()

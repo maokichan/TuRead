@@ -35,7 +35,7 @@ export function normalizeKey(e: {
   const parts: string[] = []
   if (e.ctrlKey) parts.push('ctrl')
   if (e.altKey) parts.push('alt')
-  parts.push(k.length === 1 ? k.toLowerCase() : k.toLowerCase())
+  parts.push(k.toLowerCase())
   return parts.join('+')
 }
 

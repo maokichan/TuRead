@@ -60,7 +60,7 @@ export function NotesToolbar({
 
   return (
     <footer className="flex-none">
-      <div className="flex items-center gap-7 border-t border-[var(--border)] pt-4 pb-1 text-[12px]">
+      <div className="flex items-center gap-7 border-t border-[var(--border)] pt-4 pb-1 text-[12.5px]">
         <button
           onClick={toggleView}
           disabled={flashing}

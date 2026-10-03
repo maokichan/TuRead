@@ -11,7 +11,7 @@ export function ChatLog({ messages }: { messages: ChatMessage[] }): React.JSX.El
         <div key={c.id} className="flex items-baseline gap-2 py-0.5 text-[13px]">
           <b className="flex-none text-[var(--accent)]">{c.nick}</b>
           <span className="min-w-0 break-words">{c.text}</span>
-          <span className="ml-auto flex-none font-[var(--mono)] text-[10.5px] text-[var(--muted)]">
+          <span className="ml-auto flex-none font-ui text-[11px] text-[var(--muted)]">
             #{c.id}
           </span>
         </div>

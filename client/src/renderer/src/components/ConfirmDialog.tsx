@@ -33,20 +33,20 @@ export function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-dim)] p-6"
       onClick={onCancel}
     >
       <div
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[380px] rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4 shadow-2xl"
+        className="w-full max-w-[380px] rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4"
       >
         <h3 className="m-0 text-[14px] font-semibold">{title}</h3>
         <p className="mt-2 mb-0 text-[12.5px] leading-relaxed text-[var(--muted)]">{message}</p>
 
         {rememberLabel && (
-          <label className="mt-3 flex cursor-pointer items-center gap-2 text-[12px] text-[var(--muted)]">
+          <label className="mt-3 flex cursor-pointer items-center gap-2 text-[12.5px] text-[var(--muted)]">
             <input
               type="checkbox"
               checked={remembered}

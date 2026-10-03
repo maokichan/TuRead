@@ -148,6 +148,10 @@
      用途：详情抽屉的字段文字（仅此一处，STYLE.md §5.2）。 */
   --negative-bg: var(--text);
   --negative-text: var(--bg);
+  /* 浮层压暗遮罩（确认弹窗 / 書庫管理 / 拖拽提示）：黑度不随主题变 → 单点定义一份即可。
+     此前三处组件各写一个 bg-black/NN（三个不同黑度），收敛到这里（STYLE.md §3 颜色唯一来源）。 */
+  --overlay-dim: rgb(0 0 0 / 0.55);
+  --overlay-soft: rgb(0 0 0 / 0.3);
   /* 笔记/划线四色（2026-09-14，STYLE.md §3.4）——**语义内容标记色**（同 --ok/--warn/--err 的性质：
      表达内容状态，不做装饰）。四套取向**各给一组**（不派生：深浅纸上同一色不可用）。
      ⚠ 深色取向必须用**低亮度高饱和**：kookit 对非 PDF 高亮统一渲染为
@@ -410,8 +414,22 @@ textarea {
    中文用打包的源流明體（`--font-serif-cn`）；字号由 FittedTitle 二分搜索撑满容器。 */
 .title-cover {
   font-family: var(--font-serif-cn);
+  /* 文字封面字距 0.01em（STYLE.md §3.3）；原写在 FittedTitle 组件里，归拢到此 */
+  letter-spacing: 0.01em;
   word-break: break-word;
   overflow-wrap: anywhere;
+}
+
+/* ---------- 组件级字距 / 字体的集中入口（STYLE.md §3.3/§6 禁区：
+   letter-spacing / font-family 只出现在本文件）---------- */
+/* 小标签 / 大写标签的字距（§3.3）；此前 RoomFeature/BookRow/RoomRow/TitleBar 各写一个 arbitrary 值 */
+.tracking-label {
+  letter-spacing: 0.6px;
+}
+/* 界面统一字体（P2 一套字体）。--font-serif-cn / --mono 均为同值别名（§3.1）；
+   此前组件用 font-[var(--mono)] / font-[var(--font-serif-cn)]，统一换成本类 */
+.font-ui {
+  font-family: var(--font-ui);
 }
 
 /* ---------- 功能组件图标（侧边栏）----------
@@ -1399,6 +1417,10 @@ textarea {
    颜色全走 token（TitleBar.tsx 内），这里只放无法用 Tailwind 表达的 app-region。 */
 .titlebar {
   -webkit-app-region: drag;
+  /* 全屏时整条收起的过渡（原内联在 TitleBar.tsx，归拢到 styles.css） */
+  transition:
+    height 240ms ease-out,
+    opacity 180ms ease-out;
 }
 .titlebar button,
 .titlebar input {
