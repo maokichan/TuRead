@@ -122,13 +122,8 @@ export class BookService implements IBookService {
   }
 
   async updateLastLocation(editionId: string, location: BookLocation): Promise<void> {
-    const prev = await this.store.getReadingState(editionId)
-    await this.store.putReadingState({
-      editionId,
-      lastReadAt: Date.now(),
-      lastLocation: location,
-      totalReadMs: prev?.totalReadMs ?? 0
-    })
+    // ⚠ 时长只由 appendReadingSession 累加；这里若整行写回 totalReadMs 会与累加路径竞态丢时长
+    await this.store.updateReadingLocation(editionId, location, Date.now())
   }
 
   /**

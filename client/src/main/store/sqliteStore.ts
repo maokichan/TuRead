@@ -648,22 +648,17 @@ export class SqliteStore {
     return state
   }
 
-  async putReadingState(state: ReadingState): Promise<void> {
+  /** 只更新位置与最后阅读时间；`total_read_ms` 的唯一写入口是 `appendReadingSession`（端口注释） */
+  async updateReadingLocation(editionId: string, location: BookLocation, lastReadAt: number): Promise<void> {
     this.db
       .prepare(
         `INSERT INTO reading_state (edition_id, last_read_at, last_location, total_read_ms)
-         VALUES (?, ?, ?, ?)
+         VALUES (?, ?, ?, 0)
          ON CONFLICT(edition_id) DO UPDATE SET
            last_read_at = excluded.last_read_at,
-           last_location = excluded.last_location,
-           total_read_ms = excluded.total_read_ms`
+           last_location = excluded.last_location`
       )
-      .run(
-        state.editionId,
-        state.lastReadAt ?? null,
-        state.lastLocation ? JSON.stringify(state.lastLocation) : null,
-        state.totalReadMs ?? 0
-      )
+      .run(editionId, lastReadAt, JSON.stringify(location))
   }
 
   /** 追加一次阅读会话，并**在同一事务里**把时长累进 `reading_state.total_read_ms`（投影不许两处各写各的） */

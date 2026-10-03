@@ -32,6 +32,8 @@ export interface ScanSummary {
   restored: number
   /** 逐条失败（读不动/格式不认识） */
   failed: number
+  /** 每条失败的原因与路径（与 `failed` 同长；日志/诊断用，不进库） */
+  failures: Array<{ path: string; reason: string }>
 }
 
 export interface IScanService {
@@ -60,7 +62,8 @@ export class ScanService implements IScanService {
       reused: 0,
       missing: 0,
       restored: 0,
-      failed: 0
+      failed: 0,
+      failures: []
     }
 
     const before = await this.store.listHoldings(libraryId)
@@ -92,8 +95,10 @@ export class ScanService implements IScanService {
           await this.store.setHoldingMissing(libraryId, res.edition.id, false)
           summary.restored++
         }
-      } catch {
+      } catch (err) {
+        // 与 ImportQueue 的 import-failed 同口径：失败必须带"哪本、为什么"，只给个数字无法排查
         summary.failed++
+        summary.failures.push({ path, reason: (err as Error).message })
       }
     }
 

@@ -133,7 +133,16 @@ export class WsNetAdapter extends TypedEmitter<NetServiceEvents> {
     } else if (options.responseType === 'text') {
       data = await res.text()
     } else {
-      data = await res.json().catch(() => null)
+      // 先取原始文本再 parse：解析失败时错误里保留真实响应（HTML 错误页/网关信息），
+      // 不再把 null 伪装成 T 往下传（下游只会看到"失敗：null"，真实原因被吞）。
+      const raw = await res.text()
+      try {
+        data = raw === '' ? undefined : JSON.parse(raw)
+      } catch {
+        throw new Error(
+          `响应不是 JSON（HTTP ${res.status}）：${raw.slice(0, 200) || '<空响应体>'}`
+        )
+      }
     }
 
     return { status: res.status, ok: res.ok, data: data as T }

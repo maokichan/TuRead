@@ -14,6 +14,7 @@
  */
 import { useEffect, useRef } from 'react'
 import type { ChatMessage } from '@core/domain/types'
+import { paintVeil as paintVeilImpl } from './veil'
 
 interface ChatPanelProps {
   messages: ChatMessage[]
@@ -28,9 +29,6 @@ interface ChatPanelProps {
   draft: string
   onDraftChange: (text: string) => void
 }
-
-/** 遮罩衰减半径（px）：与目录/参数同一口径 */
-const VEIL_FALLOFF = 110
 
 /** unix 秒 → `HH:MM`（本地时区；聊天里只需要"什么时候说的"） */
 function formatTime(unixSeconds: number): string {
@@ -59,24 +57,9 @@ export function ChatPanel({
     box.scrollTop = box.scrollHeight
   }, [messages])
 
-  /** 遮罩按距离（与 TocPanel / ReaderControls 同一机制：先读矩形、再写变量，读写分离） */
+  /** 遮罩按距离（共享实现见 veil.ts：先读矩形、再写变量，读写分离） */
   const paintVeil = (clientY: number | null): void => {
-    const box = rowsRef.current
-    if (!box) return
-    const items = Array.from(box.querySelectorAll<HTMLElement>('.chat-row'))
-    if (clientY === null) {
-      for (const el of items) el.style.removeProperty('--toc-veil')
-      return
-    }
-    const rest = Number.parseFloat(getComputedStyle(box).getPropertyValue('--toc-veil-rest')) || 0.74
-    const measured = items.map((el) => {
-      const r = el.getBoundingClientRect()
-      return { el, center: r.top + r.height / 2 }
-    })
-    for (const { el, center } of measured) {
-      const near = Math.max(0, 1 - Math.abs(clientY - center) / VEIL_FALLOFF)
-      el.style.setProperty('--toc-veil', (rest * (1 - near)).toFixed(3))
-    }
+    paintVeilImpl(rowsRef.current, { selector: '.chat-row', veilVar: '--toc-veil', restVars: ['--toc-veil-rest'] }, clientY)
   }
 
   const submit = (): void => {

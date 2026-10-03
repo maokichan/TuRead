@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { activeTocIndex, centerInScrollBox, type TocRow } from './readerFollow'
+import { paintVeil as paintVeilImpl } from './veil'
 
 /** 目录行形状定义在 `readerFollow.ts`（纯 `.ts`，测试工程不设 jsx）—— 这里再导出，调用方不必改 */
 export type { TocRow }
@@ -13,9 +14,6 @@ interface TocPanelProps {
   /** 当前阅读位置（章号 = `BookLocation.chapterDocIndex`）：**当前条目自动滚到容器正中**（2026-09-16 用户定） */
   activeChapter?: number
 }
-
-/** 遮罩衰减半径（px）：鼠标距离条目中心超过它 → 完全盖上 */
-const VEIL_FALLOFF = 110
 
 /**
  * 目录垂挂列表（挂载线实体的顶部挂件，线本体在 `ReaderRail`）。
@@ -66,23 +64,7 @@ export function TocPanel({
    * `clientY === null` = 鼠标离开列表 → 清掉内联值，全部回到静息。
    */
   const paintVeil = (clientY: number | null): void => {
-    const box = rowsRef.current
-    if (!box) return
-    const items = Array.from(box.querySelectorAll<HTMLElement>('.toc-row'))
-    if (clientY === null) {
-      for (const el of items) el.style.removeProperty('--toc-veil')
-      return
-    }
-    const rest = Number.parseFloat(getComputedStyle(box).getPropertyValue('--toc-veil-rest')) || 0.74
-    const measured = items.map((el) => {
-      const r = el.getBoundingClientRect()
-      return { el, center: r.top + r.height / 2 }
-    })
-    for (const { el, center } of measured) {
-      const near = Math.max(0, 1 - Math.abs(clientY - center) / VEIL_FALLOFF)
-      // near=1（正中）→ 0；near=0（够远）→ rest（保持静息，不加深）
-      el.style.setProperty('--toc-veil', (rest * (1 - near)).toFixed(3))
-    }
+    paintVeilImpl(rowsRef.current, { selector: '.toc-row', veilVar: '--toc-veil', restVars: ['--toc-veil-rest'] }, clientY)
   }
 
   return (

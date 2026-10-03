@@ -11,6 +11,7 @@ import type {
   BookContainer,
   BookFingerprint,
   BookFormat,
+  BookLocation,
   EditionRecord,
   Holding,
   LibraryEntry,
@@ -169,7 +170,12 @@ export interface ILibraryStore {
 
   // ————— 阅读状态 / 阅读时间（③ 的落点）—————
   getReadingState(editionId: string): Promise<ReadingState | null>
-  putReadingState(state: ReadingState): Promise<void>
+  /**
+   * 记录阅读位置与最后阅读时间。⚠ **只动 `lastReadAt` / `lastLocation`，绝不动 `totalReadMs`** ——
+   * 时长的唯一写入口是 `appendReadingSession`（事务内累加）。若这里允许整行覆盖，
+   * 与累加路径并发交错时会静默丢会话时长（读-改-写竞态）。
+   */
+  updateReadingLocation(editionId: string, location: BookLocation, lastReadAt: number): Promise<void>
   appendReadingSession(session: Omit<ReadingSession, 'id'>): Promise<void>
   /**
    * 按 work 汇总阅读时长（**逐 edition 记录、按 work 汇总是查询口径**，DATA_MODEL §6.1）——

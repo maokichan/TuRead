@@ -79,6 +79,7 @@ export function ReaderFeature({
   const [reopenTick, setReopenTick] = useState(0)
   /** 沉浸全屏状态（跟随 main 广播的真实状态；切换经 win:* IPC，Shell 镶边级例外，同 TitleBar） */
   const [fullscreen, setFullscreen] = useState(false)
+  const fullscreenRef = useRef(false)
   /** 进入阅读器自动全屏（设置开关，默认关；appearance.readerFullscreen，SettingsFeature 写） */
   const autoFullscreenRef = useRef(false)
   const paramsRef = useRef<ReaderParams>(DEFAULT_READER_PARAMS)
@@ -327,7 +328,9 @@ export function ReaderFeature({
       if (cancelled) return
       notesRef.current = list
       setNotes(list)
-      void container.render.renderHighlighters(list)
+      container.render
+        .renderHighlighters(list)
+        .catch((err) => host.pushLog(`回顯筆記失敗：${(err as Error).message}`))
       // 笔记载入完成 = 消费"带目标打开"的第 ② 个时机（见上面 pendingReveal 注释）
       tryRevealPending()
     })
@@ -339,7 +342,9 @@ export function ReaderFeature({
   // 每渲染完一章 → 回显该章高亮（约束①；适配器内部按当前节过滤）
   useEffect(() => {
     return container.render.on('rendered', () => {
-      void container.render.renderHighlighters(notesRef.current)
+      container.render
+        .renderHighlighters(notesRef.current)
+        .catch((err) => host.pushLog(`回顯筆記失敗：${(err as Error).message}`))
       tryRevealPending()
     })
   }, [container, tryRevealPending])
@@ -546,7 +551,10 @@ export function ReaderFeature({
         setTocOpen(true)
         host.pushLog(`已打开：${latest.metadata.title}（目录 ${rows.length} 项）`)
       } catch (err) {
-        host.pushLog(`打开失败：${(err as Error).message}`)
+        // 换书/关书时旧 open 被代次守卫作废 = 预期取消，不是失败（适配器口径见 kookitRenderAdapter.open）
+        if (!(err as Error).message.includes('[render] open superseded')) {
+          host.pushLog(`打开失败：${(err as Error).message}`)
+        }
       } finally {
         if (!cancelled) setOpening(false)
       }
@@ -565,6 +573,7 @@ export function ReaderFeature({
   // - main 在 enter/leave-full-screen 时广播真实状态，这里只订阅跟随。
   useEffect(() => {
     const off = window.turead.subscribe(IPC.winFullScreenChanged, (payload) => {
+      fullscreenRef.current = payload === true
       setFullscreen(payload === true)
     })
     return off
@@ -578,10 +587,16 @@ export function ReaderFeature({
       })
   }, [container])
 
+  // 进入阅读器 = 进入全屏（只在"进入"这一跳触发）。⚠ 依赖里没有 `fullscreen`：
+  // 若把它放进来，Esc 退全屏的广播会让本 effect 重跑、把用户刚退出的全屏又顶回去。
   useEffect(() => {
     if (activeFeature === 'reader' && readerBookId && autoFullscreenRef.current) {
       void window.turead.invoke(IPC.winSetFullScreen, true)
-    } else if (activeFeature !== 'reader') {
+    }
+  }, [activeFeature, readerBookId])
+
+  useEffect(() => {
+    if (activeFeature !== 'reader') {
       /**
        * 离开阅读器：先退出全屏。⚠ **若离开时正处于沉浸全屏，窗口保持"大"（最大化）而不是回到小窗口**
        * （用户 2026-09-16 定："如果进入阅读器，且状态是F11的话，那么即便退出窗口也应该最大化"）——
@@ -589,11 +604,11 @@ export function ReaderFeature({
        * 顺序与竞态都在主进程处理（全屏未落地时挂到 leave-full-screen 上再最大化，见 main 的
        * `win:set-maximized`）。
        */
-      const wasFullscreen = fullscreen
+      const wasFullscreen = fullscreenRef.current
       void window.turead.invoke(IPC.winSetFullScreen, false)
       if (wasFullscreen) void window.turead.invoke(IPC.winSetMaximized, true)
     }
-  }, [activeFeature, readerBookId, fullscreen])
+  }, [activeFeature])
 
   // 激活到阅读器时热更新主题（设置里改主题后返回阅读器不重开书也生效，STYLE.md §3.4）
   useEffect(() => {

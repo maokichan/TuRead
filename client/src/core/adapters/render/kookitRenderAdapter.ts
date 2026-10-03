@@ -106,11 +106,11 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     this.lastLocation = options?.lastLocation ?? null
     const [Kookit, buffer] = await Promise.all([loadKookit(), this.readFile(record.filePath)])
     if (token !== this.openToken) {
-      // 代次守卫命中：这次 open 已被更晚的 open/close 作废。**静默返回**是调用方无法区分的
-      // "成功 / 什么都没发生"（TODO「适配器方法静默 no-op」）；至少让它留下痕迹，
-      // 便于定位"重开书偶发空白"（2026-09-11 dev 自检观察到间歇性 恢复=失败）。
-      console.warn(`[render] open 作废（代次守卫）：${record.filePath}`)
-      return
+      // 代次守卫命中：这次 open 已被更晚的 open/close 作废。**reject 而非静默 resolve**——
+      // 静默返回让调用方无法区分"成功 / 什么都没发生"（TODO「适配器方法静默 no-op」销案口径），
+      // 也是"重开书偶发空白"（2026-09-11 dev 自检观察到间歇性 恢复=失败）难定位的根源。
+      // 错误消息带固定前缀 `[render] open superseded`，调用方可识别并按"预期取消"处理。
+      throw new Error(`[render] open superseded（已被更新的 open/close 作废）：${record.filePath}`)
     }
     const config = this.toKookitConfig(record.format, options)
     // TXT 的渲染路径要求调用方提供编码（kookit TxtRender `new TextDecoder(config.charset)`，
@@ -384,20 +384,24 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
         `[render] createNote 缺少引擎载荷（engine fragment）：note=${note.id} chapter=${chapterIndex}`
       )
     }
+    // 先取引擎再登记章节（requireRendition 抛错时不污染 noteChapters）
+    const rendition = this.requireRendition('createNote')
     this.noteChapters.set(note.id, chapterIndex)
-    await this.rendition?.createOneNote(this.toKookitNote(note), this.onNoteClick)
+    await rendition.createOneNote(this.toKookitNote(note), this.onNoteClick)
   }
 
   async removeNote(noteId: string): Promise<void> {
+    const rendition = this.requireRendition('removeNote')
     // 用【笔记自身】所属的渲染节号：kookit removeOneNote(key, chapterDocIndex) 会在该节内查找。
     // 早期实现拿"当前所在章节"，跨章节删除会找不到/删错（笔记功能落地前先修掉这颗雷）。
     const chapterDocIndex =
       this.noteChapters.get(noteId) ?? normalizeLocation(this.getPosition()).chapterDocIndex
-    await this.rendition?.removeOneNote(noteId, chapterDocIndex)
+    await rendition.removeOneNote(noteId, chapterDocIndex)
     this.noteChapters.delete(noteId)
   }
 
   async renderHighlighters(notes: Note[]): Promise<void> {
+    const rendition = this.requireRendition('renderHighlighters')
     for (const n of notes) {
       this.noteChapters.set(n.id, n.anchor.norm.chapterIndex)
     }
@@ -417,7 +421,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     if (renderable.length === 0) return
     // ③ 传**拷贝**：kookit `renderHighlighters` 内部 `notes.reverse()` 是原地修改入参，
     //    直接传调用方数组会把 store/Feature 持有的顺序改掉。
-    await this.rendition?.renderHighlighters(
+    await rendition.renderHighlighters(
       renderable.map((n) => this.toKookitNote(n)),
       this.onNoteClick
     )
@@ -474,8 +478,19 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     const n = normalizeAnchor(anchor)
     await rendition.goToChapterDocIndex(n.norm.chapterIndex)
     if (opts?.revealNoteId) {
-      // goToChapterDocIndex 内部异步渲染 → 等本章落定再找元素（找不到就只到章级，不报错）
-      await new Promise((r) => window.setTimeout(r, 120))
+      // goToChapterDocIndex 内部异步渲染 → 等 rendered 事件再找元素（固定 sleep 在慢机器/
+      // 大章节上会不够，精确落点静默失效）。兜底超时防悬挂：同章重导航等场景可能不再发事件。
+      await new Promise<void>((resolve) => {
+        const off = this.on('rendered', () => {
+          clearTimeout(timer)
+          off()
+          resolve()
+        })
+        const timer = window.setTimeout(() => {
+          off()
+          resolve()
+        }, 1500)
+      })
       const el = rendition
         .getDocument()
         ?.querySelector(`.kookit-note[data-key="${CSS.escape(opts.revealNoteId)}"]`)
@@ -607,15 +622,27 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     const off = this.hostOffset(
       (me.target as Node | null)?.ownerDocument ?? this.rendition?.getDocument() ?? null
     )
-    // 选区锚点：右键时若仍有选区 → 可用于"新建"；点在笔记上时通常无选区（单击已清空）
-    void this.getSelectionAnchor().then((anchor) => {
-      this.emit('context-menu', {
-        x: off.x + me.clientX,
-        y: off.y + me.clientY,
-        anchor,
-        noteId
+    // 选区锚点：右键时若仍有选区 → 可用于"新建"；点在笔记上时通常无选区（单击已清空）。
+    // getSelectionAnchor 内部走引擎解算，换章/文档销毁瞬间会抛 → 必须接住，否则
+    // unhandled rejection 且右键菜单静默不弹（失败时降级为无锚点菜单，位置仍正确）。
+    this.getSelectionAnchor()
+      .then((anchor) => {
+        this.emit('context-menu', {
+          x: off.x + me.clientX,
+          y: off.y + me.clientY,
+          anchor,
+          noteId
+        })
       })
-    })
+      .catch((err) => {
+        console.warn('[render] 右键取选区锚点失败，降级为无锚点菜单：', err)
+        this.emit('context-menu', {
+          x: off.x + me.clientX,
+          y: off.y + me.clientY,
+          anchor: null,
+          noteId
+        })
+      })
   }
 
   /**
@@ -640,7 +667,14 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   }
 
   private async emitSelectionAnchor(): Promise<void> {
-    const anchor = await this.getSelectionAnchor()
+    let anchor: TextAnchor | null
+    try {
+      anchor = await this.getSelectionAnchor()
+    } catch (err) {
+      // 换章/文档销毁瞬间引擎解算会抛：选区已不存在，按"无选区"上报而非 unhandled rejection
+      console.warn('[render] 选区锚点解算失败（按无选区处理）：', err)
+      anchor = null
+    }
     if (!anchor) {
       this.emit('selection-changed', null)
       return

@@ -46,6 +46,8 @@ import { LibraryToolbar } from '../../components/LibraryToolbar'
 import { useVirtualRange } from '../../components/useVirtualRange'
 
 const DEFAULT_SETTINGS: LibrarySettings = { view: 'list', importRecursive: false }
+/** 检索防抖（STYLE.md §5.10 纪律③，与 NotesFeature 同值同口径） */
+const QUERY_DEBOUNCE_MS = 200
 
 /** 当前层级的条目：書箱（自建）/ 文件夹（映射库）/ 书；書箱与文件夹外观同书籍（ContainerItem） */
 type LevelItem =
@@ -410,7 +412,13 @@ export function LibraryFeature({
       const parts = [`掃描 ${s.found} 本`, `新增 ${s.added}`, `已在庫 ${s.reused}`]
       if (s.missing > 0) parts.push(`來源缺失 ${s.missing}`)
       if (s.restored > 0) parts.push(`已恢復 ${s.restored}`)
-      if (s.failed > 0) parts.push(`讀取失敗 ${s.failed}`)
+      if (s.failed > 0) {
+        parts.push(`讀取失敗 ${s.failed}`)
+        // 逐条原因进诊断日志（最多 5 条，防刷屏；全量见扫描完成后的库状态）
+        for (const f of s.failures.slice(0, 5)) {
+          host.pushLog(`掃描失敗：${f.path} —— ${f.reason}`)
+        }
+      }
       host.pushLog(parts.join('，'))
     } catch (err) {
       host.pushLog(`掃描失敗：${(err as Error).message}`)
@@ -740,8 +748,15 @@ export function LibraryFeature({
 
   const detailBook = books.find((b) => b.id === detailId) ?? null
 
-  // 书库搜索（标题栏搜索栏）：标题/路径包含即命中，过滤当前层的书（書箱/文件夹不参与过滤）
-  const q = libraryQuery.trim().toLowerCase()
+  // 书库搜索（标题栏搜索栏）：标题/路径包含即命中，过滤当前层的书（書箱/文件夹不参与过滤）。
+  // 检索防抖 ~200ms（STYLE.md §5.10 纪律③，与 NotesFeature 同款）：标题栏逐键 setState，
+  // 不防抖就是"每字符一次过滤 + 可视区全量重渲染"。
+  const [debouncedLibraryQuery, setDebouncedLibraryQuery] = useState(libraryQuery)
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedLibraryQuery(libraryQuery), QUERY_DEBOUNCE_MS)
+    return () => window.clearTimeout(t)
+  }, [libraryQuery])
+  const q = debouncedLibraryQuery.trim().toLowerCase()
   const visibleBooks =
     q.length > 0
       ? books.filter(
@@ -899,7 +914,7 @@ export function LibraryFeature({
             </p>
           ) : q.length > 0 && visibleBooks.length === 0 ? (
             <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
-              没有匹配「{libraryQuery.trim()}」的书
+              没有匹配「{debouncedLibraryQuery.trim()}」的书
             </p>
           ) : view === 'grid' ? (
             <div

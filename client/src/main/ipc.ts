@@ -12,6 +12,7 @@ import { EBOOK_EXTENSIONS, IPC } from '@shared/ipc'
 import type { HttpRequestOptions } from '@core/ports/net'
 import type {
   BookFingerprint,
+  BookLocation,
   EditionRecord,
   Holding,
   LibraryEntry,
@@ -106,8 +107,10 @@ export function registerIpc(
   ipcMain.handle(IPC.storeGetReadingState, (_e, editionId: string) =>
     store().getReadingState(editionId)
   )
-  ipcMain.handle(IPC.storePutReadingState, (_e, state: ReadingState) =>
-    store().putReadingState(state)
+  ipcMain.handle(
+    IPC.storeUpdateReadingLocation,
+    (_e, p: { editionId: string; location: BookLocation; lastReadAt: number }) =>
+      store().updateReadingLocation(p.editionId, p.location, p.lastReadAt)
   )
   ipcMain.handle(IPC.storeAppendReadingSession, (_e, s: Omit<ReadingSession, 'id'>) =>
     store().appendReadingSession(s)

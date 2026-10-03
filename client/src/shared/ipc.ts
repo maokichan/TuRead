@@ -38,7 +38,7 @@ export const IPC = {
   storeRemoveCover: 'store:remove-cover',
   // ————— 阅读状态 / 阅读时间（③ 的落点）—————
   storeGetReadingState: 'store:get-reading-state',
-  storePutReadingState: 'store:put-reading-state',
+  storeUpdateReadingLocation: 'store:update-reading-location',
   storeAppendReadingSession: 'store:append-reading-session',
   storeTotalReadMsByWork: 'store:total-read-ms-by-work',
   storeGetLastReadEdition: 'store:get-last-read-edition',

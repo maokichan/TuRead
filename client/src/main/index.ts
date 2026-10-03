@@ -59,7 +59,13 @@ function ensureParseWindow(): BrowserWindow {
 
 function registerMetadataRelay(): void {
   ipcMain.handle(IPC.metadataParseRequest, (e, job: { jobId: string; path: string; format: string }) => {
-    if (!job?.jobId || !job.path) return
+    if (!job?.jobId) return
+    if (!job.path) {
+      // 畸形任务必须立即回错误：请求方（OffscreenMetadataExtractor）挂着 pending，
+      // 静默丢弃 = 干等 60s 超时且无任何线索。
+      e.sender.send(IPC.metadataParseResult, { jobId: job.jobId, error: '解析任务缺少 path' })
+      return
+    }
     parsePending.set(job.jobId, { sender: e.sender, job })
     if (parseReady && parseWindow && !parseWindow.isDestroyed()) {
       parseWindow.webContents.send(IPC.metadataParseJob, job)

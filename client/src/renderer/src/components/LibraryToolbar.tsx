@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { LibraryView } from '@core/domain/types'
+import { useViewSwitchFlash } from './viewSwitchFlash'
 
 interface LibraryToolbarProps {
   view: LibraryView
@@ -34,11 +35,6 @@ interface LibraryToolbarProps {
 /** 视图名（繁体，配源流明体字栈）：按钮显示的是**当前**视图 */
 const VIEW_LABEL: Record<LibraryView, string> = { list: '列表', grid: '網格' }
 
-/** 动画总时长（与 styles.css 的 `view-switch-flash` 一致）：动画期间按钮禁用 */
-const VIEW_SWITCH_MS = 900
-/** 文字替换时刻 = 动画 50%（"新文字从深色块里浮出"） */
-const VIEW_SWITCH_SWAP_MS = 450
-
 /**
  * 书库底部状态栏（纯展示）：**左** = 视图切换（单个文字按钮），**右** = 导入 + 書庫（文字按钮）。
  *
@@ -60,32 +56,14 @@ export function LibraryToolbar({
   scanning,
   crumbs
 }: LibraryToolbarProps): React.JSX.Element {
-  const [flashing, setFlashing] = useState(false)
-  /** 按钮上显示的文字（跟随动画节奏，落后于 view 约 260ms） */
-  const [shown, setShown] = useState<LibraryView>(view)
-  const timers = useRef<number[]>([])
-
-  useEffect(() => {
-    if (!flashing) setShown(view)
-  }, [view, flashing])
-
-  useEffect(
-    () => () => {
-      timers.current.forEach((t) => window.clearTimeout(t))
-    },
-    []
+  /** 共享动画状态机（viewSwitchFlash.ts，与 NotesToolbar 同款） */
+  const { flashing, shown, toggle } = useViewSwitchFlash<LibraryView>(
+    view,
+    (v) => (v === 'list' ? 'grid' : 'list')
   )
 
   const toggleView = (): void => {
-    if (flashing) return // 动画期间不可点（按钮已 disabled，这里再挡一次）
-    const next: LibraryView = view === 'list' ? 'grid' : 'list'
-    onViewChange(next)
-    setFlashing(true)
-    timers.current.forEach((t) => window.clearTimeout(t))
-    timers.current = [
-      window.setTimeout(() => setShown(next), VIEW_SWITCH_SWAP_MS),
-      window.setTimeout(() => setFlashing(false), VIEW_SWITCH_MS + 60)
-    ]
+    onViewChange(toggle())
   }
 
   return (

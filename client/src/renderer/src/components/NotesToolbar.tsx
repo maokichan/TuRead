@@ -9,8 +9,8 @@
  *
  * ⚠ 计数与书库"不显示书目数量"**不同**：这是**筛选器的必要反馈**（"筛出来多少条"），不是装饰统计。
  */
-import { useEffect, useRef, useState } from 'react'
 import type { NoteFilter, NoteTextFocus, NoteView } from '@core/domain/types'
+import { useViewSwitchFlash } from './viewSwitchFlash'
 
 export interface NotesToolbarProps {
   view: NoteView
@@ -32,10 +32,6 @@ const FILTER_LABEL: Record<NoteFilter, string> = { annotated: '批註', highligh
 const FOCUS_LABEL: Record<NoteTextFocus, string> = { body: '批註為主', excerpt: '摘錄為主' }
 const SCOPE_LABEL: Record<'library' | 'all', string> = { library: '當前庫', all: '全部庫' }
 
-/** 与 styles.css 的 `view-switch-flash` 一致（动画期间按钮禁用，防连点） */
-const FLASH_MS = 900
-const FLASH_SWAP_MS = 450
-
 export function NotesToolbar({
   view,
   filter,
@@ -48,32 +44,15 @@ export function NotesToolbar({
   onToggleFocus,
   onToggleScope
 }: NotesToolbarProps): React.JSX.Element {
-  const [flashing, setFlashing] = useState(false)
-  /** 按钮文字跟随动画节奏（约 42% 处替换，让"新文字从深色块里浮出"） */
-  const [shown, setShown] = useState<NoteView>(view)
-  const timers = useRef<number[]>([])
-
-  useEffect(() => {
-    if (!flashing) setShown(view)
-  }, [view, flashing])
-
-  useEffect(
-    () => () => {
-      timers.current.forEach((t) => window.clearTimeout(t))
-    },
-    []
+  /** 共享动画状态机（viewSwitchFlash.ts，与 LibraryToolbar 同款） */
+  const { flashing, shown, toggle } = useViewSwitchFlash<NoteView>(
+    view,
+    (v) => (v === 'masonry' ? 'grid' : 'masonry')
   )
 
   const toggleView = (): void => {
-    if (flashing) return
-    const next: NoteView = view === 'masonry' ? 'grid' : 'masonry'
+    toggle()
     onToggleView()
-    setFlashing(true)
-    timers.current.forEach((t) => window.clearTimeout(t))
-    timers.current = [
-      window.setTimeout(() => setShown(next), FLASH_SWAP_MS),
-      window.setTimeout(() => setFlashing(false), FLASH_MS + 60)
-    ]
   }
 
   /** 层级在「劃線」筛选下没有意义（都是无批注的条目）→ 禁用 */

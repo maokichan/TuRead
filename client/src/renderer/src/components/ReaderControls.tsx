@@ -1,7 +1,5 @@
 import { useRef } from 'react'
-
-/** 遮罩衰减半径（px）：与 TocPanel 同一口径 */
-const VEIL_FALLOFF = 110
+import { paintVeil as paintVeilImpl } from './veil'
 
 /**
  * 阅读参数面板内容（挂载线实体的底部挂件，线本体与开合把手在 `ReaderRail`）——
@@ -100,6 +98,34 @@ const READER_MODES: Option<ReaderModeValue>[] = [
   { value: 'double', label: '雙頁' }
 ]
 
+/** 一行参数：小标签 + 文字选项（选中态 = accent 色温）。
+ * ⚠ 必须**模块级**定义：放在组件体内则每次父级重渲染都是新组件类型，
+ * 六个参数行全部卸载重建（丢 DOM 态、veil span 重建）。 */
+function Row<T>({ label, options, value, onPick }: {
+  label: string
+  options: Option<T>[]
+  value: T
+  onPick: (v: T) => void
+}): React.JSX.Element {
+  return (
+    <section className="reader-controls__field">
+      <span className="reader-controls__label">{label}</span>
+      <div className="reader-controls__options">
+        {options.map((o, i) => (
+          <button
+            key={i}
+            className={`text-action ${o.value === value ? 'text-action--primary' : ''}`}
+            onClick={() => onPick(o.value)}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <span className="reader-controls__veil" aria-hidden="true" />
+    </section>
+  )
+}
+
 interface ReaderControlsProps {
   params: ReaderParams
   onChange: (patch: Partial<ReaderParams>) => void
@@ -123,57 +149,18 @@ export function ReaderControls({
 }: ReaderControlsProps): React.JSX.Element {
   const boxRef = useRef<HTMLDivElement | null>(null)
 
-  /** 遮罩按距离（与 TocPanel.paintVeil 同一机制，读写分离）：近 → 揭开，远 → 静息（--reader-veil-rest） */
+  /** 遮罩按距离（共享实现见 veil.ts）：近 → 揭开，远 → 静息（--reader-veil-rest，缺省回落 --toc-veil-rest） */
   const paintVeil = (clientY: number | null): void => {
-    const box = boxRef.current
-    if (!box) return
-    const items = Array.from(box.querySelectorAll<HTMLElement>('.reader-controls__field'))
-    if (clientY === null) {
-      for (const el of items) el.style.removeProperty('--reader-veil')
-      return
-    }
-    const rest =
-      Number.parseFloat(getComputedStyle(box).getPropertyValue('--reader-veil-rest')) ||
-      Number.parseFloat(getComputedStyle(box).getPropertyValue('--toc-veil-rest')) ||
-      0.74
-    const measured = items.map((el) => {
-      const r = el.getBoundingClientRect()
-      return { el, center: r.top + r.height / 2 }
-    })
-    for (const { el, center } of measured) {
-      const near = Math.max(0, 1 - Math.abs(clientY - center) / VEIL_FALLOFF)
-      el.style.setProperty('--reader-veil', (rest * (1 - near)).toFixed(3))
-    }
+    paintVeilImpl(
+      boxRef.current,
+      {
+        selector: '.reader-controls__field',
+        veilVar: '--reader-veil',
+        restVars: ['--reader-veil-rest', '--toc-veil-rest']
+      },
+      clientY
+    )
   }
-
-  /** 一行参数：小标签 + 文字选项（选中态 = accent 色温） */
-  const Row = <T,>({
-    label,
-    options,
-    value,
-    onPick
-  }: {
-    label: string
-    options: Option<T>[]
-    value: T
-    onPick: (v: T) => void
-  }): React.JSX.Element => (
-    <section className="reader-controls__field">
-      <span className="reader-controls__label">{label}</span>
-      <div className="reader-controls__options">
-        {options.map((o, i) => (
-          <button
-            key={i}
-            className={`text-action ${o.value === value ? 'text-action--primary' : ''}`}
-            onClick={() => onPick(o.value)}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
-      <span className="reader-controls__veil" aria-hidden="true" />
-    </section>
-  )
 
   return (
     <div

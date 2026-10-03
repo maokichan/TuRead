@@ -16,6 +16,7 @@ import type {
 import type {
   BookContainer,
   BookFingerprint,
+  BookLocation,
   EditionRecord,
   Holding,
   LibraryEntry,
@@ -130,8 +131,8 @@ export class IpcStoreAdapter implements ILibraryStore {
     return (await this.bridge.invoke(IPC.storeGetReadingState, editionId)) as ReadingState | null
   }
 
-  async putReadingState(state: ReadingState): Promise<void> {
-    await this.bridge.invoke(IPC.storePutReadingState, state)
+  async updateReadingLocation(editionId: string, location: BookLocation, lastReadAt: number): Promise<void> {
+    await this.bridge.invoke(IPC.storeUpdateReadingLocation, { editionId, location, lastReadAt })
   }
 
   async appendReadingSession(session: Omit<ReadingSession, 'id'>): Promise<void> {
