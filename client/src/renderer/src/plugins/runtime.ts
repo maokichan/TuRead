@@ -12,7 +12,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { IPC } from '@shared/ipc'
-import type { PluginManifest } from '@shared/plugin'
+import type { PluginManifest, PluginReaderContext } from '@shared/plugin'
 import type { ServiceContainer } from '@core/container'
 import { pushLog } from '../features/logStore'
 
@@ -21,8 +21,10 @@ export interface PluginPanel {
   key: `plugin:${string}`
   label: string
   title: string
+  /** true = 进房间时让位（该格被房间聊天占用，用户已定 AI 与聊天互斥） */
+  hideWhenInRoom: boolean
   /** 挂载：宿主给内容区元素；返回清理函数（卸载时调用）；`signal` 在收起/卸载/禁用时 abort */
-  mount: (el: HTMLElement, ctx: { signal: AbortSignal }) => void | (() => void)
+  mount: (el: HTMLElement, ctx: { signal: AbortSignal; reader?: PluginReaderContext }) => void | (() => void)
 }
 
 /** 设置页「插件」分组的一行 */
@@ -72,14 +74,15 @@ export function usePluginPanels(): PluginPanel[] {
   return usePluginState().panels
 }
 
-/** 组装一个插件的宿主 API（CONTRACTS §9.2）。panels 由本模块持有，activate 注册进来的都进注册表 */
+/** 组装一个插件的宿主 API（CONTRACTS §9.2 + v1.1 通用能力）。panels 由本模块持有 */
 function makeApi(manifest: PluginManifest, container: ServiceContainer, panels: PluginPanel[]) {
   return {
     registerPanel(panel: {
       id: string
       label: string
       title?: string
-      mount: (el: HTMLElement, ctx: { signal: AbortSignal }) => void | (() => void)
+      hideWhenInRoom?: boolean
+      mount: (el: HTMLElement, ctx: { signal: AbortSignal; reader?: PluginReaderContext }) => void | (() => void)
     }): void {
       if (!panel || typeof panel.id !== 'string' || typeof panel.mount !== 'function') {
         pushLog(`插件 ${manifest.id} 注册了无效的面板（缺 id 或 mount），已忽略`)
@@ -89,8 +92,35 @@ function makeApi(manifest: PluginManifest, container: ServiceContainer, panels: 
         key: `plugin:${manifest.id}:${panel.id}`,
         label: panel.label,
         title: panel.title ?? panel.label,
+        hideWhenInRoom: panel.hideWhenInRoom === true,
         mount: panel.mount
       })
+    },
+    /** 联网代理（https-only；主进程校验 + 超时 + 体积上限）——CSP 不为此开口 */
+    net: {
+      async fetch(
+        url: string,
+        init?: { method?: string; headers?: Record<string, string>; body?: string }
+      ): Promise<{ status: number; ok: boolean; contentType: string; body: string }> {
+        return (await window.turead.invoke(IPC.pluginsNetFetch, { url, init })) as {
+          status: number
+          ok: boolean
+          contentType: string
+          body: string
+        }
+      }
+    },
+    /** 密钥保险库（safeStorage 系统级加密；落库是密文，明文只在取用瞬间回到插件手里） */
+    secrets: {
+      set(name: string, value: string): Promise<void> {
+        return window.turead.invoke(IPC.pluginsSecretSet, { pluginId: manifest.id, name, value }) as Promise<void>
+      },
+      get(name: string): Promise<string> {
+        return window.turead.invoke(IPC.pluginsSecretGet, { pluginId: manifest.id, name }) as Promise<string>
+      },
+      delete(name: string): Promise<void> {
+        return window.turead.invoke(IPC.pluginsSecretDelete, { pluginId: manifest.id, name }) as Promise<void>
+      }
     },
     storage: {
       async get<T>(key: string, fallback: T): Promise<T> {

@@ -228,7 +228,7 @@ void app.whenReady().then(async () => {
     process.env['ELECTRON_RENDERER_URL']
       ? join(app.getAppPath(), 'plugins')
       : join(process.resourcesPath, 'plugins')
-  ])
+  ], libraries.store)
   await plugins.seed()
 
   registerIpc(net, libraries, plugins, (channel, payload) => {

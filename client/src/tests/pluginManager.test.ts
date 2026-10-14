@@ -9,6 +9,12 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { PluginManager } from '../main/plugins'
 
+/** 假 settings 句柄（PluginManager 的第三个构造参数；这些用例不碰密钥，内存版即可） */
+const fakeStore = {
+  getSetting: async <T,>(_key: string, fallback: T): Promise<T> => fallback,
+  setSetting: async (): Promise<void> => {}
+}
+
 /** 在 dir 下造一个最小合法插件 */
 function makePlugin(dir: string, id: string, entry = 'main.mjs'): void {
   mkdirSync(dir, { recursive: true })
@@ -25,7 +31,7 @@ describe('PluginManager', () => {
     const bundled = join(root, 'bundled')
     makePlugin(join(bundled, 'clock'), 'clock')
     const runtime = join(root, 'runtime')
-    const mgr = new PluginManager(runtime, [bundled])
+    const mgr = new PluginManager(runtime, [bundled], fakeStore)
     await mgr.seed()
     expect(existsSync(join(runtime, 'clock', 'plugin.json'))).toBe(true)
     // 用户改过运行时副本 → 再种子不覆盖
@@ -37,7 +43,7 @@ describe('PluginManager', () => {
 
   it('seed：首发目录不存在 = 正常态（不报错）', async () => {
     const root = mkdtempSync(join(tmpdir(), 'turead-plugins-'))
-    const mgr = new PluginManager(join(root, 'runtime'), [join(root, 'no-such-dir')])
+    const mgr = new PluginManager(join(root, 'runtime'), [join(root, 'no-such-dir')], fakeStore)
     await expect(mgr.seed()).resolves.toBeUndefined()
   })
 
@@ -47,7 +53,7 @@ describe('PluginManager', () => {
     mkdirSync(join(root, 'broken'), { recursive: true })
     writeFileSync(join(root, 'broken', 'plugin.json'), '{ 不是 JSON')
     makePlugin(join(root, 'mismatch'), 'other')
-    const mgr = new PluginManager(root, [])
+    const mgr = new PluginManager(root, [], fakeStore)
     const list = await mgr.list()
     expect(list.map((p) => p.id)).toEqual(['clock'])
   })
@@ -60,13 +66,13 @@ describe('PluginManager', () => {
       join(root, 'evil', 'plugin.json'),
       JSON.stringify({ id: 'evil', name: 'x', version: '0.0.0', entry: '../clock/main.mjs' })
     )
-    const mgr = new PluginManager(root, [])
+    const mgr = new PluginManager(root, [], fakeStore)
     await expect(mgr.readEntry('nope')).rejects.toThrow('未知插件')
     const list = await mgr.list()
     expect(list.map((p) => p.id)).toEqual(['clock']) // evil 的 .. 入口被 manifest 校验拒掉
     expect(await mgr.readEntry('clock')).toContain('activate')
     // list 之前（无扫描结果）一律拒绝——渲染层传什么都不被采信
-    const fresh = new PluginManager(root, [])
+    const fresh = new PluginManager(root, [], fakeStore)
     await expect(fresh.readEntry('clock')).rejects.toThrow('未知插件')
   })
 })

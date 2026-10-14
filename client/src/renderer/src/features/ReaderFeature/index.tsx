@@ -12,7 +12,7 @@
  * - 目录 = **挂载线 + 垂挂列表**（TocPanel；容器全透明）。
  * - 滚轮在两侧留白上也要能滚 → 纸容器把 wheel 转发给正文列。
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { compareNoteOrder } from '@core/domain/anchor'
 import { isZeroLocation } from '@core/domain/location'
 import type { ResolvedTheme } from '@core/domain/theme'
@@ -27,6 +27,7 @@ import type {
   TextAnchor
 } from '@core/domain/types'
 import type { RenderContextMenuRequest, RenderSelection } from '@core/ports/render'
+import type { PluginReaderContext } from '@shared/plugin'
 import type { FeatureProps } from '../types'
 import type { TocRow } from '../../components/TocPanel'
 import { ReaderRail, type LeftPanelKind, type RightPanelKind } from '../../components/ReaderRail'
@@ -176,6 +177,48 @@ export function ReaderFeature({
       setRightPanel('params')
     }
   }, [pluginPanels, rightPanel])
+
+  /**
+   * 阅读上下文句柄（插件契约 v1.1）：插件格经 `ctx.reader` 拿"此刻在读什么"与溯源跳回。
+   * `snapshot()` 是**拉取式**的——章号/可见文本在调用瞬间取（保证请求发出时是最新位置），
+   * 不随翻页重渲染本组件。
+   */
+  const readerContext = useMemo<PluginReaderContext | undefined>(() => {
+    if (!book) return undefined
+    return {
+      snapshot: () => {
+        const loc = container.render.getPosition()
+        return {
+          editionId: book.id,
+          title: book.metadata.title,
+          format: book.format,
+          chapterCount: toc.length,
+          toc: toc
+            .filter((r) => r.chapterDocIndex !== undefined)
+            .map((r) => ({ label: r.label, chapterDocIndex: r.chapterDocIndex as number })),
+          location: {
+            chapterDocIndex: loc.chapterDocIndex,
+            chapterTitle: loc.chapterTitle,
+            visibleText: loc.text
+          }
+        }
+      },
+      jumpToQuote: async (exact, chapterIndex) => {
+        // 弱锚点路径（同笔记面板）：按引文重锚，失败退回章级直接跳
+        const base = container.render.getPosition()
+        const anchor: TextAnchor = {
+          norm: {
+            chapterIndex: chapterIndex ?? base.chapterDocIndex,
+            progression: 0,
+            quote: { exact, prefix: '', suffix: '' }
+          },
+          fragment: null
+        }
+        const remeasured = await container.render.remeasureAnchor(anchor).catch(() => null)
+        await container.render.resolveAnchor(remeasured ?? anchor)
+      }
+    }
+  }, [book, toc, container])
 
   /**
    * 应用参数到渲染层。分工（`STYLE.md` §5.9）：
@@ -912,6 +955,7 @@ export function ReaderFeature({
           chat={railChat}
           isPdf={book?.format === 'PDF'}
           pluginPanels={pluginPanels}
+          readerContext={readerContext}
         />
       )}
 

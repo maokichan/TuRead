@@ -109,6 +109,13 @@ export function registerIpc(
   // 渲染层只发 id：入口路径按主进程自己的扫描结果解析（信任边界收在 main/plugins.ts）
   ipcMain.handle(IPC.pluginsList, () => plugins.list())
   ipcMain.handle(IPC.pluginsReadEntry, (_e, p: { id?: string }) => plugins.readEntry(p?.id ?? ''))
+  // 插件通用能力（契约 v1.1）：https 代理 + 密钥保险库（safeStorage，落库是密文）
+  ipcMain.handle(IPC.pluginsNetFetch, (_e, p: Parameters<PluginManager['netFetch']>[0]) => plugins.netFetch(p))
+  ipcMain.handle(IPC.pluginsSecretSet, (_e, p: Parameters<PluginManager['secretSet']>[0]) => plugins.secretSet(p))
+  ipcMain.handle(IPC.pluginsSecretGet, (_e, p: Parameters<PluginManager['secretGet']>[0]) => plugins.secretGet(p))
+  ipcMain.handle(IPC.pluginsSecretDelete, (_e, p: Parameters<PluginManager['secretDelete']>[0]) =>
+    plugins.secretDelete(p)
+  )
 
   // ————— 阅读状态 / 阅读时间 —————
   ipcMain.handle(IPC.storeGetReadingState, (_e, editionId: string) =>

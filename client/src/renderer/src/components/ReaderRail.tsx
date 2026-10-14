@@ -24,6 +24,7 @@
  */
 import { useEffect, useRef } from 'react'
 import type { ChatMessage, Note } from '@core/domain/types'
+import type { PluginReaderContext } from '@shared/plugin'
 import type { TocRow } from './TocPanel'
 import { TocPanel } from './TocPanel'
 import { NotesPanel } from './NotesPanel'
@@ -44,12 +45,14 @@ export interface RailChatProps {
   onSend: (text: string) => void
 }
 
-/** 插件面板格（由插件运行时注册，经 ReaderFeature 传入；结构契约 = CONTRACTS §9.2） */
+/** 插件面板格（由插件运行时注册，经 ReaderFeature 传入；结构契约 = CONTRACTS §9.2 + v1.1） */
 export interface RailPluginPanel {
   key: `plugin:${string}`
   label: string
   title?: string
-  mount: (el: HTMLElement, ctx: { signal: AbortSignal }) => void | (() => void)
+  /** true = 进房间时让位（该格被房间聊天占用；AI 的「問」用，時鐘不设） */
+  hideWhenInRoom?: boolean
+  mount: (el: HTMLElement, ctx: { signal: AbortSignal; reader?: PluginReaderContext }) => void | (() => void)
 }
 
 interface ReaderRailProps {
@@ -81,6 +84,8 @@ interface ReaderRailProps {
   isPdf?: boolean
   /** 已启用的插件面板格（v1.13；页签追加在參數/聊天之后，按注册序） */
   pluginPanels?: RailPluginPanel[]
+  /** 阅读上下文句柄（v1.1）：传给插件格的 mount ctx.reader（书未打开时为空） */
+  readerContext?: PluginReaderContext
 }
 
 /** 两格文字开关（左「目錄 / 筆記」与右「參數 / 聊天」共用同一形态与类名） */
@@ -117,24 +122,26 @@ function RailTabs<T extends string>({
 function RailPluginMount({
   panel,
   header,
-  onToggle
+  onToggle,
+  reader
 }: {
   panel: RailPluginPanel
   header: React.JSX.Element | null
   onToggle: () => void
+  reader?: PluginReaderContext
 }): React.JSX.Element {
   const bodyRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     const el = bodyRef.current
     if (!el) return
     const controller = new AbortController()
-    const cleanup = panel.mount(el, { signal: controller.signal })
+    const cleanup = panel.mount(el, { signal: controller.signal, reader })
     return () => {
       controller.abort()
       if (typeof cleanup === 'function') cleanup()
       el.textContent = ''
     }
-  }, [panel])
+  }, [panel, reader])
   return (
     <div className="reader-controls">
       {header}
@@ -171,7 +178,8 @@ export function ReaderRail({
   onRightPanelChange,
   chat,
   isPdf,
-  pluginPanels = []
+  pluginPanels = [],
+  readerContext
 }: ReaderRailProps): React.JSX.Element {
   /**
    * 左挂件顶部的内容开关（目錄 / 筆記）。两格**都是文字**（§5.1），当前格用 `--accent` ——
@@ -197,13 +205,15 @@ export function ReaderRail({
     { kind: 'params', label: '參數', title: '閱讀參數' }
   ]
   if (chat) rightItems.push({ kind: 'chat', label: '聊天', title: `房間 ${chat.roomId}` })
-  for (const p of pluginPanels) {
+  // 插件格：hideWhenInRoom 的（如 AI 的「問」）在房间态让位给聊天（用户已定的互斥）
+  const visiblePluginPanels = pluginPanels.filter((p) => !(p.hideWhenInRoom && chat))
+  for (const p of visiblePluginPanels) {
     rightItems.push({ kind: p.key, label: p.label, title: p.title ?? p.label })
   }
   const rightTabs = rightItems.length > 1 ? <RailTabs items={rightItems} active={rightPanel} onPick={onRightPanelChange} /> : null
 
   const showChat = Boolean(chat) && rightPanel === 'chat'
-  const activePlugin = pluginPanels.find((p) => p.key === rightPanel)
+  const activePlugin = visiblePluginPanels.find((p) => p.key === rightPanel)
 
   // 挂载线右段把手的提示文字 = 当前内容（与左段同口径）
   const rightZoneTitle = controlsOpen ? '收起右欄' : showChat ? '聊天' : (activePlugin?.title ?? '閱讀參數')
@@ -268,7 +278,7 @@ export function ReaderRail({
             onDraftChange={chat.onDraftChange}
           />
         ) : activePlugin ? (
-          <RailPluginMount panel={activePlugin} header={rightTabs} onToggle={onControlsToggle} />
+          <RailPluginMount panel={activePlugin} header={rightTabs} onToggle={onControlsToggle} reader={readerContext} />
         ) : (
           <ReaderControls
             params={params}

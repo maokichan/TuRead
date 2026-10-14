@@ -1,6 +1,6 @@
 # 客户端契约（Client Contracts）
 
-> 状态：**v0.4.5**（当前）—— 版本速览见 §8。分层 = **能力服务（ports）** 与 **应用服务（用例）** 两层。
+> 状态：**v0.4.6**（当前）—— 版本速览见 §8。分层 = **能力服务（ports）** 与 **应用服务（用例）** 两层。
 > 术语：**六边形架构（端口-适配器）为骨架，DDD 命名为层内词汇**，对照表见 `ARCHITECTURE.md` §1。
 > 范围：**仅 client** 的层与接口契约；同步协议（信封/消息集/转发规范）由 server 定义，见 `../../server/docs/API.md`。
 > 迁移：将 1:1 落到 `client/src/core/{domain,ports,usecases}/`。
@@ -957,6 +957,7 @@ interface ServiceContainer {
 
 | 版本 | 主题 |
 |---|---|
+| **v0.4.6** | 插件契约 v1.1：通用能力 `net.fetch`（https 代理）与 `secrets`（safeStorage 保险库）+ 面板 `hideWhenInRoom`（AI 問格与聊天互斥用）+ `ctx.reader` 阅读上下文句柄（快照 + 溯源跳回） |
 | **v0.4.5** | 插件契约（§9）：manifest / `activate(api)` / 挂载线右段面板格注册点（v1 官方专用） |
 | v0.4.4 | 无书成员加入：`joinRoom` 的 `book` 放宽为 `null`（`fingerprint: null`，服务器本就支持） |
 | v0.4.3 | 按房间建连（`connect` 收窄 + `openRoom`/`closeRoom`）+ 聊天历史（`chat-history`/`listMessages`）+ `core/domain/protocol.ts` 协议词汇收拢 |
@@ -1001,10 +1002,26 @@ interface PluginHostApi {
     id: string      // 插件内唯一；页签 key = `plugin:<manifest.id>:<panel.id>`
     label: string   // 页签文字（2~3 个汉字为宜，与「參數 / 聊天」同语汇）
     title?: string  // 悬停提示；缺省用 label
+    /** v1.1：true = 进房间时让位（该格被房间聊天占用——AI 的「問」与聊天互斥，用户定） */
+    hideWhenInRoom?: boolean
     /** 挂载：宿主给出**内容区元素**（几何/页签/开合/滚动外壳都归宿主）。
-     *  返回清理函数（面板卸载时调用）；`ctx.signal` 在面板被收起/卸载/插件禁用时 abort。 */
-    mount(el: HTMLElement, ctx: { signal: AbortSignal }): void | (() => void)
+     *  返回清理函数（面板卸载时调用）；`ctx.signal` 在面板被收起/卸载/插件禁用时 abort；
+     *  `ctx.reader` = 阅读上下文句柄（书未打开时缺省），见 §9.3。 */
+    mount(el: HTMLElement, ctx: { signal: AbortSignal; reader?: PluginReaderContext }): void | (() => void)
   }): void
+  /** v1.1：联网代理——**只许 https**（主进程校验 + 120s 超时 + 20MB 上限）。
+   *  走主进程而不是渲染层直连，CSP 不为此开口；LLM/搜索类 API 全是文本响应。 */
+  net: {
+    fetch(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }):
+      Promise<{ status: number; ok: boolean; contentType: string; body: string }>
+  }
+  /** v1.1：密钥保险库——safeStorage 系统级加密（Windows = DPAPI），**落库是密文**；
+   *  明文只在取用瞬间回到插件手里（渲染层内存），不落盘、不进日志。 */
+  secrets: {
+    set(name: string, value: string): Promise<void>
+    get(name: string): Promise<string>   // 未设置时抛错
+    delete(name: string): Promise<void>
+  }
   /** 插件私有键值（持久化于全局 settings 表的 `plugin:<manifest.id>` 键，原子合并；D9 设置一律全局） */
   storage: {
     get<T>(key: string, fallback: T): Promise<T>
@@ -1020,10 +1037,16 @@ interface PluginHostApi {
 - 插件只能落在**程序定义的位置**上；v1 唯一 UI 位置 = **挂载线右段面板格**。几何、页签、开合、
   滚动外壳全部宿主提供，插件只拿内容区元素；插件内容**不得自创视觉语汇**（STYLE §5.8 红线同样约束插件）。
 - **聊天与插件格的关系**：右段页签序 = 參數 → 聊天（仅房间态）→ 插件格。AI 共读插件落地时
-  「問」与「聊天」**互斥**（用户已定，AI 项目组登记）；其他插件格不受影响。
-- **IPC**（`shared/ipc.ts`）：`plugins:list`（种子后扫描 + 校验，回清单）与 `plugins:read-entry({id})`
-  （回入口源码文本）。⚠ 渲染层**不传路径**——入口路径由主进程按自己的扫描结果解析（信任边界收在主进程）；
-  插件代码经 Blob URL 动态 import，故 CSP `script-src` 放行 `blob:`（边界 = v1 只装官方插件）。
+  「問」与「聊天」**互斥**（`hideWhenInRoom: true`，用户已定）；其他插件格不受影响。
+- **阅读上下文句柄（v1.1，`ctx.reader`）**：`snapshot()` = 拉取式快照（editionId/标题/格式/章数/
+  目录[章节标题 ↔ chapterDocIndex 对照]/当前位置[章号 + 可见文本前 200 字]）——**请求发出前调用**，
+  保证是此刻位置；`jumpToQuote(exact, chapterIndex?)` = 溯源跳回（按引文重锚成弱锚点 → 章级尽力，
+  同笔记面板路径）。宿主实现 = `ReaderFeature`（快照）+ 适配器 `remeasureAnchor`/`resolveAnchor`（跳转）。
+- **IPC**（`shared/ipc.ts`）：`plugins:list`（种子后扫描 + 校验，回清单）、`plugins:read-entry({id})`
+  （回入口源码文本）、`plugins:net-fetch`（https 代理）、`plugins:secret-{set,get,delete}`（保险库）。
+  ⚠ 渲染层**不传路径**——入口路径由主进程按自己的扫描结果解析（信任边界收在主进程）；
+  插件代码经 Blob URL 动态 import，故 CSP `script-src` 放行 `blob:`（边界 = v1 只装官方插件）；
+  联网走主进程代理，**CSP 的 connect-src 不为此开口**。
 - **运行时目录** = `<userData>/plugins/<id>/`；**开发工作区** = `client/plugins/<id>/`
   （dev 启动时主进程把缺的插件种进运行时目录；打包经 `extraResources` 进发行物）。
   数据落点见 `DATA_MODEL.md` §1。

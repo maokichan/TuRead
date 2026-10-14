@@ -96,7 +96,14 @@ export const IPC = {
   // 渲染层**只发 id 不传路径**：main 扫描运行时插件文件夹，入口路径按它自己的扫描结果解析
   // （信任边界收在主进程，实现 = src/main/plugins.ts）
   pluginsList: 'plugins:list',
-  pluginsReadEntry: 'plugins:read-entry'
+  pluginsReadEntry: 'plugins:read-entry',
+  // 插件通用能力（契约 v1.1；非 AI 专属——联网插件都走这两件）：
+  // net-fetch = https 代理（主进程校验 + 超时 + 体积上限，CSP 不动）；
+  // secret* = safeStorage 保险库（落库是密文；明文只在取用瞬间存在）
+  pluginsNetFetch: 'plugins:net-fetch',
+  pluginsSecretSet: 'plugins:secret-set',
+  pluginsSecretGet: 'plugins:secret-get',
+  pluginsSecretDelete: 'plugins:secret-delete'
 } as const
 
 /** 可导入的电子书扩展名（对话框过滤 + 目录扫描共用，唯一定义处） */

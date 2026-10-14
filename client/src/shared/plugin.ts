@@ -16,9 +16,55 @@ export interface PluginManifest {
   description?: string
 }
 
+/**
+ * 插件联网代理的 URL 判据（契约 v1.1）：**只许 https**。主进程在代理前调用；
+ * 纯函数便于单测——这条是安全判据，不能散落在 handler 里。
+ */
+export function assertFetchableUrl(raw: unknown): string {
+  if (typeof raw !== 'string' || raw.length === 0 || raw.length > 2048) {
+    throw new Error('插件网络请求的 URL 非法')
+  }
+  let parsed: URL
+  try {
+    parsed = new URL(raw)
+  } catch {
+    throw new Error(`插件网络请求的 URL 非法：${raw.slice(0, 64)}`)
+  }
+  if (parsed.protocol !== 'https:') {
+    throw new Error(`插件网络请求只允许 https（收到 ${parsed.protocol}）`)
+  }
+  return parsed.toString()
+}
+
+/** 插件保险库的键名判据（插件 id 已在 manifest 校验过；这里是密钥的二级名） */
+export function assertSecretName(raw: unknown): string {
+  if (typeof raw !== 'string' || !/^[A-Za-z0-9-]{1,64}$/.test(raw)) {
+    throw new Error('密钥名非法（要求 /^[A-Za-z0-9-]{1,64}$/）')
+  }
+  return raw
+}
+
 export type PluginManifestResult =
   | { ok: true; manifest: PluginManifest }
   | { ok: false; error: string }
+
+/** 阅读上下文快照：`ctx.reader.snapshot()` 返回"此刻在读什么"（请求发出前拉取，保证新鲜） */
+export interface PluginReaderSnapshot {
+  editionId: string
+  title: string
+  format: string
+  chapterCount: number
+  /** 目录（label 可能是印刷页码等非真实位置；真实位置 = chapterDocIndex——契约要求把这点告知模型） */
+  toc: Array<{ label: string; chapterDocIndex: number }>
+  location: { chapterDocIndex: number; chapterTitle?: string; visibleText: string }
+}
+
+/** 阅读上下文句柄（宿主实现；插件经 mount 的 ctx.reader 拿到） */
+export interface PluginReaderContext {
+  snapshot(): PluginReaderSnapshot
+  /** 溯源：按引文重锚并跳回（弱锚点，落点章级尽力——同笔记面板路径） */
+  jumpToQuote(exact: string, chapterIndex?: number): Promise<void>
+}
 
 const ID_RE = /^[a-z0-9][a-z0-9-]*$/
 
