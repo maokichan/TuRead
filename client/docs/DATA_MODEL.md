@@ -19,6 +19,7 @@
                            同名会让 `CREATE TABLE IF NOT EXISTS` 静默跳过旧表、
                            随后新列索引以 `no such column` 炸掉（2026-09-15 实测事故）
   covers/<editionId>.jpg ← 封面缩略图（随库目录；携带 = 拷目录）
+  plugins/<id>/          ← 官方插件（运行时文件夹；种子 = 应用首发资源，FEATURES §13 / CONTRACTS §9）
   config.json            ← 引导文件（极小，app 级）：{ version, dbPath, 窗口状态 }
 ```
 
@@ -31,7 +32,10 @@
   = 同一 edition 行（**不需要 work 也成立**；work 只管"不同文件但同一本书"，§6.1）。
 - **笔记与阅读状态跨书库**（D3）：挂 **edition**，不挂书库。
 - **封面是 edition 级**：canvas 400px / JPEG q0.82（实测 20-40KB）→ `covers/<editionId>.jpg`。
-- **设置一律全局**（D9）：**没有库级设置**。
+- **设置一律全局**（D9）：**没有库级设置**。插件的启用状态与私有键值同样走全局 settings 表
+  （键 `plugins` / `plugin:<id>`）；插件本体在 `plugins/<id>/`（**非数据库数据**，同 covers/）。
+- **插件（官方，v1）**：运行时 = `<userData>/plugins/<id>/`，开发 = `client/plugins/<id>/`；
+  契约 = `CONTRACTS.md` §9，功能 = `FEATURES.md` §13。
 - **`config.json` 进一步瘦身**（D1+D9 的推论）：库注册表进库、"当前库是哪个"降为库内设置
   （`settings.currentLibraryId`）→ 引导文件只剩 `{ version, dbPath, 窗口状态 }`。
 

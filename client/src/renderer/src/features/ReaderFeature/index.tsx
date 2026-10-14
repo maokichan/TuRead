@@ -40,6 +40,7 @@ import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
 import { NoteComposer } from '../../components/NoteComposer'
 import { bridgeIframeDocuments } from '../../components/iframeBridge'
 import { sendRoomChat, useRoomView } from '../roomSession'
+import { usePluginPanels } from '../../plugins/runtime'
 import { IPC } from '@shared/ipc'
 
 type ReaderMode = NonNullable<RenderOptions['readerMode']>
@@ -163,6 +164,18 @@ export function ReaderFeature({
         }
       }
     : null
+
+  /**
+   * 插件面板格（v1.13，契约 = CONTRACTS §9）：插件运行时注册的右段格，
+   * 渲染权在宿主（ReaderRail 给外壳，插件拿内容区元素）。
+   * ⚠ 指向失效守卫：插件被禁用/重载后 `rightPanel` 可能指向不存在的格 → 回落「參數」（不能空白）。
+   */
+  const pluginPanels = usePluginPanels()
+  useEffect(() => {
+    if (rightPanel.startsWith('plugin:') && !pluginPanels.some((p) => p.key === rightPanel)) {
+      setRightPanel('params')
+    }
+  }, [pluginPanels, rightPanel])
 
   /**
    * 应用参数到渲染层。分工（`STYLE.md` §5.9）：
@@ -898,6 +911,7 @@ export function ReaderFeature({
           onRightPanelChange={setRightPanel}
           chat={railChat}
           isPdf={book?.format === 'PDF'}
+          pluginPanels={pluginPanels}
         />
       )}
 

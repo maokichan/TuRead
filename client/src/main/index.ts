@@ -7,6 +7,7 @@ import type { WebContents } from 'electron'
 import { registerIpc } from './ipc'
 import { WsNetAdapter } from './net/wsNetAdapter'
 import { LibraryManager } from './store/libraryManager'
+import { PluginManager } from './plugins'
 import { IPC } from '@shared/ipc'
 
 // dev-only：独立 userData（TUREAD_USER_DATA=<目录>）—— 无头自检/迁移验证不污染真实书库。
@@ -221,7 +222,16 @@ void app.whenReady().then(async () => {
   const libraries = new LibraryManager(app.getPath('userData'))
   await libraries.init()
 
-  registerIpc(net, libraries, (channel, payload) => {
+  // 官方插件（v1，契约 = CONTRACTS §9）：先把首发插件种进运行时目录（缺则种），
+  // 再注册 plugins:* 通道。来源：dev = 仓库 client/plugins/；打包 = resources/plugins（extraResources）
+  const plugins = new PluginManager(join(app.getPath('userData'), 'plugins'), [
+    process.env['ELECTRON_RENDERER_URL']
+      ? join(app.getAppPath(), 'plugins')
+      : join(process.resourcesPath, 'plugins')
+  ])
+  await plugins.seed()
+
+  registerIpc(net, libraries, plugins, (channel, payload) => {
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send(channel, payload)
     }

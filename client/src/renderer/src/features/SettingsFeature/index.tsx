@@ -11,7 +11,7 @@
  * 持久化形状 = ThemePreference{tone, mode}；旧单一字符串自动迁移（normalizeThemeSetting）。
  * resolved 值（styles.css 的 data-theme）：dark=纯色·深 / light=纯色·浅 / sepia-light=羊皮纸·浅 / sepia-dark=羊皮纸·深。
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { LibrarySettings } from '@core/domain/types'
 import {
   normalizeThemeSetting,
@@ -22,6 +22,7 @@ import {
 } from '@core/domain/theme'
 import type { FeatureProps } from '../types'
 import { subscribeLog } from '../logStore'
+import { getPluginState, setPluginEnabled, subscribePlugins } from '../../plugins/runtime'
 
 const TONES: { value: ThemeTone; label: string }[] = [
   { value: 'solid', label: '純色' },
@@ -46,6 +47,8 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
   const [importRecursive, setImportRecursive] = useState(false)
   const [readerFullscreen, setReaderFullscreen] = useState(false)
   const [logs, setLogs] = useState<string[]>([])
+  // 插件（v1.13，契约 = CONTRACTS §9）：订阅插件运行时的"已安装清单"（含被禁用的）
+  const plugins = useSyncExternalStore(subscribePlugins, getPluginState)
   const themePrefRef = useRef<ThemePreference>({ tone: 'solid', mode: 'system' })
 
   // 诊断日志订阅（日志栏移除后在这里查看）
@@ -180,6 +183,39 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
           />
           導入文件夾時包含子文件夾
         </label>
+      </Field>
+
+      <Field
+        title="插件"
+        hint="官方插件（契约见 CONTRACTS §9）；啟用/禁用立即生效。面板格出現在閱讀器掛載線右段。"
+      >
+        {plugins.installed.length === 0 ? (
+          <p className="m-0 text-[12.5px] text-[var(--muted)]">
+            {plugins.error
+              ? `插件加載失敗：${plugins.error}`
+              : plugins.status === 'loading'
+                ? '（正在載入插件…）'
+                : '（沒有已安裝的插件）'}
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {plugins.installed.map((p) => (
+              <label key={p.id} className="flex cursor-pointer items-center gap-2 text-[13px]">
+                <input
+                  type="checkbox"
+                  checked={p.enabled}
+                  onChange={() => void setPluginEnabled(container, p.id, !p.enabled)}
+                  className="h-3.5 w-3.5 accent-[var(--accent)]"
+                />
+                {p.name}
+                <span className="text-[11px] text-[var(--muted)]">
+                  v{p.version}
+                  {p.error ? `（加載失敗：${p.error}）` : ''}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
       </Field>
 
       <Field title="診斷日誌" className="flex min-h-0 flex-1 flex-col">

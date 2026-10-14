@@ -1,0 +1,7 @@
+{
+  "id": "clock",
+  "name": "時鐘",
+  "version": "0.1.0",
+  "entry": "main.mjs",
+  "description": "阅读器右段的纯文字时钟——插件系统的第一个验证插件。"
+}

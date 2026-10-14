@@ -16,7 +16,13 @@
  * 「閱讀參數 / 聊天」两格共用同一几何、顶部开关切换；**聊天只在"经房间进入的这本书"上存在**
  * （用户原话："沒有通過房間進入一本書就不會有這個項"），没有聊天时右段只有参数一种内容、
  * 不出现页签行（与 v1.10 之前的形态一致）。
+ *
+ * ⚠ **v1.13：右段开放插件面板格**（契约 = CONTRACTS §9，功能 = FEATURES §13）——
+ * 渲染权在宿主：插件只注册"一个格"（label + mount），几何/页签/开合/滚动外壳全部在这里给
+ * （复用 `.reader-controls` 同一几何 token）；页签序 = 參數 → 聊天（仅房间态）→ 插件格（按注册序）。
+ * AI 共读插件落地时「問」与「聊天」互斥（用户已定），其他插件格不受影响。
  */
+import { useEffect, useRef } from 'react'
 import type { ChatMessage, Note } from '@core/domain/types'
 import type { TocRow } from './TocPanel'
 import { TocPanel } from './TocPanel'
@@ -26,8 +32,8 @@ import { ReaderControls, type ReaderParams } from './ReaderControls'
 
 /** 左挂件的内容形态（2026-09-14）：同一位置、同一几何，只换内容 */
 export type LeftPanelKind = 'toc' | 'notes'
-/** 右挂件的内容形态（2026-09-17）：同左挂件 —— 同一几何，只换内容 */
-export type RightPanelKind = 'params' | 'chat'
+/** 右挂件的内容形态（2026-09-17；v1.13 起含插件格）：同一几何，只换内容 */
+export type RightPanelKind = 'params' | 'chat' | `plugin:${string}`
 
 /** 右挂件的聊天数据（null = 这本书不是经房间进来的 → 没有聊天室这一项） */
 export interface RailChatProps {
@@ -36,6 +42,14 @@ export interface RailChatProps {
   draft: string
   onDraftChange: (text: string) => void
   onSend: (text: string) => void
+}
+
+/** 插件面板格（由插件运行时注册，经 ReaderFeature 传入；结构契约 = CONTRACTS §9.2） */
+export interface RailPluginPanel {
+  key: `plugin:${string}`
+  label: string
+  title?: string
+  mount: (el: HTMLElement, ctx: { signal: AbortSignal }) => void | (() => void)
 }
 
 interface ReaderRailProps {
@@ -58,13 +72,15 @@ interface ReaderRailProps {
   activeChapter: number
   /** 「看这条笔记」请求（点正文高亮触发）：左侧切到筆記并把这条定位到正中（只读，不改内容） */
   focusNote?: { id: string; tick: number } | null
-  /** 右挂件当前内容（2026-09-17）：参数 / 聊天（同一几何，顶部开关切换） */
+  /** 右挂件当前内容（2026-09-17；v1.13 起可为插件格）：参数 / 聊天 / `plugin:<key>` */
   rightPanel: RightPanelKind
   onRightPanelChange: (kind: RightPanelKind) => void
   /** 聊天室数据；null = 这本书没有房间会话 → 右段不出现「聊天」页签 */
   chat: RailChatProps | null
   /** 当前书是否 PDF：参数面板「紙寬」行换用 PDF 专属档位（2026-10-02） */
   isPdf?: boolean
+  /** 已启用的插件面板格（v1.13；页签追加在參數/聊天之后，按注册序） */
+  pluginPanels?: RailPluginPanel[]
 }
 
 /** 两格文字开关（左「目錄 / 筆記」与右「參數 / 聊天」共用同一形态与类名） */
@@ -93,6 +109,47 @@ function RailTabs<T extends string>({
   )
 }
 
+/**
+ * 插件面板的挂载宿主：给插件一个内容区元素，**外壳（几何/滚动）归这里**。
+ * 生命周期 = 绑定即挂载、卸载/换格即清理（cleanup + AbortSignal）——
+ * 插件的定时器/订阅据此自清，不靠插件自觉。
+ */
+function RailPluginMount({
+  panel,
+  header,
+  onToggle
+}: {
+  panel: RailPluginPanel
+  header: React.JSX.Element | null
+  onToggle: () => void
+}): React.JSX.Element {
+  const bodyRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = bodyRef.current
+    if (!el) return
+    const controller = new AbortController()
+    const cleanup = panel.mount(el, { signal: controller.signal })
+    return () => {
+      controller.abort()
+      if (typeof cleanup === 'function') cleanup()
+      el.textContent = ''
+    }
+  }, [panel])
+  return (
+    <div className="reader-controls">
+      {header}
+      <div className="reader-controls__body">
+        <div className="plugin-panel__content" ref={bodyRef} />
+      </div>
+      <div className="reader-controls__fold">
+        <button className="text-action" onClick={onToggle}>
+          折疊
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function ReaderRail({
   tocOpen,
   onTocToggle,
@@ -113,7 +170,8 @@ export function ReaderRail({
   rightPanel,
   onRightPanelChange,
   chat,
-  isPdf
+  isPdf,
+  pluginPanels = []
 }: ReaderRailProps): React.JSX.Element {
   /**
    * 左挂件顶部的内容开关（目錄 / 筆記）。两格**都是文字**（§5.1），当前格用 `--accent` ——
@@ -131,25 +189,28 @@ export function ReaderRail({
   )
 
   /**
-   * 右挂件顶部的内容开关（參數 / 聊天）—— **只有房间会话里的那本书才有第二格**
-   * （用户 2026-09-17："沒有通過房間進入一本書就不會有這個項"）。
+   * 右挂件顶部的内容开关 —— **格数随内容走**（v1.13）：
+   * 參數恒在；聊天只有房间会话里的那本书才有（用户 2026-09-17）；插件格按注册序追加。
+   * 只有一种内容时不渲染页签行（与 v1.10 之前的形态一致）。
    */
-  const rightTabs = chat ? (
-    <RailTabs
-      items={[
-        { kind: 'params', label: '參數', title: '閱讀參數' },
-        { kind: 'chat', label: '聊天', title: `房間 ${chat.roomId}` }
-      ]}
-      active={rightPanel}
-      onPick={onRightPanelChange}
-    />
-  ) : null
+  const rightItems: Array<{ kind: RightPanelKind; label: string; title: string }> = [
+    { kind: 'params', label: '參數', title: '閱讀參數' }
+  ]
+  if (chat) rightItems.push({ kind: 'chat', label: '聊天', title: `房間 ${chat.roomId}` })
+  for (const p of pluginPanels) {
+    rightItems.push({ kind: p.key, label: p.label, title: p.title ?? p.label })
+  }
+  const rightTabs = rightItems.length > 1 ? <RailTabs items={rightItems} active={rightPanel} onPick={onRightPanelChange} /> : null
 
   const showChat = Boolean(chat) && rightPanel === 'chat'
+  const activePlugin = pluginPanels.find((p) => p.key === rightPanel)
+
+  // 挂载线右段把手的提示文字 = 当前内容（与左段同口径）
+  const rightZoneTitle = controlsOpen ? '收起右欄' : showChat ? '聊天' : (activePlugin?.title ?? '閱讀參數')
 
   return (
     <>
-      {/* 横向挂载线：左段（目录）+ 中段（纯线）+ 右段（参数/聊天），三段拼出整页宽的一条线。
+      {/* 横向挂载线：左段（目录）+ 中段（纯线）+ 右段（参数/聊天/插件格），三段拼出整页宽的一条线。
           ⚠ 两段**等宽**且各贴线的一端 → 关于线中心镜像（线本身 = --sidebar-w → 窗口右缘） */}
       <div className="reader-rail">
         <button
@@ -162,9 +223,9 @@ export function ReaderRail({
         <div className="reader-rail__span" aria-hidden="true" />
         <button
           className="reader-rail__zone reader-rail__zone--params"
-          aria-label={controlsOpen ? '收起右欄' : showChat ? '聊天' : '閱讀參數'}
+          aria-label={rightZoneTitle}
           aria-expanded={controlsOpen}
-          title={controlsOpen ? '收起右欄' : showChat ? '聊天' : '閱讀參數'}
+          title={rightZoneTitle}
           onClick={onControlsToggle}
         />
       </div>
@@ -193,7 +254,8 @@ export function ReaderRail({
           />
         ))}
 
-      {/* 右挂件：参数 / 聊天（挂在线下方右侧；折叠 = 向上收回线里，面板底部「折疊」同目录） */}
+      {/* 右挂件：參數 / 聊天 / 插件格（挂在线下方右侧；折叠 = 向上收回线里，面板底部「折疊」同目录）。
+          ⚠ 插件格的指向失效（插件被禁用/重载后 key 不在了）→ 回落參數（不能空白） */}
       {controlsOpen &&
         (showChat && chat ? (
           <ChatPanel
@@ -205,6 +267,8 @@ export function ReaderRail({
             draft={chat.draft}
             onDraftChange={chat.onDraftChange}
           />
+        ) : activePlugin ? (
+          <RailPluginMount panel={activePlugin} header={rightTabs} onToggle={onControlsToggle} />
         ) : (
           <ReaderControls
             params={params}

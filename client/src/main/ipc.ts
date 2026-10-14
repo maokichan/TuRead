@@ -26,6 +26,7 @@ import type {
 import { WsNetAdapter } from './net/wsNetAdapter'
 import { LibraryManager } from './store/libraryManager'
 import { SqliteStore } from './store/sqliteStore'
+import type { PluginManager } from './plugins'
 import type { LibraryLevelQuery, NotePatch, NoteQuery } from '@core/ports/store'
 
 const EBOOK_EXT_SET = new Set<string>(EBOOK_EXTENSIONS)
@@ -34,6 +35,7 @@ const EBOOK_FILTER = [{ name: '电子书', extensions: [...EBOOK_EXTENSIONS] }]
 export function registerIpc(
   net: WsNetAdapter,
   libraries: LibraryManager,
+  plugins: PluginManager,
   send: (channel: string, payload: unknown) => void
 ): void {
   /** 全局 store（v0.4.0：只有一个；书库是库内实体） */
@@ -102,6 +104,11 @@ export function registerIpc(
   )
   ipcMain.handle(IPC.storeGetCover, (_e, editionId: string) => store().getCover(editionId))
   ipcMain.handle(IPC.storeRemoveCover, (_e, editionId: string) => store().removeCover(editionId))
+
+  // ————— 插件（v1 官方专用；契约 = CONTRACTS §9）—————
+  // 渲染层只发 id：入口路径按主进程自己的扫描结果解析（信任边界收在 main/plugins.ts）
+  ipcMain.handle(IPC.pluginsList, () => plugins.list())
+  ipcMain.handle(IPC.pluginsReadEntry, (_e, p: { id?: string }) => plugins.readEntry(p?.id ?? ''))
 
   // ————— 阅读状态 / 阅读时间 —————
   ipcMain.handle(IPC.storeGetReadingState, (_e, editionId: string) =>

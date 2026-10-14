@@ -91,7 +91,12 @@ export const IPC = {
   // ⚠ 不能复用 `win:maximize-toggle`：那会在"本来就最大化"时反向缩回，而这里要的是**幂等的"设为最大化"**。
   winSetMaximized: 'win:set-maximized',
   // 剪贴板写入（v0.4.2）：笔记管理的「複製批註」—— 走 preload 的**具名方法**，不用泛化 invoke
-  clipboardWriteText: 'clipboard:write-text'
+  clipboardWriteText: 'clipboard:write-text',
+  // ————— 插件（v1 官方专用；契约 = `client/docs/CONTRACTS.md` §9）—————
+  // 渲染层**只发 id 不传路径**：main 扫描运行时插件文件夹，入口路径按它自己的扫描结果解析
+  // （信任边界收在主进程，实现 = src/main/plugins.ts）
+  pluginsList: 'plugins:list',
+  pluginsReadEntry: 'plugins:read-entry'
 } as const
 
 /** 可导入的电子书扩展名（对话框过滤 + 目录扫描共用，唯一定义处） */

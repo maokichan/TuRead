@@ -47,5 +47,6 @@
 - **房间/聊天室**：契约 = `client/docs/CONTRACTS.md`（**v0.4.4**）；形态 = `FEATURES.md` §11；
   视觉 = `client/docs/STYLE.md` §5.8（右段两格「参數 / 聊天」）；协议词汇 = `core/domain/protocol.ts`。
 - **待办（唯一一份）** → `TODO.md`；**当前重心 = PDF 优化 + 阅读滚动/连续**（见 `docs/STATUS.md` §6 交接快照）。
-- **插件态度**：v1 不做插件运行时，**ports 即插件边界**（官方插件 = 注册进 ServiceContainer 的
-  适配器 + 追加 `FeatureDescriptor` 进 registry）。
+- **插件**：插件系统已落地（v1 **官方专用**：文件夹形态 + 挂载线右段面板格；契约 = `CONTRACTS.md` §9，
+  功能 = `FEATURES.md` §13，开发工作区 = `client/plugins/`）；运行时加载与第三方沙箱远期；
+  **服务级扩展仍走 ports**（ports 即边界）。AI 共读插件 = 下一个官方插件（`TODO.md` 对应组）。

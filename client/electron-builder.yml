@@ -96,3 +96,10 @@ nsis:
 #   注：`release/turead-client-<version>-x64.nsis.7z`（NSIS 载荷）一旦生成，
 #   组件到位后重跑只需几秒即可产出安装包。
 # ---------------------------------------------------------------------------
+
+# 官方插件（v1.13；契约 = docs/CONTRACTS.md §9）：运行时种子来源。
+# dev 直接用仓库 client/plugins/（主进程按 ELECTRON_RENDERER_URL 判断）；
+# 打包带上这份拷贝 → resources/plugins，主进程启动时"缺则种"进 <userData>/plugins/。
+extraResources:
+  - from: plugins
+    to: plugins

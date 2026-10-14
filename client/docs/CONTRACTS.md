@@ -1,6 +1,6 @@
 # 客户端契约（Client Contracts）
 
-> 状态：**v0.4.4**（当前）—— 版本速览见 §8。分层 = **能力服务（ports）** 与 **应用服务（用例）** 两层。
+> 状态：**v0.4.5**（当前）—— 版本速览见 §8。分层 = **能力服务（ports）** 与 **应用服务（用例）** 两层。
 > 术语：**六边形架构（端口-适配器）为骨架，DDD 命名为层内词汇**，对照表见 `ARCHITECTURE.md` §1。
 > 范围：**仅 client** 的层与接口契约；同步协议（信封/消息集/转发规范）由 server 定义，见 `../../server/docs/API.md`。
 > 迁移：将 1:1 落到 `client/src/core/{domain,ports,usecases}/`。
@@ -957,7 +957,8 @@ interface ServiceContainer {
 
 | 版本 | 主题 |
 |---|---|
-| **v0.4.4** | 无书成员加入：`joinRoom` 的 `book` 放宽为 `null`（`fingerprint: null`，服务器本就支持） |
+| **v0.4.5** | 插件契约（§9）：manifest / `activate(api)` / 挂载线右段面板格注册点（v1 官方专用） |
+| v0.4.4 | 无书成员加入：`joinRoom` 的 `book` 放宽为 `null`（`fingerprint: null`，服务器本就支持） |
 | v0.4.3 | 按房间建连（`connect` 收窄 + `openRoom`/`closeRoom`）+ 聊天历史（`chat-history`/`listMessages`）+ `core/domain/protocol.ts` 协议词汇收拢 |
 | v0.4.2 | 笔记管理视图/筛选/主次/设置类型（`NoteView`/`NoteFilter`/`NoteTextFocus`/`NoteSettings`）+ `IClipboard` |
 | v0.4.1 | 笔记读模型：`listAllNotes`/`countAllNotes` + `NoteQuery`/`NoteListItem` |
@@ -967,3 +968,62 @@ interface ServiceContainer {
 | v0.3.0~4 | 主题模型规正 + `applyTheme` + `ReaderSettings`/`ReaderTypography` + 排版注入 + 封面负缓存 |
 | v0.2.1~9 | REST 传输 + 目录跳转 + 远端位置派生（presence diff）+ 导入去重/队列 + `IBookPicker` + 封面落盘 + 定位系统修订 |
 | v0.2.0 及前 | 骨架契约 + 定位系统立约（§2.1） |
+
+## 9. 插件契约（v1：官方插件专用；功能划分 = FEATURES §13，视觉 = STYLE §5.8）
+
+> 插件**不是**六边形端口——它运行在**渲染层外壳**（同 `roomSession`/`logStore` 一族），经宿主 API
+> 注册 UI 位面；内核（domain/ports/usecases/adapters）零改动，`ServiceContainer` 不收插件。
+> **信任模型 v1 = 只装官方插件**（随应用首发种进运行时插件文件夹，加载不做沙箱；第三方开放远期）。
+
+### 9.1 manifest（`plugin.json`，插件文件夹根）
+
+```ts
+interface PluginManifest {
+  id: string      // /^[a-z0-9][a-z0-9-]*$/；= 文件夹名；运行时目录与设置键的命名空间
+  name: string    // 展示名
+  version: string // semver 形态字符串（v1 种子策略 = "缺则种"，版本比较后置）
+  entry: string   // 入口 ESM 相对路径（必须在插件目录内；禁止绝对路径与 `..`）
+  description?: string
+}
+```
+
+校验与错误口径 = `shared/plugin.ts` 的 `validatePluginManifest`（**纯函数 + 单测**）：
+缺字段 / 坏 id / 越界 entry 一律拒绝并进诊断日志，**不静默**。
+
+### 9.2 插件模块（入口 ESM 的导出）
+
+```ts
+export function activate(api: PluginHostApi): void
+
+interface PluginHostApi {
+  /** 注册一个挂载线右段面板格（v1 唯一的 UI 注册点；可注册多个，页签按注册序追加在「參數/聊天」之后） */
+  registerPanel(panel: {
+    id: string      // 插件内唯一；页签 key = `plugin:<manifest.id>:<panel.id>`
+    label: string   // 页签文字（2~3 个汉字为宜，与「參數 / 聊天」同语汇）
+    title?: string  // 悬停提示；缺省用 label
+    /** 挂载：宿主给出**内容区元素**（几何/页签/开合/滚动外壳都归宿主）。
+     *  返回清理函数（面板卸载时调用）；`ctx.signal` 在面板被收起/卸载/插件禁用时 abort。 */
+    mount(el: HTMLElement, ctx: { signal: AbortSignal }): void | (() => void)
+  }): void
+  /** 插件私有键值（持久化于全局 settings 表的 `plugin:<manifest.id>` 键，原子合并；D9 设置一律全局） */
+  storage: {
+    get<T>(key: string, fallback: T): Promise<T>
+    set(key: string, value: unknown): Promise<void>
+  }
+  /** 诊断日志（进设置页日志块） */
+  log(line: string): void
+}
+```
+
+### 9.3 宿主义务（**渲染权在宿主**，用户定）
+
+- 插件只能落在**程序定义的位置**上；v1 唯一 UI 位置 = **挂载线右段面板格**。几何、页签、开合、
+  滚动外壳全部宿主提供，插件只拿内容区元素；插件内容**不得自创视觉语汇**（STYLE §5.8 红线同样约束插件）。
+- **聊天与插件格的关系**：右段页签序 = 參數 → 聊天（仅房间态）→ 插件格。AI 共读插件落地时
+  「問」与「聊天」**互斥**（用户已定，AI 项目组登记）；其他插件格不受影响。
+- **IPC**（`shared/ipc.ts`）：`plugins:list`（种子后扫描 + 校验，回清单）与 `plugins:read-entry({id})`
+  （回入口源码文本）。⚠ 渲染层**不传路径**——入口路径由主进程按自己的扫描结果解析（信任边界收在主进程）；
+  插件代码经 Blob URL 动态 import，故 CSP `script-src` 放行 `blob:`（边界 = v1 只装官方插件）。
+- **运行时目录** = `<userData>/plugins/<id>/`；**开发工作区** = `client/plugins/<id>/`
+  （dev 启动时主进程把缺的插件种进运行时目录；打包经 `extraResources` 进发行物）。
+  数据落点见 `DATA_MODEL.md` §1。

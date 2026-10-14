@@ -64,6 +64,7 @@ npm run dist           # 打包免安装便携版 → client/release/（需代�
 | `client/` | Electron + React 桌面客户端（六边形架构：`core/{domain,ports,usecases,adapters}` + `renderer/`） |
 | `server/` | Go 同步服务器（房间 / 书籍标定 / 副本分发 / 位置广播 / 聊天），独立 module |
 | `kookit/` | 渲染引擎（Koodo Reader 的核心，**git submodule**，AGPL-3.0） |
+| `client/plugins/` | 官方插件开发工作区（運行時種子；契约见 `client/docs/CONTRACTS.md` §9） |
 | `docs/` | 项目级文档：状态与交接、共同架构、竞品landscape |
 | `client/docs/` | 客户端文档：契约 / 数据模型 / 架构 / 风格基线 / 功能组件 / 渲染接口 / kookit 逆向 |
 
