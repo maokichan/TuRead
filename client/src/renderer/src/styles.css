@@ -1451,3 +1451,97 @@ textarea {
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
+
+
+/* ---------- AI 共读插件「問」（v0.1.0；官方插件，契约 = CONTRACTS §9 + v1.1）----------
+   界面语汇全部复用既有家族：消息行 = .chat-row（与房间聊天同一对类）、输入 = .chat-composer__input
+   （发丝描边 + field-sizing 自增长）、动作 = .text-action。这里只补插件内容区的布局层。 */
+.plugin-ai {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+}
+
+.plugin-ai__log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.plugin-ai__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.plugin-ai__meta {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* 溯源引用行（模型被约定『…』单独成行）：可点，hover 升 accent——对齐"引文可跳回原文" */
+.ai-quote {
+  display: block;
+  cursor: pointer;
+  color: var(--text);
+  border-top: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
+  padding: 4px 0;
+  margin: 2px 0;
+  transition: color 200ms ease-out;
+}
+
+.ai-quote:hover {
+  color: var(--accent);
+}
+
+.ai-row--err .chat-row__text {
+  color: var(--err);
+}
+
+/* 配置表单（未配 key 时首屏即此；功能性表单，输入类属 §5.2 例外①） */
+.plugin-ai__form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.plugin-ai__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.plugin-ai__label {
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.plugin-ai__input {
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 13px;
+  padding: 6px 8px;
+  font-family: inherit;
+}
+
+.plugin-ai__hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.plugin-ai__err {
+  font-size: 11px;
+  color: var(--err);
+  min-height: 1em;
+}

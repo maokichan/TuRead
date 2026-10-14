@@ -1,0 +1,7 @@
+{
+  "id": "ai",
+  "name": "問",
+  "version": "0.1.0",
+  "entry": "main.mjs",
+  "description": "AI 共读助手：挂载线右段的「問」格——带着当前位置与全书目录对话，引用原文可点击跳回。自带 key（OpenAI 兼容接口）。"
+}
