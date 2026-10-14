@@ -27,13 +27,14 @@
 
 ## 红线（不要违反）
 
+> 通用开发纪律（解释优先、提交与版本分工、文档维护、删除即移入 `trash/`）见 `generate-swe` skill；
+> 本清单只列**本项目专属**红线。
+
 - **kookit 子模块内禁止 `git commit` / `git push`**（其 CLAUDE.md 规则）
 - 依赖方向：UI → usecases → ports ← adapters；**领域层零依赖**
 - **渲染层开发先读 `client/docs/STYLE.md`**：新组件不得自创视觉语汇
 - UI 不直接 import kookit / better-sqlite3 / WebSocket 实现（只走 ServiceContainer）
 - 引入新依赖**先核许可证与 AGPL-3.0 兼容性**
-- **解释优先**：大改前写理由；**不知代码该放哪层就停下讨论**（Rule of Three）
-- **提交 / 打 tag 由 agent 执行；版本号滚动由用户决定**（agent 不自行发版，见 `docs/STATUS.md` §2）
 - **打包（`npm run dist`）只在用户明确要求时做** —— "滚了版本号"不等于"该打包"；
   打包这件事也可能由**用户交给另一个 agent** 做（2026-09-16 用户定，起因见 `docs/STATUS.md` §2）
 
@@ -43,8 +44,8 @@
   **房间同步已与真实 server 打通**（真机 `TUREAD_DEV_PROBE=room` 验），阅读器右抽屉有「聊天」格。
 - **现在在哪 / 下一步 / 验证工具链** → `docs/STATUS.md` **§6 交接快照**（会话交接先读它）。
 - **逐版本过程明细** → `docs/STATUS.md` **§4 版本历史**。
-- **房间/聊天室**：契约 = `client/docs/CONTRACTS.md` **v0.4.3**；形态 = `FEATURES.md` §11；
-  视觉 = `client/docs/STYLE.md` §5.8（**v1.12：右段两格「参數 / 聊天」**）；协议词汇 = `core/domain/protocol.ts`。
-- **待办（唯一一份）** → `TODO.md`；**下一个专题 = 阅读时间（弹窗与界面）**。
+- **房间/聊天室**：契约 = `client/docs/CONTRACTS.md`（**v0.4.4**）；形态 = `FEATURES.md` §11；
+  视觉 = `client/docs/STYLE.md` §5.8（右段两格「参數 / 聊天」）；协议词汇 = `core/domain/protocol.ts`。
+- **待办（唯一一份）** → `TODO.md`；**当前重心 = PDF 优化 + 阅读滚动/连续**（见 `docs/STATUS.md` §6 交接快照）。
 - **插件态度**：v1 不做插件运行时，**ports 即插件边界**（官方插件 = 注册进 ServiceContainer 的
   适配器 + 追加 `FeatureDescriptor` 进 registry）。

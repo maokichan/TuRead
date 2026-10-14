@@ -32,3 +32,6 @@ Thumbs.db
 # 一次性留档（临时审查/排查文档；文件自己写明"勿入库"）
 *.tmp.md
 
+# trash/（删除物本地留档，见 trash/README.md；被移走的入库文件仍可从 git 历史找回）
+trash/
+

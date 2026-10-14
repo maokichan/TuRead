@@ -107,12 +107,8 @@ node_modules/electron/dist/electron.exe tools/style-gallery/smoke.cjs
 
 ### 读代码前请先知道这几条红线
 
-1. **依赖方向**：UI → usecases → ports ← adapters；**领域层零依赖**（有分层守卫测试盯着）。
-2. **UI 不直接 import** kookit / better-sqlite3 / WebSocket —— 只走 `ServiceContainer` 里的端口。
-3. **渲染层（视觉）改动先读** [`client/docs/STYLE.md`](client/docs/STYLE.md)：新组件不得自创视觉语汇。
-4. **kookit 子模块内禁止 `git commit` / `git push`**（其自身规则）。
-5. **引入新依赖先核许可证与 AGPL-3.0 兼容性**。
-6. **解释优先**：大改前先写理由；不知代码该放哪层就停下来讨论。
+见 [`MAP.md`](MAP.md) 的「红线」（依赖方向 / 分层 / kookit 子模块禁提交 / 许可证核验 / 打包须明确指示）；
+通用开发纪律（解释优先、提交与版本分工）见 `generate-swe` skill。
 
 ### 文档从哪读
 
@@ -127,7 +123,6 @@ node_modules/electron/dist/electron.exe tools/style-gallery/smoke.cjs
 ### 版本与提交约定
 
 - 两端版本号独立滚动：server `v0.2.x` / client `v0.2.x`；tag 带端名前缀（`client-v0.2.0`）。
-- **提交与 tag 由 agent 执行；版本号是否滚动由用户决定**（详见 `docs/STATUS.md` §2）。
 
 ---
 
