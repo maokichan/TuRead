@@ -14,26 +14,19 @@
   插件进一步更新
 
 
-- [ ] **服务器侧两处对齐**（契约先行：同 commit 改 `server/docs/API.md` + `client/docs/CONTRACTS.md`）
-  ① **失败 reason 字符串与文档不一致**：服务器 error 是空格分词（`"room not found"` / `"book mismatch"` / `"room full"`，`internal/room/manager.go`；`transport/ws.go` 另硬编码 `"bad payload"` 等），文档与客户端契约写连字符。客户端已按 `normalizeJoinReason`（`core/domain/protocol.ts`）容错；服务器侧要么改 error 串、要么改 `API.md`，裁一次。
-  ② **`POST /rooms` 的 `owner` 昵称无长度校验**：昵称 ≤12 字只在 WS 握手（`ws.go` `maxNickLen`，有测试），建房路径（`rest.go` → `RegisterUser`）不校验 → 建房者可用超长昵称建档，随后**自己 WS join 被握手拒绝**（进不去自己的房）。修法 = `handleCreateRoom` 用与 `ws.go` 同一判据（rune 数 ≤12）并同步 `API.md`「用户」一节。
 - [ ] **多人场景补验**：双开已实测通过（同一本大 PDF：presence 广播 / 位置上报 / 双向聊天）。仍缺：① 成员离开后不残留离线成员（需真人退房、在对方窗口观察）；② `room.presence`「除发送者外」在三人及以上未验。
 - [ ] **正式的多端身份方案**：服务器按 IP 签发 token + 同 token 踢旧连接 = 同机多开必互相踢（`API.md`「NAT 限制」）。候选：客户端 nonce 区分连接（服务器侧改动）。联调期用 dev-only `TUREAD_DEV_MEMBER_TOKEN` 绕开（不进产品 UI）。
-- [ ] **无书成员的 UI 入口**（用例层已就绪：`joinRoom(roomId, null)` → `fingerprint: null`）：进房后 `GET /books/{editionID}/file` 下载 → 落盘 → `books.importBook` → `host.openReader`；以及「进房前没有这本书」的选择流程。与跨端「书籍来源」同源。
 - [ ] **聊天消息无长度/频率约束**：服务器与客户端都只挡空文本。需要时再定（服务器限长 + 客户端提示）。
 - [ ] **（待真机复看）聊天室的手感**：新消息自动滚到底是否打断上翻历史、遮罩按距离在长消息下的可读性（静息 0.74 是否太淡）、输入框自增长到五行的手感、`c` 键顺手度。若判「聊天不该跟着遮罩变淡」，改法是一行（`ChatPanel` 去掉行内遮罩，或单独 `--chat-veil-rest`）。
-- [ ] **location-updated 同位 UI（跟随模式）**：RoomFeature 消费 ReaderFeature 的跳转回调（形态讨论见 `client/docs/FEATURES.md` §11「同步相关控件」）。前置 = 审计 B-2（位置上报书校验）。
+- [ ] **（待真机复看）跟随模式的手感**：v1 已落地（聊天格「跟隨」开关；FEATURES §15.3）——双人实测跳转落点、同位判据是否真的防住回声、对方快速连翻时本端的跳转节奏、PDF 的页码跳转观感。
 - [ ] **client 管理界面**：admin 操作（删房间/删副本）在客户端完成——协议已支持（REST + admin token）。
 
 ### 审计遗留（client 健壮性审查剩余项；全部消化即销案）
 
 > 源 = 临时审计（原 `docs/TEMP-AUDIT-2026-09-18-client.md`，已并入本清单并移入 trash/）。
 > 基准 = client-v0.2.0；B-2/B-3/B-4 现象链来自代码走读，未真机复现。
+> **2026-10-24 cowork 批已销案**：B-2 / B-3 / B-4 / C-2 / C-4 / C-5（房间会话状态机批，git 历史为准）。
 
-- [ ] **B-3 disconnect 绕过 leaveRoom**（一行级，先做）：`RoomFeature.disconnect` 直接 `net.disconnect()`，RoomSession 的 `joined/roomId/joinUnsubs` 残留成幽灵会话（render 位置监听还活着）。修法 = 先 `await container.room.leaveRoom()`（幂等）再断开。
-- [ ] **C-5 随手批**：① `RoomSession.leaveRoom` 不清 `pendingEmit` → 重进房间可能带出上一会话的旧位置（一行）；② `ChatPanel.formatTime` 假设 `createdAt` 存在而 `isChatMessage` 只查 `id/text` → 脏数据显示 `NaN:NaN`（守卫补一字段）。`TypedEmitter` 无监听器异常隔离与 `SqliteStore.initPromise` 失败不重置仅登记口径，不改。
-- [ ] **B-2 位置上报不校验「是不是这本书」**：`location-changed` 是渲染端口的全局事件，在 A 书的房间里打开 B 书会把 B 的位置广播进 A 房。跟随模式落地前必修：`onRenderLocation` 校验当前书 ≡ `joinedBook` 再上报（用例层持权威判断）。前置补测：RoomSession 的 rejoin / 节流合并 / presence diff 用例（现仅 3 条 FakeNet 单测）。
-- [ ] **B-4 + C-2 + C-4（同一状态机，一次做掉）**：① 重连耗尽（5 次）后 UI 显示 disconnected 但 RoomSession 仍 `joined=true` 的「半死态」无出口——发可区分事件引导重进，或自动 `leaveRoom()` 复位（按「可预期」二选一）；② `joinRoom` 无代次守卫，大厅快速连点两个房间行会并发 join 互相 `resetJoinState`（用例层加代次 + RoomRow joining 时禁用）；③ 每次连接都先无条件广播一次 disconnected 的状态噪声（加「状态未变不广播」）。
 - [ ] **B-6 单实例锁**：双开 exe = 两主进程共写同一 userData 的 `store.db` + 引导文件。加 `app.requestSingleInstanceLock()` + `second-instance` 聚焦已有窗口；dev 双开走显式 `TUREAD_USER_DATA` 分离（已支持）。随打包发版前收口。
 - [ ] **C-1 IPC 信任边界**（收敛顺序已定）：先收 `fs:read-file`（导入/扫描之外调用方为零），再谈 `net:request` 的 path 校验；根治 = preload 按通道白名单转发（现是泛化 `invoke(channel,…)`），`fs:*` 限定在库根/导入来源 + 电子书扩展名。与「PDF 正文 iframe 无 sandbox」（渲染组）叠加时链路成立，不能靠上游兜底。
 - [ ] **审计附带清理（动 server / kookit 前与用户确认）**：① 工作树 `server/internal/store/store.go` 注释 mojibake（`nick=''` 被写成 `nick=”`）单独 revert；② kookit 子模块工作树噪音（lock 文件改动、未跟踪日志与 `rollup.turead.config.mjs`——⚠ 后者是 KOOKIT.md §9 引用的 vendor 构建配置，不是垃圾）。
@@ -123,6 +116,11 @@
 - [ ] **渲染层验收断言待补**：① 「无边框文字按钮存在性」与「字号白名单扫描」两条断言；② grep 断言（`#hex`/`font-family` 只允许在 `styles.css`）纳入审查。
 
 ### 工程与测试设施
+
+- [ ] **e2e 洪泛测试在本机不稳（2026-10-24 登记，非回归）**：`TestE2EFloodNoDrop`（A 连发 500 位置、
+  B 端到端全收）在本机稳定失败（~311/500，B 疑似被队列满踢出）；**未改动的基线同样失败**（连跑三次一致），
+  确定性单测 `TestSendQueueOverflowKicks` 通过。疑与本机调度/回环缓冲时序有关。处置方向：读端放慢步调、
+  或把「全收」改为「不被踢 + 收到 ≥N-x」的可预期口径，或给测试加调度余量；动它前先在原发布机器复跑定性。
 
 - [ ] **(P2 · 安全) 离屏解析窗崩溃不自愈，且永久污染封面负缓存**：① `render-process-gone` 只快速失败不销毁重建窗口 → `parseQueue` 再无人排空，每次元数据提取干等 60s 超时；② `CoverQueue` 对任何失败一律落 `coverFailed: true` → 一次崩溃 = 在途那批书永久失去封面且跨重启存续（瞬态故障与永久故障被一视同仁）。处置：崩溃即销毁重建 + 排空队列；`coverFailed` 带 reason（transient/permanent）或只对「确认无内嵌封面」落负缓存。
 - [ ] **(P3) 两个队列的 pump 在尾部重置共享批次状态（重入雷，现不可达）**：`CoverQueue.pump`/`ImportQueue.pump` 先置 `running=false` 再 `emit('done')` 最后才清批次——若 `done` 监听里同步 `enqueue` 会把新批次整个抹掉。处置：批次重置移到 emit 之前，或加代次令牌。

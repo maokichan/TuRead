@@ -6,7 +6,7 @@
 
 多人房间共读阅读器：多个用户进同一房间共同阅读同一本书。
 渲染/解析复用 kookit（AGPL-3.0，git submodule）；同步服务器用 Go。
-**server v0.2.0 已实现；client 本地阅读侧端到端可用，房间同步已与真实 server 打通（阅读器内聊天室已落地）。**
+**server v0.2.1（契约对齐）；client v0.2.2 —— 本地阅读 + 房间同步端到端可用：副本分发与无书成员自动补书、跟随模式已闭环。**
 
 ## 关键文档（按阅读顺序）
 
@@ -40,13 +40,13 @@
 
 ## 当前状态（只留指针；**状态细节的唯一归属是 `docs/STATUS.md`**）
 
-- **版本**：client **v0.2.1** / server **v0.2.0**。本地阅读侧端到端可用；
-  **房间同步已与真实 server 打通**（真机 `TUREAD_DEV_PROBE=room` 验），阅读器右抽屉有「聊天」格。
+- **版本**：client **v0.2.2** / server **v0.2.1**。本地阅读 + 房间同步端到端可用；
+  **副本分发与跟随模式已闭环**（cowork 批），待真机复核手感。
 - **现在在哪 / 下一步 / 验证工具链** → `docs/STATUS.md` **§6 交接快照**（会话交接先读它）。
 - **逐版本过程明细** → `docs/STATUS.md` **§4 版本历史**。
-- **房间/聊天室**：契约 = `client/docs/CONTRACTS.md`（**v0.4.4**）；形态 = `FEATURES.md` §11；
+- **房间/聊天室/跟随**：契约 = `client/docs/CONTRACTS.md`（**v0.4.8**）；形态 = `FEATURES.md` §11 + §15；
   视觉 = `client/docs/STYLE.md` §5.8（右段两格「参數 / 聊天」）；协议词汇 = `core/domain/protocol.ts`。
-- **待办（唯一一份）** → `TODO.md`；**当前重心 = PDF 优化 + 阅读滚动/连续**（见 `docs/STATUS.md` §6 交接快照）。
+- **待办（唯一一份）** → `TODO.md`；**当前重心 = 共读功能真机复核**（见 `docs/STATUS.md` §6 交接快照）。
 - **插件**：插件系统已落地（v1 **官方专用**：文件夹形态 + 挂载线右段面板格；契约 = `CONTRACTS.md` §9，
   功能 = `FEATURES.md` §13，开发工作区 = `client/plugins/`）；运行时加载与第三方沙箱远期；
   **服务级扩展仍走 ports**（ports 即边界）。AI 共读「問」已落地（`client/plugins/ai/`，v0.1.0；实测调优进行中）。
