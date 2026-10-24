@@ -1,31 +1,39 @@
 /**
- * 视图切换 900ms 动画的状态机 —— 书库底部状态栏与笔记管理底部状态栏共用
+ * 视图切换闪屏的状态机 —— 书库底部状态栏与笔记管理底部状态栏共用
  * （此前两处逐行复制、常量各写一份，收敛到此）。
  *
- * 动画（`.view-switch-flash`，styles.css）：
- * ① 判定区域变深色（旧文字被吞没）② 浅色新文字出现在深色区域上 ③ 区域与文字同时复原。
- * 文字在动画 50% 处替换，让"新文字从深色块里浮出来"。
+ * 动画（`.view-switch-flash`，styles.css）：① 判定区域变深色（旧文字被"吞没"）
+ * ② 浅色新文字出现在深色区域上 ③ 区域与文字同时复原。文字在动画 50% 处替换，
+ * 让"新文字从深色块里浮出来"。
+ *
+ * ⚠ 2026-10-24（v1.14 提速）：900ms → 240ms。视图切换是每天数十次的高频动作，
+ * 900ms 的锁定期把核心导航排队了（STYLE.md §3.3 动效 token：--dur-flash）。
+ * **闪屏中再点 = 重新起一轮**（key 重挂重启关键帧）——状态切换永远不被动画挡住；
+ * 240ms 的闪屏极短，重挂的 hover 丢失不可感知。
  */
 import { useEffect, useRef, useState } from 'react'
 
-/** 动画总时长（与 styles.css 的 `view-switch-flash` 一致）：动画期间按钮禁用 */
-export const VIEW_SWITCH_MS = 900
+/** 动画总时长（与 styles.css 的 `view-switch-flash` 一致，读同一个 token --dur-flash） */
+export const VIEW_SWITCH_MS = 240
 /** 文字替换时刻 = 动画 50% */
-const VIEW_SWITCH_SWAP_MS = 450
+const VIEW_SWITCH_SWAP_MS = 120
 
 export function useViewSwitchFlash<V extends string>(
   view: V,
   /** 由调用方给"下一个视图值"（两处的循环语义不同：二元切换 / 三态循环等） */
   nextOf: (current: V) => V
 ): {
-  /** 动画播放中（按钮此时 disabled） */
+  /** 动画播放中（按钮文字此时还在"旧值"，挂在按钮上的 key 用它重启动画） */
   flashing: boolean
-  /** 按钮上显示的文字（跟随动画节奏，落后于 view 约 450ms） */
+  /** 重启计数：挂在动画元素（按钮）的 key 上 —— 每次切换 +1，元素重挂 → 关键帧从头播 */
+  flashSeq: number
+  /** 按钮上显示的文字（跟随动画节奏，落后于 view 约 120ms） */
   shown: V
-  /** 触发一次切换：返回下一个视图值；动画中调用是 no-op（按钮已 disabled，这里再挡一次） */
+  /** 触发一次切换：返回下一个视图值；闪屏中调用 = 立即重开一轮（不等上一轮走完） */
   toggle: () => V
 } {
   const [flashing, setFlashing] = useState(false)
+  const [flashSeq, setFlashSeq] = useState(0)
   const [shown, setShown] = useState<V>(view)
   const timers = useRef<number[]>([])
 
@@ -42,9 +50,9 @@ export function useViewSwitchFlash<V extends string>(
 
   const toggle = (): V => {
     const next = nextOf(view)
-    if (flashing) return next
-    setFlashing(true)
     timers.current.forEach((t) => window.clearTimeout(t))
+    setFlashing(true)
+    setFlashSeq((s) => s + 1)
     timers.current = [
       window.setTimeout(() => setShown(next), VIEW_SWITCH_SWAP_MS),
       window.setTimeout(() => setFlashing(false), VIEW_SWITCH_MS + 60)
@@ -52,5 +60,5 @@ export function useViewSwitchFlash<V extends string>(
     return next
   }
 
-  return { flashing, shown, toggle }
+  return { flashing, flashSeq, shown, toggle }
 }

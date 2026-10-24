@@ -166,6 +166,20 @@
      ⚠ 书文档里的 `::selection` 由适配器读本 token 后**内联注入**（宿主 CSS 不跨文档边界）；
      宿主侧（输入框等可选区域）用下方全局 `::selection` 规则。 */
   --selection-bg: rgba(216, 219, 224, 0.3);
+
+  /* ── 动效 token（v1.14，STYLE.md §3.3）—— 全应用唯一的时长/曲线来源，组件禁写死 ──
+     分级时长：press 100（按压下沉）· hover 160（色温/菜单项/收回）· veil 200（遮罩/灯光连续跟随）
+     · panel 220（垂挂揭幕）· flash 240（视图切换闪屏）· view 300（大浮层/大状态）。
+     曲线：进场与揭幕 = 强 ease-out（--ease-out：起步快，"应声而至"）；同屏位移 = --ease-inout；
+     色温/hover = 普通 ease（不起眼的变化不需要表演）。禁 `transition: all`（§6 禁区）。 */
+  --dur-press: 100ms;
+  --dur-hover: 160ms;
+  --dur-veil: 200ms;
+  --dur-panel: 220ms;
+  --dur-flash: 240ms;
+  --dur-view: 300ms;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-inout: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 [data-theme='light'] {
@@ -386,7 +400,7 @@ textarea {
 .reader-stage::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--page-text) 10%, transparent);
   border-radius: 2px;
-  transition: background-color 200ms ease-out;
+  transition: background-color var(--dur-veil) ease-out;
 }
 
 .reader-stage:hover::-webkit-scrollbar-thumb {
@@ -447,11 +461,18 @@ textarea {
   background: none;
   border: 0;
   cursor: pointer;
-  transition: color 120ms ease-out;
+  transition: color var(--dur-hover) ease, transform var(--dur-press) ease-out;
 }
 
 .feature-nav:hover {
   color: var(--text);
+}
+
+/* 按压 = 墨色压深 + 1px 下沉（§5.1 按压态；transform 不动布局）。色温瞬时到位，位移短促过渡 */
+.feature-nav:active {
+  color: var(--text);
+  transform: translateY(1px);
+  transition: color 0ms, transform var(--dur-press) ease-out;
 }
 
 .feature-nav--active,
@@ -484,6 +505,90 @@ textarea {
   .marquee-track {
     animation: none;
   }
+
+  /* v1.14（§2 P5）：减动态 = 保留透明度/色温，去掉位移与揭幕 */
+  .rail-hang,
+  .context-menu,
+  .context-menu__sub {
+    transition: none;
+  }
+}
+
+/* ── 命令面板（Ctrl+Shift+P，2026-10-24 用户定；FEATURES.md §14）──────────────
+   VSCode 式：顶部悬停的**非模态**浮层 —— 输入即筛（子串）、↑↓ 选择、Enter 执行、Esc 关闭、
+   外点关闭。语汇：动作区 = 纯色底 `--panel-2` + 1px `--border` + 直角（同 §5.2 例外⑥ 的
+   "动作区必须自己成一层"）；行 = 纯文字（P1），选中态 = `--accent` + `--accent-soft` 底
+   （与右键菜单项同一语言）；键位提示 11px `--muted` 靠右。
+   **呼出不动画**：键盘起手的工具，动画就是延迟（§2 P5 频率检验）。 */
+.command-palette {
+  position: fixed;
+  top: 14%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, calc(100vw - 48px));
+  max-height: 62vh;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+
+.command-palette__input {
+  flex: none;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--border-soft);
+  background: none;
+  color: var(--text);
+  font-family: var(--font-serif-cn);
+  font-size: 15px;
+  line-height: 1.5;
+  outline: none;
+}
+
+.command-palette__list {
+  min-height: 0;
+  max-height: 52vh;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.command-palette__item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex: none;
+  width: 100%;
+  padding: 7px 14px;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-serif-cn);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  transition: color var(--dur-hover) ease, background-color var(--dur-hover) ease;
+}
+
+.command-palette__item:hover,
+.command-palette__item[data-active='true'] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.command-palette__key {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.command-palette__empty {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 /* ---------- 文字动作按钮（STYLE.md §5.1）----------
@@ -499,7 +604,7 @@ textarea {
   border: 0;
   padding: 0;
   cursor: pointer;
-  transition: color 120ms ease-out;
+  transition: color var(--dur-hover) ease;
 }
 
 .text-action:hover {
@@ -509,6 +614,24 @@ textarea {
 .text-action:disabled {
   opacity: 0.35;
   cursor: default;
+}
+
+/* 按压态（v1.14 §5.1）：瞬时到位（0ms）、释放按 hover 时长回落 —— "系统听到了"的那一下。
+   印刷世界的按压 = 墨色压深，不是缩放。 */
+.text-action:active {
+  color: var(--text);
+  transition: color 0ms;
+}
+
+.text-action--primary:active {
+  color: var(--accent);
+  filter: brightness(1.35);
+  transition: color 0ms, filter 0ms;
+}
+
+.text-action--danger:active {
+  color: var(--err);
+  transition: color 0ms;
 }
 
 .text-action--primary {
@@ -525,10 +648,16 @@ textarea {
 }
 
 /* 状态栏用的放大档（书库底部两个文字按钮，2026-09-09 定）
-   22px + 0.08em 字距 —— 比 18px 略大、字距略松，但不过分（用户要求）。 */
+   22px + 0.08em 字距 —— 比 18px 略大、字距略松，但不过分（用户要求）。
+   大目标按压再加 1px 下沉：色温之外补一点物理位移（§5.1 按压态）。 */
 .text-action--lg {
   font-size: 22px;
   letter-spacing: 0.08em;
+  transition: color var(--dur-hover) ease, transform var(--dur-press) ease-out;
+}
+
+.text-action--lg:active {
+  transform: translateY(1px);
 }
 
 /* ---------- 书库底部：视图切换按钮（STYLE.md §5.1 / §5.4）----------
@@ -551,11 +680,15 @@ textarea {
   background: none;
   border: 0;
   cursor: pointer;
-  transition: color 120ms ease-out;
+  transition: color var(--dur-hover) ease, transform var(--dur-press) ease-out;
 }
 
 .view-switch:hover {
   color: var(--accent);
+}
+
+.view-switch:active {
+  transform: translateY(1px);
 }
 
 .view-switch:disabled {
@@ -603,7 +736,9 @@ textarea {
 }
 
 .view-switch-flash {
-  animation: view-switch-flash 900ms ease-out both;
+  /* 时长走 --dur-flash（240ms，v1.14 提速：原 900ms 把高频导航锁了太久）；
+     闪屏中再点 = key 重挂重启（viewSwitchFlash.ts） */
+  animation: view-switch-flash var(--dur-flash) ease-out both;
 }
 
 /* ---------- 中文排版（STYLE.md §4）----------
@@ -761,7 +896,7 @@ textarea {
   inset: 0;
   background: var(--desk-bg);
   opacity: var(--reader-veil, var(--toc-veil-rest, 0.74));
-  transition: opacity 200ms ease-out;
+  transition: opacity var(--dur-veil) ease-out;
   pointer-events: none;
 }
 
@@ -782,12 +917,14 @@ textarea {
 }
 
 .reader-controls__fold .text-action {
-  opacity: 0.5;
-  transition: opacity 200ms ease-out;
+  /* 灯的法则（v1.14）：与目录折疊同款（静息 0.5 → 靠近点亮 1） */
+  opacity: calc(0.5 + 0.5 * var(--fold-glow, 0));
+  transition: opacity var(--dur-veil) ease-out;
 }
 
-.reader-controls__fold .text-action:hover {
-  opacity: 1;
+.reader-controls__fold:hover .text-action,
+.reader-controls__fold .text-action:focus-visible {
+  --fold-glow: 1;
 }
 
 
@@ -822,8 +959,11 @@ textarea {
 .reader-rail__zone,
 .reader-rail__span {
   border-top: 1px solid var(--muted);
-  opacity: 0.34;
-  transition: opacity 200ms ease-out;
+  /* 灯的法则（v1.14 §5.8）：光标即光源 —— 不透明度在 [静息 0.34, 满值 0.75] 间随
+     光标到线段的距离**连续呼吸**（`veil.ts` paintGlow 写接近度因子 --rail-glow；
+     静息/满值归这里）。hover / 键盘聚焦 = 满亮下限（JS 不画时 CSS 仍权威） */
+  opacity: calc(0.34 + 0.41 * var(--rail-glow, 0));
+  transition: opacity var(--dur-veil) ease-out;
 }
 
 .reader-rail__zone {
@@ -850,8 +990,40 @@ textarea {
   width: var(--rail-panel-w, 280px);
 }
 
-.reader-rail__zone:hover {
-  opacity: 0.75;
+.reader-rail__zone:hover,
+.reader-rail__zone:focus-visible {
+  --rail-glow: 1;
+}
+
+/* ── 垂挂揭幕（v1.14，STYLE.md §5.8）──────────────────────────────────
+   抽屉自挂载线**向下揭开**：包装层 .rail-hang 铺满阅读舞台（inset:0、自身不拾取事件），
+   内部抽屉（.toc-list / .reader-controls）保持原有绝对定位坐标不变；
+   clip-path 自上缘（= 挂载线）向下扫开 —— "挂件挂在线上"的空间故事在时间上成立。
+   进 = 220ms 强 ease-out；收回更快（出比进快）= data-closing 160ms，期间不拾取事件，
+   收完由 ReaderRail 卸载（closing 状态机在那边）。`@starting-style` = 挂载首帧从"藏"开始
+   过渡（Chromium 123+，Electron 33 ✓）；不支持时无动画直接出现，优雅降级。 */
+.rail-hang {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  clip-path: inset(0 0 0 0);
+  transition: clip-path var(--dur-panel) var(--ease-out);
+}
+
+.rail-hang > * {
+  pointer-events: auto;
+}
+
+.rail-hang[data-closing] {
+  clip-path: inset(0 0 100% 0);
+  transition-duration: var(--dur-hover);
+}
+
+@starting-style {
+  .rail-hang:not([data-closing]) {
+    clip-path: inset(0 0 100% 0);
+  }
 }
 
 /* 垂挂列表：从挂载线下方开始，**与左段线段同宽同侧**（左端与线段对齐），**全透明** */
@@ -909,12 +1081,14 @@ textarea {
 }
 
 .toc-list__fold .text-action {
-  opacity: 0.5;
-  transition: opacity 200ms ease-out;
+  /* 灯的法则（v1.14）：静息 0.5，光标靠近连续点亮到 1（--fold-glow 因子由 paintGlow 写） */
+  opacity: calc(0.5 + 0.5 * var(--fold-glow, 0));
+  transition: opacity var(--dur-veil) ease-out;
 }
 
-.toc-list__fold .text-action:hover {
-  opacity: 1;
+.toc-list__fold:hover .text-action,
+.toc-list__fold .text-action:focus-visible {
+  --fold-glow: 1;
 }
 
 .toc-row {
@@ -951,7 +1125,7 @@ textarea {
   z-index: 2;
   background: var(--desk-bg);
   opacity: var(--toc-veil, var(--toc-veil-rest, 0.74));
-  transition: opacity 200ms ease-out;
+  transition: opacity var(--dur-veil) ease-out;
   pointer-events: none;
 }
 
@@ -969,6 +1143,19 @@ textarea {
    内容与背景靠颜色区分）。**语义按域不同**（书库=文件管理 / 阅读器=标记批注），形态统一。
    ⚠ 2026-09-16（用户定）：**原形态太透明，读不出来** → 动作区改**纯色底 + 1px 描边 + 全强度文字**
    （挂在正文/纸上必须自己成一层，不能再靠"内容与背景同色"）—— 见 STYLE.md §5.2 例外⑥。 */
+.context-menu {
+  /* 菜单自挂载线**向下生长**（v1.14）：clip 自上缘向下扫 —— 1px 线在顶缘先现、
+     功能项随后，一个属性就给出"先线后项"的次序。出 = 瞬时卸载（高频短命浮层，收回不表演）。 */
+  clip-path: inset(0 0 0 0);
+  transition: clip-path var(--dur-hover) var(--ease-out);
+}
+
+@starting-style {
+  .context-menu {
+    clip-path: inset(0 0 100% 0);
+  }
+}
+
 .context-menu__rail {
   width: 100%;
   height: 1px;
@@ -1000,6 +1187,7 @@ textarea {
   font-size: 14px;
   line-height: 1.5;
   color: var(--text); /* 全强度：动作必须读得出来（原 --muted 在纸上几乎消失） */
+  transition: color var(--dur-hover) ease, background-color var(--dur-hover) ease;
 }
 
 .context-menu__item:hover {
@@ -1021,7 +1209,8 @@ textarea {
   white-space: nowrap;
 }
 
-/* 子菜单：挂在父项右侧（同样直角；层级靠 1px 线 + 缩进 + 纯色底，不用阴影/圆角） */
+/* 子菜单：挂在父项右侧（同样直角；层级靠 1px 线 + 缩进 + 纯色底，不用阴影/圆角）。
+   揭幕方向 = 自**左缘**向右揭开（它是"从父项里长出来"的，v1.14） */
 .context-menu__sub {
   position: absolute;
   left: 100%;
@@ -1035,6 +1224,14 @@ textarea {
   min-width: 160px;
   background: var(--panel-2);
   border: 1px solid var(--border);
+  clip-path: inset(0 0 0 0);
+  transition: clip-path var(--dur-hover) var(--ease-out);
+}
+
+@starting-style {
+  .context-menu__sub {
+    clip-path: inset(0 100% 0 0);
+  }
 }
 
 /* ── 批注输入（2026-09-14 立；**2026-09-16 用户改形态**，同日 v1.9 再改宽高）────────────────
@@ -1109,6 +1306,12 @@ textarea {
   border: 0;
   padding: 0;
   cursor: pointer;
+  transition: color var(--dur-hover) ease;
+}
+
+.rail-tabs__tab:active {
+  color: var(--text);
+  transition: color 0ms;
 }
 
 .rail-tabs__tab--on {
@@ -1269,7 +1472,7 @@ textarea {
   padding: 0;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 200ms ease-out;
+  transition: opacity var(--dur-veil) ease-out;
 }
 
 .note-row:hover .note-row__edit,
@@ -1340,7 +1543,7 @@ textarea {
   font-size: 11px;
   line-height: 1.35;
   color: var(--muted);
-  transition: color 150ms ease-out;
+  transition: color var(--dur-hover) ease;
 }
 
 /* 标记块 = **功能信息**（这条是什么色），非装饰 —— §5.2 例外⑤，与 `.note-row__mark` 同口径。
@@ -1417,10 +1620,10 @@ textarea {
    颜色全走 token（TitleBar.tsx 内），这里只放无法用 Tailwind 表达的 app-region。 */
 .titlebar {
   -webkit-app-region: drag;
-  /* 全屏时整条收起的过渡（原内联在 TitleBar.tsx，归拢到 styles.css） */
+  /* 全屏时整条收起的过渡（原内联在 TitleBar.tsx，归拢到 styles.css；时长走动效 token，v1.14） */
   transition:
-    height 240ms ease-out,
-    opacity 180ms ease-out;
+    height var(--dur-flash) ease-out,
+    opacity var(--dur-hover) ease-out;
 }
 .titlebar button,
 .titlebar input {
@@ -1496,7 +1699,7 @@ textarea {
   border-bottom: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
   padding: 4px 0;
   margin: 2px 0;
-  transition: color 200ms ease-out;
+  transition: color var(--dur-hover) ease;
 }
 
 .ai-quote:hover {

@@ -45,7 +45,7 @@ export function NotesToolbar({
   onToggleScope
 }: NotesToolbarProps): React.JSX.Element {
   /** 共享动画状态机（viewSwitchFlash.ts，与 LibraryToolbar 同款） */
-  const { flashing, shown, toggle } = useViewSwitchFlash<NoteView>(
+  const { flashing, flashSeq, shown, toggle } = useViewSwitchFlash<NoteView>(
     view,
     (v) => (v === 'masonry' ? 'grid' : 'masonry')
   )
@@ -61,9 +61,10 @@ export function NotesToolbar({
   return (
     <footer className="flex-none">
       <div className="flex items-center gap-7 border-t border-[var(--border)] pt-4 pb-1 text-[12.5px]">
+        {/* 闪屏中再点 = 重开一轮（key 重挂重启关键帧）—— 状态切换永远不被动画挡住 */}
         <button
+          key={flashSeq}
           onClick={toggleView}
-          disabled={flashing}
           title="切换显示模式"
           className={`view-switch ${flashing ? 'view-switch-flash' : ''}`}
         >

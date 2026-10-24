@@ -22,10 +22,11 @@
  * （复用 `.reader-controls` 同一几何 token）；页签序 = 參數 → 聊天（仅房间态）→ 插件格（按注册序）。
  * AI 共读插件落地时「問」与「聊天」互斥（用户已定），其他插件格不受影响。
  */
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ChatMessage, Note } from '@core/domain/types'
 import type { PluginReaderContext } from '@shared/plugin'
 import type { TocRow } from './TocPanel'
+import { paintGlow } from './veil'
 import { TocPanel } from './TocPanel'
 import { NotesPanel } from './NotesPanel'
 import { ChatPanel } from './ChatPanel'
@@ -86,6 +87,32 @@ interface ReaderRailProps {
   pluginPanels?: RailPluginPanel[]
   /** 阅读上下文句柄（v1.1）：传给插件格的 mount ctx.reader（书未打开时为空） */
   readerContext?: PluginReaderContext
+}
+
+/** 垂挂揭幕的卸载延迟：与 styles.css 的收回时长（`--dur-hover` = 160ms）同步，稍留余量 */
+const HANG_EXIT_MS = 180
+
+/** 挂载线灯光的目标段（veil.ts paintGlow 的选择器：三段一起呼吸） */
+const RAIL_GLOW_SELECTOR = '.reader-rail__zone, .reader-rail__span'
+
+/**
+ * 垂挂揭幕的开合状态机（v1.14，STYLE.md §5.8）：`open=false` 时**先播收回**
+ * （data-closing → clip 向上收回线里，160ms），收完才真正卸载 —— 抽屉的进出都是
+ * "从线上长出来 / 缩回线里"。CSS（.rail-hang 的 transition + @starting-style）管动画，
+ * 这里只管"什么时候允许卸载"。
+ */
+function useHangingPanel(open: boolean): { mounted: boolean; closing: boolean } {
+  const [state, setState] = useState({ mounted: open, closing: false })
+  useEffect(() => {
+    if (open) {
+      setState({ mounted: true, closing: false })
+      return
+    }
+    setState((s) => (s.mounted ? { mounted: true, closing: true } : s))
+    const t = window.setTimeout(() => setState({ mounted: false, closing: false }), HANG_EXIT_MS)
+    return () => window.clearTimeout(t)
+  }, [open])
+  return state
 }
 
 /** 两格文字开关（左「目錄 / 筆記」与右「參數 / 聊天」共用同一形态与类名） */
@@ -215,6 +242,31 @@ export function ReaderRail({
   const showChat = Boolean(chat) && rightPanel === 'chat'
   const activePlugin = visiblePluginPanels.find((p) => p.key === rightPanel)
 
+  // 垂挂揭幕（v1.14）：左右抽屉各自持"收回中"状态，收回播完才卸载
+  const leftHang = useHangingPanel(tocOpen)
+  const rightHang = useHangingPanel(controlsOpen)
+
+  // 灯的法则（§5.8 v1.14）：光标即光源 —— 挂载线三段随光标距离连续呼吸。
+  // ReaderFeature 常驻挂载（其他功能态 display:none）→ 矩形为空时跳过；鼠标离开窗口回静息。
+  const railRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const paint = (x: number | null, y: number | null): void => {
+      paintGlow(railRef.current, { selector: RAIL_GLOW_SELECTOR, glowVar: '--rail-glow' }, x, y)
+    }
+    const onMove = (e: MouseEvent): void => {
+      const rail = railRef.current
+      if (!rail || rail.getClientRects().length === 0) return
+      paint(e.clientX, e.clientY)
+    }
+    const onLeave = (): void => paint(null, null)
+    window.addEventListener('mousemove', onMove)
+    document.documentElement.addEventListener('mouseleave', onLeave)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      document.documentElement.removeEventListener('mouseleave', onLeave)
+    }
+  }, [])
+
   // 挂载线右段把手的提示文字 = 当前内容（与左段同口径）
   const rightZoneTitle = controlsOpen ? '收起右欄' : showChat ? '聊天' : (activePlugin?.title ?? '閱讀參數')
 
@@ -222,7 +274,7 @@ export function ReaderRail({
     <>
       {/* 横向挂载线：左段（目录）+ 中段（纯线）+ 右段（参数/聊天/插件格），三段拼出整页宽的一条线。
           ⚠ 两段**等宽**且各贴线的一端 → 关于线中心镜像（线本身 = --sidebar-w → 窗口右缘） */}
-      <div className="reader-rail">
+      <div className="reader-rail" ref={railRef}>
         <button
           className="reader-rail__zone reader-rail__zone--toc"
           aria-label={tocOpen ? '收起左欄' : '打開左欄'}
@@ -241,53 +293,60 @@ export function ReaderRail({
       </div>
 
       {/* 左挂件：目录 / 笔记（同一几何，顶部开关切换）。无目录索引的书也垂挂占位说明
-          （2026-09-13 用户定："本书没有目录索引"要可见，不静默消失） */}
-      {tocOpen &&
-        (leftPanel === 'toc' ? (
-          <TocPanel
-            rows={tocRows}
-            onJump={onTocJump}
-            onToggle={onTocToggle}
-            header={leftTabs}
-            activeChapter={activeChapter}
-          />
-        ) : (
-          <NotesPanel
-            notes={notes}
-            header={leftTabs}
-            onJump={onNoteJump}
-            onRemove={onNoteRemove}
-            onEdit={onNoteEdit}
-            onToggle={onTocToggle}
-            activeChapter={activeChapter}
-            focusNote={focusNote}
-          />
-        ))}
+          （2026-09-13 用户定："本书没有目录索引"要可见，不静默消失）。
+          .rail-hang = 垂挂揭幕包装层（自挂载线向下揭开，收回播完才卸载，v1.14） */}
+      {leftHang.mounted && (
+        <div className="rail-hang" data-closing={leftHang.closing || undefined} aria-hidden={leftHang.closing || undefined}>
+          {leftPanel === 'toc' ? (
+            <TocPanel
+              rows={tocRows}
+              onJump={onTocJump}
+              onToggle={onTocToggle}
+              header={leftTabs}
+              activeChapter={activeChapter}
+            />
+          ) : (
+            <NotesPanel
+              notes={notes}
+              header={leftTabs}
+              onJump={onNoteJump}
+              onRemove={onNoteRemove}
+              onEdit={onNoteEdit}
+              onToggle={onTocToggle}
+              activeChapter={activeChapter}
+              focusNote={focusNote}
+            />
+          )}
+        </div>
+      )}
 
       {/* 右挂件：參數 / 聊天 / 插件格（挂在线下方右侧；折叠 = 向上收回线里，面板底部「折疊」同目录）。
           ⚠ 插件格的指向失效（插件被禁用/重载后 key 不在了）→ 回落參數（不能空白） */}
-      {controlsOpen &&
-        (showChat && chat ? (
-          <ChatPanel
-            messages={chat.messages}
-            roomId={chat.roomId}
-            header={rightTabs}
-            onSend={chat.onSend}
-            onToggle={onControlsToggle}
-            draft={chat.draft}
-            onDraftChange={chat.onDraftChange}
-          />
-        ) : activePlugin ? (
-          <RailPluginMount panel={activePlugin} header={rightTabs} onToggle={onControlsToggle} reader={readerContext} />
-        ) : (
-          <ReaderControls
-            params={params}
-            onChange={onParamsChange}
-            onToggle={onControlsToggle}
-            header={rightTabs}
-            isPdf={isPdf}
-          />
-        ))}
+      {rightHang.mounted && (
+        <div className="rail-hang" data-closing={rightHang.closing || undefined} aria-hidden={rightHang.closing || undefined}>
+          {showChat && chat ? (
+            <ChatPanel
+              messages={chat.messages}
+              roomId={chat.roomId}
+              header={rightTabs}
+              onSend={chat.onSend}
+              onToggle={onControlsToggle}
+              draft={chat.draft}
+              onDraftChange={chat.onDraftChange}
+            />
+          ) : activePlugin ? (
+            <RailPluginMount panel={activePlugin} header={rightTabs} onToggle={onControlsToggle} reader={readerContext} />
+          ) : (
+            <ReaderControls
+              params={params}
+              onChange={onParamsChange}
+              onToggle={onControlsToggle}
+              header={rightTabs}
+              isPdf={isPdf}
+            />
+          )}
+        </div>
+      )}
     </>
   )
 }

@@ -50,3 +50,33 @@ export function paintVeil(
     el.style.setProperty(veilVar, (rest * (1 - near)).toFixed(3))
   }
 }
+
+/**
+ * 灯的法则（2026-10-24，STYLE.md §5.8）—— 遮罩按距离的姊妹机制：写的是**接近度因子** `[0,1]`
+ * （1 = 光标就在旁边），静息值/满值与不透明度的换算归 CSS `calc()`（样式的单一来源在 styles.css，
+ * 这里不写死数字）。与 paintVeil 的差别：遮罩是"越近越揭开"（写深色层的不透明度），
+ * 灯光是"越近越点亮"（写元素自身的不透明度因子），且距离是**到元素矩形的欧氏距离**
+ * （横向挂载线要用到水平分量；列表折叠钮也顺手受益）。
+ * `clientX/Y === null` = 鼠标离开 → 清掉内联值，全部回到静息。
+ */
+export function paintGlow(
+  el: HTMLElement | null,
+  { selector, glowVar, falloff = VEIL_FALLOFF }: { selector: string; glowVar: string; falloff?: number },
+  clientX: number | null,
+  clientY: number | null
+): void {
+  if (!el) return
+  const items = Array.from(el.querySelectorAll<HTMLElement>(selector))
+  if (clientX === null || clientY === null) {
+    for (const item of items) item.style.removeProperty(glowVar)
+    return
+  }
+  const rects = items.map((item) => ({ item, rect: item.getBoundingClientRect() }))
+  for (const { item, rect } of rects) {
+    // 光标到矩形的距离（在矩形内 = 0）：横向挂载线的"光标沿段落水平移动"也由此成立
+    const dx = Math.max(rect.left - clientX, 0, clientX - rect.right)
+    const dy = Math.max(rect.top - clientY, 0, clientY - rect.bottom)
+    const near = Math.max(0, 1 - Math.hypot(dx, dy) / falloff)
+    item.style.setProperty(glowVar, near.toFixed(3))
+  }
+}

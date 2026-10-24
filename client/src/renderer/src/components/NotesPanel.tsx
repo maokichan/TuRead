@@ -11,7 +11,8 @@
  */
 import { useEffect, useRef } from 'react'
 import type { Note } from '@core/domain/types'
-import { activeNoteIndex, centerInScrollBox } from './readerFollow'
+import { centerInScrollBox, activeNoteIndex } from './readerFollow'
+import { paintGlow } from './veil'
 
 export interface NotesPanelProps {
   /** 当前书的笔记（**必须是阅读序**：章 → 章内进度 → 创建时间，见 `domain/anchor.ts` 的 `compareNoteOrder`） */
@@ -46,6 +47,8 @@ export function NotesPanel({
   focusNote = null
 }: NotesPanelProps): React.JSX.Element {
   const rowsRef = useRef<HTMLDivElement | null>(null)
+  /** 根层引用：「折疊」灯光的绘制范围（笔记行少，不加热遮罩 —— 只有折疊按钮随光标点亮） */
+  const rootRef = useRef<HTMLDivElement | null>(null)
   /** 笔记列表换了（换书 / 新建 / 删除）→ 视为首次落位（瞬时定位，不做平滑动画） */
   const lastNotesRef = useRef<Note[] | null>(null)
   /** 已处理过的「看这条」请求 tick（同一条再点一次时 tick 会变） */
@@ -73,7 +76,16 @@ export function NotesPanel({
   }, [notes, activeChapter, focusNote])
 
   return (
-    <div className="toc-list">
+    <div
+      className="toc-list"
+      ref={rootRef}
+      onMouseMove={(e) =>
+        paintGlow(rootRef.current, { selector: '.toc-list__fold .text-action', glowVar: '--fold-glow' }, e.clientX, e.clientY)
+      }
+      onMouseLeave={() =>
+        paintGlow(rootRef.current, { selector: '.toc-list__fold .text-action', glowVar: '--fold-glow' }, null, null)
+      }
+    >
       {header}
       <div className="toc-list__rows" ref={rowsRef}>
         {notes.length === 0 && <div className="toc-list__empty">本書還沒有筆記</div>}

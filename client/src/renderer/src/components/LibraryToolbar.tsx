@@ -57,7 +57,7 @@ export function LibraryToolbar({
   crumbs
 }: LibraryToolbarProps): React.JSX.Element {
   /** 共享动画状态机（viewSwitchFlash.ts，与 NotesToolbar 同款） */
-  const { flashing, shown, toggle } = useViewSwitchFlash<LibraryView>(
+  const { flashing, flashSeq, shown, toggle } = useViewSwitchFlash<LibraryView>(
     view,
     (v) => (v === 'list' ? 'grid' : 'list')
   )
@@ -71,9 +71,10 @@ export function LibraryToolbar({
        分割线随内容区宽度铺开（此前 max-w-[720px] 收得太短），`pt-4` 让线上移。 */
     <footer className="flex-none">
       <div className="flex items-center gap-7 border-t border-[var(--border)] pt-4 pb-1 text-[12.5px]">
+        {/* 闪屏中再点 = 重开一轮（key 重挂重启关键帧）—— 状态切换永远不被动画挡住 */}
         <button
+          key={flashSeq}
           onClick={toggleView}
-          disabled={flashing}
           title="切换显示模式"
           className={`view-switch ${flashing ? 'view-switch-flash' : ''}`}
         >

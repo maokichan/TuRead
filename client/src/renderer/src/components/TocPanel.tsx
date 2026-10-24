@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { activeTocIndex, centerInScrollBox, type TocRow } from './readerFollow'
-import { paintVeil as paintVeilImpl } from './veil'
+import { paintGlow, paintVeil as paintVeilImpl } from './veil'
 
 /** 目录行形状定义在 `readerFollow.ts`（纯 `.ts`，测试工程不设 jsx）—— 这里再导出，调用方不必改 */
 export type { TocRow }
@@ -33,6 +33,8 @@ export function TocPanel({
   activeChapter = 0
 }: TocPanelProps): React.JSX.Element {
   const rowsRef = useRef<HTMLDivElement | null>(null)
+  /** 根层引用：遮罩与「折疊」灯光的绘制范围（mousemove 也挂在根层 —— 页签/折疊区也要响应） */
+  const rootRef = useRef<HTMLDivElement | null>(null)
   /** 上一次的 `rows` 引用：换了书就是"首次落位"（不做平滑动画，直接就在那儿） */
   const lastRowsRef = useRef<TocRow[] | null>(null)
 
@@ -55,27 +57,29 @@ export function TocPanel({
   }, [rows, activeChapter])
 
   /**
-   * 按鼠标位置重画遮罩：先**读**全部条目矩形，再**写**各自的 `--toc-veil`
-   * （读写分离，避免逐条读写交替触发强制重排）。
+   * 按鼠标位置重画：① 条目遮罩（先**读**全部条目矩形，再**写**各自的 `--toc-veil`，
+   * 读写分离，避免逐条读写交替触发强制重排）；② 「折疊」灯光（灯的法则，v1.14：
+   * 静息 0.5 → 光标靠近连续点亮到 1，因子由 paintGlow 写、换算归 styles.css）。
    *
    * 语义（用户 2026-09-11 定）：**靠近只会"揭开"，远端保持静息** ——
    * 遮罩不透明度在 `[0, 静息值]` 之间取值：正中 → 0（完全揭开）；够远 → 静息值（**不再更暗**）。
    * 静息值从 CSS 读 `--toc-veil-rest`（样式的单一来源在 styles.css，不在这里写死数字）。
-   * `clientY === null` = 鼠标离开列表 → 清掉内联值，全部回到静息。
+   * `clientX/Y === null` = 鼠标离开面板 → 清掉内联值，全部回到静息。
    */
-  const paintVeil = (clientY: number | null): void => {
-    paintVeilImpl(rowsRef.current, { selector: '.toc-row', veilVar: '--toc-veil', restVars: ['--toc-veil-rest'] }, clientY)
+  const paint = (clientX: number | null, clientY: number | null): void => {
+    paintVeilImpl(rootRef.current, { selector: '.toc-row', veilVar: '--toc-veil', restVars: ['--toc-veil-rest'] }, clientY)
+    paintGlow(rootRef.current, { selector: '.toc-list__fold .text-action', glowVar: '--fold-glow' }, clientX, clientY)
   }
 
   return (
-    <div className="toc-list">
+    <div
+      className="toc-list"
+      ref={rootRef}
+      onMouseMove={(e) => paint(e.clientX, e.clientY)}
+      onMouseLeave={() => paint(null, null)}
+    >
       {header}
-      <div
-        className="toc-list__rows"
-        ref={rowsRef}
-        onMouseMove={(e) => paintVeil(e.clientY)}
-        onMouseLeave={() => paintVeil(null)}
-      >
+      <div className="toc-list__rows" ref={rowsRef}>
         {rows.length === 0 && <div className="toc-list__empty">本書沒有目錄索引</div>}
         {rows.map((row, i) => (
           <button

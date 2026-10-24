@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { paintVeil as paintVeilImpl } from './veil'
+import { paintGlow, paintVeil as paintVeilImpl } from './veil'
 
 /**
  * 阅读参数面板内容（挂载线实体的底部挂件，线本体与开合把手在 `ReaderRail`）——
@@ -149,8 +149,12 @@ export function ReaderControls({
 }: ReaderControlsProps): React.JSX.Element {
   const boxRef = useRef<HTMLDivElement | null>(null)
 
-  /** 遮罩按距离（共享实现见 veil.ts）：近 → 揭开，远 → 静息（--reader-veil-rest，缺省回落 --toc-veil-rest） */
-  const paintVeil = (clientY: number | null): void => {
+  /**
+   * 按鼠标位置重画：① 行遮罩（遮罩按距离，共享实现见 veil.ts）：
+   * 近 → 揭开，远 → 静息（--reader-veil-rest，缺省回落 --toc-veil-rest）；
+   * ② 「折疊」灯光（灯的法则，v1.14：静息 0.5 → 光标靠近连续点亮到 1）。
+   */
+  const paint = (clientX: number | null, clientY: number | null): void => {
     paintVeilImpl(
       boxRef.current,
       {
@@ -160,14 +164,15 @@ export function ReaderControls({
       },
       clientY
     )
+    paintGlow(boxRef.current, { selector: '.reader-controls__fold .text-action', glowVar: '--fold-glow' }, clientX, clientY)
   }
 
   return (
     <div
       className="reader-controls"
       ref={boxRef}
-      onMouseMove={(e) => paintVeil(e.clientY)}
-      onMouseLeave={() => paintVeil(null)}
+      onMouseMove={(e) => paint(e.clientX, e.clientY)}
+      onMouseLeave={() => paint(null, null)}
     >
       {/* 页签（有聊天室时才有）留在面板顶部不随档位滚动 —— 与左抽屉的 header/rows 分层同构；
           折叠态由外层的 max-height 兜住 */}

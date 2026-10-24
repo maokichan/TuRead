@@ -14,7 +14,7 @@
  */
 import { useEffect, useRef } from 'react'
 import type { ChatMessage } from '@core/domain/types'
-import { paintVeil as paintVeilImpl } from './veil'
+import { paintGlow, paintVeil as paintVeilImpl } from './veil'
 
 interface ChatPanelProps {
   messages: ChatMessage[]
@@ -48,6 +48,7 @@ export function ChatPanel({
   onDraftChange
 }: ChatPanelProps): React.JSX.Element {
   const rowsRef = useRef<HTMLDivElement | null>(null)
+  const rootRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
   /** 新消息到达 → 滚到底（聊天的默认阅读位置；用户手动上翻后仍跟随，保持简单可预期） */
@@ -57,9 +58,10 @@ export function ChatPanel({
     box.scrollTop = box.scrollHeight
   }, [messages])
 
-  /** 遮罩按距离（共享实现见 veil.ts：先读矩形、再写变量，读写分离） */
-  const paintVeil = (clientY: number | null): void => {
-    paintVeilImpl(rowsRef.current, { selector: '.chat-row', veilVar: '--toc-veil', restVars: ['--toc-veil-rest'] }, clientY)
+  /** 遮罩按距离（共享实现见 veil.ts）+ 「折疊」灯光（灯的法则，v1.14）；mousemove 挂根层 */
+  const paint = (clientX: number | null, clientY: number | null): void => {
+    paintVeilImpl(rootRef.current, { selector: '.chat-row', veilVar: '--toc-veil', restVars: ['--toc-veil-rest'] }, clientY)
+    paintGlow(rootRef.current, { selector: '.toc-list__fold .text-action', glowVar: '--fold-glow' }, clientX, clientY)
   }
 
   const submit = (): void => {
@@ -68,14 +70,14 @@ export function ChatPanel({
   }
 
   return (
-    <div className="toc-list toc-list--right chat-panel">
+    <div
+      className="toc-list toc-list--right chat-panel"
+      ref={rootRef}
+      onMouseMove={(e) => paint(e.clientX, e.clientY)}
+      onMouseLeave={() => paint(null, null)}
+    >
       {header}
-      <div
-        className="toc-list__rows"
-        ref={rowsRef}
-        onMouseMove={(e) => paintVeil(e.clientY)}
-        onMouseLeave={() => paintVeil(null)}
-      >
+      <div className="toc-list__rows" ref={rowsRef}>
         {messages.length === 0 && (
           <div className="toc-list__empty">房間 {roomId} 裡還沒有消息</div>
         )}
