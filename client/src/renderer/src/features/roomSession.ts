@@ -21,6 +21,7 @@ export interface RoomView {
   /**
    * 这次房间会话绑定的**本地 edition id**（= 经房间打开的那本书）。
    * 聊天室只在**它的**阅读页出现 —— "没有通过房间进入一本书就不会有这个项"（用户 2026-09-17 定）。
+   * 空串 = 在房间里但还没拿到书（无书成员补书流程进行中/不可得）。
    */
   editionId: string | null
   /** 房间绑定书的标题（会话视图显示用；来自本地记录，不是服务器字段） */
@@ -28,6 +29,11 @@ export interface RoomView {
   members: RoomMember[]
   messages: ChatMessage[]
   connection: ConnectionState
+  /**
+   * 跟随模式（v0.4.9）：开启后，房间内其他成员的位置变化会把阅读器带到同一位置。
+   * 生命周期 = 本次房间会话（离开房间复位，不持久化 —— "跟着读"是当场意图，不是偏好）。
+   */
+  following: boolean
   /** 最近一条房间级错误（加入失败 / 拉历史失败）—— UI 显示一行，不弹窗 */
   error: string | null
 }
@@ -39,6 +45,7 @@ const EMPTY_VIEW: RoomView = {
   members: [],
   messages: [],
   connection: 'disconnected',
+  following: false,
   error: null
 }
 
@@ -76,9 +83,15 @@ export function bindRoomSession(container: ServiceContainer): () => void {
   }
 }
 
-/** 加入成功（`joinRoom` ok）后登记会话 —— 阅读器据此决定要不要出现「聊天」页签 */
+/** 加入成功（`joinRoom` ok）后登记会话 —— 阅读器据此决定要不要出现「聊天」页签。
+ *  消息与跟随一并复位：这是**新**会话，上一段会话的遗留（若未经 endRoomSession）不得带过来。 */
 export function beginRoomSession(p: { roomId: string; editionId: string; bookTitle: string }): void {
-  set({ roomId: p.roomId, editionId: p.editionId, bookTitle: p.bookTitle, error: null })
+  set({ roomId: p.roomId, editionId: p.editionId, bookTitle: p.bookTitle, messages: [], following: false, error: null })
+}
+
+/** 跟随模式开关（v0.4.9；开关在阅读器的聊天格里，跨组件共享同一份） */
+export function setRoomFollow(on: boolean): void {
+  set({ following: on })
 }
 
 /** 离开房间 / 加入失败：会话态整体复位（**消息随房间会话结束**；历史仍在服务器，随房间级联清理） */

@@ -14,9 +14,10 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { compareNoteOrder } from '@core/domain/anchor'
-import { isZeroLocation } from '@core/domain/location'
+import { isZeroLocation, sameLocation } from '@core/domain/location'
 import type { ResolvedTheme } from '@core/domain/theme'
 import type {
+  BookFingerprint,
   BookLocation,
   BookRecord,
   Chapter,
@@ -40,7 +41,7 @@ import { useKeyIntents } from '../../components/useKeyIntents'
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
 import { NoteComposer } from '../../components/NoteComposer'
 import { bridgeIframeDocuments } from '../../components/iframeBridge'
-import { sendRoomChat, useRoomView } from '../roomSession'
+import { sendRoomChat, setRoomFollow, useRoomView } from '../roomSession'
 import { usePluginPanels } from '../../plugins/runtime'
 import { IPC } from '@shared/ipc'
 
@@ -162,9 +163,41 @@ export function ReaderFeature({
           void sendRoomChat(text)
             .then(() => setChatDraft(''))
             .catch((err) => host.pushLog(`發送失敗：${(err as Error).message}`))
-        }
+        },
+        following: room.following,
+        onToggleFollow: () => setRoomFollow(!room.following)
       }
     : null
+
+  /**
+   * 跟随模式（v0.4.9）：开启后，房间内其他成员的位置变化把阅读器带到同一位置。
+   * 三道闸门（防"跟错书"与"回声循环"）：
+   * ① 开关打开（经 ref 读取 —— 监听只挂一次，不随开关重挂）；
+   * ② 当前打开的书 = 房间绑定的书（指纹比对，与位置上报的 B-2 同口径）；
+   * ③ 目标位置 ≠ 当前位置（同位不跳：否则我跳过去的回执会把对方再拽一次）。
+   * 只跟"位置事件"，不区分是谁 —— 共读的语义是"一起读这本书"，不是监控某个人。
+   */
+  const followingRef = useRef(room.following)
+  followingRef.current = room.following
+  useEffect(() => {
+    return container.room.on('location-updated', (loc) => {
+      if (!followingRef.current) return
+      const open = container.render.getOpenBook()
+      const edition = container.room.getRoomState()?.edition
+      if (!open || !edition) return
+      const roomFp: BookFingerprint = {
+        algorithm: edition.hashAlgo as BookFingerprint['algorithm'],
+        hash: edition.hash,
+        size: edition.size
+      }
+      if (!container.identity.verify(open.fingerprint, roomFp)) return
+      if (sameLocation(container.render.getPosition(), loc, open.format)) return
+      container.render.goToPosition(loc).catch((err: Error) => {
+        // 跟随失败不冒泡打断阅读（下一次位置事件会再带过来）
+        host.pushLog(`跟隨跳轉失敗：${err.message}`)
+      })
+    })
+  }, [container, host])
 
   /**
    * 插件面板格（v1.13，契约 = CONTRACTS §9）：插件运行时注册的右段格，

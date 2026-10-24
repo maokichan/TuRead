@@ -809,13 +809,16 @@ function RailDemo({
   const [params, setParams] = useState<ReaderParams>(DEFAULT_READER_PARAMS)
   // ⚠ 受控输入：样张必须自己持有草稿（传死值会测不出输入区）
   const [draft, setDraft] = useState('')
+  const [following, setFollowing] = useState(false)
   const chat = withChat
     ? {
         roomId: 'a1b2c3d4',
         messages: CHAT,
         draft,
         onDraftChange: setDraft,
-        onSend: () => setDraft('')
+        onSend: () => setDraft(''),
+        following,
+        onToggleFollow: () => setFollowing((v) => !v)
       }
     : null
   return (

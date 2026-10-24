@@ -44,6 +44,9 @@ export interface RailChatProps {
   draft: string
   onDraftChange: (text: string) => void
   onSend: (text: string) => void
+  /** 跟随模式（v0.4.9）：开 → 其他成员翻页时本端跟到同一位置（开关在聊天格头部） */
+  following: boolean
+  onToggleFollow: () => void
 }
 
 /** 插件面板格（由插件运行时注册，经 ReaderFeature 传入；结构契约 = CONTRACTS §9.2 + v1.1） */
@@ -333,6 +336,8 @@ export function ReaderRail({
               onToggle={onControlsToggle}
               draft={chat.draft}
               onDraftChange={chat.onDraftChange}
+              following={chat.following}
+              onToggleFollow={chat.onToggleFollow}
             />
           ) : activePlugin ? (
             <RailPluginMount panel={activePlugin} header={rightTabs} onToggle={onControlsToggle} reader={readerContext} />
