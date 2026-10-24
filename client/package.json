@@ -16,6 +16,7 @@
     "style": "vite --config tools/style-gallery/vite.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "swarm": "node tools/swarm/build.cjs && node tools/swarm/swarm.cjs",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.test.json",
     "typecheck:preview": "tsc --noEmit -p tsconfig.preview.json",
     "typecheck:all": "npm run typecheck && npm run typecheck:preview",

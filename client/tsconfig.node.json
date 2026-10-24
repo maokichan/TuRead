@@ -24,6 +24,7 @@
     "src/preload/**/*",
     "src/core/**/*",
     "src/shared/**/*",
+    "tools/swarm/**/*",
     "electron.vite.config.ts"
   ],
   "exclude": ["src/**/*.test.ts"]
