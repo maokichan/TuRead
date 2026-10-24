@@ -18,3 +18,6 @@ tools/style-gallery/.smoke-user-data/
 # 无头探针的独立 userData（`TUREAD_USER_DATA=<此目录>`，见 docs/STATUS.md §6）——
 # 会以未跟踪目录出现在仓库里，而且会被 vite 的 watcher 当成页面刷新源（纯噪音）
 .probe-user-data*/
+
+# 蜂群机器人构建产物（npm run swarm 每次自动重建）
+tools/swarm/roombot.cjs
