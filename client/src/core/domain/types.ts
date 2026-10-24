@@ -535,10 +535,9 @@ export interface Edition {
 export interface JoinAck {
   ok: boolean
   /**
-   * ⚠ **不收窄成字面量联合**（v0.4.3 修正）：服务器实际下发的是
-   * `"book mismatch" / "room full" / "room not found"`（`internal/room/manager.go` 的 error 串，
-   * **空格分词**）与 `"bad payload"`，而 `API.md` 与旧契约写的是连字符形式 —— 精确匹配会把
-   * "书不匹配"静默降级成 server-error。故按字符串收，归一交给 `protocol.ts` 的 `normalizeJoinReason`。
+   * **按字符串收，不收窄成字面量联合**（归一交给 `protocol.ts` 的 `normalizeJoinReason`）。
+   * server v0.2.1 起发连字符形式（`"room-not-found"` 等，与 `API.md` 一致）；历史部署可能仍发
+   * 空格分词（`"room not found"`）—— 归一函数两种都认。
    */
   reason?: string
   roomId?: string

@@ -64,12 +64,10 @@ export function isValidNick(nick: string): boolean {
 /**
  * 归一服务端下发的 `join-ack.reason`。
  *
- * ⚠ **已实测的服务器/文档偏差（2026-09-17 复核，登记在 `TODO.md` 的「同步」组）**：
- * 服务器实际发的是 `room.ErrNotFound = "room not found"` / `ErrMismatch = "book mismatch"` /
- * `ErrFull = "room full"`（`server/internal/room/manager.go`，**空格分词**，且 `transport/ws.go`
- * 另硬编码了 `"room not found"` / `"bad payload"`），而 `API.md` 与客户端契约写的是**连字符**形式。
- * 客户端只做精确匹配时：`book-mismatch` → `server-error`（"书不匹配"的提示永远出不来）。
- * 处置（本轮，不改服务器）：**容错归一**——空格/下划线/大小写一律收，未知串归 `server-error`。
+ * ⚠ **历史偏差与现状（2026-10-24 server v0.2.1 对齐）**：服务器此前实际发的是
+ * `room.ErrNotFound = "room not found"` 等空格分词串（`internal/room/manager.go`），而文档写连字符
+ * —— 精确匹配曾把"书不匹配"静默降级成 server-error。**server 侧已改为连字符（向文档看齐）**；
+ * 本函数的空格/下划线/大小写容错**保留**（对旧服务器部署 / 传输层噪声都有韧性），未知串归 `server-error`。
  */
 export function normalizeJoinReason(reason: string | undefined | null): JoinFailureReason {
   const r = (reason ?? '').trim().toLowerCase().replace(/[\s_]+/g, '-')

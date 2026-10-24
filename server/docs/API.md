@@ -1,4 +1,4 @@
-# server API 契约（REST + WebSocket，v0.2.0）
+# server API 契约（REST + WebSocket，v0.2.1）
 
 > **本文自含全部 JSON 形状**（见「数据形状参考」），客户端实现只需本文件，**无需读 Go 源码**；Go 实现（`internal/transport/*`）仅为参考。
 > 客户端侧适配入口：`client/docs/CONTRACTS.md` 的 `INetService`（信封搬运，不理解语义）与 `IRoomSession`（业务语义）。
@@ -110,7 +110,7 @@
 ## 用户（users）
 
 - **用户 ID = 成员 token**（7 位大小写字母数字，**服务端签发**；无独立自增 id）
-- **建档**：`POST /auth/token` 签发时创建（nick 空、role=user）；首次 `WS join` 时补 nick（≤12 字，超长拒绝连接）；建房时房主建档
+- **建档**：`POST /auth/token` 签发时创建（nick 空、role=user）；首次 `WS join` 时补 nick（≤12 字，超长拒绝连接）；建房时房主建档（owner 同判据 ≤12 字，超长 400 —— v0.2.1 起）
 - 字段：`token`(PK) / `nick` / `bio`（描述，≤120 字，写接口时校验）/ `role` / `ip`（签发来源 IP）/ `token_issued_at`（最后签发/续期，unix 秒）/ `created_at`
 - `role` 枚举：`user`（正常）/ `admin`（管理）/ `limited`（限制）—— admin 已 enforce（管理接口）；`limited` 语义远期实现
 - 远期迁移：token 即用户名，可加密码列（加盐哈希）演进为登录用户系统
@@ -146,9 +146,10 @@
 > 模型说明（2026-08-27）：**Work 不设 author / publisher**（多作者需联结表+核对机制，远期复杂不做；ISBN 已提供可查询性）。
 > `content-hash-v1` = **edition 内容指纹**：同一扫描版/同一文件内容 → 同 code（标题/文件名不同不影响）；扫描版不同即不同 edition，位置无法对齐。
 > **Edition 信息由客户端计算并上传**：客户端用其校准算法（含 OCR，如扫描书提 ISBN）计算指纹，创建房间时**同时上传副本与 edition 信息**；server 只登记，从不自己计算指纹。
+> **owner 昵称约束（v0.2.1）**：与 WS 握手同一判据（非空 + rune 数 ≤12，`maxNickLen`）——超长 `400`。此前建房路径不校验，房主可用超长昵称建档、随后自己 WS join 被握手拒绝（进不去自己的房）。
 
 - `200` 响应：`{ "roomId": "8位hex", "editionId": 1, "workId": 1, "created": true }`
-- `400`：owner 为空 / protocol 不在枚举 / code 校验失败 / title·ext·hash·size 缺失或非法
+- `400`：owner 为空/超长（≤12 字）/ protocol 不在枚举 / code 校验失败 / title·ext·hash·size 缺失或非法
 - `500`：存储或房间创建失败
 
 ### GET /rooms —— 房间发现（大厅 / 按书找房）
@@ -316,3 +317,7 @@ server 落库成功后广播 `room.message`：
 
 - ~~`domain.Member` 无 json tag~~ —— **v0.1.5 已对齐**：成员字段 `id` / `nickName` / `location`（omitempty），与 client 契约 `RoomMember` 一致
 - ~~`domain.Edition` 无 json tag~~ —— **v0.1.6 已对齐**：camelCase（`id`/`workId`/...；`createdAt` 为 RFC3339）
+- ~~join-ack 的失败 reason 串与文档不一致~~ —— **v0.2.1 已对齐（服务器向文档看齐）**：`internal/room/manager.go`
+  的错误串改为连字符形式（`"room-not-found"` / `"book-mismatch"` / `"room-full"`），`ws.go` 硬编码的
+  `"room not found"` 一并改引 `room.ErrNotFound`。客户端 `normalizeJoinReason` 两种形式都认（容错保留），
+  不受影响。

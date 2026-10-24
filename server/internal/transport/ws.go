@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"turead/server/internal/domain"
+	"turead/server/internal/room"
 )
 
 // WS 常量：背压（写超时 / pong 等待 / ping 周期 / 发送队列容量）+ 输入约束
@@ -206,7 +207,8 @@ func (c *wsClient) handleJoin(payload json.RawMessage) {
 	}
 	ed, err := c.server.store.GetEdition(editionID)
 	if err != nil || ed == nil {
-		c.send(domain.MessageEnvelope{Type: domain.MsgJoinAck, Payload: domain.JoinAck{OK: false, Reason: "room not found"}})
+		// reason 串与 `docs/API.md` 逐字一致（连字符）；客户端 normalizeJoinReason 两种都认
+		c.send(domain.MessageEnvelope{Type: domain.MsgJoinAck, Payload: domain.JoinAck{OK: false, Reason: room.ErrNotFound.Error()}})
 		return
 	}
 

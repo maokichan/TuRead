@@ -11,9 +11,12 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("room not found")
-	ErrMismatch = errors.New("book mismatch")
-	ErrFull     = errors.New("room full")
+	// 错误串 = 下发给客户端的 join-ack reason，**必须与 `docs/API.md`（连字符形式）逐字一致**：
+	// 客户端 `normalizeJoinReason` 两种都认（空格分词容错保留），但契约以连字符为权威 ——
+	// 此前服务器发空格分词、文档写连字符，"书不匹配"曾被客户端静默降级成 server-error（已裁：服务器向文档看齐）。
+	ErrNotFound = errors.New("room-not-found")
+	ErrMismatch = errors.New("book-mismatch")
+	ErrFull     = errors.New("room-full")
 )
 
 // Room 内存房间（运行时状态不落库：成员/位置/订阅全是瞬态；房间定义落库，重启恢复）

@@ -101,3 +101,38 @@ func TestListRoomsEndpoint(t *testing.T) {
 		t.Fatalf("invalid edition should 400, got %d", got)
 	}
 }
+
+// POST /rooms 的 owner 昵称约束（v0.2.1）：与 WS 握手同一判据（非空 + rune 数 ≤12）。
+// 此前建房路径不校验 → 房主可用超长昵称建档，随后自己 WS join 被握手拒绝（进不去自己的房）。
+func TestCreateRoomOwnerNickConstraint(t *testing.T) {
+	_, u := newTestServerAdmin(t, testAccess, []string{adminToken})
+
+	post := func(owner string) int {
+		body := fmt.Sprintf(`{"owner":%q,"book":{"protocol":"content-hash-v1","code":"deadbeef","title":"T","ext":"epub","hash":"deadbeef","size":100}}`, owner)
+		req, _ := http.NewRequest("POST", u+"/rooms", bytes.NewBufferString(body))
+		for k, v := range authHdr(adminToken) {
+			req.Header.Set(k, v)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	if code := post("alice"); code != 200 {
+		t.Fatalf("12 字以内的昵称应放行，got %d", code)
+	}
+	if code := post(""); code != 400 {
+		t.Fatalf("空昵称应 400，got %d", code)
+	}
+	// 13 个汉字（rune 计）—— 与 ws.go 握手的 maxNickLen 同一判据
+	if code := post("一二三四五六七八九十甲乙丙"); code != 400 {
+		t.Fatalf("超长昵称（13 rune）应 400，got %d", code)
+	}
+	// 恰好 12 个汉字：放行
+	if code := post("一二三四五六七八九十甲乙"); code != 200 {
+		t.Fatalf("12 rune 昵称应放行，got %d", code)
+	}
+}

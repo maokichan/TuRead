@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"turead/server/internal/domain"
 )
@@ -57,8 +58,14 @@ func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad request: "+err.Error())
 		return
 	}
-	if req.Owner == "" || !domain.ValidProtocol(req.Book.Protocol) {
-		writeErr(w, http.StatusBadRequest, "owner and valid protocol required")
+	// 昵称约束与 WS 握手同一判据（maxNickLen，rune 数）：建房建档时超长放行的话，
+	// 房主随后 WS join 会被握手拒绝 —— 进不去自己刚建的房。
+	if req.Owner == "" || utf8.RuneCountInString(req.Owner) > maxNickLen {
+		writeErr(w, http.StatusBadRequest, "owner required, max 12 chars")
+		return
+	}
+	if !domain.ValidProtocol(req.Book.Protocol) {
+		writeErr(w, http.StatusBadRequest, "valid protocol required")
 		return
 	}
 	code, ok := domain.NormalizeCode(req.Book.Protocol, req.Book.Code)
