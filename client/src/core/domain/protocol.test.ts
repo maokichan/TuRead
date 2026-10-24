@@ -118,6 +118,8 @@ describe('protocol · 聊天合并（广播 + 历史交错）', () => {
     const dirty = [
       { id: 'x', text: 'no' },
       { text: 'no id' },
+      { id: 6, text: 'no createdAt' }, // 审计 C-5：formatTime 直接算 HH:MM，缺 createdAt 会渲染 NaN:NaN
+      { id: 7, text: 'createdAt 不是数字', createdAt: 'yesterday' },
       null,
       undefined,
       msg(5)

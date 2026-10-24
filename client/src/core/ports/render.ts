@@ -73,6 +73,13 @@ export interface IRenderService extends EventEmitter<RenderServiceEvents> {
   close(): Promise<void>
   renderTo(element: HTMLElement): Promise<void>
   /**
+   * 当前打开的书（未打开 / 已 close = null）。
+   * 为什么要有它：`location-changed` 是渲染端口上的**全局事件**（适配器只有一份），
+   * 房间同步等调用方上报位置前必须校验"事件属于哪本书"——在 A 书的房间里打开 B 书，
+   * B 的位置不得广播进 A 房（审计 B-2）。判据 = 与房间标定指纹比对（`identity.verify`）。
+   */
+  getOpenBook(): BookRecord | null
+  /**
    * 向已打开的正文（kookit iframe）注入/更新主题样式（v0.3.0）。
    * 非 PDF 电子书正文是 HTML：深色模式在这里注入深色 CSS（`rendition.setStyle`，kookit 唯一样式注入口，
    * 默认 CSS 未注入 → 内容完全可控）；浅色不注入、保留书的自有外观。PDF 是位图，本方法无操作（后置像素处理）。

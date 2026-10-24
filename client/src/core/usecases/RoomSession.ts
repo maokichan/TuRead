@@ -29,6 +29,7 @@ import {
 } from '@core/domain/protocol'
 import type {
   BookFormat,
+  BookFingerprint,
   BookLocation,
   BookRecord,
   ChatMessage,
@@ -115,6 +116,12 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
   /** 已加入房间绑定的书（格式用于 presence diff 选位置 key；指纹用于断线重连后重发 room.join） */
   private joinedBook: BookRecord | null = null
   private joinedFormat: BookFormat | null = null
+  /**
+   * 房间标定指纹（审计 B-2）：带书加入 = 本书指纹；无书加入 = join-ack 的 edition 指纹。
+   * `location-changed` 是渲染端口的全局事件 —— 上报前必须校验"当前打开的书 ≡ 房间的书"，
+   * 判据与服务器标定同口径（`identity.verify`：algorithm+hash+size 全等）。
+   */
+  private roomFingerprint: BookFingerprint | null = null
   /** 是否已在本房间完成标定（join-ack ok）—— 重连后据此决定要不要重发 join */
   private joined = false
   /** 各成员的最近一次位置基线（server 用 presence 全量快照推位置 → 本侧 diff 才 emit location-updated） */
@@ -206,6 +213,17 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     // 无书成员：位置比较的格式键从房间绑定的 edition 扩展名推（否则 presence diff 整条不工作，
     // 见 deriveRemoteLocations 的 `!this.joinedFormat` 早退）
     if (!this.joinedFormat && ack.edition?.ext) this.joinedFormat = extToFormat(`x.${ack.edition.ext}`)
+    // 审计 B-2：标定指纹 —— 带书 = 本书指纹；无书 = 服务器告知的 edition 指纹
+    //（无书成员下载副本导入后打开的就是同内容文件，指纹比对天然成立）
+    this.roomFingerprint = book
+      ? book.fingerprint
+      : ack.edition
+        ? {
+            algorithm: (ack.edition.hashAlgo as BookFingerprint['algorithm']) ?? 'md5-sample3-v1',
+            hash: ack.edition.hash,
+            size: ack.edition.size
+          }
+        : null
     this.state = {
       roomId: ack.roomId ?? rid,
       bookId: ack.edition ? String(ack.edition.id) : undefined,
@@ -227,6 +245,8 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     this.joinUnsubs = []
     if (this.emitTimer) clearTimeout(this.emitTimer)
     this.emitTimer = null
+    // 审计 C-5：节流窗口内未发出的位置一并作废 —— 不清的话重进房间会把上一会话的旧位置带出去
+    this.pendingEmit = null
     this.clearPendingJoin()
     this.resetJoinState()
     // 握手即房间：离开 = 断开连接（聊天/位置同步随房间结束；历史留在服务器，随房间级联清理）
@@ -234,8 +254,9 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
   }
 
   async emitLocation(location?: BookLocation): Promise<void> {
+    // 手动路径与自动路径同一出口、同一校验（审计 B-2 / TODO「emitLocation 绕过节流」）
+    if (!this.isOpenBookTheRoomsBook()) return
     const loc = location ?? this.render.getPosition()
-    // 统一走节流（TODO P3「emitLocation 绕过节流」：手动路径与 onRenderLocation 必须同一条出口）
     this.throttleSend(loc)
   }
 
@@ -354,6 +375,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     this.joined = false
     this.joinedBook = null
     this.joinedFormat = null
+    this.roomFingerprint = null
     this.memberLocs.clear()
   }
 
@@ -473,8 +495,21 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     }
   }
 
+  /**
+   * 审计 B-2：`location-changed` 是渲染端口的全局事件，在 A 书的房间里打开 B 书会把
+   * B 的位置广播进 A 房。上报前校验"当前打开的书 ≡ 房间标定的那本"（指纹口径与服务器一致）。
+   * 渲染未打开任何书（书还没开/已关）时同样不上报 —— 没有可验证的归属。
+   */
+  private isOpenBookTheRoomsBook(): boolean {
+    if (!this.roomFingerprint) return false
+    const open = this.render.getOpenBook()
+    if (!open) return false
+    return this.identity.verify(open.fingerprint, this.roomFingerprint)
+  }
+
   private onRenderLocation(loc: BookLocation): void {
     if (!this.state) return
+    if (!this.isOpenBookTheRoomsBook()) return
     this.state = { ...this.state, currentLocation: loc }
     this.throttleSend(loc)
   }

@@ -492,6 +492,11 @@ interface IRenderService extends EventEmitter<RenderServiceEvents> {
   open(record: BookRecord, options?: RenderOptions): Promise<void>;
   close(): Promise<void>;
   renderTo(element: HTMLElement): Promise<void>;
+  /** v0.4.7：当前打开的书（未打开 / 已 close = null）。
+   *  为什么要有它：`location-changed` 是渲染端口上的**全局事件**（适配器只有一份），
+   *  房间同步等调用方上报位置前必须校验"事件属于哪本书"——在 A 书的房间里打开 B 书，
+   *  B 的位置不得广播进 A 房（审计 B-2）。判据 = 与房间标定指纹比对（`IBookIdentityService.verify`）。 */
+  getOpenBook(): BookRecord | null;
   /** v0.3.0：向已打开的正文注入**颜色**（深色模式）。非 PDF 电子书正文是 HTML，走 `rendition.setStyle`
    *  （kookit 唯一样式注入口；**浅色不注入颜色**，保留书的自有外观）；PDF 是位图 → 深色走像素处理
    *  （TODO 单独立项），本方法对 PDF 无操作。颜色取自宿主语义 token `--page-bg/--page-text`。
@@ -957,6 +962,7 @@ interface ServiceContainer {
 
 | 版本 | 主题 |
 |---|---|
+| **v0.4.7** | 房间同步正确性批：`IRenderService.getOpenBook()`（位置上报前校验"事件属于房间的书"，审计 B-2）+ 聊天消息守卫补 `createdAt`（审计 C-5） |
 | **v0.4.6** | 插件契约 v1.1：通用能力 `net.fetch`（https 代理）与 `secrets`（safeStorage 保险库）+ 面板 `hideWhenInRoom`（AI 問格与聊天互斥用）+ `ctx.reader` 阅读上下文句柄（快照 + 溯源跳回） |
 | **v0.4.5** | 插件契约（§9）：manifest / `activate(api)` / 挂载线右段面板格注册点（v1 官方专用） |
 | v0.4.4 | 无书成员加入：`joinRoom` 的 `book` 放宽为 `null`（`fingerprint: null`，服务器本就支持） |

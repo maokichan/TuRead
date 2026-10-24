@@ -110,6 +110,9 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
   }, [container, url, token, nick, refreshRooms])
 
   const disconnect = useCallback(async () => {
+    // 审计 B-3：先走 leaveRoom（幂等）清掉房间会话再断开 —— 直接 net.disconnect 会把
+    // RoomSession 的 joined/joinUnsubs 留成幽灵会话（位置监听还活着，重进后互相污染）
+    await container.room.leaveRoom()
     endRoomSession()
     await container.net.disconnect()
     setSessionReady(false)

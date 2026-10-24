@@ -130,9 +130,17 @@ export function mergeChatMessages(
   return [...byId.values()].sort((a, b) => a.id - b.id)
 }
 
-/** 形状守卫：聊天消息的最小可信字段（server 的 payload 只保证是 JSON） */
+/** 形状守卫：聊天消息的最小可信字段（server 的 payload 只保证是 JSON）。
+ *  `createdAt` 一并要求（审计 C-5）：展示层（ChatPanel.formatTime）直接拿它算 HH:MM，
+ *  缺了会渲染成 `NaN:NaN` —— 在守卫里拦掉，脏数据不进 UI。 */
 export function isChatMessage(value: unknown): value is ChatMessage {
   if (!value || typeof value !== 'object') return false
   const m = value as Partial<ChatMessage>
-  return typeof m.id === 'number' && Number.isFinite(m.id) && typeof m.text === 'string'
+  return (
+    typeof m.id === 'number' &&
+    Number.isFinite(m.id) &&
+    typeof m.text === 'string' &&
+    typeof m.createdAt === 'number' &&
+    Number.isFinite(m.createdAt)
+  )
 }
