@@ -12,7 +12,8 @@ import type { INetService, HttpRequestOptions, HttpResult, Unsubscribe } from '@
 import type { IRenderService } from '@core/ports/render'
 import type { IBookIdentityService } from '@core/ports/identity'
 
-/** FakeNet：join 链路同步回 ack；request 可录制（历史路径断言用） */
+/** FakeNet：join 链路同步回 ack；request 可录制（历史路径断言用）；
+ *  openRoom 可挂一次性门闩（并发 join 的交错控制用）。 */
 class FakeNet implements INetService {
   sent: MessageEnvelope[] = []
   /** request 调用记录（断言 after= 增量补拉用） */
@@ -21,6 +22,10 @@ class FakeNet implements INetService {
   history: ChatMessage[] = []
   /** send(room.join) 时要回的 join-ack payload（测试用例注入） */
   ackOnJoin: unknown = { ok: true, roomId: 'ab12cd34', edition: undefined, members: [] }
+  /** 一次性门闩：armOpenGate 后，第一次 openRoom 挂起直到 releaseOpen（其后不挂） */
+  private openGate: Promise<void> | null = null
+  private openGateRelease: (() => void) | null = null
+  closeRoomCalls = 0
   private listeners = new Map<string, Set<(...a: unknown[]) => void>>()
 
   on(event: 'message' | 'connection-changed', fn: (...a: unknown[]) => void): () => void {
@@ -35,8 +40,16 @@ class FakeNet implements INetService {
     for (const fn of this.listeners.get(event) ?? []) fn(...args)
   }
   async connect(): Promise<void> {}
-  async openRoom(): Promise<void> {}
-  async closeRoom(): Promise<void> {}
+  async openRoom(): Promise<void> {
+    if (this.openGate) {
+      const gate = this.openGate
+      this.openGate = null
+      await gate
+    }
+  }
+  async closeRoom(): Promise<void> {
+    this.closeRoomCalls++
+  }
   async disconnect(): Promise<void> {}
   async send(envelope: MessageEnvelope): Promise<void> {
     this.sent.push(envelope)
@@ -50,6 +63,15 @@ class FakeNet implements INetService {
   async request<T>(opts: HttpRequestOptions): Promise<HttpResult<T>> {
     this.requests.push(opts)
     return { status: 200, ok: true, data: { messages: this.history } as T }
+  }
+  armOpenGate(): void {
+    this.openGate = new Promise<void>((resolve) => {
+      this.openGateRelease = resolve
+    })
+  }
+  releaseOpen(): void {
+    this.openGateRelease?.()
+    this.openGateRelease = null
   }
 }
 
@@ -342,5 +364,63 @@ describe('RoomSession 聊天（回执与历史）', () => {
   it('未入房 sendChat 抛错', async () => {
     const { session } = makeSession()
     await expect(session.sendChat('hi')).rejects.toThrow('尚未加入房間')
+  })
+})
+
+describe('RoomSession 并发 join（审计 C-2：代次守卫）', () => {
+  it('快速连点两个房间：旧调用以 superseded 作废，新调用完整成立，互不砸场', async () => {
+    const { net, session } = makeSession()
+    net.ackOnJoin = { ok: true, roomId: 'room-b', members: [] } // ack 的 roomId 即会话归属
+    net.armOpenGate() // 先架门闩：让旧调用停在 openRoom 半路（真实交错：点 A → 建连中 → 点 B）
+
+    const p1 = session.joinRoom('room-a', BOOK) // 旧调用：挂在 openRoom 门闩上
+    await Promise.resolve() // 让 p1 推进到门闩（一个微任务足够：getMemberId 即返）
+    const p2 = session.joinRoom('room-b', OTHER_BOOK) // 新调用：进门 → leaveRoom 清掉 A → 完整走完
+    const r2 = await p2
+    expect(r2.ok).toBe(true)
+    expect(session.getRoomState()?.roomId).toBe('room-b')
+
+    net.releaseOpen() // A 的 openRoom 恢复：gen 已过期
+    const r1 = await p1
+    expect(r1).toEqual({ ok: false, reason: 'superseded' })
+
+    // 落败方不得触发失败清理路径（closeRoom 会砸掉胜方的连接）
+    expect(net.closeRoomCalls).toBe(1) // 只有 B 入场时的那一次 leaveRoom→closeRoom
+    expect(session.getRoomState()?.roomId).toBe('room-b')
+    expect(session.getRoomState()?.members).toEqual([])
+  })
+
+  it('同一会话内连点同一房间行不受守卫误伤（leaveRoom→重进 照常工作）', async () => {
+    const { session } = makeSession()
+    const r1 = await session.joinRoom('ab12cd34', BOOK)
+    expect(r1.ok).toBe(true)
+    const r2 = await session.joinRoom('ab12cd34', BOOK)
+    expect(r2.ok).toBe(true)
+    expect(session.getRoomState()?.roomId).toBe('ab12cd34')
+  })
+})
+
+describe('RoomSession 重连耗尽（审计 B-4：可预期复位）', () => {
+  it('connection-changed = failed 且在房内 → 自动离开房间并告知原因', async () => {
+    const { net, session } = makeSession()
+    await session.joinRoom('ab12cd34', BOOK)
+    expect(session.getRoomState()).not.toBeNull()
+
+    const systems = collector<{ type: string; text: string }>()
+    session.on('system-message', (m) => systems.on(m))
+    net.emit('connection-changed', 'failed')
+    await vi.waitFor(() => expect(systems.got).toHaveLength(1))
+    expect(systems.got[0].text).toContain('重連多次失敗')
+    expect(session.getRoomState()).toBeNull() // 半死态有了出口：会话整体复位
+  })
+
+  it('不在房内时 failed 只透传事件，不触发 leaveRoom', async () => {
+    const { net, session } = makeSession()
+    const systems = collector<unknown>()
+    session.on('system-message', () => systems.on(undefined))
+    net.emit('connection-changed', 'failed')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(systems.got).toHaveLength(0)
+    expect(net.closeRoomCalls).toBe(0)
   })
 })

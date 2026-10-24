@@ -3,13 +3,15 @@ import type { ConnectionState } from '@core/domain/types'
 const STATE_LABEL: Record<ConnectionState, string> = {
   connected: '已连接',
   disconnected: '未连接',
-  reconnecting: '重连中'
+  reconnecting: '重连中',
+  failed: '连接失败'
 }
 
 const STATE_TEXT: Record<ConnectionState, string> = {
   connected: 'text-[var(--ok)] border-[var(--ok-border)]',
   disconnected: 'text-[var(--err)] border-[var(--err-border)]',
-  reconnecting: 'text-[var(--warn)] border-[var(--warn-border)]'
+  reconnecting: 'text-[var(--warn)] border-[var(--warn-border)]',
+  failed: 'text-[var(--err)] border-[var(--err-border)]'
 }
 
 // ⚠ 原实现的 connected 态带发光阴影（shadow-[0_0_8px]）、reconnecting 态带 animate-pulse
@@ -18,7 +20,8 @@ const STATE_TEXT: Record<ConnectionState, string> = {
 const DOT_STYLE: Record<ConnectionState, string> = {
   connected: 'bg-[var(--ok)]',
   disconnected: 'bg-[var(--err)]',
-  reconnecting: 'bg-[var(--warn)]'
+  reconnecting: 'bg-[var(--warn)]',
+  failed: 'bg-[var(--err)]'
 }
 
 /** 连接状态胶囊 —— 纯展示 */

@@ -33,6 +33,7 @@ import type {
   BookLocation,
   BookRecord,
   ChatMessage,
+  ConnectionState,
   JoinAck,
   JoinResult,
   MessageEnvelope,
@@ -56,7 +57,8 @@ export interface RoomSessionEvents {
    */
   'chat-history': (messages: ChatMessage[]) => void
   'system-message': (msg: SystemMessage) => void
-  'connection-changed': (state: 'connected' | 'disconnected' | 'reconnecting') => void
+  /** `failed`（v0.4.8）= 断线重连耗尽：会话即将自动复位（自动 leaveRoom + system-message 告知） */
+  'connection-changed': (state: ConnectionState) => void
   'book-mismatch': (detail: { local: BookRecord['fingerprint']; room: BookRecord['fingerprint'] }) => void
 }
 
@@ -139,6 +141,9 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
   private pendingJoin: { gen: number; resolve: (ack: JoinAck | null) => void } | null = null
   private joinGen = 0
   private joinTimer: ReturnType<typeof setTimeout> | null = null
+  /** joinRoom 调用代次（审计 C-2）：大厅快速连点两个房间 = 并发 join —— 旧的那次在每个
+   *  await 恢复点作废自己（返回 `superseded`），不得再碰共享状态或触发失败清理路径。 */
+  private joinCallGen = 0
   private lastSentAt = 0
   private pendingEmit: BookLocation | null = null
   private emitTimer: ReturnType<typeof setTimeout> | null = null
@@ -156,6 +161,15 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
         // 无书成员（joinedBook = null）同样要重入 —— 审计 A-1 摘除守卫时一并对齐
         if (s === 'connected' && this.joined && this.roomId) {
           void this.rejoin()
+        } else if (s === 'failed' && this.joined) {
+          // 审计 B-4：重连耗尽 = 会话没有出口了（服务器不再可达）—— 自动复位回大厅并告知，
+          // 而不是留着"UI 显示未连接、会话仍 joined"的半死态。可预期优于沉默。
+          void this.leaveRoom().then(() => {
+            this.emit('system-message', {
+              type: 'error',
+              text: '重連多次失敗，已離開房間（檢查網路後可重新進入）'
+            })
+          })
         }
       })
     )
@@ -166,11 +180,17 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     book: BookRecord | null,
     lastLocation?: BookLocation | null
   ): Promise<JoinResult> {
+    // 审计 C-2：并发 join 的代次守卫 —— 旧调用在每个 await 恢复点自检，落败方立即作废。
+    // 若不做，落败方的失败清理（closeRoom/resetJoinState）会砸掉胜方的会话。
+    const gen = ++this.joinCallGen
+    const superseded = (): JoinResult => ({ ok: false, reason: 'superseded' })
     if (this.roomId) await this.leaveRoom()
+    if (gen !== this.joinCallGen) return superseded()
     const rid = roomId.trim().toLowerCase()
     if (!rid) return { ok: false, reason: 'room-not-found' }
 
     this.myId = await this.net.getMemberId()
+    if (gen !== this.joinCallGen) return superseded()
     this.joinedBook = book
     // 无书成员（book = null）：位置比较的格式键晚一步从 join-ack 的 edition 扩展名推出来
     this.joinedFormat = book ? book.format : null
@@ -181,6 +201,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     try {
       await this.net.openRoom(rid)
     } catch (err) {
+      if (gen !== this.joinCallGen) return superseded()
       this.resetJoinState()
       this.emit('system-message', {
         type: 'error',
@@ -188,9 +209,11 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
       })
       return { ok: false, reason: 'server-error' }
     }
+    if (gen !== this.joinCallGen) return superseded()
 
     // ② 指纹标定
     const ack = await this.sendJoin()
+    if (gen !== this.joinCallGen) return superseded()
     if (!ack || !ack.ok) {
       const reason = normalizeJoinReason(ack?.reason)
       if (reason === 'book-mismatch' && ack?.edition && book) {
@@ -234,8 +257,10 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     this.seedMemberLocs(members)
     this.joinUnsubs.push(this.render.on('location-changed', (loc) => this.onRenderLocation(loc)))
     this.emit('presence-updated', members)
-    // ④ 聊天历史（追加日志模型；历史生命周期与房间一致）
-    await this.loadHistory()
+    // ④ 聊天历史（追加日志模型；历史生命周期与房间一致）。
+    // isCurrent：上一会话遗留的历史请求回来时不再入账（emit 与 lastChatId 都不碰）
+    await this.loadHistory(0, () => gen === this.joinCallGen)
+    if (gen !== this.joinCallGen) return superseded()
     return { ok: true, room: this.state }
   }
 
@@ -400,15 +425,19 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     await this.loadHistory(this.lastChatId)
   }
 
-  /** 拉聊天历史：after=0 = 加入时的最近一页；after=lastChatId = 重连增量 */
-  private async loadHistory(after = 0): Promise<void> {
+  /** 拉聊天历史：after=0 = 加入时的最近一页；after=lastChatId = 重连增量。
+   *  isCurrent（审计 C-2）：并发 join 落败方的在途请求回来时不入账（lastChatId 是新会话的补拉锚，
+   *  旧会话的历史也不能 emit 进新会话的共享态）。 */
+  private async loadHistory(after = 0, isCurrent?: () => boolean): Promise<void> {
     if (!this.roomId) return
     try {
       const msgs = await this.listMessages(this.roomId, { after, limit: CHAT_HISTORY_LIMIT })
+      if (isCurrent && !isCurrent()) return
       if (msgs.length === 0) return
       this.lastChatId = Math.max(this.lastChatId, ...msgs.map((m) => m.id))
       this.emit('chat-history', msgs)
     } catch (err) {
+      if (isCurrent && !isCurrent()) return
       this.emit('system-message', { type: 'error', text: `拉取聊天歷史失敗：${(err as Error).message}` })
     }
   }

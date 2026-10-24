@@ -147,6 +147,9 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
           setRoomIdInput('')
           host.pushLog(`已加入房间 ${res.room.roomId}`)
           host.openReader(target.id) // 状态继承：自动切到阅读器并打开对应书
+        } else if (res.reason === 'superseded') {
+          // 审计 C-2：并发 join 的落败方（用户已点了另一个房间）—— 静默，不报错
+          host.pushLog(`已取消进入房间 ${rid}（改进了其他房间）`)
         } else {
           const text = `加入失敗：${res.reason}`
           setRoomError(text)
@@ -350,7 +353,12 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {rooms.map((r) => (
-          <RoomRow key={r.roomId} room={r} onEnter={() => void enterRoom(r.roomId)} />
+          <RoomRow
+            key={r.roomId}
+            room={r}
+            disabled={joining}
+            onEnter={() => void enterRoom(r.roomId)}
+          />
         ))}
         {rooms.length === 0 && (
           <p className="m-0 py-4 text-center text-[12.5px] text-[var(--muted)]">

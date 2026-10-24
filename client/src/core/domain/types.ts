@@ -478,7 +478,13 @@ export interface MessageEnvelope {
   payload: unknown
 }
 
-export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting'
+/**
+ * 房间连接状态。
+ * `failed`（v0.4.8）：断线自动重连**耗尽**（重试上限仍失败）—— 与 `disconnected`（安静未连接）
+ * 区分开：这是"进房途中连接死亡"的可预期终点，用例层据此**自动离开房间并告知原因**
+ * （审计 B-4：此前 UI 显示 disconnected 但会话仍 joined=true，无出口的半死态）。
+ */
+export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting' | 'failed'
 
 /** 服务器连接配置（客户端 → 服务器）。v0.2.1 修订：补 accessToken / memberToken（token 双闸）。 */
 export interface NetConfig {

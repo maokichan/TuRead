@@ -34,8 +34,18 @@ export const ROOM_MSG = {
   bookMismatch: 'room.book-mismatch'
 } as const
 
-/** 客户端**归一后**的加入失败原因（UI 只认这四个） */
-export type JoinFailureReason = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-error'
+/**
+ * 客户端**归一后**的加入失败原因（UI 只认这五个）。
+ * `superseded` 不是服务器的失败：是**并发 join 的落败方**（审计 C-2）—— 用户快速连点两个房间时，
+ * 旧的那次 join 在 await 恢复后发现已有更新的 join 在进行，立即作废自己。UI 应**静默**处理
+ * （不显示错误 —— 用户要的是新房间，旧房间失败与否无关紧要）。
+ */
+export type JoinFailureReason =
+  | 'book-mismatch'
+  | 'room-not-found'
+  | 'room-full'
+  | 'server-error'
+  | 'superseded'
 
 /**
  * 服务端允许的最大昵称长度（按"字"计，rune 数）。

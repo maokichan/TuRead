@@ -36,6 +36,8 @@ export class WsNetAdapter extends TypedEmitter<NetServiceEvents> {
   private explicitlyClosed = false
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  /** 审计 C-4：最近一次广播的连接状态 —— 状态未变不重复广播（closeRoom/connect 等路径的冗余事件是噪声） */
+  private lastState: ConnectionState | null = null
 
   private get baseUrl(): string {
     return this.config?.serverUrl ?? ''
@@ -49,6 +51,8 @@ export class WsNetAdapter extends TypedEmitter<NetServiceEvents> {
   async connect(config: NetConfig): Promise<void> {
     // 重复 connect：先把上一条房间连接清干净（否则换服务器会留下旧 socket）
     await this.closeRoom()
+    // 新会话的状态史清零：上一条连接的状态不约束这一条的首次广播
+    this.lastState = null
     this.config = config
     /**
      * dev-only **双开联调**（2026-09-17）：服务器按 IP 签发成员 token（同一 IP 7 天内复用同一把），
@@ -266,7 +270,9 @@ export class WsNetAdapter extends TypedEmitter<NetServiceEvents> {
       return
     }
     if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      this.emitState('disconnected')
+      // 审计 B-4：重连耗尽不是安静的 disconnected —— 用例层（RoomSession）据此自动离开房间，
+      // 给出可预期的终点，而不是"UI 显示未连接但会话还挂在房间里"的半死态
+      this.emitState('failed')
       return
     }
     this.emitState('reconnecting')
@@ -281,6 +287,10 @@ export class WsNetAdapter extends TypedEmitter<NetServiceEvents> {
   }
 
   private emitState(state: ConnectionState): void {
+    // 审计 C-4：状态未变不广播 —— closeRoom/断开等路径常在已断开时再发一次 disconnected，
+    // 消费方（共享态/UI）不该收到同状态的重复事件
+    if (this.lastState === state) return
+    this.lastState = state
     this.emit('connection-changed', state)
   }
 }

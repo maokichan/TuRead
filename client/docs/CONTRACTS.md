@@ -562,7 +562,9 @@ interface MessageEnvelope {
 
 interface NetServiceEvents {
   message: (envelope: MessageEnvelope) => void;
-  'connection-changed': (state: 'connected' | 'disconnected' | 'reconnecting') => void;
+  /** v0.4.8 补 `failed`：断线自动重连**耗尽**（重试上限仍失败）—— 与 `disconnected`（安静未连接）
+   *  区分：这是可预期的终点，用例层据此自动离开房间并告知原因（审计 B-4，无出口的半死态）。 */
+  'connection-changed': (state: 'connected' | 'disconnected' | 'reconnecting' | 'failed') => void;
 }
 
 interface INetService extends EventEmitter<NetServiceEvents> {
@@ -808,7 +810,9 @@ interface RoomSessionEvents {
    *  → 消费者一律走 `protocol.mergeChatMessages`（按 id 去重、升序）。 */
   'chat-history': (messages: ChatMessage[]) => void;
   'system-message': (msg: SystemMessage) => void;
-  'connection-changed': (state: 'connected' | 'disconnected' | 'reconnecting') => void;
+  /** v0.4.8 补 `failed`（重连耗尽）：会话即将自动复位（自动 leaveRoom + system-message 告知，
+   *  审计 B-4）—— 消费方不必也不应再对半死态的会话做操作。 */
+  'connection-changed': (state: 'connected' | 'disconnected' | 'reconnecting' | 'failed') => void;
   'book-mismatch': (detail: { local: BookFingerprint; room: BookFingerprint }) => void;
 }
 
@@ -860,8 +864,11 @@ interface SystemMessage {
 }
 
 /** v0.4.3 收敛：原来 domain 与 `RoomSession` 各留一份、reason 枚举还不一致 → 只在领域层定义一次。
- *  `JoinFailureReason` 的**归一判据** = `domain/protocol.ts` 的 `normalizeJoinReason`（见下）。 */
-type JoinFailureReason = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-error';
+ *  `JoinFailureReason` 的**归一判据** = `domain/protocol.ts` 的 `normalizeJoinReason`（见下）。
+ *  v0.4.8 补 `superseded`：**并发 join 的落败方**（审计 C-2）—— 用户快速连点两个房间时，
+ *  旧的那次 join 在 await 恢复点发现已有更新的 join 在进行，立即作废自己。UI 应**静默**处理
+ *  （不显示错误：用户要的是新房间，旧房间失败与否无关紧要）；它不是服务器的失败。 */
+type JoinFailureReason = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-error' | 'superseded';
 type JoinResult =
   | { ok: true; room: RoomState }
   | { ok: false; reason: JoinFailureReason };
@@ -962,7 +969,7 @@ interface ServiceContainer {
 
 | 版本 | 主题 |
 |---|---|
-| **v0.4.7** | 房间同步正确性批：`IRenderService.getOpenBook()`（位置上报前校验"事件属于房间的书"，审计 B-2）+ 聊天消息守卫补 `createdAt`（审计 C-5） |
+| **v0.4.7** | 房间同步正确性批：`IRenderService.getOpenBook()`（位置上报前校验"事件属于房间的书"，审计 B-2）+ `JoinFailureReason` 补 `superseded`（并发 join 落败方，审计 C-2）+ `ConnectionState` 补 `failed`（重连耗尽可预期复位，审计 B-4）+ 聊天消息守卫补 `createdAt`（审计 C-5） |
 | **v0.4.6** | 插件契约 v1.1：通用能力 `net.fetch`（https 代理）与 `secrets`（safeStorage 保险库）+ 面板 `hideWhenInRoom`（AI 問格与聊天互斥用）+ `ctx.reader` 阅读上下文句柄（快照 + 溯源跳回） |
 | **v0.4.5** | 插件契约（§9）：manifest / `activate(api)` / 挂载线右段面板格注册点（v1 官方专用） |
 | v0.4.4 | 无书成员加入：`joinRoom` 的 `book` 放宽为 `null`（`fingerprint: null`，服务器本就支持） |
