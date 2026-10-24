@@ -12,12 +12,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { EBOOK_EXTENSIONS, IPC } from '@shared/ipc'
 import { createContainer, type ServiceContainer } from '@core/container'
+import { resolveThemePreference, type ThemeTone } from '@core/domain/theme'
 import { FEATURES } from './features/registry'
 import type { FeatureHost, FeatureId, ReaderTarget } from './features/types'
 import { pushLog } from './features/logStore'
 import { bindRoomSession } from './features/roomSession'
 import { loadPlugins } from './plugins/runtime'
 import { TitleBar } from './components/TitleBar'
+import { CommandPalette } from './components/CommandPalette'
+import type { PaletteCommand } from './components/commandFilter'
+import { playSettle } from './components/motion'
+import { useKeyIntents } from './components/useKeyIntents'
 import { runDevSelfCheck } from './dev/selfCheck'
 import { runPdfWidthProbe } from './dev/pdfWidthProbe'
 import { runPagedInteractProbe } from './dev/pagedInteractProbe'
@@ -162,6 +167,52 @@ export default function AppShell(): React.JSX.Element {
   // 阅读态侧边栏退场（STYLE.md §5.8）：仅 reader 且未被手动钉住时隐藏
   const sidebarVisible = activeFeature !== 'reader' || sidebarPinned
 
+  // ── 命令面板（2026-10-24 用户定，Ctrl+Shift+P，FEATURES.md §14）─────────────
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  // 意图层登记（`app.commandPalette`，组合键在输入框聚焦时也放行 —— 命令面板必须随处可呼出）
+  useKeyIntents('app', {
+    'app.commandPalette': () => setPaletteOpen((v) => !v)
+  })
+
+  const paletteCommands = useMemo<PaletteCommand[]>(() => {
+    /** 主题命令：写偏好（patchSetting 原子合并）→ 应用 data-theme → 阅读中同步注入书 iframe */
+    const setTheme = (label: string, tone: ThemeTone, mode: 'dark' | 'light'): void => {
+      void (async () => {
+        await container.store.patchSetting('appearance', { theme: { tone, mode } })
+        const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        const resolved = resolveThemePreference({ tone, mode }, dark)
+        document.documentElement.setAttribute('data-theme', resolved)
+        // 阅读态切主题：正文 iframe 的注入不会因 data-theme 自动跟上（ReaderFeature 只在激活时应用）
+        if (readerBookIdRef.current) void container.render.applyTheme(resolved)
+        pushLog(`主題已切換：${label}`)
+      })()
+    }
+    return [
+      ...FEATURES.map((f) => ({
+        id: `nav.${f.id}`,
+        label: `前往${f.label}`,
+        run: () => host.navigate(f.id)
+      })),
+      // 只在阅读态给「退出閱讀器」（其他态它没有对象）
+      ...(activeFeature === 'reader'
+        ? [{ id: 'reader.close', label: '退出閱讀器', run: () => host.closeReader() }]
+        : []),
+      { id: 'theme.solid-dark', label: '主題：純色·深', run: () => setTheme('純色·深', 'solid', 'dark') },
+      { id: 'theme.solid-light', label: '主題：純色·淺', run: () => setTheme('純色·淺', 'solid', 'light') },
+      { id: 'theme.sepia-light', label: '主題：羊皮紙·淺', run: () => setTheme('羊皮紙·淺', 'parchment', 'light') },
+      { id: 'theme.sepia-dark', label: '主題：羊皮紙·深', run: () => setTheme('羊皮紙·深', 'parchment', 'dark') }
+    ]
+  }, [container, host, activeFeature])
+
+  // 大状态切换的"落定"瞬间（v1.14 §3.3）：内容轻微模糊 → 清晰，把整页跳变糊成一次变换
+  const mainRef = useRef<HTMLElement | null>(null)
+  const settledFeature = useRef<FeatureId>('library')
+  useEffect(() => {
+    if (settledFeature.current === activeFeature) return
+    settledFeature.current = activeFeature
+    playSettle(mainRef.current)
+  }, [activeFeature])
+
   /**
    * 阅读态用**覆盖式**侧边栏（不占布局），其他功能态仍**占位**（挤压主面板）。
    *
@@ -303,6 +354,7 @@ export default function AppShell(): React.JSX.Element {
           否则四周留一圈 --bg 就成了"嵌入盒子"的边框。阅读态同时禁用主面板自身滚动
           （滚动归正文列）—— 否则会在窗口右缘多出一根滚动条。其余功能组件保持 p-5。 */}
       <main
+        ref={mainRef}
         className={`relative min-w-0 flex-1 bg-[var(--bg)] ${
           activeFeature === 'reader' ? 'overflow-hidden p-0' : 'overflow-y-auto p-5'
         }`}
@@ -338,6 +390,9 @@ export default function AppShell(): React.JSX.Element {
         })}
       </main>
       </div>
+      {paletteOpen && (
+        <CommandPalette commands={paletteCommands} onClose={() => setPaletteOpen(false)} />
+      )}
     </div>
   )
 }

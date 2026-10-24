@@ -514,3 +514,32 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 ### 13.4 時鐘插件（首个验证插件，用户定形态）
 - `client/plugins/clock/`：右段「時鐘」格，**纯文字**走时（跟随主题 token）。
   验收链 = 发现 / 加载 / 占格 / token / 启停。
+
+## 14. 命令面板（`Ctrl+Shift+P`；2026-10-24 用户定）
+
+> VSCode 同款的全局动作入口。**呼出不动画**（键盘起手的工具，动画就是延迟，`STYLE.md` §2 P5）。
+
+### 14.1 形态与交互
+
+- **非模态**顶部悬停浮层（`fixed top 14%` 居中，宽 ≤560px）：输入框即筛（子串、大小写不敏感、
+  纯空白 = 全量）、`↑/↓` 循环选择、`Enter` 执行、`Esc` 关闭、外点关闭、hover 同步选中。
+- 语汇 = 动作区（§5.2 例外⑥）：纯色底 `--panel-2` + 1px `--border` + 直角；行 = 纯文字（P1），
+  选中态 = `--accent` + `--accent-soft` 底（与右键菜单项同一语言）；键位提示 11px `--muted` 靠右。
+- **命令 = 纯数据**（label + keyLabel? + run），检索判据在 `components/commandFilter.ts`
+  （纯函数 + 单测）；面板组件 `components/CommandPalette.tsx` 是纯 props。
+- 挂载策略 = AppShell 条件渲染：每次呼出全新挂载，查询词不残留。
+
+### 14.2 键位与意图层
+
+- 绑定 = 意图层 `app.commandPalette: ['ctrl+shift+p']`（`core/domain/input.ts`；Shift 自此入表）。
+- **组合键在输入框聚焦时放行**（`useKeyIntents`：无修饰键才让位）—— 命令面板必须随处可呼出
+  （对齐 VSCode）；无修饰键的元素级语义（Esc 清空等）不变。
+- `Ctrl+Shift+P` 在面板开着时再按一次 = 关闭（toggle）。
+
+### 14.3 命令集（v1）
+
+- 前往书架 / 前往阅读 / 前往房间 / 前往筆記 / 前往设置（`FEATURES` 注册表枚举，走 `host.navigate`）。
+- 退出閱讀器（**仅阅读态**给这条；走 `host.closeReader`）。
+- 主題四取向：純色·深/淺、羊皮紙·淺/深（`patchSetting('appearance', {theme})` 原子合并 +
+  `data-theme` + **阅读中同步 `render.applyTheme`**——正文 iframe 的注入不会因 data-theme 自动跟上）。
+- 后续：视图切换 / 阅读器动作接入 = 命令 = 意图层绑定表的 UI 面，随「配键体系」一起做（TODO）。

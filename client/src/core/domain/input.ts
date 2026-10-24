@@ -22,19 +22,22 @@ export type IntentId = string
 export type NormalizedKey = string
 
 /**
- * KeyboardEvent → 规范化键名。只认 Ctrl/Alt 修饰（Windows 主平台；Meta/Shift 暂不入表——
- * 出现真实需求再加，避免表里堆没人用的组合）。修饰键本身按下的瞬间返回 null（不构成意图）。
+ * KeyboardEvent → 规范化键名。修饰键前缀按 ctrl → alt → shift 排（如 `ctrl+f`、`ctrl+shift+p`）。
+ * 修饰键本身按下的瞬间返回 null（不构成意图）。
+ * ⚠ Shift 2026-10-24 入表（命令面板 `ctrl+shift+p` 的真实需求；此前注释写明"出现真实需求再加"）。
  */
 export function normalizeKey(e: {
   key: string
   ctrlKey: boolean
   altKey: boolean
+  shiftKey: boolean
 }): NormalizedKey | null {
   const k = e.key
   if (k === 'Control' || k === 'Alt' || k === 'Shift' || k === 'Meta') return null
   const parts: string[] = []
   if (e.ctrlKey) parts.push('ctrl')
   if (e.altKey) parts.push('alt')
+  if (e.shiftKey) parts.push('shift')
   parts.push(k.toLowerCase())
   return parts.join('+')
 }
@@ -104,7 +107,10 @@ export const DEFAULT_BINDINGS: KeyBindingTable = {
   'reader.composerCommit': [],
   'reader.composerCancel': [],
   // —— 全局 ——
-  'app.focusSearch': ['ctrl+f'] // 处理函数内分流：仅书库态聚焦标题栏搜索
+  'app.focusSearch': ['ctrl+f'], // 处理函数内分流：仅书库态聚焦标题栏搜索
+  // 命令面板（2026-10-24 用户定，VSCode 同款）：导航 / 主题等全局动作的可检索入口。
+  // 组合键在输入框聚焦时也必须能呼出（useKeyIntents 对组合键放行，见该文件）。
+  'app.commandPalette': ['ctrl+shift+p']
 }
 
 // 静态表，模块加载即自检

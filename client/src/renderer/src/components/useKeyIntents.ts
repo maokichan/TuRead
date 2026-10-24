@@ -40,9 +40,13 @@ export function useKeyIntents(
   useEffect(() => {
     if (!enabled) return
     const onKey = (e: KeyboardEvent): void => {
-      // 输入类目标让位：表单/搜索框里打字与 Esc 不触发意图（Esc 清空等元素级语义自管）
+      // 输入类目标让位：表单/搜索框里**无修饰键**的按键与 Esc 不触发意图
+      // （Esc 清空等元素级语义自管）。⚠ 组合键（ctrl/alt/shift）放行 —— 组合键不产出文本，
+      // 且命令面板这类全局工具必须能在输入框聚焦时呼出（对齐 VSCode）。
       const t = e.target as HTMLElement | null
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      const inText =
+        !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
+      if (inText && !e.ctrlKey && !e.altKey && !e.shiftKey) return
       const key = normalizeKey(e)
       if (!key) return
       const intent = resolveIntent(DEFAULT_BINDINGS, scope, key)

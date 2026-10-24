@@ -113,16 +113,23 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 **当前位置**：**client v0.2.1 已发版**——把 v0.2.0 之后积压的全部内容随版收口（PDF 专项 + 两批审查修复 +
 审计第一批 + **插件系统内核 + 時鐘插件 + 插件契约 v1.1 + AI 共读「問」v0.1.0**）。**未打包**
 （发行物仍是 v0.1.15 的便携版；打包另派，见 §2）。
-**当前重心 = 「問」的实测调优**（提示词 / 引用跳回落点 / 流式，都按真机实测迭代；见 `TODO.md` 插件组）。
+**v0.2.1 之上还有一批「未滚版本」的手感交付**（2026-10-24）：**动效契约 STYLE v1.14**（动效 token /
+按压态 / 垂挂揭幕 / 灯的法则 / 视图闪屏 900→240ms 可连点 / `playSettle`）+ **Ctrl+Shift+P 命令面板**
+（FEATURES §14；导航 + 主题 + 退出閱讀器；意图层组合键放行）。样张八条机检全绿；typecheck 四套 +
+单测 135 全过；**全部待真机复看手感**。
+**当前重心 = 交互手感专题**（用户立项，借 emil-design-eng 的设计工程哲学逐条过基准；
+书库详情抽屉全透明外壳挡下层交互已登记 TODO，动工前先定形态）。
 
 **待办（唯一清单 = `TODO.md`）的建议顺序**：
-1. **AI 共读插件**（插件系统的第二个官方插件；形态用户已定：自带 key、右段「問」与聊天互斥、
+1. **交互手感专题**（本轮进行中）：真机复看 v1.14 各处手感（揭幕/灯光/按压/闪屏/命令面板），
+   按「先改本文（STYLE.md）再动代码」的纪律逐条迭代；层次感杠杆（留白跳跃/色阶纪律/字号对比）
+   待样张对照后逐个过。
+2. **AI 共读插件**（插件系统的第二个官方插件；形态用户已定：自带 key、右段「問」与聊天互斥、
    跨书会话、逐请求位置标注、溯源跳回；详见 `TODO.md` 插件组）。
-2. **PDF 暗色烘焙两处修复**（修法均已定）：渲染竞态（当前页并入串行队列）+ 深底页跳过烘焙。
-3. **审计随手批**（TODO 审计组）：B-3 / C-5 一行级；B-2 是跟随模式的前置。
-4. **server 侧全部挂起**（用户定：client 未到成熟阅读器程度，近几个版本不动 server）——
+3. **PDF 暗色烘焙两处修复**（修法均已定）：渲染竞态（当前页并入串行队列）+ 深底页跳过烘焙。
+4. **审计随手批**（TODO 审计组）：B-3 / C-5 一行级；B-2 是跟随模式的前置。
+5. **server 侧全部挂起**（用户定：client 未到成熟阅读器程度，近几个版本不动 server）——
    含两处契约对齐、多人补验、无书成员 UI；server 工作树三处未提交改动一并冻结。
-5. 之后：翻页交互专题、交互模式大改、笔记导出/划线样式。
 
 **验证工具链（回归全靠它们；口径：单测验判据、探针验链路）**
 - **`npm test`** = 纯逻辑单测（anchor/location 语义 + `compareNoteOrder` + `readerFollow` + `noteLayout`
@@ -156,7 +163,10 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 ⑧ **插件/AI（已验：右段格出现、設置啟停、「問」發消息）**；仍待：『引文』跳回的落点手感、進房互斥、PDF 滚动调度的手感；
 ③ 抽屉「編輯」hover 显形；④ 挂载线两段与纸的观感（尤其窄窗口）；⑤ 多库同一本书的笔记/进度共享、
 映射库扫描手感；⑥ **聊天室的手感**（自动滚到底 / 长消息遮罩 / 输入框自增长 / `c` 键）；
-⑦ **PDF 滚动调度的手感**（本轮重心）。
+⑦ **PDF 滚动调度的手感**（本轮重心）；
+⑨ **v1.14 动效手感（本轮新增，全部未真机看）**：垂挂揭幕/收回（目录/参数/聊天/右键菜单）、
+灯的法则（挂载线三段 + 折疊按钮随光标呼吸）、按压态（文字按钮/大目标下沉）、视图闪屏 240ms 可连点、
+视图切换的模糊落定、命令面板（`Ctrl+Shift+P` 呼出/筛选/主题切换在阅读中的实时注入）。
 
 **关键对象速查**：`LibraryManager`（引导文件 + store 句柄）｜`SqliteStore`（**全应用一个全局 `.db`**，
 close 后可 init 重开）｜切库信号 = main 广播 `store:library-changed`；⚠ `store:*` 不再「打到当前库」
@@ -170,6 +180,14 @@ close 后可 init 重开）｜切库信号 = main 广播 `store:library-changed`
 10s join 超时 + 重连重发 join）｜`features/roomSession.ts`（**渲染层共享会话态**）｜
 `components/ChatPanel.tsx`（右抽屉第二格）｜`ReaderRail` 的 `rightPanel` / `rail-tabs`｜
 `dev/roomProbe.ts`（唯一要真 server 的探针）。
+**动效与命令面板速查（v1.14）**：动效 token 唯一来源 = `styles.css` `:root`（六档 `--dur-*` +
+`--ease-out/--ease-inout`；**组件禁写死时长**）｜`components/motion.ts`（`playSettle` = 大状态切换
+200ms 模糊落定）｜`components/veil.ts`（`paintVeil` 遮罩按距离 + `paintGlow` 灯光因子）｜
+`components/ReaderRail.tsx` 的 `useHangingPanel` + `.rail-hang`（垂挂揭幕 closing 状态机；收回
+180ms 后卸载）｜`viewSwitchFlash.ts`（240ms + `flashSeq` key 重启 = 闪屏中可连点）｜
+`components/CommandPalette.tsx` + `commandFilter.ts`（命令面板 + 纯函数检索，单测覆盖）｜
+`domain/input.ts`（`app.commandPalette` = `ctrl+shift+p`；**Shift 已入表**；useKeyIntents 对
+**组合键在输入框聚焦时放行**）。
 **插件链路速查（契约 v0.4.5）**：`shared/plugin.ts`（manifest 校验纯函数 + 单测）｜
 `main/plugins.ts`（PluginManager：种子"缺则种" / 扫描 / 入口读取——渲染层不传路径，信任边界在主进程）｜
 `renderer/src/plugins/runtime.ts`（模块级注册表：清单 → 启用状态（settings 键 `plugins`）→ Blob import
