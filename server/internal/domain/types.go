@@ -59,6 +59,14 @@ type Member struct {
 	Location *BookLocation  `json:"location,omitempty"`
 }
 
+// PresencePayload room.presence 的载荷形状（API.md「数据形状参考」：{"members": [...]}）。
+// ⚠ v0.2.1 修正：server 此前把裸数组直接当 payload 发，而 client 按 {members} 解析 ——
+// 双方"各自自洽"导致成员快照在真客户端上恒为空（位置派生/离房清理/跟随全部失效）。
+// 蜂群首跑抓出（client/tools/swarm）。client 侧对两种形状都兼容（normalizePresenceMembers）。
+type PresencePayload struct {
+	Members []Member `json:"members"`
+}
+
 // 用户角色枚举（v0.1.1 只存不 enforce，权限逻辑远期实现）
 const (
 	RoleUser    = "user"    // 正常

@@ -25,6 +25,7 @@ import {
   buildChatHistoryPath,
   isChatMessage,
   normalizeJoinReason,
+  normalizePresenceMembers,
   type JoinFailureReason
 } from '@core/domain/protocol'
 import type {
@@ -515,9 +516,9 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
         break
       }
       case ROOM_MSG.presence: {
-        const members = ((env.payload as { members?: RoomMember[] }).members ?? []).map((m) =>
-          this.decorateMe(m)
-        )
+        // 载荷形状归一（v0.4.8）：契约 = {members:[...]}；兼容 server v0.2.1 前的裸数组
+        // （两侧"各自自洽"导致真客户端成员快照恒空 —— 蜂群首跑抓出，见 protocol.ts）
+        const members = normalizePresenceMembers(env.payload).map((m) => this.decorateMe(m))
         if (this.state) this.state = { ...this.state, members }
         this.emit('presence-updated', members)
         this.deriveRemoteLocations(members)

@@ -285,7 +285,7 @@ func (m *RoomManager) SetLocation(roomID, memberID string, loc *domain.BookLocat
 	}
 	r.Broadcast(memberID, domain.MessageEnvelope{
 		Type:    domain.MsgPresence,
-		Payload: members,
+		Payload: domain.PresencePayload{Members: members},
 	})
 	return true
 }

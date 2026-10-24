@@ -53,6 +53,13 @@
 { "id": "Ab3xY9q", "nickName": "alice", "location": { ...BookLocation } }
 ```
 
+**presence 载荷**（v0.2.2 钉死；此前 server 误发裸数组，client 按 {members} 解析 → 成员快照恒空，
+蜂群首跑抓出，见「已知不一致」）：
+
+```json
+{ "members": [ { ...Member } ] }
+```
+
 **ChatMessage**：
 
 ```json
@@ -321,3 +328,8 @@ server 落库成功后广播 `room.message`：
   的错误串改为连字符形式（`"room-not-found"` / `"book-mismatch"` / `"room-full"`），`ws.go` 硬编码的
   `"room not found"` 一并改引 `room.ErrNotFound`。客户端 `normalizeJoinReason` 两种形式都认（容错保留），
   不受影响。
+- ~~presence 载荷形状与 client 契约不符~~ —— **v0.2.2 已对齐**：`room.presence` 的 payload 此前是**裸数组**
+  （`Payload: r.Members()`），而 client 契约是 `{ "members": [...] }` —— 两侧各自自洽、真客户端成员快照
+  在 join-ack 后恒空（位置派生 / 离房清理 / 跟随全部失效）。**蜂群首跑抓出**（`client/tools/swarm`）。
+  修法：server 三处发送点包 `domain.PresencePayload`；client `normalizePresenceMembers` 双形状兼容
+  （同 reason 归一的容错哲学）。e2e `readPresence` 助手同步解包。

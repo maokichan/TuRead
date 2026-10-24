@@ -178,7 +178,7 @@ func (c *wsClient) loop() {
 		c.server.rooms.Leave(c.roomID, c.memberID)
 		// 转发规范（v0.1.5）：离开/断线必须广播 presence，其余成员列表不残留离线成员
 		if r, err := c.server.rooms.Get(c.roomID); err == nil {
-			r.Broadcast("", domain.MessageEnvelope{Type: domain.MsgPresence, Payload: r.Members()})
+			r.Broadcast("", domain.MessageEnvelope{Type: domain.MsgPresence, Payload: domain.PresencePayload{Members: r.Members()}})
 		}
 	}
 }
@@ -223,7 +223,7 @@ func (c *wsClient) handleJoin(payload json.RawMessage) {
 		Edition: ed,
 		Members: r.Members(),
 	}})
-	r.Broadcast(c.memberID, domain.MessageEnvelope{Type: domain.MsgPresence, Payload: r.Members()})
+	r.Broadcast(c.memberID, domain.MessageEnvelope{Type: domain.MsgPresence, Payload: domain.PresencePayload{Members: r.Members()}})
 }
 
 func (c *wsClient) handleLocation(payload json.RawMessage) {

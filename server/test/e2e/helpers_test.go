@@ -156,11 +156,12 @@ func readPresence(t *testing.T, c *websocket.Conn, deadline time.Duration) []dom
 	if env.Type != domain.MsgPresence {
 		t.Fatalf("expected presence, got %s", env.Type)
 	}
-	var members []domain.Member
-	if err := json.Unmarshal(env.Payload, &members); err != nil {
+	// v0.2.1 起 presence 载荷 = {"members":[...]}（此前是裸数组，与 client 契约不符 —— 蜂群首跑抓出）
+	var payload domain.PresencePayload
+	if err := json.Unmarshal(env.Payload, &payload); err != nil {
 		t.Fatal(err)
 	}
-	return members
+	return payload.Members
 }
 
 // readChatMessage 读一条消息并断言是 room.message，返回聊天消息

@@ -981,6 +981,7 @@ interface ServiceContainer {
 
 | 版本 | 主题 |
 |---|---|
+| **v0.4.8** | presence 载荷形状钉死 `{members:[...]}`（server v0.2.2 前发裸数组 → 真客户端成员快照恒空，蜂群首跑抓出）+ `normalizePresenceMembers` 双形状归一 + `WsNetAdapter.getMemberId` 对齐端口 Promise 签名（蜂群直连适配器时暴露） |
 | **v0.4.7** | 房间同步正确性批：`IRenderService.getOpenBook()`（位置上报前校验"事件属于房间的书"，审计 B-2）+ `JoinFailureReason` 补 `superseded`（并发 join 落败方，审计 C-2）+ `ConnectionState` 补 `failed`（重连耗尽可预期复位，审计 B-4）+ 聊天消息守卫补 `createdAt`（审计 C-5） |
 | **v0.4.6** | 插件契约 v1.1：通用能力 `net.fetch`（https 代理）与 `secrets`（safeStorage 保险库）+ 面板 `hideWhenInRoom`（AI 問格与聊天互斥用）+ `ctx.reader` 阅读上下文句柄（快照 + 溯源跳回） |
 | **v0.4.5** | 插件契约（§9）：manifest / `activate(api)` / 挂载线右段面板格注册点（v1 官方专用） |

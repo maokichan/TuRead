@@ -12,9 +12,10 @@ import {
   clampChatHistoryLimit,
   isValidNick,
   mergeChatMessages,
-  normalizeJoinReason
+  normalizeJoinReason,
+  normalizePresenceMembers
 } from './protocol'
-import type { ChatMessage } from './types'
+import type { ChatMessage, RoomMember } from './types'
 
 const msg = (id: number, text = `m${id}`): ChatMessage => ({
   id,
@@ -132,5 +133,27 @@ describe('protocol · 聊天合并（广播 + 历史交错）', () => {
     const next = mergeChatMessages(prev, msg(2))
     expect(prev).toHaveLength(1)
     expect(next).not.toBe(prev)
+  })
+})
+
+describe('protocol · presence 载荷归一（v0.4.8：{members} 契约形 + 裸数组兼容）', () => {
+  const alice = { id: 'Aaa1111', nickName: 'alice' }
+  const bob = { id: 'Bbb2222', nickName: 'bob', location: { chapterDocIndex: 1 } }
+
+  it('契约形状 {members:[...]} 原样取成员', () => {
+    expect(normalizePresenceMembers({ members: [alice, bob] })).toEqual([alice, bob])
+  })
+
+  it('裸数组兼容（server v0.2.1 前的实际形状 —— 蜂群首跑抓出的偏差）', () => {
+    expect(normalizePresenceMembers([alice, bob])).toEqual([alice, bob])
+  })
+
+  it('非数组 / 缺字段 / 脏条目 → 空数组或过滤掉', () => {
+    expect(normalizePresenceMembers(undefined)).toEqual([])
+    expect(normalizePresenceMembers({ nope: 1 })).toEqual([])
+    expect(normalizePresenceMembers({ members: 'x' })).toEqual([])
+    expect(
+      normalizePresenceMembers([alice, { id: 3, nickName: 'bad-id' }, null, 'junk'] as unknown as RoomMember[])
+    ).toEqual([alice])
   })
 })

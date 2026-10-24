@@ -108,7 +108,8 @@ export class WsNetAdapter extends TypedEmitter<NetServiceEvents> {
     this.ws.send(JSON.stringify(envelope))
   }
 
-  getMemberId(): string | null {
+  /** v0.4.9：对齐端口签名（INetService 声明 Promise —— 此前同步返回，机器人直连适配器时 typecheck 才暴露） */
+  async getMemberId(): Promise<string | null> {
     return this.memberToken
   }
 

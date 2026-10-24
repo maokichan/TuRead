@@ -9,7 +9,7 @@
  * `"room-not-found"` 精确匹配 → **"书不匹配"被静默降级成 server-error**，两侧都没报错。
  * 于是：凡是"协议长什么样"的判断，一律收进本文件（可单测、可对照服务器文本逐条核）。
  */
-import type { ChatMessage } from './types'
+import type { ChatMessage, RoomMember } from './types'
 
 /**
  * 信封 type 常量（`server/docs/API.md`「消息类型清单」）。
@@ -150,5 +150,23 @@ export function isChatMessage(value: unknown): value is ChatMessage {
     typeof m.text === 'string' &&
     typeof m.createdAt === 'number' &&
     Number.isFinite(m.createdAt)
+  )
+}
+
+/**
+ * room.presence 载荷归一（v0.4.8）：`{ members: [...] }`（契约形状）或**裸数组**（v0.2.1 前
+ * server 实际发的形状 —— 两侧"各自自洽"导致真客户端成员快照恒空，蜂群首跑抓出）。
+ * 契约已定为包装形状；这里对两种都认（同 normalizeJoinReason 的容错哲学），脏条目用
+ * `isChatMessage` 同族的形状纪律拦在领域层。 */
+export function normalizePresenceMembers(payload: unknown): RoomMember[] {
+  const raw: unknown =
+    Array.isArray(payload) ? payload : (payload as { members?: unknown } | null)?.members
+  if (!Array.isArray(raw)) return []
+  return raw.filter(
+    (m): m is RoomMember =>
+      !!m &&
+      typeof m === 'object' &&
+      typeof (m as RoomMember).id === 'string' &&
+      typeof (m as RoomMember).nickName === 'string'
   )
 }
