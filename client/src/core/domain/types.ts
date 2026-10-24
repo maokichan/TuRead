@@ -452,6 +452,11 @@ export interface RoomState {
   roomId: string
   /** 服务端书籍注册表 id（标定通过后返回） */
   bookId?: string
+  /**
+   * 房间绑定的电子版（join-ack 携带，v0.4.8 透传给 UI）。
+   * 无书成员的下载流程靠它：指纹找本地书 / `localCopy` 决定能否从服务器下载 / `ext` 定文件名。
+   */
+  edition?: Edition
   members: RoomMember[]
   currentLocation: BookLocation | null
 }

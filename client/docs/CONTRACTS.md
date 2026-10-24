@@ -772,6 +772,11 @@ interface IBookPicker {
   /** 列目录电子书：recursive=false 只此节点；true 则此节点及所有子节点（可配置选项） */
   listEbooks(dir: string, recursive: boolean): Promise<string[]>;
   readFile(path: string): Promise<ArrayBuffer>; // 导入读取
+  /** v0.4.8：字节写进**应用托管的下载目录**（userData/downloads），返回可打开的绝对路径。
+   *  用途 = 房间副本下载（无书成员）：下载的字节必须落盘才能被渲染适配器按路径打开。
+   *  信任边界：目录由 main 决定，调用方只给文件名（IPC 通道 `fs:save-book-copy`；
+   *  main 剥目录成分 + 重名加序号，不开"任意路径写"的口子）。 */
+  saveBookCopy(bytes: ArrayBuffer, fileName: string): Promise<string>;
 }
 ```
 
@@ -840,6 +845,10 @@ interface IRoomSession extends EventEmitter<RoomSessionEvents> {
   createRoom(book: BookRecord, owner: string): Promise<{ roomId: string; editionId: number }>;
   /** v0.2.1：上传电子版副本（POST /books/{editionID}/file，幂等去重，分发源） */
   uploadBookCopy(editionId: number, buffer: ArrayBuffer): Promise<void>;
+  /** v0.4.8：下载电子版副本（GET /books/{editionID}/file → ArrayBuffer）。
+   *  无书成员的获取路径（服务器 `localCopy = 1` 时可用；404 = 副本未上传）。
+   *  字节回来后由调用方落盘（`picker.saveBookCopy`）→ 导入（`books.importBook`）→ 打开。 */
+  downloadBookCopy(editionId: number): Promise<ArrayBuffer>;
   /** v0.2.1：房间发现（GET /rooms，可按 edition 找房） */
   listRooms(editionId?: number): Promise<RoomInfo[]>;
 }
@@ -854,6 +863,9 @@ interface RoomMember {
 interface RoomState {
   roomId: string;
   bookId?: string;           // 服务端书籍注册表 id（标定通过后返回）
+  /** v0.4.8：房间绑定的电子版（join-ack 透传）。无书成员的补书流程靠它：
+   *  指纹找本地书 / `localCopy` 决定能否下载 / `ext` 定文件名。 */
+  edition?: Edition;
   members: RoomMember[];
   currentLocation: BookLocation | null;
 }

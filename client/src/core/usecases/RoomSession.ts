@@ -101,6 +101,12 @@ export interface IRoomSession {
   createRoom(book: BookRecord, owner: string): Promise<{ roomId: string; editionId: number }>
   /** v0.2.1 扩展：上传电子版副本（POST /books/{editionID}/file，幂等去重，分发源） */
   uploadBookCopy(editionId: number, buffer: ArrayBuffer): Promise<void>
+  /**
+   * v0.4.8：下载电子版副本（GET /books/{editionID}/file → ArrayBuffer）。
+   * 无书成员的获取路径（服务器 `localCopy = 1` 时可用；404 = 副本未上传，调用方提示）。
+   * 字节回来后由调用方落盘（`picker.saveBookCopy`）→ 导入（`books.importBook`）→ 打开。
+   */
+  downloadBookCopy(editionId: number): Promise<ArrayBuffer>
   /** v0.2.1 扩展：房间发现（GET /rooms，可按 edition 找房） */
   listRooms(editionId?: number): Promise<RoomInfo[]>
 }
@@ -250,6 +256,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     this.state = {
       roomId: ack.roomId ?? rid,
       bookId: ack.edition ? String(ack.edition.id) : undefined,
+      edition: ack.edition,
       members,
       currentLocation: lastLocation ?? null
     }
@@ -341,6 +348,19 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
       responseType: 'text'
     })
     if (!res.ok) throw new Error(`上传副本失败: ${JSON.stringify(res.data)}`)
+  }
+
+  async downloadBookCopy(editionId: number): Promise<ArrayBuffer> {
+    const res = await this.net.request<ArrayBuffer>({
+      method: 'GET',
+      path: `/books/${editionId}/file`,
+      responseType: 'arraybuffer'
+    })
+    if (!res.ok) {
+      const detail = typeof res.data === 'string' || res.data == null ? String(res.data ?? '') : JSON.stringify(res.data)
+      throw new Error(`下载副本失败（HTTP ${res.status}）${detail ? `：${detail.slice(0, 120)}` : ''}`)
+    }
+    return res.data
   }
 
   async listRooms(editionId?: number): Promise<RoomInfo[]> {

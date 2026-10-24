@@ -22,6 +22,13 @@ export interface IBookPicker {
   /** 读文件字节（导入用）—— 同属"本地文件能力"，放这里以彻底消除 UI 直用 IPC 桥的例外 */
   readFile(path: string): Promise<ArrayBuffer>
   /**
+   * 把字节写进**应用托管的下载目录**，返回可打开的绝对路径（v0.4.8）。
+   * 用途：房间副本下载（无书成员）—— 下载的字节必须落盘才能被渲染适配器按路径打开。
+   * 信任边界：目录由主进程决定（userData/downloads），调用方只给文件名；
+   * 重名自动加序号（不覆盖既有副本）。
+   */
+  saveBookCopy(bytes: ArrayBuffer, fileName: string): Promise<string>
+  /**
    * 列出目录下的**子目录**（不递归，名称 + 绝对路径，稳定排序）。
    * 虚拟映射模式（2026-09-13）：书架照搬真实文件夹树，层级浏览用。
    */

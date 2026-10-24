@@ -69,6 +69,9 @@ export const IPC = {
   // 列目录子目录（虚拟映射模式的层级浏览）
   fsListDirectories: 'fs:list-directories',
   fsReadFile: 'fs:read-file',
+  // 房间副本落盘（无书成员下载流程，v0.4.8）：渲染层给字节，main 写进托管的 downloads
+  // 目录（路径由 main 决定，渲染层只给文件名 —— 不开"任意路径写"的口子）
+  fsSaveBookCopy: 'fs:save-book-copy',
   pickerPickFiles: 'picker:pick-files',
   pickerPickDirectory: 'picker:pick-directory',
   pickerListEbooks: 'picker:list-ebooks',

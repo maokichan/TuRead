@@ -20,6 +20,9 @@ class FakeNet implements INetService {
   requests: HttpRequestOptions[] = []
   /** request('/messages') 要回的聊天历史 */
   history: ChatMessage[] = []
+  /** request('/books/{id}/file') 要回的字节（downloadBookCopy 用）；status 非 2xx 时模拟失败 */
+  fileBytes: ArrayBuffer | null = null
+  fileStatus = 200
   /** send(room.join) 时要回的 join-ack payload（测试用例注入） */
   ackOnJoin: unknown = { ok: true, roomId: 'ab12cd34', edition: undefined, members: [] }
   /** 一次性门闩：armOpenGate 后，第一次 openRoom 挂起直到 releaseOpen（其后不挂） */
@@ -62,6 +65,11 @@ class FakeNet implements INetService {
   }
   async request<T>(opts: HttpRequestOptions): Promise<HttpResult<T>> {
     this.requests.push(opts)
+    if (opts.path.includes('/file')) {
+      const ok = this.fileStatus >= 200 && this.fileStatus < 300
+      const data = (ok ? this.fileBytes : 'not found') as T
+      return { status: this.fileStatus, ok, data }
+    }
     return { status: 200, ok: true, data: { messages: this.history } as T }
   }
   armOpenGate(): void {
@@ -347,6 +355,26 @@ describe('RoomSession 断线重连（重发 join + 增量补拉）', () => {
     expect(systems.got[0].text).toContain('重連後重新加入失敗')
     // 会话未销毁：后续重连成功仍可恢复（不自动 leaveRoom —— 房间可能是暂时不可见）
     expect(session.getRoomState()).not.toBeNull()
+  })
+})
+
+describe('RoomSession 副本分发（v0.4.8）', () => {
+  it('downloadBookCopy：GET /books/{id}/file，arraybuffer 透传', async () => {
+    const { net, session } = makeSession()
+    net.fileBytes = new Uint8Array([1, 2, 3]).buffer
+    const bytes = await session.downloadBookCopy(9)
+    expect(bytes.byteLength).toBe(3)
+    expect(net.requests.at(-1)).toMatchObject({
+      method: 'GET',
+      path: '/books/9/file',
+      responseType: 'arraybuffer'
+    })
+  })
+
+  it('downloadBookCopy：服务器 404（副本未上传）→ 抛错且带状态码', async () => {
+    const { net, session } = makeSession()
+    net.fileStatus = 404
+    await expect(session.downloadBookCopy(9)).rejects.toThrow('404')
   })
 })
 

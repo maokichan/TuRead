@@ -11,7 +11,8 @@
  * - 「離開房間」= 断开这条房间连接（聊天的生命周期归属于房间）。
  */
 import { useCallback, useEffect, useState } from 'react'
-import type { BookRecord, ConnectionState, RoomInfo } from '@core/domain/types'
+import type { BookFingerprint, BookRecord, ConnectionState, RoomInfo } from '@core/domain/types'
+import { extToFormat } from '@core/domain/format'
 import type { FeatureProps } from '../types'
 import { RoomRow } from '../../components/RoomRow'
 import { ChatLog } from '../../components/ChatLog'
@@ -120,40 +121,121 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
     setRooms([])
   }, [container])
 
-  /** 进入房间：按房间建连 → 标定加入 → 成功后状态继承（会话视图 + 自动打开阅读器与书） */
-  const enterRoom = useCallback(
-    async (roomId: string, book?: BookRecord | null) => {
-      const target = book ?? (await getSelectedBook())
-      if (!target) {
-        host.pushLog('请先在书架选择这本书')
+  /** join 失败的统一呈现（superseded = 并发 join 落败方，静默 —— 审计 C-2） */
+  const reportJoinFailure = useCallback(
+    (rid: string, res: { ok: true } | { ok: false; reason: string }): boolean => {
+      if (res.ok) return true
+      if (res.reason !== 'superseded') {
+        const text = `加入失敗：${res.reason}`
+        setRoomError(text)
+        host.pushLog(text)
+      } else {
+        host.pushLog(`已取消进入房间 ${rid}（改进了其他房间）`)
+      }
+      return false
+    },
+    [host]
+  )
+
+  /** 进房成功后的会话登记 + 自动打开书（状态继承：切到阅读器并打开对应书） */
+  const settleRoom = useCallback(
+    (roomId: string, editionId: string, bookTitle: string): void => {
+      beginRoomSession({ roomId, editionId, bookTitle })
+      setRoomIdInput('')
+      host.pushLog(`已加入房间 ${roomId}`)
+      if (editionId) host.openReader(editionId)
+    },
+    [host]
+  )
+
+  /**
+   * 无书进入（v0.4.8）：不带指纹 join（服务器必收）→ 拿到房间绑定的 edition 后补书：
+   * ① 本地已有同内容书（指纹相等）→ 直接打开它；
+   * ② 没有但服务器有副本（localCopy）→ 下载 → 落盘（userData/downloads）→ 导入当前库 → 打开；
+   * ③ 都没有 → 留在房间（聊天/看位置不受影响），日志说明怎么补书。
+   * 位置同步不受"何时拿到书"影响：打开的书与房间 edition 指纹一致即自动上报（B-2 判据）。
+   */
+  const joinAndResolveBook = useCallback(
+    async (rid: string, roomTitle?: string): Promise<void> => {
+      const res = await container.room.joinRoom(rid, null)
+      if (!res.ok) {
+        reportJoinFailure(rid, res)
         return
       }
+      const edition = res.room.edition
+      if (!edition) {
+        // 服务器没回 edition（极旧服务器？）：会话照常建立，只是补不了书
+        settleRoom(res.room.roomId, '', '')
+        return
+      }
+      const fingerprint: BookFingerprint = {
+        algorithm: (edition.hashAlgo as BookFingerprint['algorithm']) ?? 'md5-sample3-v1',
+        hash: edition.hash,
+        size: edition.size
+      }
+      // ① 本地已有同内容书
+      const local = await container.store.findEditionByFingerprint(fingerprint)
+      if (local) {
+        host.pushLog(`本地已有这本书（《${local.metadata.title}》），直接打开`)
+        settleRoom(res.room.roomId, local.id, local.metadata.title)
+        return
+      }
+      // ② 服务器有副本 → 下载 → 落盘 → 导入
+      if (edition.localCopy) {
+        const title = roomTitle?.trim() || `房間書籍-${edition.id}`
+        const fileName = `${title}.${edition.ext}`
+        try {
+          host.pushLog(`本地没有这本书，正在从服务器下载副本（${fileName}）…`)
+          const bytes = await container.room.downloadBookCopy(edition.id)
+          host.pushLog('下载完成，正在入库…')
+          const savedPath = await container.picker.saveBookCopy(bytes, fileName)
+          const { currentId } = await container.store.listLibraries()
+          const imported = await container.books.importBook(
+            bytes,
+            title,
+            extToFormat(`x.${edition.ext}`),
+            savedPath,
+            currentId,
+            'import'
+          )
+          host.pushLog(`《${imported.edition.metadata.title}》已入库，打开阅读`)
+          settleRoom(res.room.roomId, imported.edition.id, imported.edition.metadata.title)
+        } catch (err) {
+          const text = `补书失败：${(err as Error).message}（仍留在房间里，可稍后重试）`
+          host.pushLog(text)
+          settleRoom(res.room.roomId, '', '')
+        }
+        return
+      }
+      // ③ 服务器也没有副本
+      host.pushLog('房主尚未上传副本，且没有外部来源 —— 先留在房间，等房主补传后重新进入')
+      settleRoom(res.room.roomId, '', '')
+    },
+    [container, host, reportJoinFailure, settleRoom]
+  )
+
+  /** 进入房间：
+   * - `opts.book` 给定（创建房间自入）= 带书标定加入（服务器校验内容一致）；
+   * - 有选中书（手动进房）= 同上；
+   * - 其余（大厅行点击 / 未选书）= **无书进入** → 自动按指纹找本地书或下载副本（joinAndResolveBook）。 */
+  const enterRoom = useCallback(
+    async (roomId: string, opts?: { book?: BookRecord | null; roomTitle?: string }) => {
       const rid = roomId.trim().toLowerCase()
       if (!rid) return
       setJoining(true)
       setRoomError(null)
       try {
-        // v0.4.0：房间的初始位置取该书的**阅读状态**（已从书行拆到 `ReadingState`）——
-        // 原来 `joinRoom` 自己读 `book.lastLocation`，现在由调用方显式给。
-        const state = await container.books.getReadingState(target.id)
-        const res = await container.room.joinRoom(rid, target, state?.lastLocation ?? null)
-        if (res.ok) {
-          // 会话归属交给共享态：阅读器据此决定要不要出现「聊天」页签
-          beginRoomSession({
-            roomId: res.room.roomId,
-            editionId: target.id,
-            bookTitle: target.metadata.title
-          })
-          setRoomIdInput('')
-          host.pushLog(`已加入房间 ${res.room.roomId}`)
-          host.openReader(target.id) // 状态继承：自动切到阅读器并打开对应书
-        } else if (res.reason === 'superseded') {
-          // 审计 C-2：并发 join 的落败方（用户已点了另一个房间）—— 静默，不报错
-          host.pushLog(`已取消进入房间 ${rid}（改进了其他房间）`)
+        const target = opts?.book !== undefined ? opts.book : await getSelectedBook()
+        if (target) {
+          // v0.4.0：房间的初始位置取该书的**阅读状态**（已从书行拆到 `ReadingState`）——
+          // 原来 `joinRoom` 自己读 `book.lastLocation`，现在由调用方显式给。
+          const state = await container.books.getReadingState(target.id)
+          const res = await container.room.joinRoom(rid, target, state?.lastLocation ?? null)
+          if (reportJoinFailure(rid, res) && res.ok) {
+            settleRoom(res.room.roomId, target.id, target.metadata.title)
+          }
         } else {
-          const text = `加入失敗：${res.reason}`
-          setRoomError(text)
-          host.pushLog(text)
+          await joinAndResolveBook(rid, opts?.roomTitle)
         }
       } catch (err) {
         const text = `加入失败：${(err as Error).message}`
@@ -163,10 +245,10 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
         setJoining(false)
       }
     },
-    [container, getSelectedBook, host]
+    [container, getSelectedBook, host, joinAndResolveBook, reportJoinFailure, settleRoom]
   )
 
-  /** 创建房间（用选中书）→ 自动进入（状态继承同 enterRoom） */
+  /** 创建房间（用选中书）→ 上传副本（无书成员才有得下）→ 自动进入 */
   const createRoom = useCallback(async () => {
     const book = await getSelectedBook()
     if (!book) {
@@ -175,9 +257,19 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
     }
     try {
       const owner = nick.trim() || '读者'
-      const { roomId } = await container.room.createRoom(book, owner)
+      const { roomId, editionId } = await container.room.createRoom(book, owner)
       host.pushLog(`已创建房间：${roomId}`)
-      await enterRoom(roomId, book)
+      // v0.4.8：建房即传副本 —— server 本身即分发源，别的成员没有这本书时可直接下载。
+      // 失败不挡进房（房间已建好；上传可稍后重做），但要在日志里说清后果。
+      try {
+        host.pushLog('正在上传副本到服务器…')
+        const buffer = await container.picker.readFile(book.filePath)
+        await container.room.uploadBookCopy(editionId, buffer)
+        host.pushLog('副本已上传：没有这本书的成员进房后会自动下载')
+      } catch (err) {
+        host.pushLog(`副本上传失败：${(err as Error).message}（房间已建好；没有副本其他成员拿不到书）`)
+      }
+      await enterRoom(roomId, { book })
     } catch (err) {
       host.pushLog(`创建失败：${(err as Error).message}`)
     }
@@ -340,12 +432,12 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
         {sessionReady && view.error && <span className="text-[var(--err)]">{view.error}</span>}
         {!selectedBookId && (
           <span className="text-[var(--muted)]">
-            未选择书籍
+            未选书也可进房（自动匹配房间的书，没有就从服务器下载）；
             <button
               className="ml-3 text-[var(--accent)] hover:brightness-125"
               onClick={() => host.navigate('library')}
             >
-              去书架选书 →
+              去书架选书（建房用）→
             </button>
           </span>
         )}
@@ -357,7 +449,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
             key={r.roomId}
             room={r}
             disabled={joining}
-            onEnter={() => void enterRoom(r.roomId)}
+            onEnter={() => void enterRoom(r.roomId, { roomTitle: r.title })}
           />
         ))}
         {rooms.length === 0 && (

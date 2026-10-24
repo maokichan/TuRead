@@ -4,7 +4,7 @@
  * ⚠ v0.4.0（2026-09-15「书的身份」）：`store:*` 不再"打到当前库"——**全应用一个全局 .db**，
  * 书库是**库内实体**；写在收录/内容上的操作都**显式带 libraryId**（见 `ILibraryStore`）。
  */
-import { ipcMain, dialog, BrowserWindow, shell, clipboard } from 'electron'
+import { ipcMain, dialog, BrowserWindow, shell, clipboard, app } from 'electron'
 import { promises as fs } from 'node:fs'
 import type { Dirent } from 'node:fs'
 import { extname, join } from 'node:path'
@@ -226,6 +226,30 @@ export function registerIpc(
   ipcMain.handle(IPC.fsReadFile, async (_e, path: string) => {
     const buf = await fs.readFile(path)
     return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
+  })
+
+  // 房间副本落盘（IBookPicker.saveBookCopy）：写入托管的 downloads 目录，返回可打开的绝对路径。
+  // ⚠ 信任边界：路径由 main 决定（userData/downloads），渲染层只给**文件名**（剥掉任何目录成分），
+  // 重名自动加序号 —— 不开"任意路径写"的口子（审计 C-1 的同族关切）。
+  ipcMain.handle(IPC.fsSaveBookCopy, async (_e, p: { fileName: string; bytes: ArrayBuffer }) => {
+    const dir = join(app.getPath('userData'), 'downloads')
+    await fs.mkdir(dir, { recursive: true })
+    const base = p.fileName.split(/[\\/]/).pop() || 'book-copy'
+    const ext = extname(base)
+    const stem = ext ? base.slice(0, -ext.length) : base
+    let target = join(dir, base)
+    for (let i = 1; ; i++) {
+      try {
+        // 'wx' = 已存在即抛 —— 重名换序号，不覆盖既有副本
+        await fs.writeFile(target, Buffer.from(p.bytes), { flag: 'wx' })
+        break
+      } catch (err) {
+        const e = err as NodeJS.ErrnoException
+        if (e.code !== 'EEXIST') throw err
+        target = join(dir, `${stem} (${i})${ext}`)
+      }
+    }
+    return target
   })
 
   // 文件选择（IBookPicker 适配）：Windows 下文件与目录不能同框选择 → 两个通道

@@ -543,3 +543,26 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 - 主題四取向：純色·深/淺、羊皮紙·淺/深（`patchSetting('appearance', {theme})` 原子合并 +
   `data-theme` + **阅读中同步 `render.applyTheme`**——正文 iframe 的注入不会因 data-theme 自动跟上）。
 - 后续：视图切换 / 阅读器动作接入 = 命令 = 意图层绑定表的 UI 面，随「配键体系」一起做（TODO）。
+
+## 15. 房间入口与副本分发（v0.4.8；共读功能补全，cowork 分支）
+
+> 契约 = `CONTRACTS.md` v0.4.7/§4.5/§5.1；进入流程的实现主体在 `RoomFeature.joinAndResolveBook`。
+> 本节记**交互语义**（谁在什么时候看到什么），视觉语汇全部沿用既有家族（大厅行/文字动作/输入类）。
+
+### 15.1 进房三路（统一入口 `enterRoom`）
+
+| 入口 | 语义 |
+|---|---|
+| **创建房间**（需选中书） | 带书标定加入；**建房即上传副本**（失败不挡进房，日志说明后果 —— 没有副本别人拿不到书） |
+| **大厅行点击** | **无书进入**（`fingerprint: null`，服务器必收）→ 拿 join-ack 的 edition 自动补书（下条）；选中了什么书**不影响** |
+| **手动输房间号** | 有选中书 = 带书加入（显式意图："用这本进"）；未选书 = 无书进入 |
+
+### 15.2 无书进入后的补书链（`joinAndResolveBook`）
+
+1. **本地指纹匹配**：按 join-ack edition 的 `hash+size+algorithm` 找本地 edition —— 有 → 直接打开（无需下载）。
+2. **服务器下载**：没有且 `localCopy = 1` → `downloadBookCopy` → `picker.saveBookCopy`（落 `userData/downloads`，重名加序号）→ `books.importBook` 入当前库 → 打开。下载中按钮保持禁用（`joining`），日志逐行报进度。
+3. **两端皆无**：留在房间（聊天/看位置不受影响），日志说明"等房主补传后重新进入"。
+4. 失败降级：下载/入库失败 → 留在房间（无书成员身份），不回滚加入。
+
+> 位置同步与"何时拿到书"解耦：打开的书与房间 edition **指纹一致**即自动上报（CONTRACTS v0.4.7 的
+> B-2 判据）—— 先进房后补书、补完书打开，位置就会出现在其他成员的房间里。
