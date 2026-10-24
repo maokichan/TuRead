@@ -82,6 +82,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | 版本 | 内容 |
 |---|---|
 | **v0.2.0** | **房间功能上线**：按房间建连（根因修复：服务器 WS 握手就要 `?room=&nick=`，旧模型走不到 join）+ 阅读器聊天室（右抽屉两格）+ 协议词汇收拢 `core/domain/protocol.ts`（reason 容错归一）+ 无书成员加入（契约 v0.4.4）。真机探针 16 断言全 PASS；**用户双开验收通过**。⚠ 未打包 |
+| **v0.2.3** | **蜂群测试机制 + presence 修复**：① `tools/swarm` 单机 服务-客户端 多客户端模拟（roombot 复用真实核心层 + 假渲染端口；编排器起一次性 server 撒 N 只跑语义断言 A1-A5，8 只规模验证）；**首跑抓出 presence 载荷形状真实跨端 bug**（server 裸数组 vs client {members}，成员快照恒空 → 位置派生/离房清理/跟随全失效）—— server v0.2.2 修复 + client 双形状归一。**验证**：typecheck 四套（含 tools/swarm）+ 单测 157；npm run swarm 全绿。⚠ 8 只首跑一次偶发失败未再现（README 登记） |
 | **v0.2.2** | **共读功能批（cowork 分支）**：① 房间同步正确性——位置上报校验归属（`getOpenBook` + 指纹，审计 B-2）、幽灵会话/残留待发清理（B-3/C-5）、join 代次守卫 + 重连耗尽 `failed` 复位 + 状态噪声去重（B-4/C-2/C-4；`ConnectionState` 补 `failed`、reason 补 `superseded`）。② **副本分发闭环**——建房即传副本 + 无书成员自动补书（大厅行点击即进；`saveBookCopy` 落 `userData/downloads`；`RoomState.edition` / `downloadBookCopy`）。③ **跟随模式 v1**——聊天格「跟隨」开关，三道闸门（开关 / 指纹 / 同位不跳）。**验证**：typecheck 四套全绿；单测 154（RoomSession 3 → 22）。⚠ 未打包；手感待真机复看（TODO 同步组）
 | **v0.2.1** | **插件系统 + AI 共读上线；PDF 专项与审查修复随版收口**。① 插件系统内核：manifest 校验 / 种子（缺则种）/ Blob 动态加载 / 挂载线右段面板格（**渲染权在宿主**）/ 设置页「插件」启停（契约 §9 v0.4.5，STYLE v1.13）；开发工作区 `client/plugins/`。② 時鐘插件（首个验证件，真机通过）。③ 插件契约 v1.1（v0.4.6）：`net.fetch` https 代理 / `secrets` 保险库（safeStorage 落库密文）/ `hideWhenInRoom` 互斥 / `ctx.reader` 阅读上下文（快照 + 溯源跳回）。④ **AI 共读插件「問」v0.1.0**：对话 + 位置/目录上下文注入 + 『引文』点击跳回 + 跨书会话 + 非流式打字机（真机發消息验证通过）。⑤ 随版收口：PDF 专项（滚动调度 / 暗色烘焙 / 专属纸宽 / 页卡边缘）+ 两批审查修复 + 审计第一批。**验证**：typecheck 四套全绿；单测 131；样张八条机检全绿。⚠ 未打包（发行物仍是 v0.1.15 便携版） |
 | v0.1.19 | 本地阅读侧收口：目录/笔记跟随居中、挂载线镜像几何、纸给挂件让位、批注输入栏（自增长/生命周期）、右键坐标真 bug 修复、`F11` 幂等全屏 + 退出保持最大化 |
@@ -98,6 +99,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | 版本 | 内容 |
 |---|---|
 | **v0.2.1** | **契约对齐**：join-ack 的 reason 串改连字符（向 `API.md` 看齐；`ws.go` 硬编码改引 `room.ErrNotFound`）+ `POST /rooms` 的 owner 昵称校验（与 WS 握手同判据 ≤12 rune，超长 400 —— 修"房主进不去自己刚建的房"）+ API 版本头 v0.2.1。**验证**：`go build` + 白盒全绿（新增 `TestCreateRoomOwnerNickConstraint`）；⚠ e2e `TestE2EFloodNoDrop` 本机既有不稳（非回归，登记 TODO）
+| **v0.2.2** | **presence 载荷形状修正**：三处发送点包 `domain.PresencePayload{members}`（此前裸数组与 client 契约不符，真客户端成员快照恒空 —— 蜂群首跑抓出）；e2e `readPresence` 同步解包。**验证**：白盒全绿 + 蜂群 8 只全绿 |
 | v0.2.0 | 房主删房 + E2E 独立黑盒测试 + HTTP 服务模型文档 |
 | v0.1.0~6 | 房间同步 + Work/Edition 标定 + token 双闸 + 传输基本功（背压/healthz/优雅关停）+ 空房 TTL + 房间发现 + TOML 热重载 + 聊天室 + owner_token / 按 IP 签发成员 token + OPS 手册 |
 
@@ -112,6 +114,8 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
   `platform_channel.cc Check failed` 的 FATAL 噪音（**文件已写完，不影响结论**）。
 - ⚠ **受限文件沙箱下**：`npm test` / `npm run dev` / 任何探针都经 esbuild 管道 stdio 或 Electron Mojo
   命名管道 → **必然 `EPERM` / FATAL**，需在放宽模式下跑；`TUREAD_USER_DATA` 要落在工作区内。
+- **蜂群（`npm run swarm`）是纯 Node**：无 Electron 噪音、stdout 直接可读、退出码干净 —— 与探针的
+  "写文件再读"纪律互补；GOCACHE/GOPROXY 有默认兜底（可用环境覆盖）；server 每房上限 20，蜂群别超
 - kookit 子模块的 `CLAUDE.md` 规则：**禁止在其仓库内 git commit / push**
 
 ## 6. 交接快照
@@ -164,6 +168,9 @@ main 侧可直接丢弃（真实修复在本分支）。
 - **发行版冒烟**（**打包之后**才做）：独立 userData 起 `release/win-unpacked/TuRead.exe` →
   应落盘 `config.json` + `store.db` + `covers/<editionId>.jpg`。
 
+- **`npm run swarm`** = 单机 蜂群-同步 回归（client/tools/swarm）：起一次性 server + N 只 roombot，
+  语义断言 A1-A5（全员到齐 / 除发送者外 / 聊天回执 / 离房不残留 / 无错误），退出码即结论。
+  覆盖边界 = 同步逻辑/协议/传输；渲染/UI/IPC 桥归真窗口探针与手感（立项时与用户对齐）。
 **待真机复看（探针证不了手感/窗口状态）**：① 退出阅读器保持最大化；② 输入栏自增长手感；
 ⑧ **插件/AI（已验：右段格出现、設置啟停、「問」發消息）**；仍待：『引文』跳回的落点手感、進房互斥、PDF 滚动调度的手感；
 ③ 抽屉「編輯」hover 显形；④ 挂载线两段与纸的观感（尤其窄窗口）；⑤ 多库同一本书的笔记/进度共享、

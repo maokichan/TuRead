@@ -8,7 +8,7 @@
 > 没有书的成员进房自动下载入库、聊天、**跟随模式**（聊天格「跟隨」开关，成员翻页你跟到同一位置）。
 > 阅读器右抽屉的「聊天」只在**经房间进入的那本书**上出现。
 > **插件系统与 AI 共读已上线**：右段掛載線多了「時鐘」與「問」（AI 共读助手，自带 key，
-> 引用原文可点跳回）。逐版本明细见 [`docs/STATUS.md`](docs/STATUS.md) §4；当前版本 **client v0.2.2 / server v0.2.1**。
+> 引用原文可点跳回）。逐版本明细见 [`docs/STATUS.md`](docs/STATUS.md) §4；当前版本 **client v0.2.3 / server v0.2.2**。
 
 ---
 
@@ -76,6 +76,7 @@ npm run dist           # 打包免安装便携版 → client/release/（需代�
 ```bash
 npm run dev            # 跑起来（Electron + HMR）
 npm test               # 纯逻辑单测（vitest，秒级，不需要书）
+npm run swarm          # 蜂群测试：单机起 server + N 只无头机器人，语义断言（tools/swarm/README.md）
 npm run typecheck:all  # 四个 tsconfig（node / web / test / preview）
 npm run style          # 样式样张（浏览器里看 token 与组件，不用起 Electron）
 npm run build          # 只构建产物（不打包发行版）
