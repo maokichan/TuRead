@@ -23054,7 +23054,7 @@ const onPinchZoomEnd = function (event, render, format) {
         chapterDocIndex: chapterDocIndex,
         scale: window.visualViewport.scale,
     }));
-    render.handleRenderPDFChapter(chapterDocIndex, true);
+    render.reloadPdfPage(chapterDocIndex);
 };
 const slideAnimateTo = (direction, format, doc, outerDoc, element, render, gap) => {
     let pageWidth = element.clientWidth + gap;
@@ -35685,6 +35685,8 @@ class PdfRender extends GeneralRender {
         if (!ctx)
             return;
         try {
+            if (this.isSelfDarkCanvas(canvas))
+                return;
             const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = image.data;
             // hue-rotate(180deg) 的线性矩阵（CSS Filter Effects 规范式，cos180=-1, sin180=0）；
@@ -35718,6 +35720,48 @@ class PdfRender extends GeneralRender {
         }
         catch (e) {
             console.warn(e);
+        }
+    }
+    /**
+     * 深底探测：把画布降采样到 64×64，求不透明覆盖率（alpha 加权）与不透明像素的
+     * 平均亮度（alpha 加权）。自带深色底的 PDF（画满不透明深色）不该反转——反转会把
+     * 夜间模式变成刺眼白页。必须联合判据：正常文字页在透明背景下不透明像素只剩
+     * 深色字形（覆盖率很低），只看亮度会把它们误判成深底页。白底画满的页覆盖率高但
+     * 亮度高，照常烘焙。探测异常按「非深底」处理，保持烘焙。
+     */
+    isSelfDarkCanvas(canvas) {
+        try {
+            const PROBE = 64;
+            const probe = document.createElement("canvas");
+            probe.width = PROBE;
+            probe.height = PROBE;
+            const probeCtx = probe.getContext("2d", {
+                willReadFrequently: true,
+            });
+            if (!probeCtx)
+                return false;
+            probeCtx.imageSmoothingEnabled = true;
+            probeCtx.drawImage(canvas, 0, 0, PROBE, PROBE);
+            const data = probeCtx.getImageData(0, 0, PROBE, PROBE).data;
+            let alphaSum = 0;
+            let lumaSum = 0;
+            for (let i = 0; i < data.length; i += 4) {
+                const alpha = data[i + 3] / 255;
+                alphaSum += alpha;
+                lumaSum +=
+                    (alpha *
+                        (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2])) /
+                        255;
+            }
+            if (alphaSum === 0)
+                return false;
+            const coverage = alphaSum / (data.length / 4);
+            if (coverage <= 0.6)
+                return false;
+            return lumaSum / alphaSum < 0.35;
+        }
+        catch (e) {
+            return false;
         }
     }
     applyFabricBrush(canvas) {
@@ -36201,19 +36245,28 @@ class PdfRender extends GeneralRender {
             if (chapterDocIndex >= this.chapterDocList.length || chapterDocIndex < 0) {
                 return;
             }
-            // 当前页立即渲染（调用方 await 它，保证可见页先出）；
-            // 预渲染不再并发起 3 个（旧写法 4 个重活同时上主线程，滚动卡手根因），
-            // 改为串行进后台队列，且更新的位置会让过期队列整批作废。
-            if (chapterDocIndex > 3) {
-                yield this.handleUnloadPDFChapter(chapterDocIndex - 4);
-            }
-            yield this.handleRenderPDFChapter(chapterDocIndex);
+            // 页级工作（卸载旧页 / 渲染当前页 / 预渲染）一律串行过同一条队列：此前当前页走
+            // 队列外的「立即通道」，与在飞的预渲染可对同一页并发渲染——两条流交错改写同一
+            // body，后完成者的 replaceChildren 会把已烘焙 canvas 换成未烘焙的（暗色挂白页；
+            // body 非空后幂等检查还会跳过重渲，白页卡死）。当前页任务带新代次入队：排在前
+            // 面的旧任务一运行即在代次检查处退出，等价于插队到队首——真正要等的只有正在
+            // 飞行的那一次收尾（pdfjs 任务不可抢占，那笔像素也不白画）。
+            this.pdfPrefetchGen++;
+            const gen = this.pdfPrefetchGen;
+            const priority = this.pdfPrefetchChain.then(() => __awaiter(this, void 0, void 0, function* () {
+                if (gen !== this.pdfPrefetchGen)
+                    return; // 已被更新的位置取代
+                if (chapterDocIndex > 3) {
+                    yield this.handleUnloadPDFChapter(chapterDocIndex - 4);
+                }
+                yield this.handleRenderPDFChapter(chapterDocIndex);
+            }));
+            this.pdfPrefetchChain = priority.then(() => undefined, () => undefined);
+            yield priority;
             if (this.platform === "ios") {
                 //ios 性能太差，先不预渲染后续章节了
                 return;
             }
-            this.pdfPrefetchGen++;
-            const gen = this.pdfPrefetchGen;
             const chain = this.pdfPrefetchChain.then(() => __awaiter(this, void 0, void 0, function* () {
                 for (let offset = 1; offset <= 3; offset++) {
                     if (gen !== this.pdfPrefetchGen)
@@ -36228,6 +36281,18 @@ class PdfRender extends GeneralRender {
             }));
             this.pdfPrefetchChain = chain.then(() => undefined, () => undefined);
         });
+    }
+    // 触屏双指缩放后的整页重载（isReload 路径）也走同一条队列，维持「同一页的渲染
+    // 工作只有一个所有者」；位置没变，不递增代次（不打断在排队的位置批次）。
+    reloadPdfPage(chapterDocIndex) {
+        if (chapterDocIndex >= this.chapterDocList.length || chapterDocIndex < 0) {
+            return Promise.resolve();
+        }
+        const task = this.pdfPrefetchChain.then(() => __awaiter(this, void 0, void 0, function* () {
+            yield this.handleRenderPDFChapter(chapterDocIndex, true);
+        }));
+        this.pdfPrefetchChain = task.then(() => undefined, () => undefined);
+        return task;
     }
     activateFabricDocument(chapterDocIndex) {
         if (this.platform !== "web")

@@ -179,12 +179,20 @@ GeneralRender (GeneralRender.ts，事件基类)
   → `putImageData`，开销变成每页一次，色彩观感与旧实现逐位一致（2026-10-02 二次修订：
   首版用"HSL 亮度反转保留色相"的近似，彩色像素与 filter 有可见偏差，已弃）。`#fabric` 批注画布不烘焙（保持批注原色）。暗色随开书配置生效，
   改主题仍需重开（`applyTheme` 对 PDF 是运行时 no-op）。扫描版 OCR 路径（`PdfTextRender`）
-  独立渲染、本无暗色处理，存量缺口另立项。
-- **PDF 滚动模式渲染调度（kookit 侧，2026-10-02）**：滚动卡手的根因在 kookit `PdfRender` ——
-  旧写法滚动只 debounce 100ms 就开火，且当前页渲染 + 3 页预渲染**并发**抢主线程。
-  现改为：① 滚动回调挂 `requestIdleCallback`（300ms 兜底），滚动帧先落地；② 预渲染串行进
-  后台队列（`pdfPrefetchChain` + `pdfPrefetchGen` 代次令牌，新位置让过期队列整批作废），
-  当前页仍同步渲染且被调用方 await。
+  独立渲染、本无暗色处理，存量缺口另立项。**深底跳过（2026-10-25）**：烘焙前
+  `isSelfDarkCanvas` 把画布降采样到 64×64 探测——不透明覆盖率（alpha 加权）> 0.6 且
+  不透明像素均亮度 < 0.35 判定为自带深色底，跳过烘焙保持原样（反转会把夜间变成刺眼
+  白页）。必须联合判据：文字页在透明背景下不透明像素只剩深色字形，只看亮度会误判。
+- **PDF 滚动模式渲染调度（kookit 侧，2026-10-02；2026-10-25 收队列）**：滚动卡手的根因在
+  kookit `PdfRender` —— 旧写法滚动只 debounce 100ms 就开火，且当前页渲染 + 3 页预渲染
+  **并发**抢主线程。现改为：① 滚动回调挂 `requestIdleCallback`（300ms 兜底），滚动帧先落地；
+  ② **页级工作（卸载旧页 / 渲染当前页 / 预渲染）一律串行过同一条队列**（`pdfPrefetchChain` +
+  `pdfPrefetchGen` 代次令牌）——当前页任务带新代次入队，排在前面的旧任务一运行即在代次
+  检查处退出，等价插队到队首；调用方仍 await 当前页任务。触屏缩放整页重载走
+  `reloadPdfPage`（同一队列）。此举修复：立即通道与在飞预渲染对**同一页**并发渲染，
+  后完成者 `replaceChildren` 把已烘焙 canvas 换成未烘焙的（暗色挂白页；body 非空后幂等
+  检查跳过重渲，白页卡死）；卸载与在飞渲染互不知情导致 `replaceChildren` 查 `#canvas`
+  得 null 抛 TypeError 的同源竞态一并消失。
 - **PDF 滚动模式页卡边缘（适配器侧，2026-10-02）**：滚动模式本就是"每页独立容器 + 2% 页间
   距"，但页边界不可见。适配器 `renderTo` 在 PDF scroll 模式往书文档注入
   `.pdf-container{border:1px solid <--page-edge>}`（`turead-pdf-page-edge`，先注入后量
