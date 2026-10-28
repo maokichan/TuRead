@@ -9,11 +9,12 @@
  * - 无顶栏 / 无日志栏：连接状态在 RoomFeature，诊断日志在 SettingsFeature。
  * - dev 无头自检已移出（见 dev/selfCheck.ts）—— shell 只做组合与共享态。
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { EBOOK_EXTENSIONS, IPC } from '@shared/ipc'
 import { createContainer, type ServiceContainer } from '@core/container'
 import { resolveThemePreference, type ThemeTone } from '@core/domain/theme'
 import { FEATURES } from './features/registry'
+import { isFullCard, setFullCard, subscribeFullCard } from './features/cardState'
 import type { FeatureHost, FeatureId, ReaderTarget } from './features/types'
 import { pushLog } from './features/logStore'
 import { bindRoomSession } from './features/roomSession'
@@ -165,6 +166,12 @@ export default function AppShell(): React.JSX.Element {
 
   // ── 命令面板（2026-10-24 用户定，Ctrl+Shift+P，FEATURES.md §14）─────────────
   const [paletteOpen, setPaletteOpen] = useState(false)
+  // 满幅态（批1.6b，features/cardState）：侧边栏退场 + 卡片展开（gutter/圆角归零）。
+  // Esc 分级回落的第一级在 ReaderFeature 的 reader.back 里；离开阅读器由下方 effect 复位。
+  const fullCard = useSyncExternalStore(subscribeFullCard, isFullCard)
+  useEffect(() => {
+    if (activeFeature !== 'reader' && isFullCard()) setFullCard(false)
+  }, [activeFeature])
   // 意图层登记（`app.commandPalette`，组合键在输入框聚焦时也放行 —— 命令面板必须随处可呼出）
   useKeyIntents('app', {
     'app.commandPalette': () => setPaletteOpen((v) => !v)
@@ -295,7 +302,8 @@ export default function AppShell(): React.JSX.Element {
       {/* 恒定框架（批1.5/1.6）：宽度走 --sidebar-w（styles.css 单一来源）；「閱」不入栏——
           阅读不是"地方"而是书上的模式（入口只有书），registry 里的 reader 仅作路由。
           阅读态「書」常亮（DIRECTION.md：下层书库是阅读卡的来处，侧边栏宣示"你在哪"）。
-          本体 = 拖拽区（.sidebar-rail），图标键 no-drag。 */}
+          本体 = 拖拽区（.sidebar-rail），图标键 no-drag。满幅态退场（批1.6b）。 */}
+      {!fullCard && (
       <aside
         className="sidebar-rail flex h-full flex-none flex-col items-center border-r border-[var(--border)] bg-[var(--panel)] pb-2"
         style={{ width: 'var(--sidebar-w)' }}
@@ -334,7 +342,8 @@ export default function AppShell(): React.JSX.Element {
               </button>
             ))}
           </nav>
-        </aside>
+      </aside>
+      )}
 
       {/* chrome 平面化后 main 恒定 p-0：平面顶行全出血贴窗顶，内容 padding 由各平面自持。
           阅读态禁用主面板自身滚动（滚动归正文列）—— 否则会在窗口右缘多出一根滚动条。 */}
@@ -356,11 +365,15 @@ export default function AppShell(): React.JSX.Element {
             return (
               <div
                 key={f.id}
-                className={`absolute inset-0 z-[var(--z-drawer)] bg-[var(--overlay-dim)] p-5 ${
-                  activeFeature === 'reader' ? '' : 'hidden'
-                }`}
+                className={`card-veil absolute inset-0 z-[var(--z-drawer)] bg-[var(--overlay-dim)] ${
+                  fullCard ? 'p-0' : 'p-5'
+                } ${activeFeature === 'reader' ? '' : 'hidden'}`}
               >
-                <div className="reader-layer relative h-full w-full overflow-hidden rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--desk-bg)] shadow-[var(--shadow-panel)]">
+                <div
+                  className={`reader-layer relative h-full w-full overflow-hidden border border-[var(--border)] bg-[var(--desk-bg)] shadow-[var(--shadow-panel)] ${
+                    fullCard ? 'rounded-none border-x-0 border-b-0 border-t-0' : 'rounded-[var(--radius-panel)]'
+                  }`}
+                >
                   <C
                     container={container}
                     host={host}
@@ -373,10 +386,10 @@ export default function AppShell(): React.JSX.Element {
                     onNotesQueryChange={setNotesQuery}
                     readerTarget={readerTarget}
                   />
-                  {/* 卡顶拖拽条（28px < 挂载线判定带上缘 29px，互不吞噬） */}
-                  <div className="card-topbar" aria-hidden="true" />
-                  {/* 卡顶右角淡显窗控：静息 0.35 / hover 升满（.card-controls） */}
-                  <div className="card-controls">
+                  {/* 卡顶拖拽条（28px < 挂载线判定带上缘 29px，互不吞噬）；满幅时隐藏（无边界可拖） */}
+                  {!fullCard && <div className="card-topbar" aria-hidden="true" />}
+                  {/* 卡顶右角淡显窗控：静息 0.35 / hover 升满（.card-controls）；满幅淡出 */}
+                  <div className={`card-controls ${fullCard ? 'card-controls--off' : ''}`}>
                     <WindowControls />
                   </div>
                 </div>
