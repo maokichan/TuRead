@@ -299,7 +299,8 @@ export default function AppShell(): React.JSX.Element {
       />
       <div className="relative flex min-h-0 flex-1">
       {/* 恒定框架（批1.5）：宽度走 --sidebar-w（styles.css 单一来源）；「閱」不入栏——
-          阅读不是"地方"而是书上的模式（入口只有书），registry 里的 reader 仅作路由。 */}
+          阅读不是"地方"而是书上的模式（入口只有书），registry 里的 reader 仅作路由。
+          阅读态「書」常亮（DIRECTION.md：下层书库是阅读卡的来处，侧边栏宣示"你在哪"）。 */}
       <aside
         className="flex flex-none flex-col items-center border-r border-[var(--border)] bg-[var(--panel)] py-2"
         style={{ width: 'var(--sidebar-w)' }}
@@ -311,7 +312,11 @@ export default function AppShell(): React.JSX.Element {
                 title={f.label}
                 aria-label={f.label}
                 onClick={() => host.navigate(f.id)}
-                className={`feature-nav ${activeFeature === f.id ? 'feature-nav--active' : ''}`}
+                className={`feature-nav ${
+                  (activeFeature === 'reader' ? 'library' : activeFeature) === f.id
+                    ? 'feature-nav--active'
+                    : ''
+                }`}
               >
                 {f.icon}
               </button>
@@ -342,8 +347,9 @@ export default function AppShell(): React.JSX.Element {
         }`}
       >
         {/* 批1.5 初探（docs/DIRECTION.md）：阅读 = **浮在书库之上的卡片层** ——
-            书库在下层保持存活（选择/滚动状态天然继承），阅读层垫 `--overlay-soft`
-            挡住下层交互（Esc 是唯一的门）。阅读卡直角 + 桌色 + 面板阴影，零自带 chrome；
+            书库在下层保持存活（选择/滚动状态天然继承），阅读层垫 `--overlay-dim`
+            挡住下层交互（Esc 是唯一的门）。阅读卡 = 桌色 + radius-panel + 1px 边 +
+            面板阴影（深色主题里"边界要读得出来"，浅色同理），零自带 chrome；
             进场 = .reader-layer 浮起显影。 */}
         {FEATURES.map((f) => {
           const C = f.component
@@ -351,11 +357,11 @@ export default function AppShell(): React.JSX.Element {
             return (
               <div
                 key={f.id}
-                className={`absolute inset-0 z-[var(--z-drawer)] bg-[var(--overlay-soft)] p-3 ${
+                className={`absolute inset-0 z-[var(--z-drawer)] bg-[var(--overlay-dim)] p-5 ${
                   activeFeature === 'reader' ? '' : 'hidden'
                 }`}
               >
-                <div className="reader-layer h-full w-full overflow-hidden border border-[var(--border)] bg-[var(--desk-bg)] shadow-[var(--shadow-panel)]">
+                <div className="reader-layer h-full w-full overflow-hidden rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--desk-bg)] shadow-[var(--shadow-panel)]">
                   <C
                     container={container}
                     host={host}

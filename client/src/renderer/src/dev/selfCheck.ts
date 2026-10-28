@@ -372,8 +372,8 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
 
       /**
        * "阅读器记住上次内容"回归断言（v0.1.9）：关闭阅读器后再进入，应自动恢复上次阅读的书。
-       * ⚠ 必须走**真实用户路径**（点击侧边栏「阅读」按钮）：此前直接调 `host.navigate`，
-       *   掩盖了"侧边栏按钮绕过 host.navigate"的 bug —— 断言测了 API 却没测用户路径（2026-09-08 修正）。
+       * ⚠ 必须走**真实用户路径**：卡片模型（批1.5）下阅读入口只有书 —— 侧边栏「閱」已退役，
+       *   用户路径 = 回书库**双击书行**（此前是点侧边栏「阅读」按钮，2026-09-08 修正的路径已不存在）。
        * v0.1.12：判定改为"宿主里真的有正文回来了"（iframe 出现 + textContent>0），
        *   不再只看 `isZeroLocation` —— 首章首块（ch=0/count=0 且 chapterHref 为空）是**有效位置**
        *   却被判为零位置，会让这条断言对"正文确实回来了"的书报假失败（2026-09-11 实测）。
@@ -385,9 +385,9 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
           const stageBefore = stage()
           host.closeReader()
           await wait(500)
-          const btn = document.querySelector<HTMLButtonElement>('aside button[aria-label="阅读"]')
-          if (!btn) return '恢复=失败(找不到侧边栏按钮)'
-          btn.click()
+          const row = document.querySelector<HTMLElement>('[data-book-id]')
+          if (!row) return '恢复=失败(书库无书行)'
+          row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
           const deadline = Date.now() + 12000
           while (Date.now() < deadline) {
             // 判据按格式分：文字类看正文 textContent；**PDF 看子 iframe 里的 canvas**
