@@ -24,6 +24,7 @@
 12. `client/docs/FEATURES.md` —— UI 功能组件设计（标准容器契约 / 功能划分 / 插件化边界）
 13. `client/docs/STYLE.md` —— **渲染层风格基线**（文字优先 / 统一字体 / 中文排版 / 沉浸态 / 禁区与验收）
 14. `D:\PROJECT\NETWORK.md` —— 网络配置（git 代理 + OpenSSL、Go GOPROXY、打包代理）
+15. `docs/DIRECTION.md` —— **产品方向**（强交互研读 / 卡片层次化 / 桌面=书房；批次的先验，改动须用户明示）
 
 ## 红线（不要违反）
 

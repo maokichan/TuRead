@@ -44,7 +44,7 @@ export function NoteComposer({
   }, [])
 
   return (
-    <div className="note-composer fixed bottom-6 left-1/2 z-[var(--z-menu)] -translate-x-1/2">
+    <div className="note-composer absolute bottom-6 left-1/2 z-[var(--z-menu)] -translate-x-1/2">
       <textarea
         ref={ref}
         value={value}

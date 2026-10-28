@@ -39,8 +39,6 @@ export default function AppShell(): React.JSX.Element {
   const [activeFeature, setActiveFeature] = useState<FeatureId>('library')
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null)
   const [readerBookId, setReaderBookId] = useState<string | null>(null)
-  /** 阅读态下侧边栏是否被手动钉住（STYLE.md §5.8：进入阅读默认退场，贴缘按钮可切换） */
-  const [sidebarPinned, setSidebarPinned] = useState(false)
   /**
    * 「带目标打开」载荷（v0.4.2，2026-09-16）：笔记管理双击条目时要把"打开后跳到哪条笔记"
    * 带进阅读器。**tick 递增**用来防重复消费（同一个目标只跳一次）。见 `ReaderTarget`。
@@ -165,9 +163,6 @@ export default function AppShell(): React.JSX.Element {
     return off
   }, [])
 
-  // 阅读态侧边栏退场（STYLE.md §5.8）：仅 reader 且未被手动钉住时隐藏
-  const sidebarVisible = activeFeature !== 'reader' || sidebarPinned
-
   // ── 命令面板（2026-10-24 用户定，Ctrl+Shift+P，FEATURES.md §14）─────────────
   const [paletteOpen, setPaletteOpen] = useState(false)
   // 意图层登记（`app.commandPalette`，组合键在输入框聚焦时也放行 —— 命令面板必须随处可呼出）
@@ -215,20 +210,9 @@ export default function AppShell(): React.JSX.Element {
     playSettle(mainRef.current)
   }, [activeFeature])
 
-  /**
-   * 阅读态用**覆盖式**侧边栏（不占布局），其他功能态仍**占位**（挤压主面板）。
-   *
-   * 为什么：占位式一展开，`main` 就少 56px → 阅读器的几何跟着变（纸整体右移 28px；
-   * 窗口不够宽时纸还会被压窄；挂载线/目录左缘也跟着右移，且不再等于"侧边栏右缘"）。
-   * 用户 2026-09-11 定：**打开左侧菜单不应影响阅读器界面宽度** → 阅读态让侧边栏浮在左侧桌边。
-   *
-   * ⚠ 为什么只给阅读态（用户 2026-09-11 明确要求写在这里）：
-   *   我们**还不知道**书库/房间/设置将来会有什么交互形态需求（例如书库可能正需要"挤压主面板"
-   *   来给目录树让位）。目前只有阅读器需要"宽度恒定"这一条，所以只给阅读器开这个口子；
-   *   将来若有第二个功能需要，**在这里把条件扩成一个显式的能力标记**（如 descriptor 上的
-   *   `floatSidebar: true`），不要在多处散落判断。
-   */
-  const sidebarOverlays = activeFeature === 'reader'
+  /* 侧边栏恒可见（批1.5，docs/DIRECTION.md）：卡片模型下侧边栏是**恒定框架**——
+     阅读态不再覆盖/隐藏，「書」保持点亮（书库是阅读卡的来处，下层活着）。
+     原"覆盖式侧边栏 + 贴缘召回 + 手动钉住"随全屏阅读窗方向一起退役（机制完整存于 git 历史）。 */
 
   // 书库搜索词（标题栏搜索栏的单一真相；StatePill 同款 props 下发）
   const [libraryQuery, setLibraryQuery] = useState('')
@@ -314,17 +298,14 @@ export default function AppShell(): React.JSX.Element {
         onNotesQueryChange={setNotesQuery}
       />
       <div className="relative flex min-h-0 flex-1">
-      {sidebarVisible && (
-        /* 宽度走 --sidebar-w（styles.css 单一来源）：目录挂载线/条目容器的左缘要对齐它的右缘，
-           两处硬编码会漂（STYLE.md §5.8） */
-        <aside
-          className={`flex flex-none flex-col items-center border-r border-[var(--border)] bg-[var(--panel)] py-2 ${
-            sidebarOverlays ? 'absolute inset-y-0 left-0 z-[var(--z-drawer)]' : ''
-          }`}
-          style={{ width: 'var(--sidebar-w)' }}
-        >
+      {/* 恒定框架（批1.5）：宽度走 --sidebar-w（styles.css 单一来源）；「閱」不入栏——
+          阅读不是"地方"而是书上的模式（入口只有书），registry 里的 reader 仅作路由。 */}
+      <aside
+        className="flex flex-none flex-col items-center border-r border-[var(--border)] bg-[var(--panel)] py-2"
+        style={{ width: 'var(--sidebar-w)' }}
+      >
           <nav className="flex w-full flex-1 flex-col items-center gap-1.5">
-            {FEATURES.filter((f) => !f.pinned).map((f) => (
+            {FEATURES.filter((f) => !f.pinned && f.id !== 'reader').map((f) => (
               <button
                 key={f.id}
                 title={f.label}
@@ -350,31 +331,51 @@ export default function AppShell(): React.JSX.Element {
             ))}
           </nav>
         </aside>
-      )}
 
-      {/* 阅读态去掉主面板内边距：阅读页铺开的是**桌**（STYLE.md §5.8），桌必须到屏幕边缘，
-          否则四周留一圈 --bg 就成了"嵌入盒子"的边框。阅读态同时禁用主面板自身滚动
-          （滚动归正文列）—— 否则会在窗口右缘多出一根滚动条。其余功能组件保持 p-5。 */}
+      {/* 阅读态去掉主面板内边距：阅读卡自己带外边距与桌色（批1.5）。
+          阅读态同时禁用主面板自身滚动（滚动归正文列）—— 否则会在窗口右缘多出一根滚动条。
+          其余功能组件保持 p-5。 */}
       <main
         ref={mainRef}
         className={`relative min-w-0 flex-1 bg-[var(--bg)] ${
           activeFeature === 'reader' ? 'overflow-hidden p-0' : 'overflow-y-auto p-5'
         }`}
       >
-        {/* 阅读态贴缘按钮（STYLE.md §5.8）：召回 / 收起图标栏；只在阅读器里出现。
-            侧边栏覆盖在左侧（见 sidebarOverlays）→ 它展开时按钮移到侧边栏右缘，不会互相压住。 */}
-        {activeFeature === 'reader' && (
-          <button
-            className={`reader-sidebar-toggle ${sidebarPinned ? 'reader-sidebar-toggle--pinned' : ''}`}
-            aria-label="切換側邊欄"
-            title="切換側邊欄"
-            onClick={() => setSidebarPinned((v) => !v)}
-          />
-        )}
+        {/* 批1.5 初探（docs/DIRECTION.md）：阅读 = **浮在书库之上的卡片层** ——
+            书库在下层保持存活（选择/滚动状态天然继承），阅读层垫 `--overlay-soft`
+            挡住下层交互（Esc 是唯一的门）。阅读卡直角 + 桌色 + 面板阴影，零自带 chrome；
+            进场 = .reader-layer 浮起显影。 */}
         {FEATURES.map((f) => {
           const C = f.component
+          if (f.id === 'reader') {
+            return (
+              <div
+                key={f.id}
+                className={`absolute inset-0 z-[var(--z-drawer)] bg-[var(--overlay-soft)] p-3 ${
+                  activeFeature === 'reader' ? '' : 'hidden'
+                }`}
+              >
+                <div className="reader-layer h-full w-full overflow-hidden border border-[var(--border)] bg-[var(--desk-bg)] shadow-[var(--shadow-panel)]">
+                  <C
+                    container={container}
+                    host={host}
+                    selectedBookId={selectedBookId}
+                    readerBookId={readerBookId}
+                    activeFeature={activeFeature}
+                    libraryQuery={libraryQuery}
+                    onLibraryQueryChange={setLibraryQuery}
+                    notesQuery={notesQuery}
+                    onNotesQueryChange={setNotesQuery}
+                    readerTarget={readerTarget}
+                  />
+                </div>
+              </div>
+            )
+          }
+          // 书库在阅读态保持存活（卡片层的下层）；其余功能互斥切换
+          const beneath = f.id === 'library' && activeFeature === 'reader'
           return (
-            <div key={f.id} className={`h-full ${activeFeature === f.id ? '' : 'hidden'}`}>
+            <div key={f.id} className={`h-full ${activeFeature === f.id || beneath ? '' : 'hidden'}`}>
               <C
                 container={container}
                 host={host}

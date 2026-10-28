@@ -686,20 +686,23 @@ export function Gallery(): React.JSX.Element {
         </div>
         {overlay.menu && <ContextMenu x={220} y={140} items={MENU_ITEMS} onClose={() => toggleOverlay('menu')} />}
         {/* ⚠ 输入栏是**受控**组件：样张必须自己持有正文 state，否则 React 会把值重置为空
-            —— 那样"自增长（两行→五行）"这条判据在样张里根本测不出来（第一版就是这么假通过的） */}
+            —— 那样"自增长（两行→五行）"这条判据在样张里根本测不出来（第一版就是这么假通过的）
+            ⚠ 批1.5：输入栏改 `absolute`（锚在阅读卡内）—— 样张给它一个视口容器复现"屏幕底部" */}
         {overlay.composer && (
-          <NoteComposer
-            value={composerText}
-            onChange={setComposerText}
-            onSave={() => {
-              setComposerText('')
-              toggleOverlay('composer')
-            }}
-            onCancel={() => {
-              setComposerText('')
-              toggleOverlay('composer')
-            }}
-          />
+          <div className="fixed inset-x-0 bottom-0 h-48">
+            <NoteComposer
+              value={composerText}
+              onChange={setComposerText}
+              onSave={() => {
+                setComposerText('')
+                toggleOverlay('composer')
+              }}
+              onCancel={() => {
+                setComposerText('')
+                toggleOverlay('composer')
+              }}
+            />
+          </div>
         )}
       </Panel>
 

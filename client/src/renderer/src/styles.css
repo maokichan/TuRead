@@ -105,18 +105,18 @@
      理由（用户 2026-09-16）："当纸宽调到宽的时候，左侧的目录以及右侧的参数…会盖住页面的内容"。 */
   --rail-gap: 16px;
   /* **纸宽的生效值**（唯一定义处）：用户选的档位 ∩ "给两挂件让位后的可用宽"。
-     ⚠ 让位量里**必须含 `--sidebar-w`**：纸是**窗口居中**的，而挂载线/挂件是**从侧边栏右缘起算**的
-     （左挂件贴线的左端）→ 只按 `2×(挂件+缝)` 减会少算半个侧边栏，左侧仍会压纸（2026-09-16 实测：
-     1200 宽窗口下 纸 x[296..904] 与左挂件 [56..336] 重叠 40px）。
      `.reader-stage` 与 `.note-composer`（宽 = 它的 0.9）**都读这一个值**，不许各自再算一次
      （v1.9 就是两处各算一次 → 输入栏比被夹窄的纸还宽，被探针抓出来）。
-     下限 160px：窗口窄到极限时宁可重叠，也要保住可读的正文列。 */
+     下限 160px：窗口窄到极限时宁可重叠，也要保住可读的正文列。
+     批1.5（卡片模型，docs/DIRECTION.md）：纸居中于**阅读卡**内、挂件贴卡缘 ——
+     算式**不再含 `--sidebar-w`**（侧边栏在卡片之外；旧口径"纸窗口居中、线从侧边栏右缘起算"
+     随全屏阅读窗方向一起退役，历史见 git）。 */
   --page-w: min(
     100%,
     var(--read-width, 760px),
     max(
       160px,
-      calc(100% - 2 * (var(--sidebar-w, 56px) + var(--rail-panel-w, 280px) + var(--rail-gap, 16px)))
+      calc(100% - 2 * (var(--rail-panel-w, 280px) + var(--rail-gap, 16px)))
     )
   );
   --toc-line-top: 44px;
@@ -838,42 +838,20 @@ textarea {
   overflow: hidden;
 }
 
-/* 贴左缘的按钮：阅读态召回/收起侧边栏图标栏。
-   形态（用户 2026-09-11 定）：**可见条更窄（6px）但更长（160px）**，
-   按钮本体再**外扩一圈**（18×200）= 判定范围，方便鼠标弹出；可见条由 ::before 画。 */
-.reader-sidebar-toggle {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  width: 18px;
-  height: 200px;
-  padding: 0;
-  background: none;
-  border: 0;
-  cursor: pointer;
+/* 阅读卡浮层（批1.5 初探，docs/DIRECTION.md）：阅读界面 = 浮在书库之上的卡片层。
+   进场 = 自下 8px 浮起 + 显影（--dur-panel 强 ease-out）；display:none → 显示即触发
+   （@starting-style）。退场暂为瞬时（完整进出动效 = "自封面长大"，随批1.5 正式批做）。 */
+.reader-layer {
+  transition:
+    opacity var(--dur-panel) var(--ease-out),
+    transform var(--dur-panel) var(--ease-out);
 }
 
-.reader-sidebar-toggle::before {
-  content: '';
-  display: block;
-  width: 6px;
-  height: 160px;
-  background: color-mix(in srgb, var(--text) 16%, transparent);
-  border-radius: 0 3px 3px 0;
-  transition: background-color var(--dur-hover) ease-out;
-}
-
-.reader-sidebar-toggle:hover::before {
-  background: color-mix(in srgb, var(--text) 32%, transparent);
-}
-
-/* 侧边栏展开（被钉住）时，按钮跟着"被它控制的东西"移到侧边栏右缘 —— 永远贴边且可点 */
-.reader-sidebar-toggle--pinned {
-  left: var(--sidebar-w);
+@starting-style {
+  .reader-layer {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
 }
 
 /* ---------- 阅读参数（挂载线右段垂挂；2026-09-12 用户定，二次纠正定稿）----------
@@ -983,7 +961,8 @@ textarea {
 .reader-rail {
   position: absolute;
   top: var(--toc-line-top, 28px);
-  left: var(--sidebar-w, 56px);
+  /* 批1.5：线贴**阅读卡**的左缘（卡片模型，侧边栏在卡外） */
+  left: 0;
   right: 0;
   z-index: 1; /* 桌（z-auto）之上、纸列（z2）之下 —— 线被书页压着 */
   display: flex;
@@ -1067,7 +1046,8 @@ textarea {
 .toc-list {
   position: absolute;
   top: calc(var(--toc-line-top, 28px) + 1px);
-  left: var(--sidebar-w, 56px);
+  /* 批1.5：与线同贴阅读卡左缘 */
+  left: 0;
   width: var(--rail-panel-w, 280px);
   z-index: 15;
   display: flex;

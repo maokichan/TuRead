@@ -283,14 +283,14 @@ app.whenReady().then(async () => {
       //    → 页面长到出现滚动条时，fixed 元素（按视口定位）会被判成偏了 5~8px。
       const cw = document.documentElement.clientWidth
       /* ⚠ 期望的"纸宽"要与 styles.css 的 :root 变量 --page-w **同一口径**（探针独立重算一遍，
-         算式见那里的注释）：min(视口, 用户档位, 视口 - 2×(侧边栏 + 挂件 + 缝))，下限 160。
-         ⚠ 让位量里必须含 --sidebar-w：纸是窗口居中的、挂件是从侧边栏右缘起算的。 */
+         算式见那里的注释）：min(视口, 用户档位, 视口 - 2×(挂件 + 缝))，下限 160。
+         ⚠ 批1.5 卡片模型：纸居中于阅读卡内、挂件贴卡缘 —— 算式**不含 --sidebar-w**
+         （侧边栏在卡片之外；旧口径随全屏阅读窗退役）。 */
       const rootCs2 = getComputedStyle(document.documentElement)
       const rw2 = Number.parseFloat(rootCs2.getPropertyValue('--read-width')) || 760
-      const sw2 = Number.parseFloat(rootCs2.getPropertyValue('--sidebar-w')) || 56
       const pw2 = Number.parseFloat(rootCs2.getPropertyValue('--rail-panel-w')) || 280
       const gap2 = Number.parseFloat(rootCs2.getPropertyValue('--rail-gap')) || 16
-      const paperW = Math.min(cw, rw2, Math.max(160, cw - 2 * (sw2 + pw2 + gap2)))
+      const paperW = Math.min(cw, rw2, Math.max(160, cw - 2 * (pw2 + gap2)))
       const lineH = ta ? Number.parseFloat(getComputedStyle(ta).fontSize) * 1.55 : 0
       const emptyH = Math.round(el.getBoundingClientRect().height)
       // ③b **自增长**（用户 2026-09-16）：默认至少两行、内容多了自己撑起来、上限五行后转滚动。
