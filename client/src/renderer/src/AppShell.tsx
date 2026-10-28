@@ -22,6 +22,7 @@ import { TitleBar } from './components/TitleBar'
 import { CommandPalette } from './components/CommandPalette'
 import type { PaletteCommand } from './components/commandFilter'
 import { playSettle } from './components/motion'
+import { applyDataThemeResolved } from './components/themeTransition'
 import { useKeyIntents } from './components/useKeyIntents'
 import { runDevSelfCheck } from './dev/selfCheck'
 import { runPdfWidthProbe } from './dev/pdfWidthProbe'
@@ -181,7 +182,8 @@ export default function AppShell(): React.JSX.Element {
         await container.store.patchSetting('appearance', { theme: { tone, mode } })
         const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
         const resolved = resolveThemePreference({ tone, mode }, dark)
-        document.documentElement.setAttribute('data-theme', resolved)
+        // 唯一入口应用（带全局颜色渐隐，themeTransition.ts）
+        applyDataThemeResolved(resolved)
         // 阅读态切主题：正文 iframe 的注入不会因 data-theme 自动跟上（ReaderFeature 只在激活时应用）
         if (readerBookIdRef.current) void container.render.applyTheme(resolved)
         pushLog(`主題已切換：${label}`)
@@ -300,7 +302,7 @@ export default function AppShell(): React.JSX.Element {
     <div className="relative flex h-screen flex-col">
       {dragOver && (
         /* 拖拽提示（pointer-events-none：不挡 drop 事件，drop 在 window 层处理） */
-        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-soft)]">
+        <div className="pointer-events-none fixed inset-0 z-[var(--z-menu)] flex items-center justify-center bg-[var(--overlay-soft)]">
           <span className="text-[15px] text-[var(--text)]">鬆開以導入到當前書庫</span>
         </div>
       )}
@@ -317,7 +319,7 @@ export default function AppShell(): React.JSX.Element {
            两处硬编码会漂（STYLE.md §5.8） */
         <aside
           className={`flex flex-none flex-col items-center border-r border-[var(--border)] bg-[var(--panel)] py-2 ${
-            sidebarOverlays ? 'absolute inset-y-0 left-0 z-40' : ''
+            sidebarOverlays ? 'absolute inset-y-0 left-0 z-[var(--z-drawer)]' : ''
           }`}
           style={{ width: 'var(--sidebar-w)' }}
         >

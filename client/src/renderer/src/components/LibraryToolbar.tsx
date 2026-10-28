@@ -165,7 +165,8 @@ function Crumb({
           }
         }
       : {}
-  const highlight = dropHover ? ' rounded-sm bg-[var(--negative-bg)] px-1 text-[var(--negative-text)]' : ''
+  // 拖入高亮 = 负片块（STYLE.md §5.5 登记：负片一律直角，同侧边栏选中态先例）
+  const highlight = dropHover ? ' bg-[var(--negative-bg)] px-1 text-[var(--negative-text)]' : ''
   return (
     <span className={`flex min-w-0 items-center gap-1.5${highlight}`} {...dropProps}>
       {index > 0 && <span className="opacity-50">/</span>}
@@ -213,7 +214,7 @@ function ImportMenu({
         /* 浮层（STYLE.md §5.2 例外③）保留一层底色；**左缘与「導入」按钮左缘对齐**
            （原来右对齐，菜单整体偏到按钮左侧，看起来"没对齐"—— 2026-09-09 修）。
            菜单项本身是文字行，无边框无分隔线。 */
-        <div className="absolute bottom-full left-0 z-10 mb-2 flex w-40 flex-col items-start gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] p-2.5">
+        <div className="absolute bottom-full left-0 z-[var(--z-chrome)] mb-2 flex w-40 flex-col items-start gap-1.5 rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--panel)] p-2.5">
           <button
             onClick={() => {
               setOpen(false)

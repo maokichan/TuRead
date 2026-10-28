@@ -81,7 +81,7 @@ export function BookDetailPanel({
   ].join('   ·   ')
 
   return (
-    <aside ref={panelRef} className="absolute inset-y-0 right-0 z-30 flex w-[280px] flex-col px-4">
+    <aside ref={panelRef} className="absolute inset-y-0 right-0 z-[var(--z-drawer)] flex w-[280px] flex-col px-4">
       {/* 顶部单元：封面（64×96，2:3）+ 三行（各 32px = 封面高度的三等分） */}
       <header className="flex flex-none items-stretch gap-3 pt-4 pb-3">
         <div className="w-16 flex-none overflow-hidden bg-[var(--panel-2)]">

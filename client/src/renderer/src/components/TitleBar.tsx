@@ -94,7 +94,7 @@ export function TitleBar({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`flex h-full w-11 items-center justify-center text-[var(--muted)] transition-colors hover:bg-[var(--panel-2)] hover:text-[var(--text)] ${
+      className={`flex h-full w-11 items-center justify-center text-[var(--muted)] transition-colors duration-[var(--dur-hover)] hover:bg-[var(--panel-2)] hover:text-[var(--text)] ${
         danger ? 'hover:bg-[var(--err)] hover:text-[var(--negative-text)]' : ''
       }`}
     >
@@ -130,7 +130,7 @@ export function TitleBar({
             title="後退"
             onClick={() => libraryNavBus.back()}
             disabled={!navState.canBack}
-            className="flex w-11 items-center justify-center text-[var(--muted)] transition-colors hover:bg-[var(--panel-2)] hover:text-[var(--text)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--muted)]"
+            className="flex w-11 items-center justify-center text-[var(--muted)] transition-colors duration-[var(--dur-hover)] hover:bg-[var(--panel-2)] hover:text-[var(--text)] disabled:opacity-[var(--disabled-opacity)] disabled:hover:bg-transparent disabled:hover:text-[var(--muted)]"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
               <path d="M8 1.5L3.5 6L8 10.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
@@ -141,7 +141,7 @@ export function TitleBar({
             title="前進"
             onClick={() => libraryNavBus.forward()}
             disabled={!navState.canForward}
-            className="flex w-11 items-center justify-center text-[var(--muted)] transition-colors hover:bg-[var(--panel-2)] hover:text-[var(--text)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--muted)]"
+            className="flex w-11 items-center justify-center text-[var(--muted)] transition-colors duration-[var(--dur-hover)] hover:bg-[var(--panel-2)] hover:text-[var(--text)] disabled:opacity-[var(--disabled-opacity)] disabled:hover:bg-transparent disabled:hover:text-[var(--muted)]"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
               <path d="M4 1.5L8.5 6L4 10.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
@@ -166,7 +166,7 @@ export function TitleBar({
           }}
           placeholder={PLACEHOLDERS[activeFeature] ?? PLACEHOLDERS.default}
           aria-label={PLACEHOLDERS[activeFeature] ?? PLACEHOLDERS.default}
-          className="titlebar-search pointer-events-auto h-7 w-[420px] max-w-[46vw] rounded-sm border border-[var(--border)] bg-[var(--bg)] px-2.5 text-center text-[13px] text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:text-left"
+          className="titlebar-search pointer-events-auto h-7 w-[420px] max-w-[46vw] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--bg)] px-2.5 text-center text-[13px] text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:text-left"
         />
       </div>
 

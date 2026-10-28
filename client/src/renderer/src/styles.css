@@ -33,12 +33,23 @@
    语义说明：
      bg/panel/panel-2/border/border-soft  —— 背景层级
      text/muted                            —— 文字
-     accent/accent-soft/accent-strong/accent-ring/on-accent —— 高亮（按钮/选中/焦点）
+     accent/accent-soft/accent-ring        —— 高亮（按钮/选中/焦点）
      ok/warn/err(+ -border)                —— 状态色（连接/成功/警告/错误）
-     input-bg/badge-bg/log-bg/log-text     —— 输入框/格式徽章/诊断日志面板
+     input-bg/log-bg/log-text              —— 输入框/诊断日志面板
      page-bg/page-text                     —— 阅读器宿主容器（正文页）
      desk-bg/page-edge                     —— 阅读页的"桌"（正文列之外）与"纸的边"（STYLE.md §5.8 v0.5）
      scrollbar                             —— 滚动条滑块
+------------------------------------------------------------------- */
+/* ------------------------------------------------------------------
+   z-index 登记表（批1 收编）：浮层层级一律用 var(--z-*)，组件与样式都禁字面值
+   （styleGrammar.test.ts 守卫）。五档从低到高：
+     --z-chrome  10   常驻界面之上的轻浮层（导入菜单）
+     --z-drawer  30   侧滑面板层（详情抽屉、贴缘召回条、阅读态覆盖侧边栏）
+     --z-menu    50   菜单/提示层（右键菜单及子菜单、批注输入栏、拖拽提示）
+     --z-modal   60   模态对话框（确认弹窗、書庫管理）—— 压过菜单
+     --z-command 70   命令面板（全局最高：随处可呼出，必须压过一切浮层）
+   阅读器内部的本地微序不占档位、保留字面值（挂载线1 / 纸2 / 垂挂抽屉15/16、
+   toc-row 内部 label1/veil2）—— 那是被 §8 机检守护的阅读器几何，不是浮层。
 ------------------------------------------------------------------- */
 :root {
   --bg: #0e0f10;
@@ -52,9 +63,7 @@
   /* 高亮已调暗（原近白 #e9ebed → 柔灰） */
   --accent: #c2c8cf;
   --accent-soft: rgba(194, 200, 207, 0.12);
-  --accent-strong: rgba(194, 200, 207, 0.2);
   --accent-ring: rgba(194, 200, 207, 0.3);
-  --on-accent: #131516;
 
   --ok: #6fbf8a;
   --ok-border: rgba(111, 191, 138, 0.4);
@@ -64,7 +73,6 @@
   --err-border: rgba(217, 119, 111, 0.4);
 
   --input-bg: #0b0c0d;
-  --badge-bg: #121415;
   --log-bg: #0a0b0c;
   --log-text: #a8b0b7;
 
@@ -180,6 +188,27 @@
   --dur-view: 300ms;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-inout: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* ── 设计语法 v2（批1 地基；STYLE.md §3.3）──────────────────────────
+     圆角四档，**值随从属深度升档**（控件 → 行/卡 → 浮出面板 → 模态）：
+     内层圆角 ≤ 外层 − padding。组件一律经 var 引用（Tailwind: rounded-[var(--radius-*)]），
+     字面档位类（rounded-sm/lg/xl）由 styleGrammar.test.ts 禁用；
+     rounded-full（胶囊）与滚动条伪元素除外。**挂载线家族（阅读器/右键菜单/批注输入栏）
+     一律直角**——那是阅读器的识别性语汇（§5.8 既有例外，机检守护），不适用本族。 */
+  --radius-control: 4px;
+  --radius-item: 8px;
+  --radius-panel: 12px;
+  --radius-modal: 16px;
+  /* 阴影两档（禁区5 修订为「按档位用」）：面板层轻、对话层重。
+     暗色主题的层级靠「边框 + panel-2 提亮」承担（纯阴影在深色上不可见），
+     阴影四主题共用这一份，只做补强不做主信号。 */
+  --shadow-panel: 0 1px 3px rgb(0 0 0 / 0.12), 0 4px 14px rgb(0 0 0 / 0.08);
+  --shadow-modal: 0 8px 32px rgb(0 0 0 / 0.22);
+  /* 交互状态语言（STYLE.md §3.4）：
+     hover = **底色轻叠加**（M3 state-layer 口径：内容色 8%）—— 全应用唯一的悬浮隐喻；
+     禁用 = **全局单档降透明**（此前 0.3/0.35/0.4/0.55 四种并存，收敛为一档）。 */
+  --state-hover: color-mix(in srgb, var(--text) 8%, transparent);
+  --disabled-opacity: 0.4;
 }
 
 [data-theme='light'] {
@@ -194,9 +223,7 @@
 
   --accent: #2a2d30;
   --accent-soft: rgba(42, 45, 48, 0.08);
-  --accent-strong: rgba(42, 45, 48, 0.16);
   --accent-ring: rgba(42, 45, 48, 0.28);
-  --on-accent: #ffffff;
 
   --ok: #2f7d4f;
   --ok-border: rgba(47, 125, 79, 0.4);
@@ -206,7 +233,6 @@
   --err-border: rgba(176, 58, 48, 0.4);
 
   --input-bg: #f7f8f9;
-  --badge-bg: #e4e7e9;
   --log-bg: #eef0f2;
   --log-text: #5f666b;
 
@@ -239,9 +265,7 @@
 
   --accent: #4a3a22;
   --accent-soft: rgba(74, 58, 34, 0.13);
-  --accent-strong: rgba(74, 58, 34, 0.22);
   --accent-ring: rgba(74, 58, 34, 0.32);
-  --on-accent: #f7f1e3;
 
   --ok: #4f8a63;
   --ok-border: rgba(79, 138, 99, 0.4);
@@ -251,7 +275,6 @@
   --err-border: rgba(176, 85, 69, 0.4);
 
   --input-bg: #f7f1e0;
-  --badge-bg: #e3d7ba;
   --log-bg: #efe6d0;
   --log-text: #6b5c43;
 
@@ -284,9 +307,7 @@
 
   --accent: #cbb48c;
   --accent-soft: rgba(203, 180, 140, 0.13);
-  --accent-strong: rgba(203, 180, 140, 0.22);
   --accent-ring: rgba(203, 180, 140, 0.32);
-  --on-accent: #1a150e;
 
   --ok: #6fa87f;
   --ok-border: rgba(111, 168, 127, 0.4);
@@ -296,7 +317,6 @@
   --err-border: rgba(208, 138, 122, 0.4);
 
   --input-bg: #120f0a;
-  --badge-bg: #1a1610;
   --log-bg: #100d09;
   --log-text: #b3a68d;
 
@@ -352,6 +372,23 @@ textarea {
    （宿主 CSS 不跨文档边界，见 kookitRenderAdapter.buildReaderCss ④）。 */
 ::selection {
   background: var(--selection-bg);
+}
+
+/* 主题切换过渡（批1；此前 data-theme 一换全局瞬跳）：
+   切换瞬间给 <html> 挂 .theme-fade（components/themeTransition.ts 唯一入口），
+   全部元素的颜色属性获得 --dur-view 过渡，340ms 后摘除 —— 平时零成本、
+   不干扰各组件自有过渡；reduced-motion 下不挂（helper 侧判断）。
+   ⚠ shorthand 会整个覆盖 transition 属性：fade 窗口内其他过渡（veil 透明度等）暂停
+   320ms —— 主题切换本就是大状态跳变，可接受。 */
+.theme-fade *,
+.theme-fade *::before,
+.theme-fade *::after {
+  transition:
+    color var(--dur-view) var(--ease-inout),
+    background-color var(--dur-view) var(--ease-inout),
+    border-color var(--dur-view) var(--ease-inout),
+    fill var(--dur-view) var(--ease-inout),
+    stroke var(--dur-view) var(--ease-inout) !important;
 }
 
 /* ---------- kookit 硬编码契约（KOOKIT.md §5）: 宿主容器必须可滚动、iframe 不设 height:100% ----------
@@ -525,7 +562,7 @@ textarea {
   top: 14%;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 60;
+  z-index: var(--z-command);
   display: flex;
   flex-direction: column;
   width: min(560px, calc(100vw - 48px));
@@ -612,7 +649,7 @@ textarea {
 }
 
 .text-action:disabled {
-  opacity: 0.35;
+  opacity: var(--disabled-opacity);
   cursor: default;
 }
 
@@ -827,7 +864,7 @@ textarea {
   height: 160px;
   background: color-mix(in srgb, var(--text) 16%, transparent);
   border-radius: 0 3px 3px 0;
-  transition: background-color 120ms ease-out;
+  transition: background-color var(--dur-hover) ease-out;
 }
 
 .reader-sidebar-toggle:hover::before {
@@ -1134,7 +1171,7 @@ textarea {
 }
 
 .toc-row:disabled .toc-row__label {
-  opacity: 0.55;
+  opacity: var(--disabled-opacity);
 }
 
 /* ── 右键菜单：挂载线形态（2026-09-14 用户定，全站统一）────────────────
@@ -1215,7 +1252,7 @@ textarea {
   position: absolute;
   left: 100%;
   top: -4px;
-  z-index: 50;
+  z-index: var(--z-menu);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1530,6 +1567,12 @@ textarea {
   border: 1px solid var(--note-card-edge, transparent);
   cursor: pointer;
   text-align: left;
+  /* hover = 底色轻叠加（全应用统一的悬浮隐喻，§3.4）；文字卡本身无框架，叠加只在悬浮时出现 */
+  transition: background-color var(--dur-hover) ease;
+}
+
+.note-card:hover {
+  background: var(--state-hover);
 }
 
 .note-card--selected {
@@ -1610,7 +1653,7 @@ textarea {
   color: var(--muted);
 }
 
-/* hover：只做色温变化（与书库卡片同一口径），不加底色/边框 */
+/* hover：底色轻叠加（全应用统一悬浮隐喻）+ 元行色温跟随（与 .note-card:hover 配套） */
 .note-card:hover .note-card__meta {
   color: var(--text);
 }

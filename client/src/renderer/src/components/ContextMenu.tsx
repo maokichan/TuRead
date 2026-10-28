@@ -61,7 +61,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): React.J
   return (
     <div
       ref={boxRef}
-      className="context-menu fixed z-50 flex flex-col items-start"
+      className="context-menu fixed z-[var(--z-menu)] flex flex-col items-start"
       style={{ left, top }}
       onContextMenu={(e) => e.preventDefault()}
     >

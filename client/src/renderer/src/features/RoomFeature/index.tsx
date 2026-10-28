@@ -28,14 +28,12 @@ import {
 
 // STYLE.md §5.1：**动作即文字** —— 样式统一定义在 styles.css 的 `.text-action` 家族
 // （18px 加粗衬线、无框无底色；主/次动作靠色温区分，不靠边框）。
-// 旧档（framed，回退用）：
-//   btnGhost   = 'rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-[13px] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40'
-//   btnPrimary = 'rounded-lg border border-transparent bg-[var(--accent)] px-3 py-2 text-[13px] text-[var(--on-accent)] hover:brightness-110 disabled:opacity-40'
+// （旧档 framed 字符串已随设计语法 v2 废弃删除：彼时用字面圆角档位与 --on-accent，均已不存在。）
 const btnPrimary = 'text-action text-action--primary'
 const btnGhost = 'text-action'
 // 例外①（STYLE.md §5.2）：输入类必须可见可点 —— 唯一保留边框的控件
 const inputCls =
-  'rounded-lg border border-[var(--border)] bg-[var(--input-bg)] px-2.5 py-2 text-[13px] outline-none focus:border-[var(--accent)]'
+  'rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--input-bg)] px-2.5 py-2 text-[13px] outline-none focus:border-[var(--accent)]'
 const h3Cls = 'mb-1.5 mt-2 text-[12.5px] tracking-label text-[var(--muted)] uppercase'
 
 export function RoomFeature({ container, host, selectedBookId }: FeatureProps): React.JSX.Element {
@@ -362,7 +360,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
         <StatePill state={displayConn} />
       </header>
 
-      <details className="rounded-xl border border-[var(--border)] bg-[var(--panel)] p-3 open:pb-4">
+      <details className="rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--panel)] p-3 open:pb-4">
         <summary className="cursor-pointer text-[12.5px] font-semibold text-[var(--muted)] select-none">
           服务器连接{sessionReady ? ` · ${memberId ?? ''}` : ''}
         </summary>

@@ -52,10 +52,10 @@ export function BookTile({
           onDelete()
         }
       }}
-      className="group flex cursor-pointer flex-col gap-1.5"
+      className="group flex cursor-pointer flex-col gap-1.5 transition-colors duration-[var(--dur-hover)] hover:bg-[var(--state-hover)]"
     >
       <div
-        className={`relative aspect-[2/3] w-full overflow-hidden rounded-lg border bg-[var(--panel-2)] transition-colors ${
+        className={`relative aspect-[2/3] w-full overflow-hidden rounded-[var(--radius-item)] border bg-[var(--panel-2)] transition-colors duration-[var(--dur-hover)] ${
           active
             ? 'border-[var(--accent-ring)] ring-1 ring-[var(--accent-ring)]'
             : 'border-[var(--border)] group-hover:border-[var(--accent)]'

@@ -38,7 +38,7 @@ export function BookRow({
   const title = book.metadata.title || '未命名'
   const meta = (
     <span className="flex items-center gap-2 text-[11px] text-[var(--muted)]">
-      <b className="text-[11px] font-bold tracking-label text-[var(--accent)]">{book.format}</b>
+      <b className="text-[11px] font-bold tracking-label text-[var(--muted)]">{book.format}</b>
       <span>{formatSize(book.fingerprint.size)}</span>
       <span>{progressText(readingState)}</span>
     </span>
@@ -66,10 +66,10 @@ export function BookRow({
           onDelete()
         }
       }}
-      className={`relative h-16 cursor-pointer overflow-hidden rounded-lg border transition-colors ${
+      className={`relative h-16 cursor-pointer overflow-hidden rounded-[var(--radius-item)] border transition-colors duration-[var(--dur-hover)] ${
         active
           ? 'border-[var(--accent-ring)] bg-[var(--accent-soft)]'
-          : 'border-transparent hover:border-[var(--border)] hover:bg-[var(--panel)]'
+          : 'border-transparent hover:border-[var(--border)] hover:bg-[var(--state-hover)]'
       }`}
     >
       {/*

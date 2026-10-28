@@ -22,6 +22,7 @@ import {
 } from '@core/domain/theme'
 import type { FeatureProps } from '../types'
 import { subscribeLog } from '../logStore'
+import { applyDataThemeResolved } from '../../components/themeTransition'
 import { getPluginState, setPluginEnabled, subscribePlugins } from '../../plugins/runtime'
 
 const TONES: { value: ThemeTone; label: string }[] = [
@@ -39,7 +40,8 @@ const DEFAULT_LIBRARY: LibrarySettings = { view: 'list', importRecursive: false 
 
 function applyDataTheme(pref: ThemePreference): void {
   const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
-  document.documentElement.setAttribute('data-theme', resolveThemePreference(pref, dark))
+  // 经唯一入口应用：带全局颜色渐隐过渡（themeTransition.ts，批1）
+  applyDataThemeResolved(resolveThemePreference(pref, dark))
 }
 
 export function SettingsFeature({ container }: FeatureProps): React.JSX.Element {

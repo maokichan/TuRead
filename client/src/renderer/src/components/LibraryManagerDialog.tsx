@@ -111,14 +111,14 @@ export function LibraryManagerDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-dim)] p-6"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-[var(--overlay-dim)] p-6"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[70vh] w-full max-w-[560px] flex-col rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4"
+        className="flex max-h-[70vh] w-full max-w-[560px] flex-col rounded-[var(--radius-modal)] border border-[var(--border)] bg-[var(--panel)] p-4"
       >
         <h3 className="m-0 text-[14px] font-semibold">書庫管理</h3>
         <p className="mt-1 mb-3 text-[12.5px] text-[var(--muted)]">
@@ -144,7 +144,7 @@ export function LibraryManagerDialog({
                           if (e.key === 'Enter') void commitRename()
                           if (e.key === 'Escape') setRenamingId(null)
                         }}
-                        className="h-7 w-full rounded-sm border border-[var(--border)] bg-[var(--bg)] px-2 text-[13px] text-[var(--text)] outline-none focus:border-[var(--accent)]"
+                        className="h-7 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--bg)] px-2 text-[13px] text-[var(--text)] outline-none focus:border-[var(--accent)]"
                       />
                       <button onClick={() => void commitRename()} className="text-action text-action--primary">
                         確認
@@ -196,7 +196,7 @@ export function LibraryManagerDialog({
                 value={createDraft}
                 placeholder="新書庫名稱"
                 onChange={(e) => setCreateDraft(e.target.value)}
-                className="h-7 w-full rounded-sm border border-[var(--border)] bg-[var(--bg)] px-2 text-[13px] text-[var(--text)] outline-none focus:border-[var(--accent)]"
+                className="h-7 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--bg)] px-2 text-[13px] text-[var(--text)] outline-none focus:border-[var(--accent)]"
               />
               <div className="flex items-start gap-6">
                 <label className="flex cursor-pointer items-start gap-1.5 text-[12.5px] text-[var(--muted)]">
@@ -243,7 +243,7 @@ export function LibraryManagerDialog({
                 <button
                   onClick={() => void commitCreate()}
                   disabled={!createDraft.trim() || (createMode === 'mapped' && !createRoot)}
-                  className="text-action text-action--primary disabled:opacity-40"
+                  className="text-action text-action--primary disabled:opacity-[var(--disabled-opacity)]"
                 >
                   建立
                 </button>

@@ -104,10 +104,10 @@ export function ContainerItem({
       draggable={!renaming && !!onDragStart}
       onDragStart={onDragStart}
       {...dragHandlers}
-      className={`group flex cursor-pointer flex-col gap-1.5 ${dropHover ? 'opacity-80' : ''}`}
+      className={`group flex cursor-pointer flex-col gap-1.5 transition-colors duration-[var(--dur-hover)] hover:bg-[var(--state-hover)] ${dropHover ? 'opacity-80' : ''}`}
     >
         <div
-          className={`relative aspect-[2/3] w-full overflow-hidden rounded-lg border bg-[var(--panel-2)] transition-colors ${
+          className={`relative aspect-[2/3] w-full overflow-hidden rounded-[var(--radius-item)] border bg-[var(--panel-2)] transition-colors duration-[var(--dur-hover)] ${
             active
               ? 'border-[var(--accent-ring)] ring-1 ring-[var(--accent-ring)]'
               : dropHover
@@ -130,7 +130,7 @@ export function ContainerItem({
               }
             }}
             onBlur={commitRename}
-            className="h-[34px] w-full rounded-sm border border-[var(--accent)] bg-[var(--bg)] px-1.5 text-[12.5px] leading-[1.35] text-[var(--text)] outline-none"
+            className="h-[34px] w-full rounded-[var(--radius-control)] border border-[var(--accent)] bg-[var(--bg)] px-1.5 text-[12.5px] leading-[1.35] text-[var(--text)] outline-none"
           />
         ) : (
           <span className="line-clamp-2 h-[34px] text-[12.5px] leading-[1.35] text-[var(--muted)] group-hover:text-[var(--text)]">
@@ -155,12 +155,12 @@ export function ContainerItem({
       draggable={!renaming && !!onDragStart}
       onDragStart={onDragStart}
       {...dragHandlers}
-      className={`relative h-16 cursor-pointer overflow-hidden rounded-lg border transition-colors ${
+      className={`relative h-16 cursor-pointer overflow-hidden rounded-[var(--radius-item)] border transition-colors duration-[var(--dur-hover)] ${
         active
           ? 'border-[var(--accent-ring)] bg-[var(--accent-soft)]'
           : dropHover
             ? 'border-[var(--accent)] bg-[var(--accent-soft)]'
-            : 'border-transparent hover:border-[var(--border)] hover:bg-[var(--panel)]'
+            : 'border-transparent hover:border-[var(--border)] hover:bg-[var(--state-hover)]'
       }`}
     >
       <div className="book-row-cover absolute inset-y-0 left-0 w-2/5 overflow-hidden bg-[var(--panel-2)]">
@@ -180,7 +180,7 @@ export function ContainerItem({
               }
             }}
             onBlur={commitRename}
-            className="h-8 w-full rounded-sm border border-[var(--accent)] bg-[var(--bg)] px-2 font-ui text-[15px] text-[var(--text)] outline-none"
+            className="h-8 w-full rounded-[var(--radius-control)] border border-[var(--accent)] bg-[var(--bg)] px-2 font-ui text-[15px] text-[var(--text)] outline-none"
           />
         ) : (
           <span className="truncate font-ui text-[17px] leading-tight font-normal">
