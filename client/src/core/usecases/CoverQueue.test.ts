@@ -141,4 +141,23 @@ describe('CoverQueue（封面提取队列）', () => {
     expect((await second).total).toBe(1)
     expect(covers).toEqual(['a', 'b'])
   })
+
+  it('done 监听里同步入队下一批：新批次不被尾部重置抹掉（重入回归）', async () => {
+    const { store, covers } = fakeStore({ a: {}, b: {} })
+    const q = new CoverQueue(extractor('data:image/png;base64,x'), thumbnailer, store)
+    let batches = 0
+    const second = new Promise<{ total: number; ok: number }>((resolve) =>
+      q.on('done', (s) => {
+        batches += 1
+        if (batches === 1) q.enqueue(['b'])
+        else resolve(s)
+      })
+    )
+    q.enqueue(['a'])
+    // 旧序（重置在 emit 之后）这里会报 total=0：新批次的统计刚入队就被清了
+    const summary = await second
+    expect(summary.total).toBe(1)
+    expect(summary.ok).toBe(1)
+    expect(covers).toEqual(['a', 'b'])
+  })
 })

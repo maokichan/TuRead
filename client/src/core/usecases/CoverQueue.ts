@@ -107,20 +107,22 @@ export class CoverQueue extends TypedEmitter<CoverQueueEvents> implements ICover
       // cover-ready 处理（IPC 读封面 + setState）有机会穿插，批量不至于挤爆事件循环。
       await new Promise((r) => setTimeout(r, 0))
     }
-    this.running = false
-    this.emit('done', {
+    const summary: CoverSummary = {
       total: this.total,
       ok: this.ok,
       failed: this.failed,
       cancelled: this.cancelled
-    })
-    // 重置批次统计，等待下一轮入队
+    }
+    this.running = false
+    // 批次重置必须先于 emit('done')：done 监听里同步 enqueue 是合法用法，重置放在
+    // 后面会把刚入队的新批次整个抹掉（queue/planned/统计全被清）
     this.queue = []
     this.planned.clear()
     this.total = 0
     this.done = 0
     this.ok = 0
     this.failed = 0
+    this.emit('done', summary)
   }
 
   private async extractOne(id: string): Promise<void> {

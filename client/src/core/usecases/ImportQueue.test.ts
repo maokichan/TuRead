@@ -146,4 +146,22 @@ describe('ImportQueue（批量导入队列）', () => {
     await second
     expect(calls.map((c) => c.libraryId)).toEqual(['lib-1', 'lib-2'])
   })
+
+  it('done 监听里同步入队下一批：新批次不被尾部重置抹掉（重入回归）', async () => {
+    const { books } = fakeBooks({})
+    const q = new ImportQueue(readFile, books)
+    let batches = 0
+    const second = new Promise<{ total: number; imported: number }>((resolve) =>
+      q.on('done', (s) => {
+        batches += 1
+        if (batches === 1) q.enqueue(['C:\\b\\2.epub'], 'lib-1')
+        else resolve(s)
+      })
+    )
+    q.enqueue(['C:\\b\\1.epub'], 'lib-1')
+    // 旧序（重置在 emit 之后）这里会报 total=0：新批次的统计刚入队就被清了
+    const summary = await second
+    expect(summary.total).toBe(1)
+    expect(summary.imported).toBe(1)
+  })
 })

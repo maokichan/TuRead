@@ -33,7 +33,7 @@ import type {
 import type { LibraryLevelQuery } from '@core/ports/store'
 import { IPC } from '@shared/ipc'
 import type { FeatureProps } from '../types'
-import { forgetCover, getCoverUrl } from '../coverCache'
+import { clearCoverCache, forgetCover, getCoverUrl } from '../coverCache'
 import { libraryNavBus } from '../libraryNavBus'
 import { BookRow } from '../../components/BookRow'
 import { BookTile } from '../../components/BookTile'
@@ -245,6 +245,7 @@ export function LibraryFeature({
   useEffect(() => {
     const off = window.turead.subscribe(IPC.storeLibraryChanged, (payload) => {
       const entry = payload as LibraryEntry
+      clearCoverCache()
       setDetailId(null)
       setBooks([])
       setCovers({})

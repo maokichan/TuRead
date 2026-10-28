@@ -109,15 +109,16 @@ export class ImportQueue extends TypedEmitter<ImportQueueEvents> implements IImp
       this.done++
       this.emit('progress', this.done, this.total)
     }
-    this.running = false
-    this.emit('done', {
+    const summary: ImportSummary = {
       total: this.total,
       imported: this.imported,
       reused: this.reused,
       failed: this.failed,
       cancelled: this.cancelled
-    })
-    // 重置批次统计，等待下一轮入队
+    }
+    this.running = false
+    // 批次重置先于 emit('done')（同 CoverQueue 的批次口径）：
+    // done 监听里同步 enqueue 时，刚入队的新批次不能被这里的重置抹掉
     this.queue = []
     this.planned.clear()
     this.total = 0
@@ -125,5 +126,6 @@ export class ImportQueue extends TypedEmitter<ImportQueueEvents> implements IImp
     this.imported = 0
     this.reused = 0
     this.failed = 0
+    this.emit('done', summary)
   }
 }
