@@ -52,15 +52,15 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | **批注输入栏（v1.8~v1.10）** | 底部居中、纯色带边框、**零文字**、宽 = 纸宽 × 0.9、**自增长 2→5 行**；**生命周期 = 绑在它的对象上**（选区型随选区消失；笔记型随笔记从库中消失） | `STYLE.md` §5.8；`NoteComposer.tsx` |
 | **沉浸全屏（v1.11）** | `F11` = **进入**全屏（幂等，不是切换）；退出全屏走 `Esc` 分流；**离开阅读器时若仍全屏 → 退出全屏并保持最大化**（`win:set-maximized`） | `STYLE.md` §5.8；`shared/ipc.ts` |
 | 键鼠意图层 | 键盘 = **意图**：`core/domain/input.ts` 纯函数绑定表（一键一意）+ `useKeyIntents`（ref 装载 + 常驻组件必须带 enabled 守卫） | `domain/input.ts`；`useKeyIntents.ts` |
-| 无边框窗口 + 自绘标题栏 | `frame:false` + 自绘控制键 + 标题栏内嵌**全局搜索栏**（作用域随功能：书库/笔记已接线，阅读器·房间未接线） | `TitleBar.tsx`；`FEATURES.md` §11 |
+| **chrome 平面化（批1.6，用户定"打通"）** | 无全局标题栏（`TitleBar.tsx` 退役）：侧边栏**全高**（应用名居顶 + 本体拖拽）；每平面顶缘自带 `PlaneHeader`（窗控三键 + 域内搜索/标题 + 拖拽区）；阅读态 = 卡顶右角**淡显窗控**（窗口 chrome ≠ 阅读控件）+ 卡顶 28px 拖拽条；后退/前进迁书库顶行 | `PlaneHeader.tsx`；`FEATURES.md` §11 |
 | **数据存储 v3（全局单库）** | 全应用一个 SQLite 库 = 一份用户数据（作品/电子版/收录/书库/书箱/笔记/阅读状态/设置）；JSON 只剩**引导文件**；**书库 = 组织模式**，成员关系 = **收录（holdings）**；笔记挂 edition、阅读时间逐 edition 记按 work 汇总；设置一律全局 | `DATA_MODEL.md` §1/§2/§4.2 |
 | 「书的身份」三问定案 | 书库降为组织模式 + 全局单库；**映射库**（移除 = 移除可见性，靠**扫描**对账）vs **自建库**；笔记不自动跨版迁移；Work 只留接口；**Pro = 功能分层非订阅** | `DATA_MODEL.md` §4.2 D1–D12 + §6；`TODO.md` |
-| 笔记管理（跨书） | 「筆」= **同级功能组件**（不引入分类）；網格/瀑布流两态 + 窗口化；筛选判据是 **`body` 是否为空，不是 `kind`**；检索 = 标题栏·笔记作用域 | `FEATURES.md` §12；`STYLE.md` §5.10；`CONTRACTS.md` v0.4.1/v0.4.2 |
+| 笔记管理（跨书） | 「筆」= **同级功能组件**（不引入分类）；網格/瀑布流两态 + 窗口化；筛选判据是 **`body` 是否为空，不是 `kind`**；检索 = 笔记平面顶行·域内搜索（批1.6 迁入） | `FEATURES.md` §12；`STYLE.md` §5.10；`CONTRACTS.md` v0.4.1/v0.4.2 |
 | PDF 纸宽填充 + 单页交互 | PDF 改纸宽 = **原地重开**（kookit PdfRender 无重排入口）；单页模式交互两处真根因（嵌套 iframe 桥盲区、点击带滚轮死区）已修；**PDF 滚动模式 = 页卡流** + **PDF 专属纸宽档位**（`readerWidthPdf`）；暗色 = 开书时逐像素烘焙（`bakeDarkModePixels`，口径 = 原 CSS filter 精确复算） | `kookitRenderAdapter.ts`；`client/docs/KOOKIT.md` §7 |
 | iframe 事件桥 | 键盘/滚轮落在书文档里到不了宿主 → `components/iframeBridge.ts`（同源 iframe 挂同一套监听，**按键只看界面不看焦点**）；分页模式滚轮翻页 | `iframeBridge.ts`；`useKeyIntents.ts` |
 | **右键菜单坐标（真 bug 修复）** | 适配器曾把**书文档的 `clientX/clientY`** 当宿主坐标发出 → 菜单出现在非内容处；现由 `hostOffset()` 沿 `frameElement` 链**逐层累加**。⚠ 旧探针曾把 bug 断言成契约，已纠正 | `kookitRenderAdapter.ts`；`dev/noteProbe.ts` |
 | 全局禁选 | **文字选择 = 阅读正文专属**（宿主 UI 一律不可拖选，`input/textarea` 豁免） | `styles.css`；`FEATURES.md` §10/§11 |
-| 书库层级后退/前进 | 对齐资源管理器：鼠标侧键 + 标题栏按钮；历史栈条目含**面包屑整条**；模块总线 `libraryNavBus` 跨兄弟组件 | `LibraryFeature`；`libraryNavBus.ts` |
+| 书库层级后退/前进 | 对齐资源管理器：鼠标侧键 + **书库平面顶行**按钮（原标题栏，批1.6 迁入）；历史栈条目含**面包屑整条**；模块总线 `libraryNavBus` 跨兄弟组件 | `LibraryFeature`；`libraryNavBus.ts` |
 | 渲染内核可替换性 | kookit 整体封装在 vendor ESM 容器内，UI/应用层**只经端口**触达 → 换内核 = 重写适配器层 | `KOOKIT.md`；`CONTRACTS.md` §4.1 |
 | 主题色取向 | 四套：纯色·深/亮（黑灰白，不引入色相）+ 羊皮纸·深/亮；状态色保留语义色相 | `styles.css`；`STYLE.md` §3.4 |
 | 抽屉平面结构 | 封面 2:3 不拉伸；三行 = 封面高度三等分；标题/数据行单行；指标行无标签；外壳全透明 | `STYLE.md` §5.5 |

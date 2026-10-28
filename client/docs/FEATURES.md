@@ -239,10 +239,10 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
   （`histRef` = stack + idx，条目 = 位置 **+ 整条面包屑**，后退/前进一起还原）；
   `enterContainer` / `enterFolder` / `goToLevel` 全走 `pushEntry`（新导航截断"前进"分支），
   移动/导入等 `commitNav` 是原地重载**不入栈**；切库广播时历史重置为根。
-  两个出口：**标题栏后退/前进按钮**（左缘 = 侧边栏右缘 `var(--sidebar-w)`，仅书库态渲染，不可用禁用）
+  两个出口：**书库平面顶行的后退/前进按钮**（批1.6 迁入 `PlaneHeader` 左槽，不可用禁用）
   与**鼠标侧键**（XButton1/2，仅书库态接管并 `preventDefault` 压掉 Chromium 默认历史导航）；
-  跨兄弟组件经模块总线 `features/libraryNavBus.ts`（TitleBar 与 LibraryFeature 是 AppShell 兄弟，
-  props 穿 Shell 不值当 —— `logStore` 先例；TitleBar 用 `useSyncExternalStore` 订阅可用性）。
+  跨兄弟组件经模块总线 `features/libraryNavBus.ts`（bus 语义不变，消费方从 TitleBar 换成 LibraryFeature 顶行，
+  `useSyncExternalStore` 订阅可用性）。
   两种模式（建库时二选一；术语见 `DATA_MODEL.md` §6.2）：
   ① **映射库**（`mode='mapped'`，原"虛擬映射"）：跟踪唯一真实文件夹，层级 = 真实文件夹树，
   "書箱"即文件夹；⚠ **不能在里面导入**——书只能在真实路径上加，靠**扫描**对账（§6.1）；
@@ -311,17 +311,19 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
   宿主 UI 任何内容都不响应按住鼠标拖选（`styles.css` `body{user-select:none}`；`input/textarea` 豁免，
   更名/搜索/新建命名仍可选中复制）。正文在 kookit **iframe（独立 document）**内，天然不受宿主规则影响，
   选择能力原样保留。原 `LibraryFeature` 内容区的局部 `select-none` 因此删除（被全局覆盖，冗余）。
-- **标题栏：书库层级后退/前进（用户定）**：标题栏左段（左缘 = `var(--sidebar-w)`，
-  与左侧边栏右缘对齐）在 `activeFeature === 'library'` 时渲染**后退/前进**两个按钮，不可用时禁用
-  （opacity-30）；历史栈与还原语义在 §10「层级后退/前进」。放在标题栏的收益是"书库态才有意义"，
-  因此按钮随功能态出现，不占其他功能的标题栏。
-- **沉浸全屏**：`F11`（意图 `reader.enterFullscreen`）
-  = **进入**全屏（幂等，**不切换** —— 退出走 `Esc` 分流）或设置开关「進入閱讀器時進入全屏」
-  （默认关，`appearance.readerFullscreen`）= OS 级全屏 + **标题栏整条退场**
-  （`TitleBar` 订阅 `win:fullscreen-changed` 返回 null）；**离开阅读器时若仍全屏 → 退出全屏并保持最大化**。
-  `Esc` 分流（**用户纠正**：参数面板是常伴工具，Esc 顺手收面板是错误设计，面板开合只归挂载线）
-  = 全屏先退全屏 → 否则退出阅读器；**离开阅读器自动还原窗口**（全屏只属于阅读态）。
-  状态由 main 在 `enter/leave-full-screen` 广播，渲染层只订阅跟随（`win:*` IPC 与 TitleBar 同为 Shell 镶边级例外）。
+- **chrome 平面化（批1.6，原"标题栏"条目）**：无全局标题栏（`TitleBar.tsx` 退役，机制存于 git）。
+  侧边栏**全高**（`.sidebar-rail` = 拖拽区，「TuRead」字标居顶）；每平面顶缘 = `PlaneHeader`
+  （窗控三键 + 拖拽区 + 域内槽位：书库 = 后退/前进 + 域内搜索、笔记 = 域内搜索、房间/设置 = 标题）。
+  搜索按域住平面顶行（`app.focusSearch` 意图由各平面注册，enabled 守卫按 activeFeature）——
+  原"标题栏内嵌全局搜索"决策由本条接替；阅读器/房间的"未接線"搜索占位**删除**（书内搜索属书内，归挂载线家族）。阅读态窗控 = **卡顶右角淡显**（`.card-controls`：静息 0.35 / hover 或 focus-within 升满；
+  窗口 chrome ≠ 阅读控件，不破零控件承诺），卡顶 28px = 拖拽条（< 挂载线判定带上缘 29px，互不吞噬）。
+- **满幅态（批1.6b，原"沉浸全屏"）**：`F11`（意图 `reader.enterFullscreen`，键位不变）
+  = **卡片满幅**（幂等进入）：窗口内展开——边距归零 + 卡片圆角放平 + 侧边栏退场 + 窗控淡出，
+  **不再调 OS 级全屏**（`win:set-fullscreen` IPC 保留但界面不再入口）。或设置开关
+  「進入閱讀器時進入滿幅」（默认关，`appearance.readerFullscreen`，语义重指向）。
+  `Esc` **分级回落**（**用户纠正**：参数面板是常伴工具，Esc 顺手收面板是错误设计，面板开合只归挂载线）
+  = 满幅先退回卡片 → 否则退出阅读器；**离开阅读器时满幅自动复位**。状态 = 渲染层共享态
+  `features/cardState.ts`（AppShell 与 ReaderFeature 同源）。
 - **iframe 事件桥（`components/iframeBridge.ts`）**：kookit 正文渲染在 iframe 里，
   焦点进书页后键盘/滚轮事件落在 iframe document 上**到不了宿主 window**（文档边界）——
   点进书页后 F11/Esc 失灵的根因。桥对同源 iframe 文档挂同一套监听（MutationObserver 追踪懒加载章节），

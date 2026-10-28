@@ -2,6 +2,11 @@
  * Electron 主进程入口。
  */
 import { app, BrowserWindow, shell, Menu, ipcMain } from 'electron'
+
+// dev-only：CDP 远程调试端口（ui-shot 回路的 DOM 真相通道；用法 TUREAD_DEV_CDP=9223 npm run dev）
+if (process.env['TUREAD_DEV_CDP']) {
+  app.commandLine.appendSwitch('remote-debugging-port', process.env['TUREAD_DEV_CDP'])
+}
 import { join } from 'node:path'
 import type { WebContents } from 'electron'
 import { registerIpc } from './ipc'
@@ -101,10 +106,13 @@ function createWindow(): void {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
+    // chrome 平面化（批1.6）后运动部件变多（平面顶行/卡顶淡显窗控），防挤压破碎
+    minWidth: 960,
+    minHeight: 640,
     show: false,
     title: 'TuRead',
-    // 无边框（2026-09-12 用户定）：不用系统窗口控制键，自绘标题栏（TitleBar.tsx）——
-    // 拖拽/双击最大化由 -webkit-app-region 提供，右缘控制键经 win:* IPC 调本进程 API
+    // 无边框（2026-09-12 用户定）：不用系统窗口控制键——拖拽/双击最大化由 -webkit-app-region
+    // 提供（侧边栏本体 + 各平面顶行 + 阅读卡顶条），控制键经 win:* IPC 调本进程 API
     frame: false,
     autoHideMenuBar: true,
     webPreferences: {
