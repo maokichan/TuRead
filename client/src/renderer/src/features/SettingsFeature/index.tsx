@@ -165,7 +165,7 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
 
       <Field
         title="閱讀器"
-        hint="滿幅態：進入閱讀器時卡片自動展開鋪滿窗口（默認關；F11 亦可隨時進入，Esc 分級回落）。排版與佈局參數在閱讀器的掛載線面板裏（STYLE.md §5.9）。"
+        hint="沉浸全屏：進入閱讀器時自動全屏（默認關；F11 亦可隨時切換），離開閱讀器自動還原窗口。排版與佈局參數在閱讀器的掛載線面板裏（STYLE.md §5.9）。"
       >
         <label className="flex cursor-pointer items-center gap-2 text-[13px]">
           <input
@@ -174,7 +174,7 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
             onChange={toggleReaderFullscreen}
             className="h-3.5 w-3.5 accent-[var(--accent)]"
           />
-          進入閱讀器時進入滿幅
+          進入閱讀器時進入全屏
         </label>
       </Field>
 

@@ -30,7 +30,6 @@ import type {
 import type { RenderContextMenuRequest, RenderSelection } from '@core/ports/render'
 import type { PluginReaderContext } from '@shared/plugin'
 import type { FeatureProps } from '../types'
-import { isFullCard, setFullCard } from '../cardState'
 import type { TocRow } from '../../components/TocPanel'
 import { ReaderRail, type LeftPanelKind, type RightPanelKind } from '../../components/ReaderRail'
 import {
@@ -82,7 +81,9 @@ export function ReaderFeature({
   /** 布局模式改动 = 重开书（kookit config 只在 open 时消费）；tick 触发打开 effect 重跑 */
   const [reopenTick, setReopenTick] = useState(0)
   /** 沉浸全屏状态（跟随 main 广播的真实状态；切换经 win:* IPC，Shell 镶边级例外，同 TitleBar） */
-  /** 进入阅读器自动满幅（设置开关，默认关；appearance.readerFullscreen，SettingsFeature 写） */
+  const [fullscreen, setFullscreen] = useState(false)
+  const fullscreenRef = useRef(false)
+  /** 进入阅读器自动全屏（设置开关，默认关；appearance.readerFullscreen，SettingsFeature 写） */
   const autoFullscreenRef = useRef(false)
   const paramsRef = useRef<ReaderParams>(DEFAULT_READER_PARAMS)
   const stageRef = useRef<HTMLDivElement | null>(null)
@@ -660,11 +661,18 @@ export function ReaderFeature({
   }, [readerBookId, reopenTick, container, host, flushLastLocation])
 
   // 沉浸全屏（2026-09-13；2026-09-16 改 F11 语义与退出行为）：
-  // 满幅态链路（批1.6b，FEATURES §11）：
-  // - F11（`reader.enterFullscreen`）= **进入满幅**（幂等）；回落走 Esc 分级（满幅 → 卡片 → 书库）；
-  // - 设置开关（appearance.readerFullscreen，语义重指向）= 进入阅读器自动满幅，默认关；
-  // - **离开阅读器**：满幅由 AppShell 复位（cardState 归阅读态所有）。
-  // 不再涉及 OS 级全屏（win:set-fullscreen IPC 保留但界面不再入口）。
+  // - F11（`reader.enterFullscreen`）= **进入**全屏（幂等）；退出走 Esc 分流；
+  // - 设置开关（appearance.readerFullscreen）= 进入阅读器自动全屏，默认关；
+  // - **离开阅读器**：若当时仍在全屏 → 退出全屏并**保持最大化**（不缩回小窗，见下面的 effect）；
+  // - main 在 enter/leave-full-screen 时广播真实状态，这里只订阅跟随。
+  useEffect(() => {
+    const off = window.turead.subscribe(IPC.winFullScreenChanged, (payload) => {
+      fullscreenRef.current = payload === true
+      setFullscreen(payload === true)
+    })
+    return off
+  }, [])
+
   useEffect(() => {
     void container.store
       .getSetting<{ readerFullscreen?: boolean }>('appearance', {})
@@ -673,16 +681,27 @@ export function ReaderFeature({
       })
   }, [container])
 
-  // 进入阅读器 = 进入满幅（只在"进入"这一跳触发；设置开关默认关）
+  // 进入阅读器 = 进入全屏（只在"进入"这一跳触发）。⚠ 依赖里没有 `fullscreen`：
+  // 若把它放进来，Esc 退全屏的广播会让本 effect 重跑、把用户刚退出的全屏又顶回去。
   useEffect(() => {
     if (activeFeature === 'reader' && readerBookId && autoFullscreenRef.current) {
-      setFullCard(true)
+      void window.turead.invoke(IPC.winSetFullScreen, true)
     }
   }, [activeFeature, readerBookId])
 
-  // 离开阅读器：满幅复位（AppShell 也会在 activeFeature 变化时复位，双保险）
   useEffect(() => {
-    if (activeFeature !== 'reader') setFullCard(false)
+    if (activeFeature !== 'reader') {
+      /**
+       * 离开阅读器：先退出全屏。⚠ **若离开时正处于沉浸全屏，窗口保持"大"（最大化）而不是回到小窗口**
+       * （用户 2026-09-16 定："如果进入阅读器，且状态是F11的话，那么即便退出窗口也应该最大化"）——
+       * 用户在阅读器里选了全屏，退出后不该被缩回原来那个小窗。
+       * 顺序与竞态都在主进程处理（全屏未落地时挂到 leave-full-screen 上再最大化，见 main 的
+       * `win:set-maximized`）。
+       */
+      const wasFullscreen = fullscreenRef.current
+      void window.turead.invoke(IPC.winSetFullScreen, false)
+      if (wasFullscreen) void window.turead.invoke(IPC.winSetMaximized, true)
+    }
   }, [activeFeature])
 
   // 激活到阅读器时热更新主题（设置里改主题后返回阅读器不重开书也生效，STYLE.md §3.4）
@@ -791,9 +810,8 @@ export function ReaderFeature({
     'reader',
     {
       'reader.back': () => {
-        // Esc 分级回落（批1.6b）：满幅 → 卡片；卡片 → 书库（面板开合只归挂载线，不掺和）
-        if (isFullCard()) {
-          setFullCard(false)
+        if (fullscreen) {
+          void window.turead.invoke(IPC.winSetFullScreen, false)
           return
         }
         host.closeReader()
@@ -822,10 +840,11 @@ export function ReaderFeature({
           setControlsOpen(true)
         }
       },
-      // F11 = **进入满幅**（幂等）。⚠ 不做成切换（用户 2026-09-16："在阅读器内按F11是在切换全屏
-      // 状态，不是在进入全屏"）—— 回落走 Esc（`reader.back` 的分级），离开阅读器自动复位。
+      // F11 = **进入**全屏（幂等）。⚠ 不做成切换（用户 2026-09-16："在阅读器内按F11是在切换全屏
+      // 状态，不是在进入全屏"）—— 退出全屏走 Esc（`reader.back` 的分流）；离开阅读器时若仍在全屏，
+      // 由下面的 effect 退出并保持最大化。
       'reader.enterFullscreen': () => {
-        setFullCard(true)
+        void window.turead.invoke(IPC.winSetFullScreen, true)
       },
       // ————— 标记/批注的**键盘接口（预留）**，2026-09-14 用户定"现在只需要预留出对应的接口" —————
       // 行为已就位、可直接调用；**键位故意留空**（见 domain/input.ts 的"预留"分组）——

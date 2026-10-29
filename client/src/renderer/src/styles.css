@@ -838,16 +838,13 @@ textarea {
   overflow: hidden;
 }
 
-/* 阅读卡浮层（批1.5 初探；批1.6b 满幅）：阅读界面 = 浮在书库之上的卡片层。
+/* 阅读卡浮层（批1.5 初探，docs/DIRECTION.md）：阅读界面 = 浮在书库之上的卡片层。
    进场 = 自下 8px 浮起 + 显影（--dur-panel 强 ease-out）；display:none → 显示即触发
-   （@starting-style）。满幅展开 = 边距/圆角归零（--dur-view + --ease-inout：
-   死 token 转正第二处；padding/radius 过渡是布局属性，单元素低频动作可接受）。
-   退场暂为瞬时（完整进出动效 = "自封面长大"，随批1.5 正式批做）。 */
+   （@starting-style）。退场暂为瞬时（完整进出动效 = "自封面长大"，随批1.5 正式批做）。 */
 .reader-layer {
   transition:
     opacity var(--dur-panel) var(--ease-out),
-    transform var(--dur-panel) var(--ease-out),
-    border-radius var(--dur-view) var(--ease-inout);
+    transform var(--dur-panel) var(--ease-out);
 }
 
 @starting-style {
@@ -855,11 +852,6 @@ textarea {
     opacity: 0;
     transform: translateY(8px) scale(0.99);
   }
-}
-
-/* 满幅展开时边距归零（gutter 收起）—— padding 在外层 veil 上，随 --dur-view 过渡 */
-.card-veil {
-  transition: padding var(--dur-view) var(--ease-inout);
 }
 
 /* ---------- 阅读参数（挂载线右段垂挂；2026-09-12 用户定，二次纠正定稿）----------
@@ -1688,12 +1680,6 @@ textarea {
 .card-controls:hover,
 .card-controls:focus-within {
   opacity: 1;
-}
-
-/* 满幅态：窗控整个淡出（F11 深读承诺；Esc 第一级回落即恢复） */
-.card-controls--off {
-  opacity: 0;
-  pointer-events: none;
 }
 
 
