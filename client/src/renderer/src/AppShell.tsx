@@ -19,6 +19,7 @@ import { pushLog } from './features/logStore'
 import { bindRoomSession } from './features/roomSession'
 import { loadPlugins } from './plugins/runtime'
 import { ChromeControls } from './components/ChromeControls'
+import { FeatureCard } from './components/FeatureCard'
 import { CommandPalette } from './components/CommandPalette'
 import type { PaletteCommand } from './components/commandFilter'
 import { playSettle } from './components/motion'
@@ -335,15 +336,12 @@ export default function AppShell(): React.JSX.Element {
         </aside>
 
       {/* 卡片区（.card-region，styles.css）：几何 = --inset-* 四值（顶条让位给底面全局件，
-          左 = rail + 一道沟，右/下 = 统一沟），是批1.7c 全卡片化的唯一落点。
-          阅读态去掉内边距：阅读卡自己带外边距与桌色（批1.5）；阅读态同时禁用自身滚动
-          （滚动归正文列）——否则会在窗口右缘多出一根滚动条。其余功能组件暂保持 p-5
-          （批1.7c 换卡面时一并收编）。 */}
+          左 = rail + 一道沟，右/下 = 统一沟），是卡片层的唯一落点。
+          批1.7c 起 main 只是定位语境：滚动与卡面（含内边距）全部归 FeatureCard，
+          阅读态与否不再改变 main 自身。 */}
       <main
         ref={mainRef}
-        className={`card-region absolute min-w-0 ${
-          activeFeature === 'reader' ? 'overflow-hidden p-0' : 'overflow-y-auto p-5'
-        }`}
+        className="card-region absolute min-w-0"
         style={{
           top: 'var(--inset-top)',
           left: 'calc(var(--sidebar-w) + var(--inset-x))',
@@ -351,22 +349,22 @@ export default function AppShell(): React.JSX.Element {
           bottom: 'var(--inset-x)'
         }}
       >
-        {/* 批1.5 初探（docs/DIRECTION.md）：阅读 = **浮在书库之上的卡片层** ——
-            书库在下层保持存活（选择/滚动状态天然继承），阅读层垫 `--overlay-dim`
-            挡住下层交互（Esc 是唯一的门）。阅读卡 = 桌色 + radius-panel + 1px 边 +
-            面板阴影（深色主题里"边界要读得出来"，浅色同理），零自带 chrome；
-            进场 = .reader-layer 浮起显影。 */}
+        {/* 批1.7c 全界面卡片化（docs/DIRECTION.md §2 / STYLE.md §1.1）：五张功能卡
+            全部经 FeatureCard 上卡面（统一桌色面 + 圆角 + 1px 边 + 面板阴影 + 浮起进场）。
+            书库在阅读态保持存活（卡片层的下层），阅读层垫 `--overlay-dim` 挡住下层交互
+            （scrim 只属于叠置卡——全应用唯一一层叠置就是 阅读卡 ⊃ 书库卡）。
+            功能组件**常驻挂载**、非激活 display:none → 状态天然继承。 */}
         {FEATURES.map((f) => {
           const C = f.component
           if (f.id === 'reader') {
             return (
               <div
                 key={f.id}
-                className={`absolute inset-0 z-[var(--z-drawer)] bg-[var(--overlay-dim)] p-5 ${
+                className={`absolute inset-0 z-[var(--z-drawer)] bg-[var(--overlay-dim)] ${
                   activeFeature === 'reader' ? '' : 'hidden'
                 }`}
               >
-                <div className="reader-layer h-full w-full overflow-hidden rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--desk-bg)] shadow-[var(--shadow-panel)]">
+                <FeatureCard>
                   <C
                     container={container}
                     host={host}
@@ -379,7 +377,7 @@ export default function AppShell(): React.JSX.Element {
                     onNotesQueryChange={setNotesQuery}
                     readerTarget={readerTarget}
                   />
-                </div>
+                </FeatureCard>
               </div>
             )
           }
@@ -387,18 +385,20 @@ export default function AppShell(): React.JSX.Element {
           const beneath = f.id === 'library' && activeFeature === 'reader'
           return (
             <div key={f.id} className={`h-full ${activeFeature === f.id || beneath ? '' : 'hidden'}`}>
-              <C
-                container={container}
-                host={host}
-                selectedBookId={selectedBookId}
-                readerBookId={readerBookId}
-                activeFeature={activeFeature}
-                libraryQuery={libraryQuery}
-                onLibraryQueryChange={setLibraryQuery}
-                notesQuery={notesQuery}
-                onNotesQueryChange={setNotesQuery}
-                readerTarget={readerTarget}
-              />
+              <FeatureCard scroll>
+                <C
+                  container={container}
+                  host={host}
+                  selectedBookId={selectedBookId}
+                  readerBookId={readerBookId}
+                  activeFeature={activeFeature}
+                  libraryQuery={libraryQuery}
+                  onLibraryQueryChange={setLibraryQuery}
+                  notesQuery={notesQuery}
+                  onNotesQueryChange={setNotesQuery}
+                  readerTarget={readerTarget}
+                />
+              </FeatureCard>
             </div>
           )
         })}

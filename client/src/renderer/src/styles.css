@@ -852,17 +852,19 @@ textarea {
   overflow: hidden;
 }
 
-/* 阅读卡浮层（批1.5 初探，docs/DIRECTION.md）：阅读界面 = 浮在书库之上的卡片层。
-   进场 = 自下 8px 浮起 + 显影（--dur-panel 强 ease-out）；display:none → 显示即触发
-   （@starting-style）。退场暂为瞬时（完整进出动效 = "自封面长大"，随批1.5 正式批做）。 */
-.reader-layer {
+/* 卡片层浮起（批1.5 初探 → 批1.7c 全界面卡片化，docs/DIRECTION.md §2）：
+   界面 = 浮在 chrome 底面之上的卡片层。进场 = 自下 8px 浮起 + 显影
+   （--dur-panel 强 ease-out）；display:none → 显示即触发（@starting-style）。
+   退场暂为瞬时（完整进出动效 = "自封面长大"，见 TODO）。原 .reader-layer 已由
+   .feature-card 收编（五张卡同一语法，阅读卡不特殊）。 */
+.feature-card {
   transition:
     opacity var(--dur-panel) var(--ease-out),
     transform var(--dur-panel) var(--ease-out);
 }
 
 @starting-style {
-  .reader-layer {
+  .feature-card {
     opacity: 0;
     transform: translateY(8px) scale(0.99);
   }

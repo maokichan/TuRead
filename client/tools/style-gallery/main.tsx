@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@renderer/styles.css'
 import { FittedTitle } from '@renderer/components/FittedTitle'
+import { FeatureCard } from '@renderer/components/FeatureCard'
 import { BookRow } from '@renderer/components/BookRow'
 import { BookTile } from '@renderer/components/BookTile'
 import { BookDetailPanel } from '@renderer/components/BookDetailPanel'
@@ -562,6 +563,33 @@ export function Gallery(): React.JSX.Element {
               a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6
             </span>
           </span>
+        </div>
+      </Panel>
+
+      {/* 4.5 卡片层（FeatureCard，批1.7c） */}
+      <Panel
+        title="FeatureCard —— 卡片层标准表面"
+        path="components/FeatureCard.tsx · styles.css .feature-card"
+        note="五张功能卡共用一套卡面：桌色面 + radius-panel + 1px 边 + 面板阴影；进场 = 自下 8px 浮起显影（@starting-style，样张静态不可见）；scrim 在 AppShell 层分支（阅读卡独占）"
+      >
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="h-44">
+            <FeatureCard>
+              <div className="p-4 text-[13px] text-[var(--text)]">
+                scroll = false：overflow-hidden 收边（书库 / 阅读 / 笔记 / 房间——自带内滚）
+              </div>
+            </FeatureCard>
+          </div>
+          <div className="h-44">
+            <FeatureCard scroll>
+              <div className="p-4 text-[13px] text-[var(--text)]">
+                scroll = true：卡内滚动（设置页）
+                <div className="mt-2 h-32 text-[var(--muted)]">
+                  超出卡高的内容 → 卡面自身滚动，卡框与圆角不动。
+                </div>
+              </div>
+            </FeatureCard>
+          </div>
         </div>
       </Panel>
 
