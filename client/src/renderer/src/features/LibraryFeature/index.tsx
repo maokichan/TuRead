@@ -35,6 +35,8 @@ import { IPC } from '@shared/ipc'
 import type { FeatureProps } from '../types'
 import { clearCoverCache, forgetCover, getCoverUrl } from '../coverCache'
 import { libraryNavBus } from '../libraryNavBus'
+import { searchFocusBus } from '../searchFocusBus'
+import { CardSearchInput } from '../../components/CardSearchInput'
 import { BookRow } from '../../components/BookRow'
 import { BookTile } from '../../components/BookTile'
 import { ContainerItem } from '../../components/ContainerItem'
@@ -66,9 +68,10 @@ export function LibraryFeature({
   container,
   host,
   selectedBookId,
-  activeFeature,
-  libraryQuery = ''
+  activeFeature
 }: FeatureProps): React.JSX.Element {
+  /** 卡片本地搜索词（批1.7d 自 shell 迁入——搜索是卡片本地物件；防抖过滤链路不变） */
+  const [libraryQuery, setLibraryQuery] = useState('')
   const [books, setBooks] = useState<EditionRecord[]>([])
   /** 本层每本书的阅读状态（v0.4.0：与 `books` 并列，来自 `listItemsAtLevel` 的读模型 —— 避免 N+1） */
   const [readingStates, setReadingStates] = useState<Record<string, ReadingState | null>>({})
@@ -158,7 +161,7 @@ export function LibraryFeature({
   const canBack = navPos.idx > 0
   const canForward = navPos.idx < navPos.len - 1
 
-  // 标题栏后退/前进按钮（AppShell 兄弟组件，props 不值当穿 Shell → 模块总线）
+  // 后退/前进全局件（ChromeControls，AppShell 兄弟组件，props 不值当穿 Shell → 模块总线）
   useEffect(() => {
     libraryNavBus.register(
       { back: () => goBack(), forward: () => goForward() },
@@ -166,6 +169,17 @@ export function LibraryFeature({
     )
     return () => libraryNavBus.unregister()
   }, [goBack, goForward, canBack, canForward])
+
+  // Ctrl+F（意图 app.focusSearch）：只在书库被激活时接管焦点总线（恒驻挂载，必须跟激活态走）
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
+  useEffect(() => {
+    if (activeFeature !== 'library') return
+    searchFocusBus.register(() => {
+      searchInputRef.current?.focus()
+      searchInputRef.current?.select()
+    })
+    return () => searchFocusBus.register(null)
+  }, [activeFeature])
 
   // 鼠标侧键（资源管理器语义）：XButton1 = 后退 / XButton2 = 前进，仅书库功能态接管。
   // preventDefault 压掉 Chromium 侧键默认的"历史导航"（渲染层历史为空，防意外行为）。
@@ -897,6 +911,16 @@ export function LibraryFeature({
 
   return (
     <section className="flex h-full flex-col gap-3">
+      {/* 卡片本地搜索（批1.7d，docs/DIRECTION.md §2：搜索是书库卡的本地物件） */}
+      <div className="flex flex-none items-center">
+        <CardSearchInput
+          value={libraryQuery}
+          onChange={setLibraryQuery}
+          placeholder="搜索書庫…（標題 / 路徑）"
+          inputRef={searchInputRef}
+        />
+      </div>
+
       {/* 内容区：抽屉的定位上下文（抽屉只在这里弹出，不覆盖下方状态栏） */}
       <div className="relative min-h-0 flex-1">
         <div

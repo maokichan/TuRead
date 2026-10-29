@@ -53,6 +53,7 @@ export interface FeatureHost {
 /**
  * 功能组件统一 props —— 标准容器契约。
  * 跨功能共享态由 AppShell 持有并下发；各功能组件只读自己关心的字段。
+ * （批1.7d：搜索词不再是共享态——搜索是卡片本地物件，各卡自持，Ctrl+F 走 searchFocusBus。）
  */
 export interface FeatureProps {
   container: ServiceContainer
@@ -63,12 +64,6 @@ export interface FeatureProps {
   readerBookId: string | null
   /** 当前激活的功能组件（v0.1.12：ReaderFeature 用它做沉浸态激活时 applyTheme） */
   activeFeature: FeatureId
-  /** 书库搜索词（自绘标题栏的搜索栏产出，2026-09-12；只有 LibraryFeature 消费） */
-  libraryQuery?: string
-  onLibraryQueryChange?: (q: string) => void
-  /** 笔记管理的检索词（标题栏搜索栏的**笔记作用域**，2026-09-16） */
-  notesQuery?: string
-  onNotesQueryChange?: (q: string) => void
   /** 阅读器的"带目标打开"载荷（笔记管理跳转用；见 `ReaderTarget`） */
   readerTarget?: ReaderTarget | null
 }

@@ -17,6 +17,7 @@ import { FEATURES } from './features/registry'
 import type { FeatureHost, FeatureId, ReaderTarget } from './features/types'
 import { pushLog } from './features/logStore'
 import { bindRoomSession } from './features/roomSession'
+import { searchFocusBus } from './features/searchFocusBus'
 import { loadPlugins } from './plugins/runtime'
 import { ChromeControls } from './components/ChromeControls'
 import { FeatureCard } from './components/FeatureCard'
@@ -168,7 +169,9 @@ export default function AppShell(): React.JSX.Element {
   const [paletteOpen, setPaletteOpen] = useState(false)
   // 意图层登记（`app.commandPalette`，组合键在输入框聚焦时也放行 —— 命令面板必须随处可呼出）
   useKeyIntents('app', {
-    'app.commandPalette': () => setPaletteOpen((v) => !v)
+    'app.commandPalette': () => setPaletteOpen((v) => !v),
+    // Ctrl+F：聚焦当前激活卡的本地搜索（批1.7d，搜索住进卡片后经总线到达）
+    'app.focusSearch': () => searchFocusBus.focus()
   })
 
   const paletteCommands = useMemo<PaletteCommand[]>(() => {
@@ -214,15 +217,6 @@ export default function AppShell(): React.JSX.Element {
   /* 侧边栏恒可见（批1.5，docs/DIRECTION.md）：卡片模型下侧边栏是**恒定框架**——
      阅读态不再覆盖/隐藏，「書」保持点亮（书库是阅读卡的来处，下层活着）。
      原"覆盖式侧边栏 + 贴缘召回 + 手动钉住"随全屏阅读窗方向一起退役（机制完整存于 git 历史）。 */
-
-  // 书库搜索词（批1.7d 起住进书库卡；迁移前暂存 shell —— 输入框 UI 随 TitleBar 退役，
-  // 过滤链路照常工作，LibraryFeature 的 props 接口未动）
-  const [libraryQuery, setLibraryQuery] = useState('')
-  /**
-   * 笔记检索词（笔记作用域，2026-09-16）。⚠ 与书库**各持一份**、互不串扰——
-   * 顶栏时代的输入框按功能重挂，所以按功能分表存；批1.7d 迁入笔记卡后仍保持分表语义。
-   */
-  const [notesQuery, setNotesQuery] = useState('')
 
   // 拖拽导入（2026-09-13 用户定）：外部文件拖进窗口 → 导入**当前书库**（进 ImportQueue，
   // 指纹去重/进度/失败上报全部走既有链路）。非电子书扩展名直接忽略并日志说明。
@@ -371,10 +365,6 @@ export default function AppShell(): React.JSX.Element {
                     selectedBookId={selectedBookId}
                     readerBookId={readerBookId}
                     activeFeature={activeFeature}
-                    libraryQuery={libraryQuery}
-                    onLibraryQueryChange={setLibraryQuery}
-                    notesQuery={notesQuery}
-                    onNotesQueryChange={setNotesQuery}
                     readerTarget={readerTarget}
                   />
                 </FeatureCard>
@@ -392,10 +382,6 @@ export default function AppShell(): React.JSX.Element {
                   selectedBookId={selectedBookId}
                   readerBookId={readerBookId}
                   activeFeature={activeFeature}
-                  libraryQuery={libraryQuery}
-                  onLibraryQueryChange={setLibraryQuery}
-                  notesQuery={notesQuery}
-                  onNotesQueryChange={setNotesQuery}
                   readerTarget={readerTarget}
                 />
               </FeatureCard>

@@ -18,6 +18,8 @@ import type { NoteFilter, NoteSettings } from '@core/domain/types'
 import type { NoteQuery } from '@core/ports/store'
 import type { FeatureProps } from '../types'
 import { NoteFlow, type NoteFlowItem } from '../../components/NoteFlow'
+import { CardSearchInput } from '../../components/CardSearchInput'
+import { searchFocusBus } from '../searchFocusBus'
 import { NotesToolbar } from '../../components/NotesToolbar'
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
@@ -35,7 +37,10 @@ const QUERY_DEBOUNCE_MS = 200
 /** 「已複製」这类一次性提示的存活时间 */
 const HINT_MS = 1500
 
-export function NotesFeature({ container, host, activeFeature, notesQuery }: FeatureProps): React.JSX.Element {
+export function NotesFeature({ container, host, activeFeature }: FeatureProps): React.JSX.Element {
+  /** 卡片本地检索词（批1.7d 自 shell 迁入——原"标题栏·笔记作用域"住进笔记卡；防抖链路不变） */
+  const [notesQuery, setNotesQuery] = useState('')
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
   const [settings, setSettings] = useState<NoteSettings>(DEFAULT_SETTINGS)
   const [items, setItems] = useState<NoteFlowItem[]>([])
   const [count, setCount] = useState(0)
@@ -77,9 +82,19 @@ export function NotesFeature({ container, host, activeFeature, notesQuery }: Fea
 
   // ————— 检索防抖（纪律③）—————
   useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedQuery(notesQuery ?? ''), QUERY_DEBOUNCE_MS)
+    const t = window.setTimeout(() => setDebouncedQuery(notesQuery), QUERY_DEBOUNCE_MS)
     return () => window.clearTimeout(t)
   }, [notesQuery])
+
+  // Ctrl+F（意图 app.focusSearch）：只在笔记被激活时接管焦点总线（恒驻挂载，必须跟激活态走）
+  useEffect(() => {
+    if (activeFeature !== 'notes') return
+    searchFocusBus.register(() => {
+      searchInputRef.current?.focus()
+      searchInputRef.current?.select()
+    })
+    return () => searchFocusBus.register(null)
+  }, [activeFeature])
 
   // ————— 激活时重读（纪律②）—————
   useEffect(() => {
@@ -204,6 +219,16 @@ export function NotesFeature({ container, host, activeFeature, notesQuery }: Fea
 
   return (
     <div className="flex h-full flex-col">
+      {/* 卡片本地搜索（批1.7d，docs/DIRECTION.md §2：搜索是笔记卡的本地物件） */}
+      <div className="mb-2 flex flex-none items-center">
+        <CardSearchInput
+          value={notesQuery}
+          onChange={setNotesQuery}
+          placeholder="搜索筆記…（摘錄 / 批註）"
+          inputRef={searchInputRef}
+        />
+      </div>
+
       {/* 滚动容器由本功能自己持有（窗口化要它）——AppShell 的 main 在书库态是滚动的，
           这里改成"内容区自己滚"，避免两层滚动条。
           ⚠ 筛选/检索变化**不重建**本容器（刷新粒度纪律④）。 */}
