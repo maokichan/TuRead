@@ -53,15 +53,15 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | **批注输入栏（v1.8~v1.10）** | 底部居中、纯色带边框、**零文字**、宽 = 纸宽 × 0.9、**自增长 2→5 行**；**生命周期 = 绑在它的对象上**（选区型随选区消失；笔记型随笔记从库中消失） | `STYLE.md` §5.8；`NoteComposer.tsx` |
 | **沉浸全屏（v1.11）** | `F11` = **进入**全屏（幂等，不是切换）；退出全屏走 `Esc` 分流；**离开阅读器时若仍全屏 → 退出全屏并保持最大化**（`win:set-maximized`） | `STYLE.md` §5.8；`shared/ipc.ts` |
 | 键鼠意图层 | 键盘 = **意图**：`core/domain/input.ts` 纯函数绑定表（一键一意）+ `useKeyIntents`（ref 装载 + 常驻组件必须带 enabled 守卫） | `domain/input.ts`；`useKeyIntents.ts` |
-| 无边框窗口 + 自绘标题栏 | `frame:false` + 自绘控制键 + 标题栏内嵌**全局搜索栏**（作用域随功能：书库/笔记已接线，阅读器·房间未接线） | `TitleBar.tsx`；`FEATURES.md` §11 |
+| **无边框窗口 + chrome 底面（批1.7b 起）** | `frame:false` + 底面整面拖拽区（`.chrome-base`）+ 底面全局件 `ChromeControls`（窗控右上、书库后退/前进左上）；自绘标题栏已退役（`trash/`） | `ChromeControls.tsx`；`FEATURES.md` §8/§11 |
 | **数据存储 v3（全局单库）** | 全应用一个 SQLite 库 = 一份用户数据（作品/电子版/收录/书库/书箱/笔记/阅读状态/设置）；JSON 只剩**引导文件**；**书库 = 组织模式**，成员关系 = **收录（holdings）**；笔记挂 edition、阅读时间逐 edition 记按 work 汇总；设置一律全局 | `DATA_MODEL.md` §1/§2/§4.2 |
 | 「书的身份」三问定案 | 书库降为组织模式 + 全局单库；**映射库**（移除 = 移除可见性，靠**扫描**对账）vs **自建库**；笔记不自动跨版迁移；Work 只留接口；**Pro = 功能分层非订阅** | `DATA_MODEL.md` §4.2 D1–D12 + §6；`TODO.md` |
-| 笔记管理（跨书） | 「筆」= **同级功能组件**（不引入分类）；網格/瀑布流两态 + 窗口化；筛选判据是 **`body` 是否为空，不是 `kind`**；检索 = 标题栏·笔记作用域 | `FEATURES.md` §12；`STYLE.md` §5.10；`CONTRACTS.md` v0.4.1/v0.4.2 |
+| 笔记管理（跨书） | 「筆」= **同级功能组件**（不引入分类）；網格/瀑布流两态 + 窗口化；筛选判据是 **`body` 是否为空，不是 `kind`**；检索 = 笔记卡头部本地搜索（批1.7d） | `FEATURES.md` §12；`STYLE.md` §5.10；`CONTRACTS.md` v0.4.1/v0.4.2 |
 | PDF 纸宽填充 + 单页交互 | PDF 改纸宽 = **原地重开**（kookit PdfRender 无重排入口）；单页模式交互两处真根因（嵌套 iframe 桥盲区、点击带滚轮死区）已修；**PDF 滚动模式 = 页卡流** + **PDF 专属纸宽档位**（`readerWidthPdf`）；暗色 = 开书时逐像素烘焙（`bakeDarkModePixels`，口径 = 原 CSS filter 精确复算） | `kookitRenderAdapter.ts`；`client/docs/KOOKIT.md` §7 |
 | iframe 事件桥 | 键盘/滚轮落在书文档里到不了宿主 → `components/iframeBridge.ts`（同源 iframe 挂同一套监听，**按键只看界面不看焦点**）；分页模式滚轮翻页 | `iframeBridge.ts`；`useKeyIntents.ts` |
 | **右键菜单坐标（真 bug 修复）** | 适配器曾把**书文档的 `clientX/clientY`** 当宿主坐标发出 → 菜单出现在非内容处；现由 `hostOffset()` 沿 `frameElement` 链**逐层累加**。⚠ 旧探针曾把 bug 断言成契约，已纠正 | `kookitRenderAdapter.ts`；`dev/noteProbe.ts` |
 | 全局禁选 | **文字选择 = 阅读正文专属**（宿主 UI 一律不可拖选，`input/textarea` 豁免） | `styles.css`；`FEATURES.md` §10/§11 |
-| 书库层级后退/前进 | 对齐资源管理器：鼠标侧键 + 标题栏按钮；历史栈条目含**面包屑整条**；模块总线 `libraryNavBus` 跨兄弟组件 | `LibraryFeature`；`libraryNavBus.ts` |
+| 书库层级后退/前进 | 对齐资源管理器：鼠标侧键 + 底面全局件按钮（批1.7b 起 ChromeControls）；历史栈条目含**面包屑整条**；模块总线 `libraryNavBus` 跨兄弟组件 | `LibraryFeature`；`libraryNavBus.ts` |
 | 渲染内核可替换性 | kookit 整体封装在 vendor ESM 容器内，UI/应用层**只经端口**触达 → 换内核 = 重写适配器层 | `KOOKIT.md`；`CONTRACTS.md` §4.1 |
 | 主题色取向 | 四套：纯色·深/亮（黑灰白，不引入色相）+ 羊皮纸·深/亮；状态色保留语义色相 | `styles.css`；`STYLE.md` §3.4 |
 | 抽屉平面结构 | 封面 2:3 不拉伸；三行 = 封面高度三等分；标题/数据行单行；指标行无标签；外壳全透明 | `STYLE.md` §5.5 |
@@ -135,8 +135,10 @@ main 侧可直接丢弃（真实修复在本分支）。
 **当前重心（用户重新定向）= 界面的交互手感 / 层次感 / 质量感整体打磨**：底层设计已基本就位，
 重心转到 Emil Kowalski 式设计工程——圆角暗示页面从属关系、配色合理化交互逻辑、层级感；
 **整个 UI 在此前提下允许改**（先概览现状再动工，纪律 = emil-design-eng skill + `STYLE.md` 红线）。
-批1（设计语法 v2 地基）已落地；**批1.5 = 导航模型修正（阅读卡片化）初探已动**——方向陈述见
-`docs/DIRECTION.md`；批2（书库域）起顺延。
+批1（设计语法 v2 地基）已落地；批1.5（阅读卡片化初探）已落地；**批1.7（chrome 底面化 + 全界面卡片化，
+a~e 五批）已落地**——方向陈述见 `docs/DIRECTION.md` §2（模型 v2：背景 = 连续 chrome 底面，
+五界面全卡片化，工具随卡片走；术语 = `STYLE.md` §1.1）；批1.6a/b 的激进 chrome 改动已被 revert，
+由批1.7 以卡片模型口径重做；批2（书库域）起顺延。
 书库持久化设计的整体怀疑已登记 TODO（用户已澄清方向：管理模式层，考虑每库一数据库；症状待补）；
 共读真机复核（见下「待真机复看」）等用户有空并行。
 **待办（唯一清单 = `TODO.md`）的建议顺序**：

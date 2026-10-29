@@ -157,8 +157,8 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 
 ## 8. 实施落地
 
-- **容器**：`AppShell.tsx`（侧边栏 + 主面板宿主 + 跨功能共享态；**dev 无头自检已于 v0.1.7 移入 `dev/selfCheck.ts`**，shell 只做组合与共享态）。
-  - **无顶栏 / 无日志栏 / 无品牌 logo**：Electron 自带菜单栏已移除（`Menu.setApplicationMenu(null)` + `autoHideMenuBar` + `win.removeMenu()` 双保险）；诊断日志移入 SettingsFeature。
+- **容器**：`AppShell.tsx`（**chrome 底面 + 卡片层宿主** + 跨功能共享态；**dev 无头自检已于 v0.1.7 移入 `dev/selfCheck.ts`**，shell 只做组合与共享态）。批1.7 起的空间语法见 `STYLE.md` §1.1：背景 = 连续一整面（整面拖拽区），导航图标栏与窗控/后退前进（`ChromeControls`）直接坐在底面上；五张功能卡经 `FeatureCard` 浮在底面上（scrim 归阅读卡独占）。
+  - **无顶栏 / 无日志栏 / 无品牌 logo**：原自绘标题栏已随批1.7b 退役（`trash/`）；Electron 自带菜单栏已移除（`Menu.setApplicationMenu(null)` + `autoHideMenuBar` + `win.removeMenu()` 双保险）；诊断日志移入 SettingsFeature。
   - **侧边栏 = 单色符号图标栏**（宽 56px）：只显示 `FeatureDescriptor.icon`（**繁体汉字单字：書/閱/房/設**），
     样式为 `.feature-nav`（字体栈见 `STYLE.md` §3.1），label 作悬停提示；**禁用带彩色 emoji**；
     **选中态 = 负片块**（`.feature-nav--active`，2026-09-09 定，见 `STYLE.md` §5.5）。
@@ -239,10 +239,10 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
   （`histRef` = stack + idx，条目 = 位置 **+ 整条面包屑**，后退/前进一起还原）；
   `enterContainer` / `enterFolder` / `goToLevel` 全走 `pushEntry`（新导航截断"前进"分支），
   移动/导入等 `commitNav` 是原地重载**不入栈**；切库广播时历史重置为根。
-  两个出口：**标题栏后退/前进按钮**（左缘 = 侧边栏右缘 `var(--sidebar-w)`，仅书库态渲染，不可用禁用）
+  两个出口：**底面后退/前进按钮**（`ChromeControls` 悬浮底面左上，左缘 = `var(--sidebar-w)`，仅书库态渲染，不可用禁用）
   与**鼠标侧键**（XButton1/2，仅书库态接管并 `preventDefault` 压掉 Chromium 默认历史导航）；
-  跨兄弟组件经模块总线 `features/libraryNavBus.ts`（TitleBar 与 LibraryFeature 是 AppShell 兄弟，
-  props 穿 Shell 不值当 —— `logStore` 先例；TitleBar 用 `useSyncExternalStore` 订阅可用性）。
+  跨兄弟组件经模块总线 `features/libraryNavBus.ts`（ChromeControls 与 LibraryFeature 是 AppShell 兄弟，
+  props 穿 Shell 不值当 —— `logStore` 先例；ChromeControls 用 `useSyncExternalStore` 订阅可用性）。
   两种模式（建库时二选一；术语见 `DATA_MODEL.md` §6.2）：
   ① **映射库**（`mode='mapped'`，原"虛擬映射"）：跟踪唯一真实文件夹，层级 = 真实文件夹树，
   "書箱"即文件夹；⚠ **不能在里面导入**——书只能在真实路径上加，靠**扫描**对账（§6.1）；
@@ -299,29 +299,28 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 - 宿主容器 `#page-area` **就是纸（正文列）**（kookit 硬契约；`clientWidth` 决定排版宽度，见 `KOOKIT.md` §5）；
   外层桌容器把滚轮事件转发给列，保证鼠标停在两侧留白也能滚。
 - 滚动条 2px、静息几乎不可见（指针进入纸内才微现）；**短章节（只有 kookit +300px 余量）整条隐藏**。
-- `AppShell`：`activeFeature === 'reader'` 时**侧边栏隐藏**（退场），**贴左缘按钮**点击召回；
-  **阅读态侧边栏是覆盖式**（`absolute`，不占布局）→ **打开左侧菜单不影响阅读器界面宽度**。
-  ⚠ 只给阅读态：其他功能的交互形态需求未知，保持占位（`AppShell.tsx` 注释 + `STYLE.md` §5.8）。
+- `AppShell`：图标栏**恒可见**（批1.5 起；原"覆盖式 + 贴缘召回"已退役，机制存 git 历史）——
+  卡片模型下侧边栏是恒定框架，阅读态「書」常亮宣示"你在哪"（`STYLE.md` §5.8）。
 - 关闭阅读器 = 回书库（`host.closeReader` 同时 `navigate('library')`）。
 
 **控件（v0.4：阅读页零控件）**
 - **阅读页上没有任何栏**：书名/页码/上一页/下一页/目录/关闭都**不常驻、也不做"浮现栏"**。
-- **退出**：`Esc`；鼠标路径 = 贴缘按钮召回侧边栏 → 「書」。
+- **退出**：`Esc`（分流：先退全屏 → 再退阅读器）；鼠标路径 = 底面图标栏「書」（阅读态常亮；点击 = 收起阅读卡，书目与阅读位置存活）。
 - **全局禁选（用户定，宿主级规则）**：**文字选择 = 阅读正文专属**——除阅读页正文外，
   宿主 UI 任何内容都不响应按住鼠标拖选（`styles.css` `body{user-select:none}`；`input/textarea` 豁免，
   更名/搜索/新建命名仍可选中复制）。正文在 kookit **iframe（独立 document）**内，天然不受宿主规则影响，
   选择能力原样保留。原 `LibraryFeature` 内容区的局部 `select-none` 因此删除（被全局覆盖，冗余）。
-- **标题栏：书库层级后退/前进（用户定）**：标题栏左段（左缘 = `var(--sidebar-w)`，
-  与左侧边栏右缘对齐）在 `activeFeature === 'library'` 时渲染**后退/前进**两个按钮，不可用时禁用
-  （opacity-30）；历史栈与还原语义在 §10「层级后退/前进」。放在标题栏的收益是"书库态才有意义"，
-  因此按钮随功能态出现，不占其他功能的标题栏。
+- **底面全局件：书库层级后退/前进（用户定；批1.7b 起住 ChromeControls）**：悬浮底面左上
+  （左缘 = `var(--sidebar-w)`，与图标栏右缘对齐，坐 `--inset-top` 顶条带）在 `activeFeature === 'library'`
+  时渲染**后退/前进**两个按钮，不可用时禁用；历史栈与还原语义在 §10「层级后退/前进」。
+  阅读态隐藏——历史栈只属于书库层级导航。
 - **沉浸全屏**：`F11`（意图 `reader.enterFullscreen`）
   = **进入**全屏（幂等，**不切换** —— 退出走 `Esc` 分流）或设置开关「進入閱讀器時進入全屏」
-  （默认关，`appearance.readerFullscreen`）= OS 级全屏 + **标题栏整条退场**
-  （`TitleBar` 订阅 `win:fullscreen-changed` 返回 null）；**离开阅读器时若仍全屏 → 退出全屏并保持最大化**。
+  （默认关，`appearance.readerFullscreen`）= OS 级全屏（批1.7b 起无标题栏可退场；底面全局件保持可见）；
+  **离开阅读器时若仍全屏 → 退出全屏并保持最大化**。
   `Esc` 分流（**用户纠正**：参数面板是常伴工具，Esc 顺手收面板是错误设计，面板开合只归挂载线）
   = 全屏先退全屏 → 否则退出阅读器；**离开阅读器自动还原窗口**（全屏只属于阅读态）。
-  状态由 main 在 `enter/leave-full-screen` 广播，渲染层只订阅跟随（`win:*` IPC 与 TitleBar 同为 Shell 镶边级例外）。
+  状态由 main 在 `enter/leave-full-screen` 广播，渲染层只订阅跟随（`win:*` IPC 与 ChromeControls 同为 Shell 镶边级例外）。
 - **iframe 事件桥（`components/iframeBridge.ts`）**：kookit 正文渲染在 iframe 里，
   焦点进书页后键盘/滚轮事件落在 iframe document 上**到不了宿主 window**（文档边界）——
   点进书页后 F11/Esc 失灵的根因。桥对同源 iframe 文档挂同一套监听（MutationObserver 追踪懒加载章节），
@@ -419,7 +418,7 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 - **平铺、不按书分组**：分组头会打断瀑布流的流向，且每条已带书名（信息冗余）。
 - **计数显示筛选后的条数** —— ⚠ 与书库"不显示书目数量"不同：这是**筛选器的必要反馈**。
 - **空态（缺失要可见，不静默）**：当前筛选为「批註」时**必须报出被隐藏的划线数量**并提示切换。
-- **检索入口 = 标题栏搜索栏 · 笔记作用域**（见 §12.8）。
+- **检索入口 = 笔记卡头部本地搜索**（批1.7d 起；见 §12.8）。
 - **待定（实施期定，不阻塞）**：批量操作（清理 / 导出？）。
 - 近千条性能：**已实现窗口化**（自实现装箱 + 按列二分，见 `STYLE.md` §5.10 的 A/B 与两个实现期坑）；
   实测 1000 条时 DOM 只留 **42** 张卡片、首屏 22ms、整片重渲染 21ms。
@@ -470,13 +469,10 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 - ⚠ **选中态是试验档**：1px `--accent-ring` 直角矩形 + 卡片常驻 8px 内边距；按 `STYLE.md` §7 纪律
   **单 commit 可回退**，实测若与 P1 冲突 → 回退为"元行套负片块"。
 
-### 12.8 检索接线（标题栏 · 笔记作用域）
+### 12.8 检索接线（笔记卡 · 本地搜索；批1.7d 落地）
 
-- 与「标题栏搜索 = 全局、**按功能域分作用域**」一致：笔记管理的作用域搜**笔记**
-  （`excerpt` + `body` 子串），`Ctrl+F` 聚焦 / `Esc` 清空复用。
-- ⚠ **实现注意**：`TitleBar` 现在只把 `value/onChange` 接到书库，且输入框带 `key={activeFeature}` **按功能重挂**
-  → 须扩为**按 `FeatureId` 分表的搜索词**（`AppShell` 持有），否则笔记域的输入会与书库的词互相串扰；
-  `app.focusSearch` 意图的分流也要从"仅书库"扩到"书库 / 笔记"。
+- 搜索是**卡片本地物件**（`docs/DIRECTION.md` §2）：笔记卡的检索词由 `NotesFeature` 自持，
+  搜**笔记**（`excerpt` + `body` 子串），`Ctrl+F` 聚焦（`searchFocusBus`，激活态注册）/ `Esc` 清空复用。
 - ⚠ 与另外两类检索**不是一回事**（见 `TODO.md`「全局搜索接线」）：阅读器作用域 = `IRenderService.search`（书内全文）；
   "跨书库全文搜索"**没有待办**，属新专题。
 
