@@ -1,7 +1,7 @@
 /**
  * 书库导航总线（logStore 同款模块单例）：把 LibraryFeature 内部的层级后退/前进
- * 能力暴露给标题栏按钮（AppShell 的兄弟组件，props 传递要穿过 Shell 不值当）。
- * LibraryFeature 持有历史栈并 register 处理器 + update 可用性；TitleBar 只读状态并调 back/forward。
+ * 能力暴露给底面全局件（批1.7 起是 ChromeControls，AppShell 的兄弟组件，props 传递要穿过 Shell 不值当）。
+ * LibraryFeature 持有历史栈并 register 处理器 + update 可用性；ChromeControls 只读状态并调 back/forward。
  */
 
 export interface LibraryNavState {
@@ -26,7 +26,7 @@ export const libraryNavBus = {
     state = s
     emit()
   },
-  /** 历史栈变化时更新可用性（TitleBar 据此禁用按钮） */
+  /** 历史栈变化时更新可用性（ChromeControls 据此禁用按钮） */
   update(s: LibraryNavState): void {
     state = s
     emit()

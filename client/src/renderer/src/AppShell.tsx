@@ -18,7 +18,7 @@ import type { FeatureHost, FeatureId, ReaderTarget } from './features/types'
 import { pushLog } from './features/logStore'
 import { bindRoomSession } from './features/roomSession'
 import { loadPlugins } from './plugins/runtime'
-import { TitleBar } from './components/TitleBar'
+import { ChromeControls } from './components/ChromeControls'
 import { CommandPalette } from './components/CommandPalette'
 import type { PaletteCommand } from './components/commandFilter'
 import { playSettle } from './components/motion'
@@ -214,12 +214,12 @@ export default function AppShell(): React.JSX.Element {
      阅读态不再覆盖/隐藏，「書」保持点亮（书库是阅读卡的来处，下层活着）。
      原"覆盖式侧边栏 + 贴缘召回 + 手动钉住"随全屏阅读窗方向一起退役（机制完整存于 git 历史）。 */
 
-  // 书库搜索词（标题栏搜索栏的单一真相；StatePill 同款 props 下发）
+  // 书库搜索词（批1.7d 起住进书库卡；迁移前暂存 shell —— 输入框 UI 随 TitleBar 退役，
+  // 过滤链路照常工作，LibraryFeature 的 props 接口未动）
   const [libraryQuery, setLibraryQuery] = useState('')
   /**
-   * 笔记检索词（标题栏搜索栏的**笔记作用域**，2026-09-16）。
-   * ⚠ 与书库**各持一份**、互不串扰：TitleBar 的输入框带 `key={activeFeature}`，按功能**重挂**，
-   * 所以这里也按功能分表存，切回来还是自己的词。
+   * 笔记检索词（笔记作用域，2026-09-16）。⚠ 与书库**各持一份**、互不串扰——
+   * 顶栏时代的输入框按功能重挂，所以按功能分表存；批1.7d 迁入笔记卡后仍保持分表语义。
    */
   const [notesQuery, setNotesQuery] = useState('')
 
@@ -283,26 +283,23 @@ export default function AppShell(): React.JSX.Element {
   }, [container])
 
   return (
-    <div className="relative flex h-screen flex-col">
+    /* chrome 底面（批1.7，docs/DIRECTION.md §2 / STYLE.md §1.1）：背景 = 连续一整面，
+       整面是窗口拖拽区（.chrome-base，styles.css）；底面上只住三样东西——
+       图标栏（下）、窗控与后退/前进（ChromeControls）、卡片区（.card-region）。 */
+    <div className="chrome-base relative h-screen overflow-hidden bg-[var(--bg)]">
       {dragOver && (
         /* 拖拽提示（pointer-events-none：不挡 drop 事件，drop 在 window 层处理） */
         <div className="pointer-events-none fixed inset-0 z-[var(--z-menu)] flex items-center justify-center bg-[var(--overlay-soft)]">
           <span className="text-[15px] text-[var(--text)]">鬆開以導入到當前書庫</span>
         </div>
       )}
-      <TitleBar
-        activeFeature={activeFeature}
-        libraryQuery={libraryQuery}
-        onLibraryQueryChange={setLibraryQuery}
-        notesQuery={notesQuery}
-        onNotesQueryChange={setNotesQuery}
-      />
-      <div className="relative flex min-h-0 flex-1">
-      {/* 恒定框架（批1.5）：宽度走 --sidebar-w（styles.css 单一来源）；「閱」不入栏——
-          阅读不是"地方"而是书上的模式（入口只有书），registry 里的 reader 仅作路由。
+      <ChromeControls activeFeature={activeFeature} />
+      {/* 恒定框架（批1.5）批1.7 起融进底面：不再自持底色与右边框——图标列直接坐在
+          chrome 底面上，区域感交给不可见留白（inset/gutter，STYLE.md §1.1）。
+          「閱」不入栏——阅读不是"地方"而是书上的模式（入口只有书），registry 里的 reader 仅作路由。
           阅读态「書」常亮（DIRECTION.md：下层书库是阅读卡的来处，侧边栏宣示"你在哪"）。 */}
       <aside
-        className="flex flex-none flex-col items-center border-r border-[var(--border)] bg-[var(--panel)] py-2"
+        className="absolute inset-y-0 left-0 z-[var(--z-chrome)] flex flex-col items-center py-2"
         style={{ width: 'var(--sidebar-w)' }}
       >
           <nav className="flex w-full flex-1 flex-col items-center gap-1.5">
@@ -337,14 +334,22 @@ export default function AppShell(): React.JSX.Element {
           </nav>
         </aside>
 
-      {/* 阅读态去掉主面板内边距：阅读卡自己带外边距与桌色（批1.5）。
-          阅读态同时禁用主面板自身滚动（滚动归正文列）—— 否则会在窗口右缘多出一根滚动条。
-          其余功能组件保持 p-5。 */}
+      {/* 卡片区（.card-region，styles.css）：几何 = --inset-* 四值（顶条让位给底面全局件，
+          左 = rail + 一道沟，右/下 = 统一沟），是批1.7c 全卡片化的唯一落点。
+          阅读态去掉内边距：阅读卡自己带外边距与桌色（批1.5）；阅读态同时禁用自身滚动
+          （滚动归正文列）——否则会在窗口右缘多出一根滚动条。其余功能组件暂保持 p-5
+          （批1.7c 换卡面时一并收编）。 */}
       <main
         ref={mainRef}
-        className={`relative min-w-0 flex-1 bg-[var(--bg)] ${
+        className={`card-region absolute min-w-0 ${
           activeFeature === 'reader' ? 'overflow-hidden p-0' : 'overflow-y-auto p-5'
         }`}
+        style={{
+          top: 'var(--inset-top)',
+          left: 'calc(var(--sidebar-w) + var(--inset-x))',
+          right: 'var(--inset-x)',
+          bottom: 'var(--inset-x)'
+        }}
       >
         {/* 批1.5 初探（docs/DIRECTION.md）：阅读 = **浮在书库之上的卡片层** ——
             书库在下层保持存活（选择/滚动状态天然继承），阅读层垫 `--overlay-dim`
@@ -398,7 +403,6 @@ export default function AppShell(): React.JSX.Element {
           )
         })}
       </main>
-      </div>
       {paletteOpen && (
         <CommandPalette commands={paletteCommands} onClose={() => setPaletteOpen(false)} />
       )}

@@ -52,6 +52,14 @@
    toc-row 内部 label1/veil2）—— 那是被 §8 机检守护的阅读器几何，不是浮层。
 ------------------------------------------------------------------- */
 :root {
+  /* z-index 五档实际值（登记表见上；v1.16 补齐声明 —— 此前只有注释登记、无声明，
+     var() 一直落空、层序靠 DOM 顺序兜底；声明后组件里的 z-[var(--z-*)] 才真正生效） */
+  --z-chrome: 10;
+  --z-drawer: 30;
+  --z-menu: 50;
+  --z-modal: 60;
+  --z-command: 70;
+
   --bg: #0e0f10;
   --panel: #161819;
   --panel-2: #1e2123;
@@ -90,6 +98,11 @@
   --page-pad-x: 44px;
   /* 侧边栏图标栏宽度：目录左缘对齐它（= 侧边栏展开时的右缘），AppShell 也读这个值 */
   --sidebar-w: 56px;
+  /* 卡片层 inset（批1.7，STYLE.md §1.1）：chrome 底面与卡片之间**不可见的沟**（gutter）。
+     顶条 = 底面全局件（窗控/后退前进）的悬浮带；左 = rail 右缘再让一道沟；
+     右/下 = 统一沟宽。卡片区（.card-region）是这组值的唯一消费方，几何不许在别处重算。 */
+  --inset-top: 44px;
+  --inset-x: 20px;
   /* 挂载线两挂件（左 = 目錄/筆記，右 = 閱讀參數）的几何（STYLE.md §5.8）：
      **挂载线自己定义长度** —— 线从侧边栏右缘（`--sidebar-w`）拉到窗口右缘，是**固定的一条**；
      两个挂件各占线的一端、**同宽**（都用 `--rail-panel-w`）→ 关于**线的中心**天然镜像
@@ -569,6 +582,7 @@ textarea {
   max-height: 62vh;
   background: var(--panel-2);
   border: 1px solid var(--border);
+  -webkit-app-region: no-drag; /* 根级浮层，不随底面拖拽（批1.7） */
 }
 
 .command-palette__input {
@@ -1638,22 +1652,18 @@ textarea {
   color: var(--text);
 }
 
-/* ── 自绘标题栏（无边框窗口，2026-09-12）────────────────────────────
-   整条 = 拖拽区；交互子元素（搜索输入/控制键）必须 no-drag，否则点不到。
-   颜色全走 token（TitleBar.tsx 内），这里只放无法用 Tailwind 表达的 app-region。 */
-.titlebar {
+/* ── chrome 底面（批1.7，STYLE.md §1.1）────────────────────────────
+   背景整面 = 窗口拖拽区；底面上的交互件（图标栏按钮 / 窗控 / 后退前进）
+   与整个卡片区必须 no-drag，否则点不到、卡内拖不动。
+   这里只放无法用 Tailwind 表达的 app-region；双击底面最大化由 app-region 自带。 */
+.chrome-base {
   -webkit-app-region: drag;
-  /* 全屏时整条收起的过渡（原内联在 TitleBar.tsx，归拢到 styles.css；时长走动效 token，v1.14） */
-  transition:
-    height var(--dur-flash) ease-out,
-    opacity var(--dur-hover) ease-out;
 }
-.titlebar button,
-.titlebar input {
+.chrome-base button,
+.chrome-base input {
   -webkit-app-region: no-drag;
 }
-
-.titlebar-search {
+.card-region {
   -webkit-app-region: no-drag;
 }
 

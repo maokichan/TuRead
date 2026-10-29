@@ -80,7 +80,7 @@ export function ReaderFeature({
   const [params, setParams] = useState<ReaderParams>(DEFAULT_READER_PARAMS)
   /** 布局模式改动 = 重开书（kookit config 只在 open 时消费）；tick 触发打开 effect 重跑 */
   const [reopenTick, setReopenTick] = useState(0)
-  /** 沉浸全屏状态（跟随 main 广播的真实状态；切换经 win:* IPC，Shell 镶边级例外，同 TitleBar） */
+  /** 沉浸全屏状态（跟随 main 广播的真实状态；切换经 win:* IPC，Shell 镶边级例外，同 ChromeControls） */
   const [fullscreen, setFullscreen] = useState(false)
   const fullscreenRef = useRef(false)
   /** 进入阅读器自动全屏（设置开关，默认关；appearance.readerFullscreen，SettingsFeature 写） */
