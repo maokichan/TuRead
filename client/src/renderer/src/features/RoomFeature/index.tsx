@@ -18,7 +18,6 @@ import { RoomRow } from '../../components/RoomRow'
 import { ChatLog } from '../../components/ChatLog'
 import { MemberList } from '../../components/MemberList'
 import { StatePill } from '../../components/StatePill'
-import { PlaneHeader } from '../../components/PlaneHeader'
 import {
   beginRoomSession,
   endRoomSession,
@@ -296,16 +295,15 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
 
   if (joinedRoomId) {
     return (
-      <section className="cjk-ui flex h-full flex-col">
-        <PlaneHeader className="pr-0">
+      <section className="cjk-ui flex h-full flex-col gap-3">
+        <header className="flex items-center justify-between">
           <h2 className="m-0 font-ui text-[15px] font-bold">房间会话</h2>
           <div className="flex items-center gap-2">
             <span className="font-ui text-[12.5px] text-[var(--accent)]">{joinedRoomId}</span>
             <StatePill state={displayConn} />
           </div>
-        </PlaneHeader>
+        </header>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3 px-5 pb-5 pt-4">
         <div className="flex flex-col gap-1.5 text-[13px]">
           <div className="flex gap-3">
             <span className="w-[72px] flex-none text-[var(--muted)]">当前书籍</span>
@@ -351,19 +349,17 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
             离开房间
           </button>
         </div>
-        </div>
       </section>
     )
   }
 
   return (
-    <section className="cjk-ui flex h-full flex-col">
-      <PlaneHeader>
+    <section className="cjk-ui flex h-full flex-col gap-3">
+      <header className="flex items-center justify-between">
         <h2 className="m-0 font-ui text-[15px] font-bold">房间</h2>
         <StatePill state={displayConn} />
-      </PlaneHeader>
+      </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 px-5 pb-5 pt-4">
       <details className="rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--panel)] p-3 open:pb-4">
         <summary className="cursor-pointer text-[12.5px] font-semibold text-[var(--muted)] select-none">
           服务器连接{sessionReady ? ` · ${memberId ?? ''}` : ''}
@@ -487,7 +483,6 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
             进入
           </button>
         </div>
-      </div>
       </div>
     </section>
   )

@@ -23,7 +23,6 @@ import {
 import type { FeatureProps } from '../types'
 import { subscribeLog } from '../logStore'
 import { applyDataThemeResolved } from '../../components/themeTransition'
-import { PlaneHeader } from '../../components/PlaneHeader'
 import { getPluginState, setPluginEnabled, subscribePlugins } from '../../plugins/runtime'
 
 const TONES: { value: ThemeTone; label: string }[] = [
@@ -122,13 +121,8 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
   const segIdle = 'text-action'
 
   return (
-    <section className="flex h-full flex-col">
-      <PlaneHeader>
-        <h2 className="m-0 font-ui text-[15px] font-bold">設置</h2>
-      </PlaneHeader>
-
-      {/* 内容区（原 main p-5 的 padding 归这里；滚动容器本功能自持，顶行常驻） */}
-      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 pb-5 pt-5">
+    <section className="flex h-full flex-col gap-5">
+      <h2 className="m-0 font-ui text-[18px] font-bold">設置</h2>
 
       {/* 分组结构（STYLE.md §5.1）：**去掉圆角容器**，用副标题 + 分割线划分 —— 设置项会越来越多 */}
       <Field
@@ -231,7 +225,6 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
           {logs.length === 0 ? '（暫無日誌）' : logs.join('\n')}
         </pre>
       </Field>
-      </div>
     </section>
   )
 }

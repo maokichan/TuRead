@@ -1638,48 +1638,23 @@ textarea {
   color: var(--text);
 }
 
-/* ── chrome 平面化（批1.6）：拖拽区 = 侧边栏本体 + 各平面顶行 + 阅读卡顶条 ──
-   无全局标题栏（TitleBar 退役，机制存于 git）。交互子元素必须 no-drag，否则点不到。 */
-.sidebar-rail {
+/* ── 自绘标题栏（无边框窗口，2026-09-12）────────────────────────────
+   整条 = 拖拽区；交互子元素（搜索输入/控制键）必须 no-drag，否则点不到。
+   颜色全走 token（TitleBar.tsx 内），这里只放无法用 Tailwind 表达的 app-region。 */
+.titlebar {
   -webkit-app-region: drag;
+  /* 全屏时整条收起的过渡（原内联在 TitleBar.tsx，归拢到 styles.css；时长走动效 token，v1.14） */
+  transition:
+    height var(--dur-flash) ease-out,
+    opacity var(--dur-hover) ease-out;
 }
-
-.sidebar-rail button {
+.titlebar button,
+.titlebar input {
   -webkit-app-region: no-drag;
 }
 
-.plane-header {
-  -webkit-app-region: drag;
-}
-
-.plane-header button,
-.plane-header input {
+.titlebar-search {
   -webkit-app-region: no-drag;
-}
-
-/* 阅读卡的窗口 chrome：顶条 = 拖拽；右角窗控淡显（静息 0.35，hover/键盘可达升满）——
-   窗口 chrome ≠ 阅读控件，不破零控件承诺（§5.8 卡面纪律）；28px < 挂载线判定带上缘 29px */
-.card-topbar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 28px;
-  -webkit-app-region: drag;
-}
-
-.card-controls {
-  position: absolute;
-  top: 0;
-  right: 0;
-  height: 28px;
-  opacity: 0.35;
-  transition: opacity var(--dur-hover) ease-out;
-}
-
-.card-controls:hover,
-.card-controls:focus-within {
-  opacity: 1;
 }
 
 

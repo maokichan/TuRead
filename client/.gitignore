@@ -21,6 +21,3 @@ tools/style-gallery/.smoke-user-data/
 
 # 蜂群机器人构建产物（npm run swarm 每次自动重建）
 tools/swarm/roombot.cjs
-.probe-shot/
-.probe-book.*
-.probe/

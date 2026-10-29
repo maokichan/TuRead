@@ -20,7 +20,7 @@
  *
  * 布局纪律：**状态栏之上是内容区，详情抽屉只在内容区弹出**。
  */
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   BookContainer,
   EditionRecord,
@@ -43,8 +43,6 @@ import { BookDetailPanel } from '../../components/BookDetailPanel'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { LibraryManagerDialog } from '../../components/LibraryManagerDialog'
 import { LibraryToolbar } from '../../components/LibraryToolbar'
-import { PlaneHeader } from '../../components/PlaneHeader'
-import { useKeyIntents } from '../../components/useKeyIntents'
 import { useVirtualRange } from '../../components/useVirtualRange'
 
 const DEFAULT_SETTINGS: LibrarySettings = { view: 'list', importRecursive: false }
@@ -69,8 +67,7 @@ export function LibraryFeature({
   host,
   selectedBookId,
   activeFeature,
-  libraryQuery = '',
-  onLibraryQueryChange
+  libraryQuery = ''
 }: FeatureProps): React.JSX.Element {
   const [books, setBooks] = useState<EditionRecord[]>([])
   /** 本层每本书的阅读状态（v0.4.0：与 `books` 并列，来自 `listItemsAtLevel` 的读模型 —— 避免 N+1） */
@@ -898,60 +895,9 @@ export function LibraryFeature({
   ]
   const insideVirtual = libMode === 'curated' && trail.length > 0
 
-  // 平面顶行（批1.6 chrome 平面化）：后退/前进（层级历史，原在全局标题栏）+ 域内搜索。
-  // Ctrl+F 聚焦 = app.focusSearch 意图，仅本域启用（v2 意图层：常驻组件必须带 enabled 守卫）。
-  const navState = useSyncExternalStore(libraryNavBus.subscribe, libraryNavBus.getState)
-  const searchRef = useRef<HTMLInputElement | null>(null)
-  useKeyIntents(
-    'app',
-    {
-      'app.focusSearch': () => {
-        searchRef.current?.focus()
-        searchRef.current?.select()
-      }
-    },
-    activeFeature === 'library'
-  )
-
   return (
-    <section className="flex h-full flex-col">
-      {/* 顶行仅书库态渲染：阅读态它是"卡片下层"，搜索框/窗控幽灵般透进边距是视觉噪音（ui-shot 审出） */}
-      {activeFeature === 'library' && (
-      <PlaneHeader>
-        <button
-          aria-label="後退"
-          title="後退"
-          onClick={() => libraryNavBus.back()}
-          disabled={!navState.canBack}
-          className="flex h-8 w-9 flex-none items-center justify-center text-[var(--muted)] transition-colors duration-[var(--dur-hover)] hover:bg-[var(--panel-2)] hover:text-[var(--text)] disabled:opacity-[var(--disabled-opacity)] disabled:hover:bg-transparent disabled:hover:text-[var(--muted)]"
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-            <path d="M8 1.5L3.5 6L8 10.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-          </svg>
-        </button>
-        <button
-          aria-label="前進"
-          title="前進"
-          onClick={() => libraryNavBus.forward()}
-          disabled={!navState.canForward}
-          className="flex h-8 w-9 flex-none items-center justify-center text-[var(--muted)] transition-colors duration-[var(--dur-hover)] hover:bg-[var(--panel-2)] hover:text-[var(--text)] disabled:opacity-[var(--disabled-opacity)] disabled:hover:bg-transparent disabled:hover:text-[var(--muted)]"
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-            <path d="M4 1.5L8.5 6L4 10.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-          </svg>
-        </button>
-        <input
-          ref={searchRef}
-          value={libraryQuery}
-          onChange={(e) => onLibraryQueryChange?.(e.target.value)}
-          placeholder="搜索書庫…（標題 / 路徑）"
-          aria-label="搜索書庫"
-          className="h-7 w-[420px] max-w-[40vw] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--bg)] px-2.5 text-[13px] text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
-        />
-      </PlaneHeader>
-      )}
-      {/* 内容区（原 main p-5 的 padding 归这里）：抽屉的定位上下文（抽屉只在这里弹出，不覆盖下方状态栏） */}
-      <div className="flex min-h-0 flex-1 flex-col px-5 pb-4 pt-4">
+    <section className="flex h-full flex-col gap-3">
+      {/* 内容区：抽屉的定位上下文（抽屉只在这里弹出，不覆盖下方状态栏） */}
       <div className="relative min-h-0 flex-1">
         <div
           ref={scrollRef}
@@ -1073,7 +1019,6 @@ export function LibraryFeature({
           onCancel={() => setPendingDelete(null)}
         />
       )}
-      </div>
     </section>
   )
 }

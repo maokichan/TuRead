@@ -19,8 +19,6 @@ import type { NoteQuery } from '@core/ports/store'
 import type { FeatureProps } from '../types'
 import { NoteFlow, type NoteFlowItem } from '../../components/NoteFlow'
 import { NotesToolbar } from '../../components/NotesToolbar'
-import { PlaneHeader } from '../../components/PlaneHeader'
-import { useKeyIntents } from '../../components/useKeyIntents'
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 
@@ -37,7 +35,7 @@ const QUERY_DEBOUNCE_MS = 200
 /** 「已複製」这类一次性提示的存活时间 */
 const HINT_MS = 1500
 
-export function NotesFeature({ container, host, activeFeature, notesQuery, onNotesQueryChange }: FeatureProps): React.JSX.Element {
+export function NotesFeature({ container, host, activeFeature, notesQuery }: FeatureProps): React.JSX.Element {
   const [settings, setSettings] = useState<NoteSettings>(DEFAULT_SETTINGS)
   const [items, setItems] = useState<NoteFlowItem[]>([])
   const [count, setCount] = useState(0)
@@ -204,35 +202,11 @@ export function NotesFeature({ container, host, activeFeature, notesQuery, onNot
     return settings.scope === 'library' ? '當前書庫還沒有筆記' : '還沒有任何筆記'
   }, [items.length, debouncedQuery, settings.filter, settings.scope, hiddenHighlights])
 
-  // 平面顶行（批1.6）：域内搜索（原全局标题栏笔记作用域）；Ctrl+F 仅本域启用
-  const searchRef = useRef<HTMLInputElement | null>(null)
-  useKeyIntents(
-    'app',
-    {
-      'app.focusSearch': () => {
-        searchRef.current?.focus()
-        searchRef.current?.select()
-      }
-    },
-    activeFeature === 'notes'
-  )
-
   return (
     <div className="flex h-full flex-col">
-      <PlaneHeader>
-        <input
-          ref={searchRef}
-          value={notesQuery ?? ''}
-          onChange={(e) => onNotesQueryChange?.(e.target.value)}
-          placeholder="搜索筆記…（摘錄 / 批註）"
-          aria-label="搜索筆記"
-          className="h-7 w-[420px] max-w-[40vw] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--bg)] px-2.5 text-[13px] text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
-        />
-      </PlaneHeader>
-      {/* 内容区（原 main p-5 的 padding 归这里）。滚动容器由本功能自己持有（窗口化要它）——
+      {/* 滚动容器由本功能自己持有（窗口化要它）——AppShell 的 main 在书库态是滚动的，
           这里改成"内容区自己滚"，避免两层滚动条。
           ⚠ 筛选/检索变化**不重建**本容器（刷新粒度纪律④）。 */}
-      <div className="flex min-h-0 flex-1 flex-col px-5 pb-4 pt-4">
       <div ref={scrollRef} className="cjk-ui min-h-0 flex-1 overflow-y-auto pr-1">
         {items.length > 0 ? (
           <NoteFlow
@@ -292,7 +266,6 @@ export function NotesFeature({ container, host, activeFeature, notesQuery, onNot
           onCancel={() => setPendingDelete(null)}
         />
       )}
-      </div>
     </div>
   )
 }

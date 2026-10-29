@@ -18,7 +18,7 @@ import type { FeatureHost, FeatureId, ReaderTarget } from './features/types'
 import { pushLog } from './features/logStore'
 import { bindRoomSession } from './features/roomSession'
 import { loadPlugins } from './plugins/runtime'
-import { PlaneHeader, WindowControls } from './components/PlaneHeader'
+import { TitleBar } from './components/TitleBar'
 import { CommandPalette } from './components/CommandPalette'
 import type { PaletteCommand } from './components/commandFilter'
 import { playSettle } from './components/motion'
@@ -283,27 +283,28 @@ export default function AppShell(): React.JSX.Element {
   }, [container])
 
   return (
-    /* chrome 平面化（批1.6）：无全局顶栏 —— 侧边栏全高（恒定框架 + 应用名/拖拽），
-       各平面顶缘自带 PlaneHeader（窗控 + 搜索/标题）。窗口拖拽区 = 侧边栏本体 + 各平面顶行。 */
-    <div className="relative flex h-screen">
+    <div className="relative flex h-screen flex-col">
       {dragOver && (
         /* 拖拽提示（pointer-events-none：不挡 drop 事件，drop 在 window 层处理） */
         <div className="pointer-events-none fixed inset-0 z-[var(--z-menu)] flex items-center justify-center bg-[var(--overlay-soft)]">
           <span className="text-[15px] text-[var(--text)]">鬆開以導入到當前書庫</span>
         </div>
       )}
-      {/* 恒定框架（批1.5/1.6）：宽度走 --sidebar-w（styles.css 单一来源）；「閱」不入栏——
+      <TitleBar
+        activeFeature={activeFeature}
+        libraryQuery={libraryQuery}
+        onLibraryQueryChange={setLibraryQuery}
+        notesQuery={notesQuery}
+        onNotesQueryChange={setNotesQuery}
+      />
+      <div className="relative flex min-h-0 flex-1">
+      {/* 恒定框架（批1.5）：宽度走 --sidebar-w（styles.css 单一来源）；「閱」不入栏——
           阅读不是"地方"而是书上的模式（入口只有书），registry 里的 reader 仅作路由。
-          阅读态「書」常亮（DIRECTION.md：下层书库是阅读卡的来处，侧边栏宣示"你在哪"）。
-          本体 = 拖拽区（.sidebar-rail），图标键 no-drag。 */}
+          阅读态「書」常亮（DIRECTION.md：下层书库是阅读卡的来处，侧边栏宣示"你在哪"）。 */}
       <aside
-        className="sidebar-rail flex h-full flex-none flex-col items-center border-r border-[var(--border)] bg-[var(--panel)] pb-2"
+        className="flex flex-none flex-col items-center border-r border-[var(--border)] bg-[var(--panel)] py-2"
         style={{ width: 'var(--sidebar-w)' }}
       >
-          {/* 应用名（居顶，与右侧平面顶行同高对齐；属于拖拽区） */}
-          <div className="flex h-11 w-full flex-none items-center justify-center">
-            <span className="tracking-label text-[13px] text-[var(--muted)]">TuRead</span>
-          </div>
           <nav className="flex w-full flex-1 flex-col items-center gap-1.5">
             {FEATURES.filter((f) => !f.pinned && f.id !== 'reader').map((f) => (
               <button
@@ -336,19 +337,19 @@ export default function AppShell(): React.JSX.Element {
           </nav>
         </aside>
 
-      {/* chrome 平面化后 main 恒定 p-0：平面顶行全出血贴窗顶，内容 padding 由各平面自持。
-          阅读态禁用主面板自身滚动（滚动归正文列）—— 否则会在窗口右缘多出一根滚动条。 */}
+      {/* 阅读态去掉主面板内边距：阅读卡自己带外边距与桌色（批1.5）。
+          阅读态同时禁用主面板自身滚动（滚动归正文列）—— 否则会在窗口右缘多出一根滚动条。
+          其余功能组件保持 p-5。 */}
       <main
         ref={mainRef}
         className={`relative min-w-0 flex-1 bg-[var(--bg)] ${
-          activeFeature === 'reader' ? 'overflow-hidden' : 'overflow-y-auto'
+          activeFeature === 'reader' ? 'overflow-hidden p-0' : 'overflow-y-auto p-5'
         }`}
       >
-        {/* 批1.5/1.6（docs/DIRECTION.md）：阅读 = **浮在书库之上的卡片层** ——
+        {/* 批1.5 初探（docs/DIRECTION.md）：阅读 = **浮在书库之上的卡片层** ——
             书库在下层保持存活（选择/滚动状态天然继承），阅读层垫 `--overlay-dim`
             挡住下层交互（Esc 是唯一的门）。阅读卡 = 桌色 + radius-panel + 1px 边 +
-            面板阴影（深色主题里"边界要读得出来"，浅色同理）；卡顶右角淡显窗控
-            （窗口 chrome ≠ 阅读控件，不破零控件承诺），卡顶 28px = 拖拽条。
+            面板阴影（深色主题里"边界要读得出来"，浅色同理），零自带 chrome；
             进场 = .reader-layer 浮起显影。 */}
         {FEATURES.map((f) => {
           const C = f.component
@@ -360,7 +361,7 @@ export default function AppShell(): React.JSX.Element {
                   activeFeature === 'reader' ? '' : 'hidden'
                 }`}
               >
-                <div className="reader-layer relative h-full w-full overflow-hidden rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--desk-bg)] shadow-[var(--shadow-panel)]">
+                <div className="reader-layer h-full w-full overflow-hidden rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--desk-bg)] shadow-[var(--shadow-panel)]">
                   <C
                     container={container}
                     host={host}
@@ -373,12 +374,6 @@ export default function AppShell(): React.JSX.Element {
                     onNotesQueryChange={setNotesQuery}
                     readerTarget={readerTarget}
                   />
-                  {/* 卡顶拖拽条（28px < 挂载线判定带上缘 29px，互不吞噬） */}
-                  <div className="card-topbar" aria-hidden="true" />
-                  {/* 卡顶右角淡显窗控：静息 0.35 / hover 升满（.card-controls） */}
-                  <div className="card-controls">
-                    <WindowControls />
-                  </div>
                 </div>
               </div>
             )
@@ -403,6 +398,7 @@ export default function AppShell(): React.JSX.Element {
           )
         })}
       </main>
+      </div>
       {paletteOpen && (
         <CommandPalette commands={paletteCommands} onClose={() => setPaletteOpen(false)} />
       )}
