@@ -9,7 +9,7 @@
  * - 无顶栏 / 无日志栏：连接状态在 RoomFeature，诊断日志在 SettingsFeature。
  * - dev 无头自检已移出（见 dev/selfCheck.ts）—— shell 只做组合与共享态。
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { EBOOK_EXTENSIONS, IPC } from '@shared/ipc'
 import { createContainer, type ServiceContainer } from '@core/container'
 import { resolveThemePreference, type ThemeTone } from '@core/domain/theme'
@@ -51,6 +51,35 @@ export default function AppShell(): React.JSX.Element {
   const selectedBookIdRef = useRef<string | null>(null)
   const readerBookIdRef = useRef<string | null>(null)
 
+  // ── 阅读卡进出动效（docs/DIRECTION.md §2）：进场 = 从被点封面长大；退场反向、更快 ──
+  // 进场锚点 = 封面矩形中心换算成卡面百分比（openReader 时由 shell 记账，写进卡片内联 transform-origin）。
+  // 退场 = 先播反向缩小（--dur-hover，出比进快），落定后才真正切状态 —— 状态继承不受动画影响。
+  const [readerOrigin, setReaderOrigin] = useState<{ ox: number; oy: number } | null>(null)
+  const [readerClosing, setReaderClosing] = useState(false)
+  const readerClosingRef = useRef(false)
+  const readerExitTimer = useRef<number | null>(null)
+  const activeFeatureRef = useRef<FeatureId>('library')
+  useEffect(() => {
+    activeFeatureRef.current = activeFeature
+  }, [activeFeature])
+
+  /** 播阅读卡退场，落定后执行 after；非阅读态 / 已在退场中 → 返回 false（调用方直接切） */
+  const beginReaderExit = useCallback((after: () => void): boolean => {
+    if (activeFeatureRef.current !== 'reader' || !readerBookIdRef.current || readerClosingRef.current)
+      return false
+    readerClosingRef.current = true
+    setReaderClosing(true)
+    if (readerExitTimer.current !== null) window.clearTimeout(readerExitTimer.current)
+    // --dur-hover 160ms + 一帧余量
+    readerExitTimer.current = window.setTimeout(() => {
+      readerClosingRef.current = false
+      setReaderClosing(false)
+      readerExitTimer.current = null
+      after()
+    }, 180)
+    return true
+  }, [])
+
   const host = useMemo<FeatureHost>(
     () => ({
       /**
@@ -58,6 +87,7 @@ export default function AppShell(): React.JSX.Element {
        * （否则每次进阅读器都是空的；口径由 `books.getLastRead()` 给出，shell 只做导航策略）。
        */
       navigate: (id) => {
+        if (id !== 'reader' && beginReaderExit(() => setActiveFeature(id))) return
         setActiveFeature(id)
         if (id === 'reader' && !readerBookIdRef.current) {
           void (async () => {
@@ -78,7 +108,24 @@ export default function AppShell(): React.JSX.Element {
           })()
         }
       },
-      openReader: (editionId, target) => {
+      openReader: (editionId, target, origin) => {
+        // 快速连续开书：取消在途的退场动画（否则落定回调会把刚打开的书关掉）
+        if (readerExitTimer.current !== null) {
+          window.clearTimeout(readerExitTimer.current)
+          readerExitTimer.current = null
+          readerClosingRef.current = false
+          setReaderClosing(false)
+        }
+        if (origin) {
+          const r = mainRef.current?.getBoundingClientRect()
+          setReaderOrigin(
+            r && r.width > 0 && r.height > 0
+              ? { ox: ((origin.x - r.x) / r.width) * 100, oy: ((origin.y - r.y) / r.height) * 100 }
+              : null
+          )
+        } else {
+          setReaderOrigin(null)
+        }
         selectedBookIdRef.current = editionId
         readerBookIdRef.current = editionId
         setSelectedBookId(editionId)
@@ -98,10 +145,15 @@ export default function AppShell(): React.JSX.Element {
        * （v0.1.12 修；此前只清 readerBookId，关闭后是空白阅读面板）。
        */
       closeReader: () => {
-        readerBookIdRef.current = null
-        setReaderBookId(null)
-        setReaderTarget(null)
-        setActiveFeature('library')
+        const finish = () => {
+          readerBookIdRef.current = null
+          setReaderBookId(null)
+          setReaderTarget(null)
+          setReaderOrigin(null)
+          setActiveFeature('library')
+        }
+        if (beginReaderExit(finish)) return
+        finish()
       },
       selectBook: (id) => {
         selectedBookIdRef.current = id
@@ -109,7 +161,7 @@ export default function AppShell(): React.JSX.Element {
       },
       pushLog
     }),
-    [container]
+    [container, beginReaderExit]
   )
 
   // dev-only：TUREAD_DEV_BOOK 指定书时启动即导入并打开（无头验证渲染链路，实现见 dev/selfCheck.ts）；
@@ -354,11 +406,18 @@ export default function AppShell(): React.JSX.Element {
             return (
               <div
                 key={f.id}
-                className={`absolute inset-0 z-[var(--z-drawer)] bg-[var(--overlay-dim)] ${
+                className={`reader-scrim absolute inset-0 z-[var(--z-drawer)] bg-[var(--overlay-dim)] ${
                   activeFeature === 'reader' ? '' : 'hidden'
-                }`}
+                } ${readerClosing ? 'reader-scrim--exit pointer-events-none' : ''}`}
               >
-                <FeatureCard>
+                <FeatureCard
+                  className={`${readerOrigin ? 'feature-card--grow' : ''} ${
+                    readerClosing ? 'feature-card--exit' : ''
+                  }`}
+                  style={
+                    readerOrigin ? { transformOrigin: `${readerOrigin.ox}% ${readerOrigin.oy}%` } : undefined
+                  }
+                >
                   <C
                     container={container}
                     host={host}

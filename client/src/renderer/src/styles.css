@@ -556,6 +556,11 @@ textarea {
     animation: none;
   }
 
+  /* 减动态 = 保留透明度/色温，去掉位移与揭幕；阅读卡的长大/退场同样只留显隐 */
+  .feature-card--grow,
+  .feature-card--exit {
+    transform: none;
+  }
   /* v1.14（§2 P5）：减动态 = 保留透明度/色温，去掉位移与揭幕 */
   .rail-hang,
   .context-menu,
@@ -868,6 +873,37 @@ textarea {
     opacity: 0;
     transform: translateY(8px) scale(0.99);
   }
+}
+
+/* 阅读卡的"从封面长大"（docs/DIRECTION.md §2）：shell 把被点封面的矩形中心换算成
+   卡面百分比写进内联 transform-origin（挂载即生效，首帧就在锚点上）。
+   进场 = 从锚点 scale(0.5) 长大（不是从 0 —— 不从虚无出现）；退场反向、更快（出比进快）。 */
+@starting-style {
+  .feature-card--grow {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+.feature-card--exit {
+  opacity: 0;
+  transform: scale(0.5);
+  transition:
+    opacity var(--dur-hover) var(--ease-out),
+    transform var(--dur-hover) var(--ease-out);
+}
+
+/* 阅读卡的 scrim（叠置遮罩）随卡片同节奏显隐：进 = --dur-veil 淡入，退 = 随卡片更快淡出 */
+.reader-scrim {
+  transition: opacity var(--dur-veil) var(--ease-out);
+}
+@starting-style {
+  .reader-scrim {
+    opacity: 0;
+  }
+}
+.reader-scrim--exit {
+  opacity: 0;
+  transition: opacity var(--dur-hover) var(--ease-out);
 }
 
 /* ---------- 阅读参数（挂载线右段垂挂；2026-09-12 用户定，二次纠正定稿）----------

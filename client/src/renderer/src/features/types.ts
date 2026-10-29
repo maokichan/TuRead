@@ -28,6 +28,12 @@ export interface ReaderTarget {
   tick: number
 }
 
+/** 阅读卡的进场锚点（视口坐标，px）：阅读卡从被点封面的位置长大（docs/DIRECTION.md §2）。 */
+export interface ReaderOrigin {
+  x: number
+  y: number
+}
+
 /**
  * 功能组件宿主 —— 跨功能导航与状态继承的唯一通道。
  * 功能组件之间不互相 import；需要「换功能 / 带状态跳转」一律走 host。
@@ -37,11 +43,11 @@ export interface FeatureHost {
   navigate(featureId: FeatureId): void
   /**
    * 打开阅读器并打开指定书（本地打开 / 房间加入后的状态继承都走这里）。
-   * `target` 是 **v0.4.2 新增的可选参数**（向后兼容：既有调用一律不变）——
-   * 笔记管理用它把"打开后跳到哪条笔记"带进来，见 `ReaderTarget`。
-   * 副作用：把该书设为当前选中书 + 切到阅读功能组件。
+   * `target` = 可选的"打开后跳到哪"载荷（笔记管理跳转用），见 `ReaderTarget`。
+   * `origin` = 可选的进场锚点（视口坐标）：给锚点时阅读卡从该点长大（`docs/DIRECTION.md` §2），
+   * 不给则默认浮起进场。副作用：把该书设为当前选中书 + 切到阅读功能组件。
    */
-  openReader(editionId: string, target?: Omit<ReaderTarget, 'editionId' | 'tick'>): void
+  openReader(editionId: string, target?: Omit<ReaderTarget, 'editionId' | 'tick'>, origin?: ReaderOrigin): void
   /** 关闭阅读器（清空 readerBookId） */
   closeReader(): void
   /** 设置当前选中书籍（跨功能：Library 选中 → Room 标定 / Reader 打开） */

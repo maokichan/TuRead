@@ -34,7 +34,6 @@
 
 ### 渲染与阅读器（本地）
 
-- [ ] **阅读卡进出动效 = "从被点封面的位置长大"**（`docs/DIRECTION.md` §2 隐喻）：进场 transform-origin 锚在封面上、退场反向更快；现行为 = 自下 8px 浮起显影（`.feature-card`）。
 - [ ] **阅读器内搜索接线**：适配器已透传 `IRenderService.search`（kookit `doSearch`，返回 `{cfi, excerpt}[]`）但**形状在 `CONTRACTS.md` §7 待定**；先定契约（含 PDF 无 doSearch 的降级口径），再做阅读卡内的结果 UI 与跳转高亮。房间搜索同组另议。
 
 - [ ] **PDF 翻页交互重做（专题，用户立项）**：用户原话「翻页仍然存在大量的问题……主要是 PDF……希望像浏览器自带的 PDF 解析器或者 koodo reader 那样」。期望形态 = 连续滚动（已存在且是默认值），问题是 **PDF 滚动卡手**与交互口径。渲染调度改造已落地（KOOKIT §7，手感待真机复看）；本专题管剩余口径：

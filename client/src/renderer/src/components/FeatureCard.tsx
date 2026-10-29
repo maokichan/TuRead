@@ -11,15 +11,20 @@
  */
 interface FeatureCardProps {
   scroll?: boolean
+  /** 附加类（阅读卡的进场/退场形态，styles.css `.feature-card--grow` / `--exit`） */
+  className?: string
+  /** 内联样式（进场锚点 = transform-origin，由 shell 换算成卡面百分比写入） */
+  style?: React.CSSProperties
   children: React.ReactNode
 }
 
-export function FeatureCard({ scroll, children }: FeatureCardProps): React.JSX.Element {
+export function FeatureCard({ scroll, className, style, children }: FeatureCardProps): React.JSX.Element {
   return (
     <div
+      style={style}
       className={`feature-card h-full w-full ${
         scroll ? 'overflow-y-auto overflow-x-hidden p-5' : 'overflow-hidden'
-      } rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--desk-bg)] shadow-[var(--shadow-panel)]`}
+      } rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--desk-bg)] shadow-[var(--shadow-panel)] ${className ?? ''}`}
     >
       {children}
     </div>
