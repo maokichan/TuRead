@@ -10,7 +10,7 @@
 
 TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共同阅读同一本书。
 渲染/解析复用 [kookit](https://github.com/koodo-reader/kookit)（AGPL-3.0，git submodule）；
-同步服务器用 Go，**v0.2.0 已实现**（`server/`）；**client v0.2.2**（插件系统与 AI 共读「問」已上线；共读功能批随 v0.2.2）。
+同步服务器用 Go，**v0.2.0 已实现**（`server/`）；**client v0.2.4**（插件系统与 AI 共读「問」已上线；界面空间语法 v2 随 v0.2.4）。
 **本地阅读侧端到端可用；房间同步已与真实 server 打通**（v0.2.0，含阅读器内聊天室；多人场景仍在补验）。
 
 ## 2. 仓库与提交（`D:\PROJECT\TuRead`）
@@ -83,6 +83,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 
 | 版本 | 内容 |
 |---|---|
+| **v0.2.4** | **界面空间语法 v2**：chrome 底面化（自绘标题栏退役；窗控与书库后退/前进 = 底面全局件 `ChromeControls`，背景整面拖拽区）+ 全界面卡片化（`FeatureCard` 统一桌色卡面，scrim 归阅读卡独占）+ 搜索住进卡片（`CardSearchInput`，Ctrl+F 经 `searchFocusBus` 随激活卡）。方向与术语：`docs/DIRECTION.md` §2、`client/docs/STYLE.md` §1.1。**验证**：typecheck 四套 + 单测 162 + 样张八条机检 + ui-shot 真机五页截图。⚠ 未打包；浅色主题卡面对比度、拖拽/双击最大化待真机复看 |
 | **v0.2.0** | **房间功能上线**：按房间建连（根因修复：服务器 WS 握手就要 `?room=&nick=`，旧模型走不到 join）+ 阅读器聊天室（右抽屉两格）+ 协议词汇收拢 `core/domain/protocol.ts`（reason 容错归一）+ 无书成员加入（契约 v0.4.4）。真机探针 16 断言全 PASS；**用户双开验收通过**。⚠ 未打包 |
 | **v0.2.3** | **蜂群测试机制 + presence 修复**：① `tools/swarm` 单机 服务-客户端 多客户端模拟（roombot 复用真实核心层 + 假渲染端口；编排器起一次性 server 撒 N 只跑语义断言 A1-A5，8 只规模验证）；**首跑抓出 presence 载荷形状真实跨端 bug**（server 裸数组 vs client {members}，成员快照恒空 → 位置派生/离房清理/跟随全失效）—— server v0.2.2 修复 + client 双形状归一。**验证**：typecheck 四套（含 tools/swarm）+ 单测 157；npm run swarm 全绿。⚠ 8 只首跑一次偶发失败未再现（README 登记） |
 | **v0.2.2** | **共读功能批（cowork 分支）**：① 房间同步正确性——位置上报校验归属（`getOpenBook` + 指纹，审计 B-2）、幽灵会话/残留待发清理（B-3/C-5）、join 代次守卫 + 重连耗尽 `failed` 复位 + 状态噪声去重（B-4/C-2/C-4；`ConnectionState` 补 `failed`、reason 补 `superseded`）。② **副本分发闭环**——建房即传副本 + 无书成员自动补书（大厅行点击即进；`saveBookCopy` 落 `userData/downloads`；`RoomState.edition` / `downloadBookCopy`）。③ **跟随模式 v1**——聊天格「跟隨」开关，三道闸门（开关 / 指纹 / 同位不跳）。**验证**：typecheck 四套全绿；单测 154（RoomSession 3 → 22）。⚠ 未打包；手感待真机复看（TODO 同步组）
