@@ -499,12 +499,7 @@ export function LibraryFeature({
   const openBook = useCallback(
     (id: string) => {
       setDetailId(null)
-      // 进场锚点（docs/DIRECTION.md §2）：阅读卡从被点封面的位置长大 —— 锚 = 封面矩形中心。
-      // 行/瓦片/封面图三级回退；都查不到（如已离场）由 shell 回退默认浮起。
-      const el = document.querySelector(`[data-book-id="${CSS.escape(id)}"]`)
-      const cover = el?.querySelector('.book-row-cover') ?? el?.querySelector('img') ?? el
-      const r = cover?.getBoundingClientRect()
-      host.openReader(id, undefined, r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : undefined)
+      host.openReader(id)
     },
     [host]
   )

@@ -147,8 +147,8 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
    **官方插件 = 追加 descriptor 进 registry**（未来挂载点/权限再做 manifest）。
 7. **状态继承机制** ✅ 定案：功能组件**常驻挂载、非激活 `display:none`** —— 房间会话/阅读位置不因侧边栏切换丢失；
    跨功能跳转统一走 `FeatureHost`（`navigate` / `openReader` / `closeReader` / `selectBook` / `pushLog`）。
-   `openReader` 的可选 `origin`（视口坐标）= 阅读卡进场锚点：从被点封面长大、退场反向更快
-   （`docs/DIRECTION.md` §2；shell 换算成卡面百分比 + `.feature-card--grow/--exit`）；
+   阅读卡进出场 = **暗场浮现**（`docs/DIRECTION.md` §2：scrim 压深一档再松开 + 卡片原比例自下浮起，
+   `.reader-dip` + `.feature-card--exit`；原「从被点封面长大」随批1.9 退役，git 历史为准）；
    退出阅读卡的三条鼠标/键盘路径（`Esc`、底面「書」、命令面板）都走同一退场节奏。
 8. **侧边栏符号与字体** ✅ 定案：**繁体汉字单字**（書/閱/房/設）以「源流明体」显示（`styles.css` `.feature-nav`；
    **选中态 = 负片块**），**禁用带彩色 emoji**；设置钉在最下角（`pinned`）。

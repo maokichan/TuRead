@@ -51,10 +51,10 @@ export default function AppShell(): React.JSX.Element {
   const selectedBookIdRef = useRef<string | null>(null)
   const readerBookIdRef = useRef<string | null>(null)
 
-  // ── 阅读卡进出动效（docs/DIRECTION.md §2）：进场 = 从被点封面长大；退场反向、更快 ──
-  // 进场锚点 = 封面矩形中心换算成卡面百分比（openReader 时由 shell 记账，写进卡片内联 transform-origin）。
-  // 退场 = 先播反向缩小（--dur-hover，出比进快），落定后才真正切状态 —— 状态继承不受动画影响。
-  const [readerOrigin, setReaderOrigin] = useState<{ ox: number; oy: number } | null>(null)
+  // ── 阅读卡进出动效（docs/DIRECTION.md §2）：进场 = 暗场浮现；退场反向、更快 ──
+  // 进场：scrim 压深一档（.reader-dip，只往深里走 —— 深色主题不反光）+ 阅读卡原比例自下浮起，
+  // 暗场随后松开回静息；与打开来源解耦（原「从被点封面长大」随批1.9 退役，git 历史为准）。
+  // 退场 = 先播下沉显隐（--dur-hover，出比进快），落定后才真正切状态 —— 状态继承不受动画影响。
   const [readerClosing, setReaderClosing] = useState(false)
   const readerClosingRef = useRef(false)
   const readerExitTimer = useRef<number | null>(null)
@@ -108,23 +108,13 @@ export default function AppShell(): React.JSX.Element {
           })()
         }
       },
-      openReader: (editionId, target, origin) => {
+      openReader: (editionId, target) => {
         // 快速连续开书：取消在途的退场动画（否则落定回调会把刚打开的书关掉）
         if (readerExitTimer.current !== null) {
           window.clearTimeout(readerExitTimer.current)
           readerExitTimer.current = null
           readerClosingRef.current = false
           setReaderClosing(false)
-        }
-        if (origin) {
-          const r = mainRef.current?.getBoundingClientRect()
-          setReaderOrigin(
-            r && r.width > 0 && r.height > 0
-              ? { ox: ((origin.x - r.x) / r.width) * 100, oy: ((origin.y - r.y) / r.height) * 100 }
-              : null
-          )
-        } else {
-          setReaderOrigin(null)
         }
         selectedBookIdRef.current = editionId
         readerBookIdRef.current = editionId
@@ -149,7 +139,6 @@ export default function AppShell(): React.JSX.Element {
           readerBookIdRef.current = null
           setReaderBookId(null)
           setReaderTarget(null)
-          setReaderOrigin(null)
           setActiveFeature('library')
         }
         if (beginReaderExit(finish)) return
@@ -410,14 +399,11 @@ export default function AppShell(): React.JSX.Element {
                   activeFeature === 'reader' ? '' : 'hidden'
                 } ${readerClosing ? 'reader-scrim--exit pointer-events-none' : ''}`}
               >
-                <FeatureCard
-                  className={`${readerOrigin ? 'feature-card--grow' : ''} ${
-                    readerClosing ? 'feature-card--exit' : ''
-                  }`}
-                  style={
-                    readerOrigin ? { transformOrigin: `${readerOrigin.ox}% ${readerOrigin.oy}%` } : undefined
-                  }
-                >
+                {/* 暗场（批1.9，docs/DIRECTION.md §2）：进场时压深一档再松开，只往深里走。
+                    display:none → 显示即重放关键帧；z:-1 = 垫在 scrim 底色之上、阅读卡之下。
+                    换方法 = 删掉这一层与关键帧（styles.css .reader-dip），回到普通 crossfade。 */}
+                <div className="reader-dip" aria-hidden="true" />
+                <FeatureCard className={readerClosing ? 'feature-card--exit' : ''}>
                   <C
                     container={container}
                     host={host}

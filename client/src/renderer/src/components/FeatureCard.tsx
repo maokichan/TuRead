@@ -11,7 +11,7 @@
  */
 interface FeatureCardProps {
   scroll?: boolean
-  /** 附加类（阅读卡的进场/退场形态，styles.css `.feature-card--grow` / `--exit`） */
+  /** 附加类（阅读卡的退场形态，styles.css `.feature-card--exit`） */
   className?: string
   /** 内联样式（进场锚点 = transform-origin，由 shell 换算成卡面百分比写入） */
   style?: React.CSSProperties

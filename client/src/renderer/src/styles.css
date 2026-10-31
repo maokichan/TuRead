@@ -173,6 +173,9 @@
      此前三处组件各写一个 bg-black/NN（三个不同黑度），收敛到这里（STYLE.md §3 颜色唯一来源）。 */
   --overlay-dim: rgb(0 0 0 / 0.55);
   --overlay-soft: rgb(0 0 0 / 0.3);
+  /* 暗场浮现（批1.9，docs/DIRECTION.md §2）：开书瞬间压深一档的峰值（叠加在 scrim 之上），
+     只往深里走、不随主题反光 —— 深色主题下是"更暗一瞬"，不是闪光弹。 */
+  --reader-dip-peak: 0.32;
   /* 笔记/划线四色（2026-09-14，STYLE.md §3.4）——**语义内容标记色**（同 --ok/--warn/--err 的性质：
      表达内容状态，不做装饰）。四套取向**各给一组**（不派生：深浅纸上同一色不可用）。
      ⚠ 深色取向必须用**低亮度高饱和**：kookit 对非 PDF 高亮统一渲染为
@@ -556,8 +559,8 @@ textarea {
     animation: none;
   }
 
-  /* 减动态 = 保留透明度/色温，去掉位移与揭幕；阅读卡的长大/退场同样只留显隐 */
-  .feature-card--grow,
+  /* 减动态 = 保留透明度/色温，去掉位移与揭幕；阅读卡退场同样只留显隐（暗场 .reader-dip
+     本身是纯透明度，保留） */
   .feature-card--exit {
     transform: none;
   }
@@ -860,7 +863,8 @@ textarea {
 /* 卡片层浮起（批1.5 初探 → 批1.7c 全界面卡片化，docs/DIRECTION.md §2）：
    界面 = 浮在 chrome 底面之上的卡片层。进场 = 自下 8px 浮起 + 显影
    （--dur-panel 强 ease-out）；display:none → 显示即触发（@starting-style）。
-   退场暂为瞬时（完整进出动效 = "自封面长大"，见 TODO）。原 .reader-layer 已由
+   原阅读卡的"自封面长大"（scale 0.5，批1.8）随批1.9 退役 —— 大比例缩放让文字参与形变，
+   观感生硬；换"暗场浮现"（.reader-dip），内容全程原比例。原 .reader-layer 已由
    .feature-card 收编（五张卡同一语法，阅读卡不特殊）。 */
 .feature-card {
   transition:
@@ -875,21 +879,39 @@ textarea {
   }
 }
 
-/* 阅读卡的"从封面长大"（docs/DIRECTION.md §2）：shell 把被点封面的矩形中心换算成
-   卡面百分比写进内联 transform-origin（挂载即生效，首帧就在锚点上）。
-   进场 = 从锚点 scale(0.5) 长大（不是从 0 —— 不从虚无出现）；退场反向、更快（出比进快）。 */
-@starting-style {
-  .feature-card--grow {
-    opacity: 0;
-    transform: scale(0.5);
-  }
-}
+/* 阅读卡退场 = 下沉显隐（出比进快 --dur-hover）：不缩放，文字不形变；
+   scrim 同步淡出（.reader-scrim--exit）。 */
 .feature-card--exit {
   opacity: 0;
-  transform: scale(0.5);
+  transform: translateY(8px);
   transition:
     opacity var(--dur-hover) var(--ease-out),
     transform var(--dur-hover) var(--ease-out);
+}
+
+/* 暗场（批1.9，docs/DIRECTION.md §2"暗场浮现"）：开书时现场先沉入暗场、再松开回静息。
+   ⚠ 只往深里走（黑场叠加），深色主题下是"更暗一瞬"而不是亮块 —— 不做闪光弹；
+   峰值 = scrim（0.55）+ 本层（--reader-dip-peak）≈ 七成黑，幅度刻意温和。
+   z:-1 = 垫在 scrim 底色之上、阅读卡（常规流）之下；display:none → 显示即重放。
+   本层独立可拆：删掉它与关键帧 = 回到普通 crossfade（换方法的预留口）。 */
+@keyframes reader-dip {
+  0% {
+    opacity: 0;
+  }
+  35% {
+    opacity: var(--reader-dip-peak, 0.32);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.reader-dip {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: #000;
+  animation: reader-dip 420ms var(--ease-out) both;
+  pointer-events: none;
 }
 
 /* 阅读卡的 scrim（叠置遮罩）随卡片同节奏显隐：进 = --dur-veil 淡入，退 = 随卡片更快淡出 */
