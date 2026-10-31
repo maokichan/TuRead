@@ -9,7 +9,7 @@
 
 **多人房间共读阅读器**：几个人进同一房间共读一本书，实时同步彼此的阅读位置与聊天。
 渲染/解析复用 [kookit](https://github.com/koodo-reader/kookit)（AGPL-3.0，git submodule）；
-同步服务器用 Go。当前 **client v0.2.4 / server v0.2.2**（本地阅读 + 房间同步端到端可用；
+同步服务器用 Go。当前 **client v0.2.5 / server v0.2.2**（本地阅读 + 房间同步端到端可用；
 未滚版本的批次与决策见 `docs/STATUS.md` §3/§4）。
 
 ## 阅读顺序（按需加载，不要一次全读）
