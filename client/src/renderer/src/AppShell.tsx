@@ -9,7 +9,7 @@
  * - 无顶栏 / 无日志栏：连接状态在 RoomFeature，诊断日志在 SettingsFeature。
  * - dev 无头自检已移出（见 dev/selfCheck.ts）—— shell 只做组合与共享态。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { EBOOK_EXTENSIONS, IPC } from '@shared/ipc'
 import { createContainer, type ServiceContainer } from '@core/container'
 import { resolveThemePreference, type ThemeTone } from '@core/domain/theme'
@@ -17,6 +17,7 @@ import { FEATURES } from './features/registry'
 import type { FeatureHost, FeatureId, ReaderTarget } from './features/types'
 import { pushLog } from './features/logStore'
 import { bindRoomSession } from './features/roomSession'
+import { readerCardBus } from './features/readerCardBus'
 import { loadPlugins } from './plugins/runtime'
 import { ChromeControls } from './components/ChromeControls'
 import type { ReaderTabItem } from './components/ReaderTabStrip'
@@ -297,6 +298,9 @@ export default function AppShell(): React.JSX.Element {
     }
   })
 
+  // 右欄卡片页清单（批1.13）：ReaderFeature 经 readerCardBus 登记，命令面板据此给"呼出X"
+  const readerCardPages = useSyncExternalStore(readerCardBus.subscribe, readerCardBus.getState)
+
   const paletteCommands = useMemo<PaletteCommand[]>(() => {
     /** 主题命令：写偏好（patchSetting 原子合并）→ 应用 data-theme → 阅读中同步注入书 iframe */
     const setTheme = (label: string, tone: ThemeTone, mode: 'dark' | 'light'): void => {
@@ -327,12 +331,21 @@ export default function AppShell(): React.JSX.Element {
             }
           ]
         : []),
+      // 右欄卡片页的召唤命令（批1.13 用户定"标记同步呼出命令面板"）：清单由 ReaderFeature
+      // 经 readerCardBus 登记（頁族随内容走：聊天仅房间态、插件格按注册）；仅阅读态给
+      ...(activeFeature === 'reader'
+        ? readerCardPages.map((p) => ({
+            id: `reader.card.${p.kind}`,
+            label: `呼出${p.label}`,
+            run: () => readerCardBus.summon(p.kind)
+          }))
+        : []),
       { id: 'theme.solid-dark', label: '主題：純色·深', run: () => setTheme('純色·深', 'solid', 'dark') },
       { id: 'theme.solid-light', label: '主題：純色·淺', run: () => setTheme('純色·淺', 'solid', 'light') },
       { id: 'theme.sepia-light', label: '主題：羊皮紙·淺', run: () => setTheme('羊皮紙·淺', 'parchment', 'light') },
       { id: 'theme.sepia-dark', label: '主題：羊皮紙·深', run: () => setTheme('羊皮紙·深', 'parchment', 'dark') }
     ]
-  }, [container, host, activeFeature, readerTabs.length])
+  }, [container, host, activeFeature, readerTabs.length, readerCardPages])
 
   // 大状态切换的"落定"瞬间（v1.14 §3.3）：内容轻微模糊 → 清晰，把整页跳变糊成一次变换
   const mainRef = useRef<HTMLElement | null>(null)

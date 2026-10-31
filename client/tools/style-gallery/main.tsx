@@ -21,7 +21,7 @@ import { BookRow } from '@renderer/components/BookRow'
 import { BookTile } from '@renderer/components/BookTile'
 import { BookDetailPanel } from '@renderer/components/BookDetailPanel'
 import { LibraryToolbar } from '@renderer/components/LibraryToolbar'
-import { ReaderRail, type LeftPanelKind, type RightPanelKind } from '@renderer/components/ReaderRail'
+import { ReaderRail, type CardPageKind } from '@renderer/components/ReaderRail'
 import { ContextMenu, type ContextMenuItem } from '@renderer/components/ContextMenu'
 import { NoteComposer } from '@renderer/components/NoteComposer'
 import { NoteFlow, type NoteFlowItem } from '@renderer/components/NoteFlow'
@@ -669,17 +669,17 @@ export function Gallery(): React.JSX.Element {
       </Panel>
 
       <Panel
-        title="阅读器 · 挂载线实体（ReaderRail：桌/纸 + 目录 / 笔记 + 参数）"
+        title="阅读器 · 挂载线与右欄卡片页（ReaderRail：桌/纸 + 目录垂挂 + 卡片页）"
         path="components/ReaderRail.tsx（内含 TocPanel / NotesPanel / ReaderControls）"
-        note="沉浸态（STYLE.md §5.8）：全屏的是「桌」不是「正文」—— 纸在居中定宽列里，靠 --desk-bg / --page-edge **用颜色区分**。一条横向挂载线贯穿页面：左段 = 目录 / 笔记垂挂（顶部「目錄 / 筆記」两格文字开关、当前格 --accent），右段 = 阅读参数，中段是纯线。⚠ 2026-09-16（用户定，v1.9 纠正）：**线是固定的一条**（--sidebar-w → 窗口右缘），两段**等宽**且**各贴线的一端** → 关于**线的中心**互为镜像；宽度**不许**由纸宽（--read-width）派生（v1.8 那样写会被判错：改纸宽会带着两条线段一起变）。**目录/笔记的当前条目自动滚到容器正中**（这里把位置钉在第 12 章：看「第十二章 运动与糖代谢」是否落在列表正中间）。参数面板**默认展开**（v1.0 起），折叠 = 向上收回线里；目录条目高亮 = **遮罩按到鼠标的距离**（把鼠标在列表上上下移动看过渡），静息更淡"
+        note="沉浸态（STYLE.md §5.8）：全屏的是「桌」不是「正文」—— 纸在居中定宽列里，靠 --desk-bg / --page-edge **用颜色区分**。挂载线退役第一步（批1.13 用户定）：**左段 = 目录垂挂（暂留）**；**右段 = 独立的卡片页**（.rail-card：圆角族卡面、内收一道沟、自右滑入显影），单槽位，页签切换 參數/筆記/聊天/插件格。召唤 = 线右段 / p / c / 命令面板。**目录/笔记的当前条目自动滚到容器正中**（这里把位置钉在第 12 章）。目录条目高亮 = **遮罩按到鼠标的距离**；纸照旧给右车道让位（--page-w 算式不变）"
       >
         <div className="grid gap-6 md:grid-cols-2">
-          <RailDemo label="只剩掛載線（左欄與參數都折疊）" />
-          <RailDemo label="左欄 + 右欄都展開（鏡像與固定寬度的基準）" leftOpen controlsOpen />
-          <RailDemo label="筆記垂掛（左掛件另一種內容，同樣跟隨位置）" leftPanel="notes" leftOpen />
-          <RailDemo label="閱讀參數面板（右段垂掛，默認展開）" controlsOpen />
+          <RailDemo label="只剩掛載線（左欄與右卡都收起）" />
+          <RailDemo label="左欄 + 右卡都展開（左垂掛與卡片頁的基準）" leftOpen controlsOpen />
+          <RailDemo label="筆記卡片頁（卡片頁族：參數/筆記 頁簽切換）" controlsOpen rightPanel="notes" />
+          <RailDemo label="閱讀參數卡片（默認展開）" controlsOpen />
           <RailDemo
-            label="房間會話中的右抽屜·聊天（參數 / 聊天兩格）"
+            label="房間會話中的聊天卡片頁（參數/筆記/聊天三格）"
             controlsOpen
             withChat
             rightPanel="chat"
@@ -815,7 +815,6 @@ function noop(): void {}
  */
 function RailDemo({
   label,
-  leftPanel = 'toc',
   leftOpen = false,
   controlsOpen = false,
   activeChapter = 12,
@@ -823,20 +822,18 @@ function RailDemo({
   withChat = false
 }: {
   label: string
-  leftPanel?: LeftPanelKind
   leftOpen?: boolean
   controlsOpen?: boolean
   /** 当前阅读位置（章号）：目录/笔记的"当前条目"据此滚到正中（2026-09-16 用户定） */
   activeChapter?: number
-  /** 右挂件当前内容（2026-09-17：參數 / 聊天） */
-  rightPanel?: RightPanelKind
-  /** 是否带聊天室（= 经房间进入的这本书；不带则右段不出现页签行） */
+  /** 右欄卡片页当前内容（批1.13：參數 / 筆記 / 聊天） */
+  rightPanel?: CardPageKind
+  /** 是否带聊天室（= 经房间进入的这本书；不带则卡片页族不出现「聊天」页签） */
   withChat?: boolean
 }): React.JSX.Element {
   const [tocOpen, setTocOpen] = useState(leftOpen)
   const [ctlOpen, setCtlOpen] = useState(controlsOpen)
-  const [panel, setPanel] = useState<LeftPanelKind>(leftPanel)
-  const [right, setRight] = useState<RightPanelKind>(rightPanel)
+  const [right, setRight] = useState<CardPageKind>(rightPanel)
   const [params, setParams] = useState<ReaderParams>(DEFAULT_READER_PARAMS)
   // ⚠ 受控输入：样张必须自己持有草稿（传死值会测不出输入区）
   const [draft, setDraft] = useState('')
@@ -891,8 +888,6 @@ function RailDemo({
           onControlsToggle={() => setCtlOpen((v) => !v)}
           params={params}
           onParamsChange={(patch) => setParams((p) => ({ ...p, ...patch }))}
-          leftPanel={panel}
-          onLeftPanelChange={setPanel}
           notes={NOTES}
           onNoteJump={noop}
           onNoteRemove={noop}

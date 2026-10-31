@@ -111,32 +111,33 @@ app.whenReady().then(async () => {
   }
 
   /**
-   * ————— 挂载线几何机检（2026-09-16；用户定的口径 + v1.9 的纠正）—————
+   * ————— 挂载线 + 右欄卡片页几何机检（批1.13 重定义；原"镜像"口径随右段换形退役）—————
    *
    * 为什么必须机检：这些都是**几何**要求，肉眼在样张里"看着差不多"根本不可靠
    * （项目已有教训：`show:false` 的窗口量出的 1.6s 假数字）。故量真实矩形：
-   * ① **两挂件关于「挂载线的中心」镜像** —— 线 = 固定的一条（样张里 = 演示框本身），
-   *    两段**等宽**且**各贴线的一端**（等宽 + 贴齐 ⟺ 互为镜像，不需要中心点算式）；
-   * ② **宽度不得由纸宽派生** —— 把 `--read-width` 现场改掉，两挂件宽度必须**一点不变**
+   * ① **左垂挂贴卡缘**（目录段：left = 0、宽度 = token——镜像口径的左半边仍然成立）；
+   * ② **右欄卡片页 = 卡**：圆角 `--radius-panel`、1px 边、右缘**内收一道沟**（--rail-gap）、
+   *    宽度 = 同一 token（批1.13 用户定"独立的卡片页"）；
+   * ③ **宽度不得由纸宽派生** —— 把 `--read-width` 现场改掉，两件宽度必须**一点不变**
    *    （v1.8 曾把宽度写成纸宽的函数，用户判定"可笑之极"）；
-   * ③ **面板不许压到纸上** —— 挂件宽是固定的，所以让位的是**纸**（`.reader-stage` 的 min() 夹取）；
-   * ④ **左抽屉顶部的两格页签关于抽屉中心对称**（用户 2026-09-16 点名的那一条）；
+   * ④ **纸不许被压住** —— 让位的是**纸**（`.reader-stage` 的 min() 夹取）；
    * ⑤ **目录当前条目居中** —— 位置钉在第 12 章，量那一条的中心与滚动容器中心之差。
    */
   let geometry = null
   try {
     geometry = await win.webContents.executeJavaScript(`(async () => {
       const demos = Array.prototype.slice.call(document.querySelectorAll('[data-rail-demo]'))
-      const demo = demos.filter((el) => (el.dataset.railDemo || '').indexOf('鏡像') >= 0)[0]
-      if (!demo) return { error: 'mirror demo not found', demoCount: demos.length }
+      const demo = demos.filter((el) => (el.dataset.railDemo || '').indexOf('基準') >= 0)[0]
+      if (!demo) return { error: 'base demo not found', demoCount: demos.length }
       const toc = demo.querySelector('.toc-list')
-      const params = demo.querySelector('.reader-controls')
-      if (!toc || !params) return { error: 'panels missing', toc: !!toc, params: !!params }
+      const card = demo.querySelector('.rail-card')
+      if (!toc || !card) return { error: 'panels missing', toc: !!toc, card: !!card }
       const box = demo.getBoundingClientRect()
       const t = toc.getBoundingClientRect()
-      const p = params.getBoundingClientRect()
-      const center = box.left + box.width / 2
-      // ② 目录当前条目：滚动容器必须真的能滚，否则"居中"是平凡成立的
+      const c = card.getBoundingClientRect()
+      const cardCs = getComputedStyle(card)
+      const gap = Number.parseFloat(getComputedStyle(demo).getPropertyValue('--rail-gap')) || 16
+      // 目录当前条目：滚动容器必须真的能滚，否则"居中"是平凡成立的
       const rowsBox = demo.querySelector('.toc-list__rows')
       const rows = rowsBox ? rowsBox.querySelectorAll('.toc-row') : []
       let hit = null
@@ -147,54 +148,41 @@ app.whenReady().then(async () => {
       const hitRect = hit ? hit.getBoundingClientRect() : null
       const first = {
         demoWidth: Math.round(box.width),
-        tocLeftGap: Math.round(center - t.left),
-        paramsRightGap: Math.round(p.right - center),
+        /* ① 左垂挂贴卡缘 */
         tocFlushLeft: Math.round(t.left - box.left),
-        paramsFlushRight: Math.round(box.right - p.right),
         tocWidth: Math.round(t.width),
-        paramsWidth: Math.round(p.width),
         tocMaxH: getComputedStyle(toc).maxHeight,
-        paramsMaxH: getComputedStyle(params).maxHeight,
-        /* ③ **面板不许压到纸上**：量纸（#page-area = .reader-stage）与两挂件的矩形，判据 = 横向不相交 */
+        /* ② 右欄卡片页 = 卡：圆角/描边/右缘内收一道沟 */
+        cardWidth: Math.round(c.width),
+        cardRightInset: Math.round(box.right - c.right),
+        railGap: Math.round(gap),
+        cardRadius: cardCs.borderRadius,
+        cardBorder: cardCs.borderTopWidth,
+        cardMaxH: cardCs.maxHeight,
+        /* ④ **纸不许被压住**：量纸（#page-area = .reader-stage）与两件的矩形，判据 = 横向不相交 */
         paperLeft: null,
         paperRight: null,
-        paperClear: true,
-        /* ④ **两格页签关于抽屉中心对称**：量两格中心到抽屉中心的距离差 + 两格之间的中点是否落在中心上 */
-        tabsSymDelta: null,
-        tabMidDelta: null
+        paperClear: true
       }
       const paperEl = demo.querySelector('.reader-stage')
       if (paperEl) {
         const pr = paperEl.getBoundingClientRect()
         first.paperLeft = Math.round(pr.left - box.left)
         first.paperRight = Math.round(pr.right - box.left)
-        first.paperClear = pr.left >= t.right - 1 && pr.right <= p.left + 1
+        first.paperClear = pr.left >= t.right - 1 && pr.right <= c.left + 1
       }
-      const tabs = demo.querySelectorAll('.rail-tabs__tab')
-      if (tabs.length === 2) {
-        const ra = tabs[0].getBoundingClientRect()
-        const rb = tabs[1].getBoundingClientRect()
-        /* ⚠ 参照必须是**抽屉自己的几何中心**（用户原话"相对于挂载线下左侧抽屉栏的几何中心"），
-           不是演示框中心 —— 第一版拿 box 中心比，量出 tabMidDelta=-192 的**假 FAIL**。 */
-        const drawerCenter = (t.left + t.right) / 2
-        first.tabsSymDelta = Math.round(
-          Math.abs(drawerCenter - (ra.left + ra.right) / 2) -
-            Math.abs((rb.left + rb.right) / 2 - drawerCenter)
-        )
-        first.tabMidDelta = Math.round((ra.right + rb.left) / 2 - drawerCenter)
-      }
-      // 换一个纸宽再量宽度（判据 ②：宽度不许是纸的函数）
+      // 换一个纸宽再量宽度（判据 ③：宽度不许是纸的函数）
       demo.style.setProperty('--read-width', '520px')
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
       const wide = {
         tocWidth: Math.round(toc.getBoundingClientRect().width),
-        paramsWidth: Math.round(params.getBoundingClientRect().width)
+        cardWidth: Math.round(card.getBoundingClientRect().width)
       }
       demo.style.setProperty('--read-width', '260px')
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
       return Object.assign(first, {
         widthAtOtherPaper: wide.tocWidth,
-        widthAtOtherPaper2: wide.paramsWidth,
+        widthAtOtherPaper2: wide.cardWidth,
         rows: rows.length,
         scrollable: rowsBox ? rowsBox.scrollHeight - rowsBox.clientHeight : -1,
         hitFound: !!hit,
@@ -208,60 +196,90 @@ app.whenReady().then(async () => {
   }
 
   /**
-   * ————— 右抽屉 · 聊天室机检（2026-09-17）—————
+   * ————— 聊天卡片页机检（2026-09-17 立，批1.13 随右段换形重定义）—————
    *
-   * 用户定的两条（逐字）：
-   * ① "右抽屜，像是目錄和筆記共用一個掛載線一樣，和右邊的閱讀參數面板處於一根掛載線，
-   *    **但是沒有通過房間進入一本書就不會有這個項**，樣式和左側抽屜一樣"
-   *    → 房间里：右抽屉两格页签（參數 / 聊天）关于**右抽屉中心**对称、与参数面板**同宽同高上限**、
-   *      贴线的右端、聊天行与输入框都在；输入框是输入类（§5.2 例外①）→ 发丝描边。
-   *    → 非房间：右抽屉（展开态）里**一格页签都不该有** —— "这一项不存在"要机器可证。
-   * ② 与左抽屉同族：容器 / 页签 / 遮罩的类名与几何同源（这条由 `mirrorOk` + `tabsSymOk` 的
-   *    同款量法覆盖，这里只量"右抽屉自己"的对称与同宽）。
+   * 用户定的口径（语义不变，形态随批1.13 从"右抽屉"换"卡片页"）：
+   * ① "和右边的閱讀參數面板……**但是沒有通過房間進入一本書就不會有這個項**"
+   *    → 房间里：聊天卡片页三格页签（參數/筆記/聊天）、聊天行与输入框都在；
+   *      输入框是输入类（§5.2 例外①）→ 发丝描边；卡片与参数卡**同宽同高上限**、页签行对卡片中心居中。
+   *    → 非房间：卡片页族里**不该出现「聊天」页签** —— "这一项不存在"要机器可证。
+   * ② 同族：卡片外壳（.rail-card）几何同源（由 cardOk 的同款量法覆盖，这里量"聊天卡自己"）。
    */
   let chatGeometry = null
   try {
     chatGeometry = await win.webContents.executeJavaScript(`(() => {
       const demos = Array.prototype.slice.call(document.querySelectorAll('[data-rail-demo]'))
       const chatDemo = demos.filter((el) => (el.dataset.railDemo || '').indexOf('聊天') >= 0)[0]
-      const paramOnlyDemo = demos.filter((el) => (el.dataset.railDemo || '').indexOf('閱讀參數面板') >= 0)[0]
+      const paramOnlyDemo = demos.filter((el) => (el.dataset.railDemo || '').indexOf('閱讀參數卡片') >= 0)[0]
       if (!chatDemo) return { error: 'chat demo not found', demoCount: demos.length }
-      const box = chatDemo.getBoundingClientRect()
-      const chat = chatDemo.querySelector('.toc-list--right')
+      const card = chatDemo.querySelector('.rail-card')
       const tabs = chatDemo.querySelectorAll('.rail-tabs__tab')
       const rows = chatDemo.querySelectorAll('.chat-row')
       const input = chatDemo.querySelector('.chat-composer__input')
-      const paramPanel = paramOnlyDemo ? paramOnlyDemo.querySelector('.reader-controls') : null
+      const paramCard = paramOnlyDemo ? paramOnlyDemo.querySelector('.rail-card') : null
+      const labels = Array.prototype.map.call(tabs, (tb) => (tb.textContent || '').trim())
       const out = {
-        chatFound: !!chat,
+        chatFound: !!card,
         tabs: tabs.length,
+        labels,
         rows: rows.length,
         inputFound: !!input,
         inputBorderTopPx: input ? Number.parseFloat(getComputedStyle(input).borderTopWidth) : -1,
-        chatWidth: chat ? Math.round(chat.getBoundingClientRect().width) : -1,
-        paramsWidth: paramPanel ? Math.round(paramPanel.getBoundingClientRect().width) : -1,
-        chatFlushRight: chat ? Math.round(box.right - chat.getBoundingClientRect().right) : -1,
-        chatMaxH: chat ? getComputedStyle(chat).maxHeight : null,
-        paramsMaxH: paramPanel ? getComputedStyle(paramPanel).maxHeight : null,
-        tabsSymDelta: null,
-        tabMidDelta: null,
-        /* 非房间阅读（"閱讀參數面板"那一格）：右抽屉展开态下的页签数，必须是 0 */
-        noRoomTabs: paramOnlyDemo ? paramOnlyDemo.querySelectorAll('.rail-tabs__tab').length : -1
+        chatWidth: card ? Math.round(card.getBoundingClientRect().width) : -1,
+        paramsWidth: paramCard ? Math.round(paramCard.getBoundingClientRect().width) : -1,
+        chatMaxH: card ? getComputedStyle(card).maxHeight : null,
+        paramsMaxH: paramCard ? getComputedStyle(paramCard).maxHeight : null,
+        tabsRowCenterDelta: null,
+        /* 非房间阅读（"閱讀參數卡片"那格）：卡片页族的页签里**不许有「聊天」** */
+        noRoomChatTab: paramCard
+          ? Array.prototype.some.call(
+              paramOnlyDemo.querySelectorAll('.rail-tabs__tab'),
+              (tb) => (tb.textContent || '').indexOf('聊天') >= 0
+            )
+          : null
       }
-      if (chat && tabs.length === 2) {
-        const cr = chat.getBoundingClientRect()
-        const drawerCenter = (cr.left + cr.right) / 2
-        const ra = tabs[0].getBoundingClientRect()
-        const rb = tabs[1].getBoundingClientRect()
-        out.tabsSymDelta = Math.round(
-          Math.abs(drawerCenter - (ra.left + ra.right) / 2) - Math.abs((rb.left + rb.right) / 2 - drawerCenter)
-        )
-        out.tabMidDelta = Math.round((ra.right + rb.left) / 2 - drawerCenter)
+      if (card && tabs.length > 0) {
+        const cr = card.getBoundingClientRect()
+        const cardCenter = (cr.left + cr.right) / 2
+        let sum = 0
+        for (const tb of tabs) {
+          const r = tb.getBoundingClientRect()
+          sum += (r.left + r.right) / 2
+        }
+        out.tabsRowCenterDelta = Math.round(sum / tabs.length - cardCenter)
       }
       return out
     })()`)
   } catch (e) {
     logs.push({ kind: 'chat-geometry-throw', message: String(e) })
+  }
+
+  /**
+   * ————— 卡片页顶部页签行对称（批1.13）—————
+   * 页签行住卡片（.rail-card）顶部，等宽 flex 构造对称；量"页签行中心 = 卡片中心"（±1px）。
+   * 样本 = 「筆記卡片頁」那格（參數/筆記 两格）。
+   */
+  let cardTabs = null
+  try {
+    cardTabs = await win.webContents.executeJavaScript(`(() => {
+      const demos = Array.prototype.slice.call(document.querySelectorAll('[data-rail-demo]'))
+      const demo = demos.filter((el) => (el.dataset.railDemo || '').indexOf('筆記卡片') >= 0)[0]
+      const card = demo ? demo.querySelector('.rail-card') : null
+      const tabs = card ? card.querySelectorAll('.rail-tabs__tab') : []
+      if (!card || tabs.length < 2) return { error: 'card tabs missing' }
+      const cr = card.getBoundingClientRect()
+      const center = (cr.left + cr.right) / 2
+      let sum = 0
+      const labels = []
+      for (const tb of tabs) {
+        const r = tb.getBoundingClientRect()
+        sum += (r.left + r.right) / 2
+        labels.push((tb.textContent || '').trim())
+      }
+      return { tabs: tabs.length, labels, rowCenterDelta: Math.round(sum / tabs.length - center) }
+    })()`)
+  } catch (e) {
+    logs.push({ kind: 'card-tabs-throw', message: String(e) })
   }
 
   // ③ 批注输入栏：点开再量（React 状态 → 渲染，等一拍）
@@ -362,54 +380,65 @@ app.whenReady().then(async () => {
    * ④ 输入栏 = 零可见文字 + 无 placeholder + 非透明纯色底 + 发丝描边 + 居中 ±2px + 挂载即聚焦
    *    + **宽 = 纸宽 × 0.9**（两侧各 5% 缝）+ **矮**（单行；三轮文本约 90px，这里判 ≤56px）。
    */
-  const mirrorOk = Boolean(
+  /**
+   * 卡片页几何（批1.13 重定义；原 mirrorOk 随右段换形退役）：
+   * ① cardOk = 右欄卡片页真的是**卡**：与左垂挂同宽（同一 token）、左垂挂贴卡缘、
+   *    卡右缘内收一道沟（--rail-gap）、圆角 --radius-panel、1px 边、高度上限同 token；
+   * ② 不随内容 = 改 --read-width 后两件宽度**一点不变**（v1.8 的错就在这条）；
+   * ③ 跟随 = 目录滚动容器**真的能滚**（否则平凡成立，必须防假通过）+「第十二章」落在容器正中（±8px）；
+   * ④ 输入栏 = 零可见文字 + 无 placeholder + 非透明纯色底 + 发丝描边 + 居中 ±2px + 挂载即聚焦
+   *    + **宽 = 纸宽 × 0.9**（两侧各 5% 缝）+ **矮**（单行；三轮文本约 90px，这里判 ≤56px）。
+   */
+  const cardOk = Boolean(
     geometry &&
       !geometry.error &&
-      geometry.tocWidth === geometry.paramsWidth &&
+      geometry.tocWidth === geometry.cardWidth &&
       Math.abs(geometry.tocFlushLeft ?? 99) <= 1 &&
-      Math.abs(geometry.paramsFlushRight ?? 99) <= 1 &&
-      Math.abs((geometry.tocLeftGap ?? 0) - (geometry.paramsRightGap ?? 0)) <= 1 &&
-      geometry.tocMaxH === geometry.paramsMaxH
+      Math.abs((geometry.cardRightInset ?? 99) - (geometry.railGap ?? -1)) <= 1 &&
+      Math.abs(Number.parseFloat(geometry.cardRadius ?? '') - 12) <= 0.6 &&
+      Number.parseFloat(geometry.cardBorder ?? '0') > 0 &&
+      Number.parseFloat(geometry.cardBorder ?? '0') <= 1.5 &&
+      geometry.tocMaxH === geometry.cardMaxH
   )
   const widthIndependentOk = Boolean(
-    geometry && !geometry.error && geometry.widthAtOtherPaper === geometry.tocWidth && geometry.widthAtOtherPaper2 === geometry.paramsWidth
+    geometry && !geometry.error && geometry.widthAtOtherPaper === geometry.tocWidth && geometry.widthAtOtherPaper2 === geometry.cardWidth
   )
-  /** 面板不许压到纸上（用户 2026-09-16："会盖住页面的内容"）—— 让位的是纸，不是线 */
+  /** 纸不许被压住（用户 2026-09-16："会盖住页面的内容"）—— 让位的是纸，不是线/卡 */
   const paperClearOk = Boolean(geometry && !geometry.error && geometry.paperClear === true)
-  /** 左抽屉顶部的两格页签关于抽屉中心对称（用户 2026-09-16 点名的那一条） */
+  /** 卡片页顶部页签行关于卡片中心对称（原左抽屉两格页签的判据，批1.13 随页签迁入卡片改样本）。
+   *  ⚠ 页签标签带计数后缀（「筆記 2」）→ 判据用**前缀**匹配，不写全等 */
   const tabsSymOk = Boolean(
-    geometry &&
-      !geometry.error &&
-      geometry.tabsSymDelta !== null &&
-      Math.abs(geometry.tabsSymDelta) <= 1 &&
-      Math.abs(geometry.tabMidDelta ?? 99) <= 1
+    cardTabs &&
+      !cardTabs.error &&
+      cardTabs.tabs >= 2 &&
+      Math.abs(cardTabs.rowCenterDelta ?? 99) <= 1 &&
+      (cardTabs.labels ?? []).some((l) => l.indexOf('參數') === 0) &&
+      (cardTabs.labels ?? []).some((l) => l.indexOf('筆記') === 0)
   )
   const followedOk = Boolean(
     geometry && !geometry.error && (geometry.scrollable ?? -1) > 40 && geometry.hitFound && Math.abs(geometry.centeredDelta ?? 999) <= 8
   )
   /**
-   * 右抽屉 · 聊天室（2026-09-17 用户定）：两格页签关于**右抽屉中心**对称 + 与参数面板同宽同高上限
-   * + 贴线的右端 + 聊天行渲染 + 输入框是输入类（发丝描边）。
-   * ⚠ 参照必须是**抽屉自己的中心**（同 `tabsSymOk` 的教训：拿演示框中心比会量出假 FAIL）。
+   * 聊天卡片页（2026-09-17 用户定；批1.13 形态重定义）：三格页签（參數/筆記/聊天）、页签行对
+   * 卡片中心居中、与参数卡同宽同高上限、聊天行渲染、输入框发丝描边。
+   * ⚠ 参照必须是**卡片自己的中心**（同 tabsSymOk 的教训：拿演示框中心比会量出假 FAIL）。
    */
   const chatDrawerOk = Boolean(
     chatGeometry &&
       !chatGeometry.error &&
       chatGeometry.chatFound &&
-      chatGeometry.tabs === 2 &&
+      chatGeometry.tabs === 3 &&
+      (chatGeometry.labels ?? []).indexOf('聊天') >= 0 &&
       chatGeometry.rows >= 1 &&
       chatGeometry.inputFound &&
       chatGeometry.inputBorderTopPx > 0 &&
       chatGeometry.inputBorderTopPx <= 1.5 &&
-      Math.abs(chatGeometry.chatFlushRight ?? 99) <= 1 &&
       chatGeometry.chatWidth === chatGeometry.paramsWidth &&
       chatGeometry.chatMaxH === chatGeometry.paramsMaxH &&
-      chatGeometry.tabsSymDelta !== null &&
-      Math.abs(chatGeometry.tabsSymDelta) <= 1 &&
-      Math.abs(chatGeometry.tabMidDelta ?? 99) <= 1
+      Math.abs(chatGeometry.tabsRowCenterDelta ?? 99) <= 1
   )
-  /** 「沒有通過房間進入一本書就不會有這個項」：非房间阅读的右抽屉里**一格页签都没有** */
-  const noRoomTabsOk = Boolean(chatGeometry && !chatGeometry.error && chatGeometry.noRoomTabs === 0)
+  /** 「沒有通過房間進入一本書就不會有這個項」：非房间阅读的卡片页族里**不许出现「聊天」页签** */
+  const noRoomTabsOk = Boolean(chatGeometry && !chatGeometry.error && chatGeometry.noRoomChatTab === false)
   /**
    * 输入栏：零文字 + 纯色底 + 发丝描边 + 居中 + 宽 = 纸宽×0.9 + **自增长**（用户 2026-09-16）：
    * 空态 ≈ **两行**高、灌 8 行后 ≈ **五行**高（封顶）且内容溢出转滚动。
@@ -465,7 +494,7 @@ app.whenReady().then(async () => {
         stats.textLen > 500 &&
         pageErrors.length === 0 &&
         notesOk &&
-        mirrorOk &&
+        cardOk &&
         widthIndependentOk &&
         paperClearOk &&
         tabsSymOk &&
@@ -477,9 +506,10 @@ app.whenReady().then(async () => {
     ),
     url: URL,
     notesOk,
-    /** 几何判据（2026-09-16）：镜像 / 宽度不随纸变 / 纸不被压住 / 页签对称 / 当前条目居中 / 输入栏
-     *  ＋（2026-09-17）右抽屉聊天室 `chatDrawerOk` / 非房间无页签 `noRoomTabsOk` */
-    mirrorOk,
+    /** 几何判据（批1.13 重定义）：卡片页成卡 / 宽度不随纸变 / 纸不被压住 / 卡内页签对称 /
+     *  当前条目居中 / 输入栏 ＋ 聊天卡片页 `chatDrawerOk` / 非房间无聊天页签 `noRoomTabsOk`
+     *  （原 mirrorOk = 两挂件镜像，随右段换形退役——右段已是内收沟的独立卡片） */
+    cardOk,
     widthIndependentOk,
     paperClearOk,
     tabsSymOk,
@@ -490,6 +520,7 @@ app.whenReady().then(async () => {
     stats,
     geometry,
     chatGeometry,
+    cardTabs,
     composer,
     scale,
     /** 空闲 rAF 间隔（计时环境是否可信；> 60ms 时上面的 commit/refresh 数字都不要当真） */
@@ -499,7 +530,7 @@ app.whenReady().then(async () => {
   fs.writeFileSync(OUT, JSON.stringify({ verdict, logs }, null, 2))
   console.log(
     `[style-gallery smoke] ${verdict.ok ? 'OK' : 'FAIL'}` +
-      ` | mirror=${mirrorOk ? 'ok' : 'FAIL'} fixedWidth=${widthIndependentOk ? 'ok' : 'FAIL'} paperClear=${paperClearOk ? 'ok' : 'FAIL'} tabsSym=${tabsSymOk ? 'ok' : 'FAIL'} followed=${followedOk ? 'ok' : 'FAIL'} chatDrawer=${chatDrawerOk ? 'ok' : 'FAIL'} noRoomTabs=${noRoomTabsOk ? 'ok' : 'FAIL'} composer=${composerOk ? 'ok' : 'FAIL'}` +
+      ` | card=${cardOk ? 'ok' : 'FAIL'} fixedWidth=${widthIndependentOk ? 'ok' : 'FAIL'} paperClear=${paperClearOk ? 'ok' : 'FAIL'} tabsSym=${tabsSymOk ? 'ok' : 'FAIL'} followed=${followedOk ? 'ok' : 'FAIL'} chatCard=${chatDrawerOk ? 'ok' : 'FAIL'} noRoomChatTab=${noRoomTabsOk ? 'ok' : 'FAIL'} composer=${composerOk ? 'ok' : 'FAIL'}` +
       (scale ? ` | scale n=${scale.n} commit=${scale.commitMs}ms settle=${scale.settleMs}ms refresh=${scale.refreshMs}ms cards=${scale.cardCount}/${scale.n} rafGap=${rafGapMs}ms` : '') +
       ` → ${OUT}`
   )

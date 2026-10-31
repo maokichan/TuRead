@@ -1,25 +1,22 @@
 /**
- * ReaderRail —— 阅读器**挂载线实体**（2026-09-12 用户定，二次纠正后定稿）。
+ * ReaderRail —— 阅读器的挂载线 + 右欄卡片页（挂载线退役第一步，批1.13 用户定）。
  *
- * 一条**横向挂载线**，从目录段起**延伸整个页面宽度**（跨过正文上方直到右缘）：
- * - 左段 = 目录挂载区：目录**向下垂挂**（TocPanel）；目录折叠时，**点线（左段）= 展开目录**；
- * - 右段 = 右挂件挂载区：参数面板挂在**右侧线下方**，**折叠 = 向上收回线里**（用户定）；
- *   把手即线本身（右段），面板内无收起按钮（2026-09-12 废除）。
- * 两个挂件互不干扰（左/右分区），又同处一条线（同一实体）。
- * 中段是纯线段（跨过正文上方，无交互）。
+ * **左段（暂留）**：横向挂载线的目录挂载区 —— 目录**向下垂挂**（TocPanel）；
+ * 目录折叠时，点线（左段）= 展开目录。目录"仍然有保留在阅读器内的必要"（用户定），
+ * 其余内容的归属见下。
  *
- * ⚠ **2026-09-16（用户定）：左右两挂件关于「挂载线的中心」镜像** —— 线是**固定的一条**
- * （`--sidebar-w` → 窗口右缘），两段**等宽**且**各贴线的一端** → 关于线中心天然互为镜像；
- * 宽度/位置**不得**由 `--read-width` 派生（v1.8 犯过这个错，v1.9 已纠正，见 `styles.css`）。
+ * **右段（本批换形）**：从"垂挂抽屉"换成**独立的卡片页**（.rail-card）——
+ * 单槽位，一次只显示一张卡（用户定："目前只给右侧一个槽位，这样我们能逐步处理挂载线问题"）：
+ * - 页族 = 參數 / 筆記 / 聊天（仅房间）/ 插件格（v1.13 起）——卡片顶部页签切换（同一槽位换内容）；
+ * - 召唤 = 线右段（鼠标）/ `p` / `c` / 命令面板（readerCardBus 登记，批1.13 用户定）；
+ * - 动画 = 自右滑入 + 显影（.rail-card 的 @starting-style），收回更快，收完卸载。
  *
- * ⚠ **2026-09-17（用户定）：右段变成"两格内容的抽屉"** —— 与左段（目錄 / 筆記）同构：
- * 「閱讀參數 / 聊天」两格共用同一几何、顶部开关切换；**聊天只在"经房间进入的这本书"上存在**
- * （用户原话："沒有通過房間進入一本書就不會有這個項"），没有聊天时右段只有参数一种内容、
- * 不出现页签行（与 v1.10 之前的形态一致）。
+ * ⚠ **2026-09-16（用户定，批1.13 修正）**：~~左右两挂件关于线中心镜像~~ —— 右段已转卡片页
+ * （内收一道沟、自带卡面），镜像口径只对**左段**成立（左段贴卡缘、宽度 = --rail-panel-w）。
  *
  * ⚠ **v1.13：右段开放插件面板格**（契约 = CONTRACTS §9，功能 = FEATURES §13）——
- * 渲染权在宿主：插件只注册"一个格"（label + mount），几何/页签/开合/滚动外壳全部在这里给
- * （复用 `.reader-controls` 同一几何 token）；页签序 = 參數 → 聊天（仅房间态）→ 插件格（按注册序）。
+ * 渲染权在宿主：插件只注册"一个格"（label + mount），几何/页签/开合/滚动外壳全部在这里给；
+ * 页签序 = 參數 → 筆記 → 聊天（仅房间态）→ 插件格（按注册序）。
  * AI 共读插件落地时「問」与「聊天」互斥（用户已定），其他插件格不受影响。
  */
 import { useEffect, useRef, useState } from 'react'
@@ -32,12 +29,13 @@ import { NotesPanel } from './NotesPanel'
 import { ChatPanel } from './ChatPanel'
 import { ReaderControls, type ReaderParams } from './ReaderControls'
 
-/** 左挂件的内容形态（2026-09-14）：同一位置、同一几何，只换内容 */
-export type LeftPanelKind = 'toc' | 'notes'
-/** 右挂件的内容形态（2026-09-17；v1.13 起含插件格）：同一几何，只换内容 */
-export type RightPanelKind = 'params' | 'chat' | `plugin:${string}`
+/**
+ * 右欄卡片页的内容形态（批1.13；原 RightPanelKind 扩入 `notes` —— 笔记自左垂挂迁入卡片页族，
+ * 用户定"笔记，AI，插件，都可以有同样的归属"）：同一槽位，页签切换。
+ */
+export type CardPageKind = 'params' | 'notes' | 'chat' | `plugin:${string}`
 
-/** 右挂件的聊天数据（null = 这本书不是经房间进来的 → 没有聊天室这一项） */
+/** 右欄卡片页的聊天数据（null = 这本书不是经房间进来的 → 没有聊天室这一项） */
 export interface RailChatProps {
   roomId: string
   messages: ChatMessage[]
@@ -64,45 +62,43 @@ interface ReaderRailProps {
   onTocToggle: () => void
   tocRows: TocRow[]
   onTocJump: (row: TocRow) => void
+  /** 右欄卡片页开合（单槽位；线右段 / `p` / `c` / 命令面板都能拨它） */
   controlsOpen: boolean
   onControlsToggle: () => void
   params: ReaderParams
   onParamsChange: (patch: Partial<ReaderParams>) => void
-  leftPanel: LeftPanelKind
-  onLeftPanelChange: (kind: LeftPanelKind) => void
   notes: Note[]
   onNoteJump: (note: Note) => void
   onNoteRemove: (note: Note) => void
-  /** 打开某条的编辑（底部输入栏）—— 抽屉里的编辑入口，见 NotesPanel */
+  /** 打开某条的编辑（底部输入栏）—— 卡片页里的编辑入口，见 NotesPanel */
   onNoteEdit: (note: Note) => void
-  /** 当前阅读位置（章号）：两个挂件的"当前条目"都据此滚到正中（2026-09-16 用户定） */
+  /** 当前阅读位置（章号）：目录/笔记的"当前条目"都据此滚到正中（2026-09-16 用户定） */
   activeChapter: number
-  /** 「看这条笔记」请求（点正文高亮触发）：左侧切到筆記并把这条定位到正中（只读，不改内容） */
+  /** 「看这条笔记」请求（点正文高亮触发）：右欄切到筆記卡并把这条定位到正中（只读，不改内容） */
   focusNote?: { id: string; tick: number } | null
-  /** 右挂件当前内容（2026-09-17；v1.13 起可为插件格）：参数 / 聊天 / `plugin:<key>` */
-  rightPanel: RightPanelKind
-  onRightPanelChange: (kind: RightPanelKind) => void
-  /** 聊天室数据；null = 这本书没有房间会话 → 右段不出现「聊天」页签 */
+  /** 右欄卡片页当前内容（批1.13）：參數 / 筆記 / 聊天 / `plugin:<key>` */
+  rightPanel: CardPageKind
+  onRightPanelChange: (kind: CardPageKind) => void
+  /** 聊天室数据；null = 这本书没有房间会话 → 卡片页族不出现「聊天」页签 */
   chat: RailChatProps | null
   /** 当前书是否 PDF：参数面板「紙寬」行换用 PDF 专属档位（2026-10-02） */
   isPdf?: boolean
-  /** 已启用的插件面板格（v1.13；页签追加在參數/聊天之后，按注册序） */
+  /** 已启用的插件面板格（v1.13；页签追加在參數/筆記/聊天之后，按注册序） */
   pluginPanels?: RailPluginPanel[]
   /** 阅读上下文句柄（v1.1）：传给插件格的 mount ctx.reader（书未打开时为空） */
   readerContext?: PluginReaderContext
 }
 
-/** 垂挂揭幕的卸载延迟：与 styles.css 的收回时长（`--dur-hover` = 160ms）同步，稍留余量 */
+/** 卡片页收回的卸载延迟：与 styles.css 的收回时长（`--dur-hover` = 160ms）同步，稍留余量 */
 const HANG_EXIT_MS = 180
 
-/** 挂载线灯光的目标段（veil.ts paintGlow 的选择器：三段一起呼吸） */
+/** 挂载线灯光的目标段（veil.ts paintGlow 的选择器：线段一起呼吸） */
 const RAIL_GLOW_SELECTOR = '.reader-rail__zone, .reader-rail__span'
 
 /**
- * 垂挂揭幕的开合状态机（v1.14，STYLE.md §5.8）：`open=false` 时**先播收回**
- * （data-closing → clip 向上收回线里，160ms），收完才真正卸载 —— 抽屉的进出都是
- * "从线上长出来 / 缩回线里"。CSS（.rail-hang 的 transition + @starting-style）管动画，
- * 这里只管"什么时候允许卸载"。
+ * 开合的卸载状态机（v1.14 垂挂揭幕沿用）：`open=false` 时**先播收回**
+ * （data-closing → 滑出/收拢，160ms），收完才真正卸载。CSS 管动画，这里只管
+ * "什么时候允许卸载"。（左垂挂 = clip 揭幕；右卡片页 = 从右滑出，同一状态机。）
  */
 function useHangingPanel(open: boolean): { mounted: boolean; closing: boolean } {
   const [state, setState] = useState({ mounted: open, closing: false })
@@ -118,7 +114,7 @@ function useHangingPanel(open: boolean): { mounted: boolean; closing: boolean } 
   return state
 }
 
-/** 两格文字开关（左「目錄 / 筆記」与右「參數 / 聊天」共用同一形态与类名） */
+/** 两格以上文字页签（卡片页顶部：參數/筆記/聊天/插件格共用同一形态与类名） */
 function RailTabs<T extends string>({
   items,
   active,
@@ -151,7 +147,6 @@ function RailTabs<T extends string>({
  */
 function RailPluginMount({
   panel,
-  header,
   onToggle,
   reader
 }: {
@@ -174,7 +169,6 @@ function RailPluginMount({
   }, [panel, reader])
   return (
     <div className="reader-controls">
-      {header}
       <div className="reader-controls__body">
         <div className="plugin-panel__content" ref={bodyRef} />
       </div>
@@ -196,8 +190,6 @@ export function ReaderRail({
   onControlsToggle,
   params,
   onParamsChange,
-  leftPanel,
-  onLeftPanelChange,
   notes,
   onNoteJump,
   onNoteRemove,
@@ -212,27 +204,13 @@ export function ReaderRail({
   readerContext
 }: ReaderRailProps): React.JSX.Element {
   /**
-   * 左挂件顶部的内容开关（目錄 / 筆記）。两格**都是文字**（§5.1），当前格用 `--accent` ——
-   * 与全站"当前选中 = 强调色"同一语汇。笔记数并入标签，省一行状态。
+   * 右欄卡片页的页签 —— **格数随内容走**（v1.13）：
+   * 參數、筆記恒在；聊天只有房间会话里的那本书才有（用户 2026-09-17）；插件格按注册序追加。
+   * （批1.13：筆記自左垂挂迁入卡片页族；左栏只剩目录，不再有页签行。）
    */
-  const leftTabs = (
-    <RailTabs
-      items={[
-        { kind: 'toc', label: '目錄', title: '目錄' },
-        { kind: 'notes', label: `筆記${notes.length > 0 ? ` ${notes.length}` : ''}`, title: '筆記' }
-      ]}
-      active={leftPanel}
-      onPick={onLeftPanelChange}
-    />
-  )
-
-  /**
-   * 右挂件顶部的内容开关 —— **格数随内容走**（v1.13）：
-   * 參數恒在；聊天只有房间会话里的那本书才有（用户 2026-09-17）；插件格按注册序追加。
-   * 只有一种内容时不渲染页签行（与 v1.10 之前的形态一致）。
-   */
-  const rightItems: Array<{ kind: RightPanelKind; label: string; title: string }> = [
-    { kind: 'params', label: '參數', title: '閱讀參數' }
+  const rightItems: Array<{ kind: CardPageKind; label: string; title: string }> = [
+    { kind: 'params', label: '參數', title: '閱讀參數' },
+    { kind: 'notes', label: `筆記${notes.length > 0 ? ` ${notes.length}` : ''}`, title: '筆記' }
   ]
   if (chat) rightItems.push({ kind: 'chat', label: '聊天', title: `房間 ${chat.roomId}` })
   // 插件格：hideWhenInRoom 的（如 AI 的「問」）在房间态让位给聊天（用户已定的互斥）
@@ -245,11 +223,11 @@ export function ReaderRail({
   const showChat = Boolean(chat) && rightPanel === 'chat'
   const activePlugin = visiblePluginPanels.find((p) => p.key === rightPanel)
 
-  // 垂挂揭幕（v1.14）：左右抽屉各自持"收回中"状态，收回播完才卸载
+  // 开合状态机：左垂挂与右卡片页各自持"收回中"状态，收回播完才卸载
   const leftHang = useHangingPanel(tocOpen)
-  const rightHang = useHangingPanel(controlsOpen)
+  const rightCard = useHangingPanel(controlsOpen)
 
-  // 灯的法则（§5.8 v1.14）：光标即光源 —— 挂载线三段随光标距离连续呼吸。
+  // 灯的法则（§5.8 v1.14）：光标即光源 —— 挂载线段随光标距离连续呼吸。
   // ReaderFeature 常驻挂载（其他功能态 display:none）→ 矩形为空时跳过；鼠标离开窗口回静息。
   const railRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
@@ -270,19 +248,20 @@ export function ReaderRail({
     }
   }, [])
 
-  // 挂载线右段把手的提示文字 = 当前内容（与左段同口径）
-  const rightZoneTitle = controlsOpen ? '收起右欄' : showChat ? '聊天' : (activePlugin?.title ?? '閱讀參數')
+  // 挂载线右段（卡片页召唤位）的提示文字 = 当前内容
+  const rightZoneTitle = controlsOpen ? '收起右欄卡片' : (activePlugin?.title ?? (rightPanel === 'chat' && chat ? '聊天' : rightPanel === 'notes' ? '筆記' : '閱讀參數'))
 
   return (
     <>
-      {/* 横向挂载线：左段（目录）+ 中段（纯线）+ 右段（参数/聊天/插件格），三段拼出整页宽的一条线。
-          ⚠ 两段**等宽**且各贴线的一端 → 关于线中心镜像（线本身 = --sidebar-w → 窗口右缘） */}
+      {/* 横向挂载线：左段（目录，暂留）+ 中段（纯线）+ 右段（右欄卡片页召唤位）。
+          ⚠ 批1.13 起右段不再是"挂件"而是卡片页的召唤位（卡片内收一道沟，不贴线端），
+          镜像口径随右段换形退役（对左段仍然成立：贴卡缘、宽度 = --rail-panel-w） */}
       <div className="reader-rail" ref={railRef}>
         <button
           className="reader-rail__zone reader-rail__zone--toc"
           aria-label={tocOpen ? '收起左欄' : '打開左欄'}
           aria-expanded={tocOpen}
-          title={tocOpen ? '收起左欄' : leftPanel === 'toc' ? '目錄' : '筆記'}
+          title={tocOpen ? '收起左欄' : '目錄'}
           onClick={onTocToggle}
         />
         <div className="reader-rail__span" aria-hidden="true" />
@@ -295,43 +274,29 @@ export function ReaderRail({
         />
       </div>
 
-      {/* 左挂件：目录 / 笔记（同一几何，顶部开关切换）。无目录索引的书也垂挂占位说明
+      {/* 左挂件（暂留）：目录垂挂。无目录索引的书也垂挂占位说明
           （2026-09-13 用户定："本书没有目录索引"要可见，不静默消失）。
           .rail-hang = 垂挂揭幕包装层（自挂载线向下揭开，收回播完才卸载，v1.14） */}
       {leftHang.mounted && (
         <div className="rail-hang" data-closing={leftHang.closing || undefined} aria-hidden={leftHang.closing || undefined}>
-          {leftPanel === 'toc' ? (
-            <TocPanel
-              rows={tocRows}
-              onJump={onTocJump}
-              onToggle={onTocToggle}
-              header={leftTabs}
-              activeChapter={activeChapter}
-            />
-          ) : (
-            <NotesPanel
-              notes={notes}
-              header={leftTabs}
-              onJump={onNoteJump}
-              onRemove={onNoteRemove}
-              onEdit={onNoteEdit}
-              onToggle={onTocToggle}
-              activeChapter={activeChapter}
-              focusNote={focusNote}
-            />
-          )}
+          <TocPanel
+            rows={tocRows}
+            onJump={onTocJump}
+            onToggle={onTocToggle}
+            activeChapter={activeChapter}
+          />
         </div>
       )}
 
-      {/* 右挂件：參數 / 聊天 / 插件格（挂在线下方右侧；折叠 = 向上收回线里，面板底部「折疊」同目录）。
+      {/* 右欄卡片页（批1.13）：单槽位，页签切内容（參數/筆記/聊天/插件格）。
           ⚠ 插件格的指向失效（插件被禁用/重载后 key 不在了）→ 回落參數（不能空白） */}
-      {rightHang.mounted && (
-        <div className="rail-hang" data-closing={rightHang.closing || undefined} aria-hidden={rightHang.closing || undefined}>
+      {rightCard.mounted && (
+        <div className="rail-card" data-closing={rightCard.closing || undefined} aria-hidden={rightCard.closing || undefined}>
+          {rightTabs}
           {showChat && chat ? (
             <ChatPanel
               messages={chat.messages}
               roomId={chat.roomId}
-              header={rightTabs}
               onSend={chat.onSend}
               onToggle={onControlsToggle}
               draft={chat.draft}
@@ -340,13 +305,22 @@ export function ReaderRail({
               onToggleFollow={chat.onToggleFollow}
             />
           ) : activePlugin ? (
-            <RailPluginMount panel={activePlugin} header={rightTabs} onToggle={onControlsToggle} reader={readerContext} />
+            <RailPluginMount panel={activePlugin} header={null} onToggle={onControlsToggle} reader={readerContext} />
+          ) : rightPanel === 'notes' ? (
+            <NotesPanel
+              notes={notes}
+              onJump={onNoteJump}
+              onRemove={onNoteRemove}
+              onEdit={onNoteEdit}
+              onToggle={onControlsToggle}
+              activeChapter={activeChapter}
+              focusNote={focusNote}
+            />
           ) : (
             <ReaderControls
               params={params}
               onChange={onParamsChange}
               onToggle={onControlsToggle}
-              header={rightTabs}
               isPdf={isPdf}
             />
           )}

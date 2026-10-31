@@ -31,7 +31,7 @@ import type { RenderContextMenuRequest, RenderSelection } from '@core/ports/rend
 import type { PluginReaderContext } from '@shared/plugin'
 import type { FeatureProps } from '../types'
 import type { TocRow } from '../../components/TocPanel'
-import { ReaderRail, type LeftPanelKind, type RightPanelKind } from '../../components/ReaderRail'
+import { ReaderRail, type CardPageKind } from '../../components/ReaderRail'
 import {
   ReaderControls,
   DEFAULT_READER_PARAMS,
@@ -42,6 +42,7 @@ import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
 import { NoteComposer } from '../../components/NoteComposer'
 import { bridgeIframeDocuments } from '../../components/iframeBridge'
 import { sendRoomChat, setRoomFollow, useRoomView } from '../roomSession'
+import { readerCardBus, type ReaderCardItem } from '../readerCardBus'
 import { usePluginPanels } from '../../plugins/runtime'
 import { IPC } from '@shared/ipc'
 
@@ -94,14 +95,13 @@ export function ReaderFeature({
    */
   const [notes, setNotes] = useState<Note[]>([])
   const notesRef = useRef<Note[]>([])
-  /** 左挂件当前内容（目錄 / 筆記；同一几何，顶部开关切换）——不持久化，重开书回目录 */
-  const [leftPanel, setLeftPanel] = useState<LeftPanelKind>('toc')
   /**
-   * 右挂件当前内容（參數 / 聊天；2026-09-17 用户定：与左挂件同构 —— 同一几何、顶部两格开关）。
+   * 右欄卡片页当前内容（批1.13 单槽位：參數 / 筆記 / 聊天 / 插件格，页签切换）。
    * 默认「參數」（阅读参数是常伴工具，不该被聊天挤掉默认位）；聊天室**只在经房间进入的这本书**上
-   * 存在（判据见下面的 `railChat`），所以非房间阅读时这个 state 恒为 `params`、右段不出现页签行。
+   * 存在（判据见下面的 `railChat`）。
+   * 左栏只剩目录垂挂（批1.13 用户定"目录仍然有保留在阅读器内的必要"；筆記迁入卡片页族）。
    */
-  const [rightPanel, setRightPanel] = useState<RightPanelKind>('params')
+  const [rightPanel, setRightPanel] = useState<CardPageKind>('params')
   /** 聊天草稿（受控：内容归本组件持有，便于将来键盘意图直接提交；发送成功才清空） */
   const [chatDraft, setChatDraft] = useState('')
   /** 当前正文选区（适配器在**书文档**上观测后广播；null = 无选区） */
@@ -210,6 +210,30 @@ export function ReaderFeature({
       setRightPanel('params')
     }
   }, [pluginPanels, rightPanel])
+
+  /**
+   * 右欄卡片页 → 命令面板（批1.13 用户定"标记同步呼出命令面板"）：可用页集变化时重登记
+   * （readerCardBus，libraryNavBus 同款模块单例）。清单锚定 `chatAvailable` 布尔与插件注册表 ——
+   * **不许锚定 railChat**（消息一变对象就是新的，会造成 register→emit→重渲染 的环）。
+   */
+  const cardItems = useMemo<ReaderCardItem[]>(
+    () => [
+      { kind: 'params', label: '參數' },
+      { kind: 'notes', label: '筆記' },
+      ...(chatAvailable ? [{ kind: 'chat', label: '聊天' }] : []),
+      ...pluginPanels
+        .filter((p) => !(p.hideWhenInRoom && chatAvailable))
+        .map((p) => ({ kind: p.key, label: p.label }))
+    ],
+    [chatAvailable, pluginPanels]
+  )
+  useEffect(() => {
+    readerCardBus.register(cardItems, (kind) => {
+      setRightPanel(kind as CardPageKind)
+      setControlsOpen(true)
+    })
+    return () => readerCardBus.unregister()
+  }, [cardItems])
 
   /**
    * 阅读上下文句柄（插件契约 v1.1）：插件格经 `ctx.reader` 拿"此刻在读什么"与溯源跳回。
@@ -462,16 +486,16 @@ export function ReaderFeature({
   }, [container])
 
   // 单击已有高亮 → **不是**开编辑器，而是"看它"（用户 2026-09-16 纠正："我显然是希望看详细内容
-  // 或者其他原因，而不是为了更改"）。落地 = 左侧切到「筆記」并按 `focusNote` 定位到这一条；
-  // 要**改**仍走右键菜单的「編輯批註」。
+  // 或者其他原因，而不是为了更改"）。落地 = 右欄切到「筆記」卡片页并按 `focusNote` 定位到这一条
+  // （批1.13：筆記自左垂挂迁入卡片页族）；要**改**仍走右键菜单的「編輯批註」。
   useEffect(() => {
     return container.render.on('note-clicked', ({ noteId }) => {
       const target = notesRef.current.find((n) => n.id === noteId)
       if (!target) return
       setMenu(null)
       setComposer(null)
-      setLeftPanel('notes')
-      setTocOpen(true)
+      setRightPanel('notes')
+      setControlsOpen(true)
       focusNoteTick.current += 1
       setFocusNote({ id: noteId, tick: focusNoteTick.current })
     })
@@ -963,16 +987,13 @@ export function ReaderFeature({
         />
       )}
 
-      {/* 挂载线实体（STYLE.md §5.8，2026-09-12）：目录顶部垂挂 + 阅读参数底部挂载向上展开，
-          目录折叠时点线展开——两挂件互不干扰又同处一条线 */}
+      {/* 挂载线 + 右欄卡片页（STYLE.md §5.8；批1.13 起右段 = 独立卡片页，目录暂留垂挂） */}
       {book && (
         <ReaderRail
           tocOpen={tocOpen}
           onTocToggle={() => setTocOpen((v) => !v)}
           tocRows={toc}
           onTocJump={(r) => void jumpChapter(r)}
-          leftPanel={leftPanel}
-          onLeftPanelChange={setLeftPanel}
           notes={notes}
           onNoteJump={(n) => void jumpNote(n)}
           onNoteRemove={(n) => void removeNote(n)}

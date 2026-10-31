@@ -568,9 +568,15 @@ textarea {
   }
   /* v1.14（§2 P5）：减动态 = 保留透明度/色温，去掉位移与揭幕 */
   .rail-hang,
+  .rail-card,
   .context-menu,
   .context-menu__sub {
     transition: none;
+  }
+  /* 卡片页减动态：去掉位移（从右弹出），保留显影 */
+  .rail-card,
+  .rail-card[data-closing] {
+    transform: none;
   }
 }
 
@@ -1125,6 +1131,70 @@ textarea {
   .rail-hang:not([data-closing]) {
     clip-path: inset(0 0 100% 0);
   }
+}
+
+/* ── 右欄卡片页（批1.13，用户定"挂载线退役第一步"）────────────────────────
+   右段的形态从"垂挂抽屉"换成**独立的卡片页**：一张浮在阅读卡右缘的**卡**（圆角族 ——
+   长在卡片世界里的实体表面，§3.3 批1.11 裁定），与垂挂目录暂并存（目录仍垂挂，
+   线右段 = 卡片的鼠标召唤位；逐步退役挂载线的第一批）。
+   几何：贴右缘但**内收一道沟**（--rail-gap）——"独立卡片"与垂挂抽屉的区别就在这道沟；
+   宽度仍走 --rail-panel-w（承重 token 不改名，全线退役时一并处置）；纸照旧让位
+   （--page-w 算式不变，卡片住在预留的右车道里，不压正文）。
+   动画（用户定"从右侧弹出一个独立的卡片页"）：自右 24px 滑入 + 显影，强 ease-out
+   --dur-panel；收回更快（--dur-hover，data-closing 期间不拾取事件，收完卸载）。
+   单槽位：一次只显示一张卡（切页 = 原地换内容，不重播进出场）。 */
+.rail-card {
+  position: absolute;
+  top: calc(var(--toc-line-top, 28px) + 12px);
+  right: var(--rail-gap, 16px);
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  width: var(--rail-panel-w, 280px);
+  max-height: var(--rail-panel-h, 62vh);
+  overflow: hidden; /* 圆角裁内容：面板行的底色不得溢出卡片圆角 */
+  background: var(--desk-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    transform var(--dur-panel) var(--ease-out),
+    opacity var(--dur-panel) var(--ease-out);
+}
+
+@starting-style {
+  .rail-card:not([data-closing]) {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+.rail-card[data-closing] {
+  opacity: 0;
+  transform: translateX(16px);
+  transition-duration: var(--dur-hover);
+  pointer-events: none;
+}
+
+/* 内容平填卡片：四个内容家族（參數/筆記/聊天/插件格）原先各自绝对定位贴线，
+   进卡片后一律 static 占满 —— 组件标记不改，只在这里收口（几何归卡片外壳）。
+   卡片自己 overflow:hidden + max-height，内容家族的 body 滚动口径不变。 */
+.rail-card .reader-controls,
+.rail-card .toc-list {
+  position: static;
+  width: 100%;
+  max-height: none;
+  background: none;
+  z-index: auto;
+}
+
+/* 卡片顶部页签（复用 .rail-tabs）：不随内容滚动，贴卡片顶缘（圆角内的第一行） */
+.rail-card > .rail-tabs {
+  flex: none;
+  padding-top: 2px;
 }
 
 /* 垂挂列表：从挂载线下方开始，**与左段线段同宽同侧**（左端与线段对齐），**全透明** */
