@@ -43,8 +43,15 @@ export interface FeatureHost {
    * 原「进场锚点 origin（从被点封面长大）」随批1.9 退役（scale 长大观感生硬，见 git 历史）。
    */
   openReader(editionId: string, target?: Omit<ReaderTarget, 'editionId' | 'tick'>): void
-  /** 关闭阅读器（清空 readerBookId） */
+  /**
+   * 关闭**当前标签**（批1.10 标签页语义）：还有别的标签 → 激活邻位并留在阅读态；
+   * 最后一个 → 清空并回书库（书库 = "新标签页"）。Esc / 命令面板「退出閱讀器」走这里。
+   */
   closeReader(): void
+  /** 关闭指定标签（顶栏标签条的「×」）；关的是活跃标签时等价 `closeReader()` */
+  closeReaderTab(editionId: string): void
+  /** 激活一个既有标签（顶栏标签条点击）：切活跃书 + 回阅读态，书不重开 */
+  activateReaderTab(editionId: string): void
   /** 设置当前选中书籍（跨功能：Library 选中 → Room 标定 / Reader 打开） */
   selectBook(bookId: string | null): void
   /** 追加一行到全局日志栏 */

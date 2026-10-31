@@ -20,6 +20,7 @@ import { bindRoomSession } from './features/roomSession'
 import { searchFocusBus } from './features/searchFocusBus'
 import { loadPlugins } from './plugins/runtime'
 import { ChromeControls } from './components/ChromeControls'
+import type { ReaderTabItem } from './components/ReaderTabStrip'
 import { FeatureCard } from './components/FeatureCard'
 import { CommandPalette } from './components/CommandPalette'
 import type { PaletteCommand } from './components/commandFilter'
@@ -42,6 +43,14 @@ export default function AppShell(): React.JSX.Element {
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null)
   const [readerBookId, setReaderBookId] = useState<string | null>(null)
   /**
+   * 阅读标签页（批1.10，用户定）：**打开一本书 = 开一个标签**，阅读器从"串行单本"变复数在场。
+   * `readerBookId` = 活跃标签的书（ReaderFeature 契约不变）；标签条住顶栏（ChromeControls）。
+   * 书名异步补齐（`books.get`）；一个 edition 一个标签（重复打开 = 激活既有标签）。
+   * 会话级状态（不持久化）；切库广播清空。
+   */
+  const [readerTabs, setReaderTabs] = useState<ReaderTabItem[]>([])
+  const readerTabsRef = useRef<ReaderTabItem[]>([])
+  /**
    * 「带目标打开」载荷（v0.4.2，2026-09-16）：笔记管理双击条目时要把"打开后跳到哪条笔记"
    * 带进阅读器。**tick 递增**用来防重复消费（同一个目标只跳一次）。见 `ReaderTarget`。
    */
@@ -50,6 +59,31 @@ export default function AppShell(): React.JSX.Element {
 
   const selectedBookIdRef = useRef<string | null>(null)
   const readerBookIdRef = useRef<string | null>(null)
+
+  /** 开/激活一个标签：没有则新建（书名占位，异步补齐），有则只激活 */
+  const activateTab = useCallback(
+    (editionId: string) => {
+      if (!readerTabsRef.current.some((t) => t.editionId === editionId)) {
+        const next = [...readerTabsRef.current, { editionId, title: '' }]
+        readerTabsRef.current = next
+        setReaderTabs(next)
+        void container.books
+          .get(editionId)
+          .then((rec) => {
+            if (!rec || !readerTabsRef.current.some((t) => t.editionId === editionId)) return
+            const patched = readerTabsRef.current.map((t) =>
+              t.editionId === editionId ? { ...t, title: rec.metadata.title } : t
+            )
+            readerTabsRef.current = patched
+            setReaderTabs(patched)
+          })
+          .catch(() => {
+            /* 标签标题拿不到就留省略号——标签本身照常工作（书打不开另有报错链路） */
+          })
+      }
+    },
+    [container]
+  )
 
   // ── 阅读卡进出动效（docs/DIRECTION.md §2）：进场 = 暗场浮现；退场反向、更快 ──
   // 进场：scrim 压深一档（.reader-dip，只往深里走 —— 深色主题不反光）+ 阅读卡原比例自下浮起，
@@ -96,6 +130,7 @@ export default function AppShell(): React.JSX.Element {
             try {
               const last = await container.books.getLastRead()
               if (last && !readerBookIdRef.current) {
+                activateTab(last.id)
                 selectedBookIdRef.current = last.id
                 setSelectedBookId(last.id)
                 readerBookIdRef.current = last.id
@@ -116,6 +151,9 @@ export default function AppShell(): React.JSX.Element {
           readerClosingRef.current = false
           setReaderClosing(false)
         }
+        // 标签页模型（批1.10）：一本书一个标签 —— 已开着 = 激活既有标签（书不重开、位置不丢），
+        // 没开过 = 新建标签。激活既有标签时 readerBookId 不变 → ReaderFeature 不重跑 open。
+        activateTab(editionId)
         selectedBookIdRef.current = editionId
         readerBookIdRef.current = editionId
         setSelectedBookId(editionId)
@@ -130,19 +168,57 @@ export default function AppShell(): React.JSX.Element {
         setActiveFeature('reader')
       },
       /**
-       * 关闭阅读器 = 返回书库（STYLE.md §5.8 / FEATURES.md §11）。
+       * 关闭当前标签（批1.10 标签页语义；原"关闭阅读器 = 返回书库"收编为最后一档）：
+       * 还有别的标签 → 激活邻位标签（优先后一位，再取末位），**留在阅读态**（书卡不播退场，
+       * 内容原地换书）；关的是最后一个 → 清空并回书库（书库 = "新标签页"）。
        * ⚠ 顺带把 activeFeature 切回 library —— 否则停在 reader 会留下空屏
        * （v0.1.12 修；此前只清 readerBookId，关闭后是空白阅读面板）。
        */
       closeReader: () => {
         const finish = () => {
-          readerBookIdRef.current = null
-          setReaderBookId(null)
+          const tabs = readerTabsRef.current
+          const idx = tabs.findIndex((t) => t.editionId === readerBookIdRef.current)
+          const next = tabs.filter((t) => t.editionId !== readerBookIdRef.current)
+          readerTabsRef.current = next
+          setReaderTabs(next)
           setReaderTarget(null)
-          setActiveFeature('library')
+          const fallback = next[Math.min(Math.max(idx, 0), next.length - 1)] ?? null
+          if (fallback) {
+            selectedBookIdRef.current = fallback.editionId
+            readerBookIdRef.current = fallback.editionId
+            setSelectedBookId(fallback.editionId)
+            setReaderBookId(fallback.editionId)
+          } else {
+            readerBookIdRef.current = null
+            setReaderBookId(null)
+            setActiveFeature('library')
+          }
         }
-        if (beginReaderExit(finish)) return
+        // 退到书库才播卡片退场；标签间切换不动画（原地换书，读者在等的是内容不是过场）
+        if (readerTabsRef.current.length <= 1 && beginReaderExit(finish)) return
         finish()
+      },
+      /** 激活一个既有标签（顶栏标签条）：切活跃书 + 回阅读态。书本来就开着 → 不重跑 open */
+      activateReaderTab: (editionId) => {
+        activateTab(editionId)
+        selectedBookIdRef.current = editionId
+        readerBookIdRef.current = editionId
+        setSelectedBookId(editionId)
+        setReaderBookId(editionId)
+        setActiveFeature('reader')
+      },
+      /**
+       * 关闭指定标签（标签条「×」）：关背景标签 = 只摘标签（活跃书不动）；
+       * 关的是活跃标签 = 等价 closeReader()（邻位激活 / 最后一个回书库）。
+       */
+      closeReaderTab: (editionId) => {
+        if (editionId === readerBookIdRef.current) {
+          host.closeReader()
+          return
+        }
+        const next = readerTabsRef.current.filter((t) => t.editionId !== editionId)
+        readerTabsRef.current = next
+        setReaderTabs(next)
       },
       selectBook: (id) => {
         selectedBookIdRef.current = id
@@ -150,7 +226,7 @@ export default function AppShell(): React.JSX.Element {
       },
       pushLog
     }),
-    [container, beginReaderExit]
+    [container, beginReaderExit, activateTab]
   )
 
   // dev-only：TUREAD_DEV_BOOK 指定书时启动即导入并打开（无头验证渲染链路，实现见 dev/selfCheck.ts）；
@@ -193,7 +269,7 @@ export default function AppShell(): React.JSX.Element {
     void loadPlugins(container)
   }, [container])
 
-  // 切换书库（2026-09-13）：旧库的 bookId 在新库无意义 → 清选中与阅读器状态。
+  // 切换书库（2026-09-13）：旧库的 bookId 在新库无意义 → 清选中、阅读器与**全部标签**。
   // 若正在阅读，closeReader 顺带回到书库（LibraryFeature 同步收到广播重载书单）
   useEffect(() => {
     const off = window.turead.subscribe(IPC.storeLibraryChanged, () => {
@@ -201,6 +277,8 @@ export default function AppShell(): React.JSX.Element {
       setSelectedBookId(null)
       readerBookIdRef.current = null
       setReaderBookId(null)
+      readerTabsRef.current = []
+      setReaderTabs([])
       setActiveFeature('library')
     })
     return off
@@ -235,16 +313,22 @@ export default function AppShell(): React.JSX.Element {
         label: `前往${f.label}`,
         run: () => host.navigate(f.id)
       })),
-      // 只在阅读态给「退出閱讀器」（其他态它没有对象）
+      // 只在阅读态给「退出閱讀器」（其他态它没有对象）；多标签时说的是"关当前标签"
       ...(activeFeature === 'reader'
-        ? [{ id: 'reader.close', label: '退出閱讀器', run: () => host.closeReader() }]
+        ? [
+            {
+              id: 'reader.close',
+              label: readerTabs.length > 1 ? '關閉當前標籤' : '退出閱讀器',
+              run: () => host.closeReader()
+            }
+          ]
         : []),
       { id: 'theme.solid-dark', label: '主題：純色·深', run: () => setTheme('純色·深', 'solid', 'dark') },
       { id: 'theme.solid-light', label: '主題：純色·淺', run: () => setTheme('純色·淺', 'solid', 'light') },
       { id: 'theme.sepia-light', label: '主題：羊皮紙·淺', run: () => setTheme('羊皮紙·淺', 'parchment', 'light') },
       { id: 'theme.sepia-dark', label: '主題：羊皮紙·深', run: () => setTheme('羊皮紙·深', 'parchment', 'dark') }
     ]
-  }, [container, host, activeFeature])
+  }, [container, host, activeFeature, readerTabs.length])
 
   // 大状态切换的"落定"瞬间（v1.14 §3.3）：内容轻微模糊 → 清晰，把整页跳变糊成一次变换
   const mainRef = useRef<HTMLElement | null>(null)
@@ -329,7 +413,13 @@ export default function AppShell(): React.JSX.Element {
           <span className="text-[15px] text-[var(--text)]">鬆開以導入到當前書庫</span>
         </div>
       )}
-      <ChromeControls activeFeature={activeFeature} />
+      <ChromeControls
+        activeFeature={activeFeature}
+        readerTabs={readerTabs}
+        activeTabId={readerBookId}
+        onTabActivate={host.activateReaderTab}
+        onTabClose={host.closeReaderTab}
+      />
       {/* 恒定框架（批1.5）批1.7 起融进底面：不再自持底色与右边框——图标列直接坐在
           chrome 底面上，区域感交给不可见留白（inset/gutter，STYLE.md §1.1）。
           「閱」不入栏——阅读不是"地方"而是书上的模式（入口只有书），registry 里的 reader 仅作路由。
