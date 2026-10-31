@@ -929,9 +929,10 @@ textarea {
   pointer-events: none;
 }
 
-/* 阅读卡的 scrim（叠置遮罩）随卡片同节奏显隐：进 = --dur-view 淡入，退 = 随卡片更快淡出。
-   ⚠ scrim 必须**与卡片同圆角**：它是压在圆角卡下面的直角矩形，不圆角 = 四个角从卡片
-   圆角外侧露出深色直角（真机报过）。 */
+/* 阅读态的底色层（原"scrim 压暗书库"，批1.15 用户定改为**底板本色**）：卡片页平级化后，
+   阅读态背景 = 干净的一整面底色（AppShell 处 bg = --bg），不再透出压暗的书库；
+   本层只剩两件事 —— 进出场的显隐节奏（进 = --dur-view 淡入，退 = 随卡片更快淡出）
+   与**挡住下层交互**（书库存活但不可见、不可点）。圆角随历史保留（同色后不可见，无害）。 */
 .reader-scrim {
   border-radius: var(--radius-panel);
   transition: opacity var(--dur-view) var(--ease-out);

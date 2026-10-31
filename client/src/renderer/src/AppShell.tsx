@@ -496,9 +496,10 @@ export default function AppShell(): React.JSX.Element {
       >
         {/* 批1.7c 全界面卡片化（docs/DIRECTION.md §2 / STYLE.md §1.1）：五张功能卡
             全部经 FeatureCard 上卡面（统一桌色面 + 圆角 + 1px 边 + 面板阴影 + 浮起进场）。
-            书库在阅读态保持存活（卡片层的下层），阅读层垫 `--overlay-dim` 挡住下层交互
-            （scrim 只属于叠置卡——全应用唯一一层叠置就是 阅读卡 ⊃ 书库卡）。
-            功能组件**常驻挂载**、非激活 display:none → 状态天然继承。 */}
+            书库在阅读态保持存活（状态继承），阅读层垫**底板本色**（--bg，批1.15 用户定：
+            两卡之间露出的必须是纯色，不再透出压暗的书库 —— 原 scrim 压暗视觉随卡片页
+            平级化退役）；不透明层同样挡住下层交互。功能组件**常驻挂载**、非激活
+            display:none → 状态天然继承。 */}
         {FEATURES.map((f) => {
           const C = f.component
           if (f.id === 'reader') {
@@ -510,7 +511,7 @@ export default function AppShell(): React.JSX.Element {
             return (
               <div
                 key={f.id}
-                className={`reader-scrim absolute inset-0 z-[var(--z-drawer)] bg-[var(--overlay-dim)] ${
+                className={`reader-scrim absolute inset-0 z-[var(--z-drawer)] bg-[var(--bg)] ${
                   activeFeature === 'reader' ? 'flex' : 'hidden'
                 } ${readerClosing ? 'reader-scrim--exit pointer-events-none' : ''}`}
               >

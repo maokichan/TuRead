@@ -75,9 +75,10 @@ export function ReaderFeature({
   /** 目录垂挂列表开关（TocPanel）。**默认展示**（用户 2026-09-11 定）：只有当用户主动
    *  「折疊」/`t` 时才临时隐藏；点条目跳转**不**改变它，且不持久化（重开书回到展示态）。 */
   const [tocOpen, setTocOpen] = useState(true)
-  /** 右侧阅读参数面板。**默认展开**（2026-09-13 用户定，废 v0.1.12 的"默认收起"）：
-   *  折叠是临时动作（「折疊」/点挂载线右段/`p`），重开书回到展示态。 */
-  const [controlsOpen, setControlsOpen] = useState(true)
+  /** 右欄卡片页开合。**默认收起**（批1.15 用户定"卡片页需要是呼出"——2026-09-13"默认展开"
+   *  的常伴工具决定随卡片页模型作废：默认视野 = 纯正文 + 目录，工具卡召之即来挥之即去）；
+   *  呼出 = 线右段 / `` ` ``（总开关）/ `p` / `c` / 命令面板，重开书保持收起。 */
+  const [controlsOpen, setControlsOpen] = useState(false)
   const [params, setParams] = useState<ReaderParams>(DEFAULT_READER_PARAMS)
   /** 布局模式改动 = 重开书（kookit config 只在 open 时消费）；tick 触发打开 effect 重跑 */
   const [reopenTick, setReopenTick] = useState(0)
@@ -858,7 +859,10 @@ export function ReaderFeature({
         if (readerMode !== 'scroll') void pageTurn('next')
       },
       'reader.toggleToc': () => setTocOpen((v) => !v),
-      // `p` = 「閱讀參數」这一面：右抽屉开着但在「聊天」页签上时，先切回參數（否则"按 p 没反应"）
+      // `` ` `` = 右欄卡片页**总开关**（批1.15 用户定"卡片页需要是呼出"）：开 → 显示上次的页
+      // （首次 = 參數面），关 → 收起；`p`/`c` 保留，语义 = "呼出并切到该面"。
+      'reader.toggleCard': () => setControlsOpen((v) => !v),
+      // `p` = 「閱讀參數」这一面：卡片开着已在參數页 → 收起（否则"按 p 没反应"）
       'reader.toggleControls': () => {
         if (controlsOpen && rightPanel === 'params') setControlsOpen(false)
         else {
