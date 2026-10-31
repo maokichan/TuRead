@@ -835,6 +835,8 @@ function RailDemo({
   const [ctlOpen, setCtlOpen] = useState(controlsOpen)
   const [right, setRight] = useState<CardPageKind>(rightPanel)
   const [params, setParams] = useState<ReaderParams>(DEFAULT_READER_PARAMS)
+  // 批1.14 平级结构：卡片页槽位（兄弟卡的家），portal 目标（挂载后才有 DOM）
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null)
   // ⚠ 受控输入：样张必须自己持有草稿（传死值会测不出输入区）
   const [draft, setDraft] = useState('')
   const [following, setFollowing] = useState(false)
@@ -853,7 +855,7 @@ function RailDemo({
     <div className="flex flex-col gap-2">
       <span className="text-[12.5px] text-[var(--muted)]">{label}</span>
       <div
-        className="relative h-[300px] w-full"
+        className="flex h-[300px] w-full"
         data-rail-demo={label}
         style={
           {
@@ -861,42 +863,48 @@ function RailDemo({
             /* 样张里没有真实侧边栏 → 置 0，这样"线"就是演示框本身（贴齐判据才量得准） */
             '--sidebar-w': '0px',
             /* 演示框只有 ~564px：按比例收窄挂件，好让"**纸给挂件让位**"也能量出来
-               （见 styles.css 的 .reader-stage 与 smoke.cjs 的 paperClearOk） */
-            '--rail-panel-w': '180px',
-            /* 纸宽的**生效值**：真实算式在 styles.css 的 `:root --page-w`（那里要吃 documentElement
-               上的 `--read-width`）；演示框里的纸是固定演示宽，直接钉一个值，免得算式在本地的
-               覆盖下再算一遍（重复算式正是 v1.9 那次"输入栏比纸宽"的根因） */
-            '--page-w': '172px',
-            /* "同高"：两个挂件的高度上限是同一个 token（样张里收窄以免溢出演示框） */
+               （见 styles.css 的 .reader-stage 与 smoke.cjs 的 paperClearOk）。
+               批1.14 平级结构：右槽位也吃这个 token（兄弟卡同宽）→ 演示值再收一档；
+               ⚠ **不再钉 --page-w**：纸宽让 :root 算式按阅读区实宽夹取（100% 是容器相对），
+               钉死值在平级结构下会压到目录带（smoke paperClear 抓出过） */
+            '--rail-panel-w': '120px',
+            /* 左垂挂的高度上限（卡片页已是全高兄弟卡，不再吃这个 token） */
             '--rail-panel-h': '260px'
           } as React.CSSProperties
         }
       >
-        <div className="reader-paper absolute inset-0">
-          <div className="reader-stage">
-            <p className="m-0 text-[13px] leading-[1.9] text-[var(--page-text)]">
-              紙（正文列 = 宿主容器）：它的 clientWidth 就是 kookit 的排版寬度依據。點掛載線的左段 / 右段開合掛件。
-            </p>
+        {/* 批1.14 平级结构：阅读区（阅读卡的化身）与卡片页槽位是**兄弟**，中间一道沟露出底板 */}
+        <div className="relative h-full min-w-0 flex-1">
+          <div className="reader-paper absolute inset-0">
+            <div className="reader-stage">
+              <p className="m-0 text-[13px] leading-[1.9] text-[var(--page-text)]">
+                紙（正文列 = 宿主容器）：它的 clientWidth 就是 kookit 的排版寬度依據。點掛載線的左段 / 右段開合掛件。
+              </p>
+            </div>
           </div>
+          <ReaderRail
+            tocOpen={tocOpen}
+            onTocToggle={() => setTocOpen((v) => !v)}
+            tocRows={TOC}
+            onTocJump={noop}
+            controlsOpen={ctlOpen}
+            onControlsToggle={() => setCtlOpen((v) => !v)}
+            params={params}
+            onParamsChange={(patch) => setParams((p) => ({ ...p, ...patch }))}
+            notes={NOTES}
+            onNoteJump={noop}
+            onNoteRemove={noop}
+            onNoteEdit={noop}
+            activeChapter={activeChapter}
+            rightPanel={right}
+            onRightPanelChange={setRight}
+            chat={chat}
+            cardSlot={slot}
+          />
         </div>
-        <ReaderRail
-          tocOpen={tocOpen}
-          onTocToggle={() => setTocOpen((v) => !v)}
-          tocRows={TOC}
-          onTocJump={noop}
-          controlsOpen={ctlOpen}
-          onControlsToggle={() => setCtlOpen((v) => !v)}
-          params={params}
-          onParamsChange={(patch) => setParams((p) => ({ ...p, ...patch }))}
-          notes={NOTES}
-          onNoteJump={noop}
-          onNoteRemove={noop}
-          onNoteEdit={noop}
-          activeChapter={activeChapter}
-          rightPanel={right}
-          onRightPanelChange={setRight}
-          chat={chat}
-        />
+        <div className="reader-card-slot" data-open={ctlOpen || undefined}>
+          <div ref={setSlot} className="reader-card-slot__inner" />
+        </div>
       </div>
     </div>
   )

@@ -1,11 +1,12 @@
 /**
- * 阅读卡片页总线（libraryNavBus 同款模块单例；批1.13 右欄卡片页）。
+ * 阅读卡片页总线（libraryNavBus 同款模块单例；批1.13 右欄卡片页，批1.14 平级化）。
  *
  * 卡片页住 ReaderFeature（右欄单槽位：參數/筆記/聊天/插件格），命令面板住 AppShell ——
  * "呼出某张卡"要跨过 Shell，props 穿壳不值当（libraryNavBus 先例）。
  * ReaderFeature 在可用页集变化时 register（页签清单 + 召唤函数）；AppShell 只读清单建命令。
- * 生命周期跟激活态走（ReaderFeature 常驻挂载，非激活时它的卡不可呼出 → 由 AppShell 按
- * activeFeature 决定要不要把这些命令放进面板，总线本身不管激活）。
+ * 批1.14 平级化（用户定"卡片页和阅读器界面平级，都置于底板之上"）：卡片页的宿主从阅读卡内
+ * 挪到 AppShell 卡片区（阅读卡的**兄弟卡**），开合状态经 `setView` 广播 —— AppShell 据此
+ * 收窄阅读卡并让出槽位。ReaderFeature 只在状态变化时 setView（effect deps 守住，不成环）。
  */
 export interface ReaderCardItem {
   /** 卡片页 kind（`params` / `notes` / `chat` / `plugin:<key>`） */
@@ -14,10 +15,17 @@ export interface ReaderCardItem {
   label: string
 }
 
+/** 卡片页的开合视图（AppShell 布局据此反应：收窄阅读卡 + 让出右槽位） */
+export interface ReaderCardView {
+  open: boolean
+  page: string
+}
+
 type SummonFn = (kind: string) => void
 
 let items: ReaderCardItem[] = []
 let summon: SummonFn | null = null
+let view: ReaderCardView = { open: true, page: 'params' }
 const subs = new Set<() => void>()
 
 function emit(): void {
@@ -40,8 +48,17 @@ export const readerCardBus = {
   summon(kind: string): void {
     summon?.(kind)
   },
+  /** ReaderFeature 开合/切页时广播视图（AppShell 布局反应） */
+  setView(next: ReaderCardView): void {
+    if (next.open === view.open && next.page === view.page) return
+    view = next
+    emit()
+  },
   getState(): ReaderCardItem[] {
     return items
+  },
+  getView(): ReaderCardView {
+    return view
   },
   subscribe(fn: () => void): () => void {
     subs.add(fn)

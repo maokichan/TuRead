@@ -137,6 +137,9 @@ app.whenReady().then(async () => {
       const c = card.getBoundingClientRect()
       const cardCs = getComputedStyle(card)
       const gap = Number.parseFloat(getComputedStyle(demo).getPropertyValue('--rail-gap')) || 16
+      /* 批1.14 平级结构：阅读区 = 槽位的左邻（flex-1），卡片页是它的兄弟卡 */
+      const mainArea = card.closest('.reader-card-slot')?.previousElementSibling
+      const mainRight = mainArea ? Math.round(mainArea.getBoundingClientRect().right - box.left) : -1
       // 目录当前条目：滚动容器必须真的能滚，否则"居中"是平凡成立的
       const rowsBox = demo.querySelector('.toc-list__rows')
       const rows = rowsBox ? rowsBox.querySelectorAll('.toc-row') : []
@@ -148,17 +151,17 @@ app.whenReady().then(async () => {
       const hitRect = hit ? hit.getBoundingClientRect() : null
       const first = {
         demoWidth: Math.round(box.width),
-        /* ① 左垂挂贴卡缘 */
+        /* ① 左垂挂贴卡缘（阅读区左缘 = 演示框左缘） */
         tocFlushLeft: Math.round(t.left - box.left),
         tocWidth: Math.round(t.width),
         tocMaxH: getComputedStyle(toc).maxHeight,
-        /* ② 右欄卡片页 = 卡：圆角/描边/右缘内收一道沟 */
+        /* ② 右欄卡片页 = 兄弟卡：贴演示框右缘、圆角/描边、与阅读区之间一道沟（--rail-gap） */
         cardWidth: Math.round(c.width),
         cardRightInset: Math.round(box.right - c.right),
+        siblingGap: mainRight >= 0 ? Math.round(c.left - box.left - mainRight) : -1,
         railGap: Math.round(gap),
         cardRadius: cardCs.borderRadius,
         cardBorder: cardCs.borderTopWidth,
-        cardMaxH: cardCs.maxHeight,
         /* ④ **纸不许被压住**：量纸（#page-area = .reader-stage）与两件的矩形，判据 = 横向不相交 */
         paperLeft: null,
         paperRight: null,
@@ -381,9 +384,9 @@ app.whenReady().then(async () => {
    *    + **宽 = 纸宽 × 0.9**（两侧各 5% 缝）+ **矮**（单行；三轮文本约 90px，这里判 ≤56px）。
    */
   /**
-   * 卡片页几何（批1.13 重定义；原 mirrorOk 随右段换形退役）：
-   * ① cardOk = 右欄卡片页真的是**卡**：与左垂挂同宽（同一 token）、左垂挂贴卡缘、
-   *    卡右缘内收一道沟（--rail-gap）、圆角 --radius-panel、1px 边、高度上限同 token；
+   * 卡片页几何（批1.13 立，批1.14 平级化再定义；原 mirrorOk 随右段换形退役）：
+   * ① cardOk = 右欄卡片页是阅读卡的**兄弟卡**：与左垂挂同宽（同一 token）、左垂挂贴阅读区左缘、
+   *    卡贴演示框右缘、**与阅读区之间一道沟**（--rail-gap）、圆角 --radius-panel、1px 边；
    * ② 不随内容 = 改 --read-width 后两件宽度**一点不变**（v1.8 的错就在这条）；
    * ③ 跟随 = 目录滚动容器**真的能滚**（否则平凡成立，必须防假通过）+「第十二章」落在容器正中（±8px）；
    * ④ 输入栏 = 零可见文字 + 无 placeholder + 非透明纯色底 + 发丝描边 + 居中 ±2px + 挂载即聚焦
@@ -394,11 +397,11 @@ app.whenReady().then(async () => {
       !geometry.error &&
       geometry.tocWidth === geometry.cardWidth &&
       Math.abs(geometry.tocFlushLeft ?? 99) <= 1 &&
-      Math.abs((geometry.cardRightInset ?? 99) - (geometry.railGap ?? -1)) <= 1 &&
+      Math.abs(geometry.cardRightInset ?? 99) <= 1 &&
+      Math.abs((geometry.siblingGap ?? 99) - (geometry.railGap ?? -1)) <= 1 &&
       Math.abs(Number.parseFloat(geometry.cardRadius ?? '') - 12) <= 0.6 &&
       Number.parseFloat(geometry.cardBorder ?? '0') > 0 &&
-      Number.parseFloat(geometry.cardBorder ?? '0') <= 1.5 &&
-      geometry.tocMaxH === geometry.cardMaxH
+      Number.parseFloat(geometry.cardBorder ?? '0') <= 1.5
   )
   const widthIndependentOk = Boolean(
     geometry && !geometry.error && geometry.widthAtOtherPaper === geometry.tocWidth && geometry.widthAtOtherPaper2 === geometry.cardWidth

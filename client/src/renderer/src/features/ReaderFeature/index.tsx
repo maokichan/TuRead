@@ -235,6 +235,18 @@ export function ReaderFeature({
     return () => readerCardBus.unregister()
   }, [cardItems])
 
+  // 卡片页开合视图 → 总线（批1.14 平级化）：AppShell 据此收窄阅读卡并让出右槽位。
+  // deps 守住（只在开合/切页时 setView）—— AppShell 重渲染不会反过来触发广播，不成环。
+  useEffect(() => {
+    readerCardBus.setView({ open: controlsOpen, page: rightPanel })
+  }, [controlsOpen, rightPanel])
+
+  // 卡片页的槽位元素（AppShell 卡片区渲染，mount 后才有 DOM）—— portal 目标
+  const [cardSlot, setCardSlot] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    setCardSlot(document.getElementById('reader-card-slot'))
+  }, [])
+
   /**
    * 阅读上下文句柄（插件契约 v1.1）：插件格经 `ctx.reader` 拿"此刻在读什么"与溯源跳回。
    * `snapshot()` 是**拉取式**的——章号/可见文本在调用瞬间取（保证请求发出时是最新位置），
@@ -1010,6 +1022,7 @@ export function ReaderFeature({
           isPdf={book?.format === 'PDF'}
           pluginPanels={pluginPanels}
           readerContext={readerContext}
+          cardSlot={cardSlot}
         />
       )}
 

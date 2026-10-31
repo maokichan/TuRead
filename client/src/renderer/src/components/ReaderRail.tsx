@@ -1,18 +1,21 @@
 /**
- * ReaderRail —— 阅读器的挂载线 + 右欄卡片页（挂载线退役第一步，批1.13 用户定）。
+ * ReaderRail —— 阅读器的挂载线 + 右欄卡片页（挂载线退役第一步，批1.13/1.14 用户定）。
  *
  * **左段（暂留）**：横向挂载线的目录挂载区 —— 目录**向下垂挂**（TocPanel）；
  * 目录折叠时，点线（左段）= 展开目录。目录"仍然有保留在阅读器内的必要"（用户定），
  * 其余内容的归属见下。
  *
- * **右段（本批换形）**：从"垂挂抽屉"换成**独立的卡片页**（.rail-card）——
- * 单槽位，一次只显示一张卡（用户定："目前只给右侧一个槽位，这样我们能逐步处理挂载线问题"）：
- * - 页族 = 參數 / 筆記 / 聊天（仅房间）/ 插件格（v1.13 起）——卡片顶部页签切换（同一槽位换内容）；
- * - 召唤 = 线右段（鼠标）/ `p` / `c` / 命令面板（readerCardBus 登记，批1.13 用户定）；
- * - 动画 = 自右滑入 + 显影（.rail-card 的 @starting-style），收回更快，收完卸载。
+ * **右段（批1.14 平级化）**：卡片页**不再是阅读卡内的浮层** —— 它是阅读卡的**兄弟卡**，
+ * 与阅读器界面**平级**、同样**置于底板之上**（用户定："参数面板和阅读器一样都是置于底板之上的"）。
+ * 宿主在 AppShell 卡片区（`readerCardBus.getView` 驱动布局：阅读卡收窄、右槽位让出），
+ * 本组件经 **portal** 把卡片内容送进槽位（数据/状态仍归 ReaderFeature）：
+ * - 页族 = 參數 / 筆記 / 聊天（仅房间）/ 插件格（v1.13 起）——卡片顶部页签切换（单槽位换内容）；
+ * - 召唤 = 线右段（鼠标）/ `p` / `c` / 命令面板（readerCardBus 登记）；
+ * - 动画 = 自右滑入 + 显影（.rail-card 的 @starting-style），收回更快，收完卸载；
+ *   槽位宽度同节奏收放（styles.css .reader-card-slot），阅读卡随之让位。
  *
- * ⚠ **2026-09-16（用户定，批1.13 修正）**：~~左右两挂件关于线中心镜像~~ —— 右段已转卡片页
- * （内收一道沟、自带卡面），镜像口径只对**左段**成立（左段贴卡缘、宽度 = --rail-panel-w）。
+ * ⚠ **2026-09-16（用户定，批1.13 修正）**：~~左右两挂件关于线中心镜像~~ —— 右段已转卡片页，
+ * 镜像口径退役（左垂挂仍贴卡缘，宽度 = --rail-panel-w）。
  *
  * ⚠ **v1.13：右段开放插件面板格**（契约 = CONTRACTS §9，功能 = FEATURES §13）——
  * 渲染权在宿主：插件只注册"一个格"（label + mount），几何/页签/开合/滚动外壳全部在这里给；
@@ -20,6 +23,7 @@
  * AI 共读插件落地时「問」与「聊天」互斥（用户已定），其他插件格不受影响。
  */
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { ChatMessage, Note } from '@core/domain/types'
 import type { PluginReaderContext } from '@shared/plugin'
 import type { TocRow } from './TocPanel'
@@ -87,6 +91,8 @@ interface ReaderRailProps {
   pluginPanels?: RailPluginPanel[]
   /** 阅读上下文句柄（v1.1）：传给插件格的 mount ctx.reader（书未打开时为空） */
   readerContext?: PluginReaderContext
+  /** 卡片页的槽位元素（批1.14 平级化：AppShell 卡片区里的兄弟槽，portal 目标；null = 槽未就绪不渲染卡） */
+  cardSlot?: HTMLElement | null
 }
 
 /** 卡片页收回的卸载延迟：与 styles.css 的收回时长（`--dur-hover` = 160ms）同步，稍留余量 */
@@ -201,7 +207,8 @@ export function ReaderRail({
   chat,
   isPdf,
   pluginPanels = [],
-  readerContext
+  readerContext,
+  cardSlot = null
 }: ReaderRailProps): React.JSX.Element {
   /**
    * 右欄卡片页的页签 —— **格数随内容走**（v1.13）：
@@ -288,44 +295,53 @@ export function ReaderRail({
         </div>
       )}
 
-      {/* 右欄卡片页（批1.13）：单槽位，页签切内容（參數/筆記/聊天/插件格）。
+      {/* 右欄卡片页（批1.13 立，批1.14 平级化）：单槽位，页签切内容（參數/筆記/聊天/插件格）。
+          卡片经 portal 住进 AppShell 卡片区的**兄弟槽位**（与阅读卡平级、同置底板之上）——
+          数据/状态仍归本组件，宿主只是换了个渲染落点。
           ⚠ 插件格的指向失效（插件被禁用/重载后 key 不在了）→ 回落參數（不能空白） */}
-      {rightCard.mounted && (
-        <div className="rail-card" data-closing={rightCard.closing || undefined} aria-hidden={rightCard.closing || undefined}>
-          {rightTabs}
-          {showChat && chat ? (
-            <ChatPanel
-              messages={chat.messages}
-              roomId={chat.roomId}
-              onSend={chat.onSend}
-              onToggle={onControlsToggle}
-              draft={chat.draft}
-              onDraftChange={chat.onDraftChange}
-              following={chat.following}
-              onToggleFollow={chat.onToggleFollow}
-            />
-          ) : activePlugin ? (
-            <RailPluginMount panel={activePlugin} header={null} onToggle={onControlsToggle} reader={readerContext} />
-          ) : rightPanel === 'notes' ? (
-            <NotesPanel
-              notes={notes}
-              onJump={onNoteJump}
-              onRemove={onNoteRemove}
-              onEdit={onNoteEdit}
-              onToggle={onControlsToggle}
-              activeChapter={activeChapter}
-              focusNote={focusNote}
-            />
-          ) : (
-            <ReaderControls
-              params={params}
-              onChange={onParamsChange}
-              onToggle={onControlsToggle}
-              isPdf={isPdf}
-            />
-          )}
-        </div>
-      )}
+      {cardSlot &&
+        rightCard.mounted &&
+        createPortal(
+          <div
+            className="rail-card"
+            data-closing={rightCard.closing || undefined}
+            aria-hidden={rightCard.closing || undefined}
+          >
+            {rightTabs}
+            {showChat && chat ? (
+              <ChatPanel
+                messages={chat.messages}
+                roomId={chat.roomId}
+                onSend={chat.onSend}
+                onToggle={onControlsToggle}
+                draft={chat.draft}
+                onDraftChange={chat.onDraftChange}
+                following={chat.following}
+                onToggleFollow={chat.onToggleFollow}
+              />
+            ) : activePlugin ? (
+              <RailPluginMount panel={activePlugin} header={null} onToggle={onControlsToggle} reader={readerContext} />
+            ) : rightPanel === 'notes' ? (
+              <NotesPanel
+                notes={notes}
+                onJump={onNoteJump}
+                onRemove={onNoteRemove}
+                onEdit={onNoteEdit}
+                onToggle={onControlsToggle}
+                activeChapter={activeChapter}
+                focusNote={focusNote}
+              />
+            ) : (
+              <ReaderControls
+                params={params}
+                onChange={onParamsChange}
+                onToggle={onControlsToggle}
+                isPdf={isPdf}
+              />
+            )}
+          </div>,
+          cardSlot
+        )}
     </>
   )
 }

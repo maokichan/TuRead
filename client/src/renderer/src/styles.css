@@ -569,11 +569,12 @@ textarea {
   /* v1.14（§2 P5）：减动态 = 保留透明度/色温，去掉位移与揭幕 */
   .rail-hang,
   .rail-card,
+  .reader-card-slot,
   .context-menu,
   .context-menu__sub {
     transition: none;
   }
-  /* 卡片页减动态：去掉位移（从右弹出），保留显影 */
+  /* 卡片页减动态：去掉位移与槽位收放（阅读卡瞬时让位），保留显影 */
   .rail-card,
   .rail-card[data-closing] {
     transform: none;
@@ -1133,31 +1134,46 @@ textarea {
   }
 }
 
-/* ── 右欄卡片页（批1.13，用户定"挂载线退役第一步"）────────────────────────
-   右段的形态从"垂挂抽屉"换成**独立的卡片页**：一张浮在阅读卡右缘的**卡**（圆角族 ——
-   长在卡片世界里的实体表面，§3.3 批1.11 裁定），与垂挂目录暂并存（目录仍垂挂，
-   线右段 = 卡片的鼠标召唤位；逐步退役挂载线的第一批）。
-   几何：贴右缘但**内收一道沟**（--rail-gap）——"独立卡片"与垂挂抽屉的区别就在这道沟；
-   宽度仍走 --rail-panel-w（承重 token 不改名，全线退役时一并处置）；纸照旧让位
-   （--page-w 算式不变，卡片住在预留的右车道里，不压正文）。
-   动画（用户定"从右侧弹出一个独立的卡片页"）：自右 24px 滑入 + 显影，强 ease-out
-   --dur-panel；收回更快（--dur-hover，data-closing 期间不拾取事件，收完卸载）。
-   单槽位：一次只显示一张卡（切页 = 原地换内容，不重播进出场）。 */
+/* ── 右欄卡片页（批1.13 立；批1.14 平级化，用户定"卡片页和阅读器界面平级，
+   参数面板和阅读器一样都是置于底板之上"）────────────────────────────────
+   卡片页**不是阅读卡内的浮层**——它是阅读卡的**兄弟卡**：AppShell 卡片区的 scrim 容器
+   改 flex 行，阅读卡（flex-1）与槽位并排，中间一道沟露出底板；两张卡同顶同底、同卡面语法
+   （桌色面 + --radius-panel + 1px 边 + 面板阴影）。
+   槽位开合 = 宽度 0 ↔ (卡宽 + 沟)，与卡片的滑入/滑出同节奏；阅读卡随 flex 收窄，
+   纸宽公式（--page-w 的 100% 是容器相对）自动夹取 —— **切卡不重排正文**（纸宽不变）。
+   动画：自右 24px 滑入 + 显影，强 ease-out --dur-panel；收回更快（--dur-hover，
+   data-closing 期间不拾取事件，收完卸载）。单槽位：一次只显示一张卡（切页 = 原地换内容）。 */
+.reader-card-slot {
+  flex: none;
+  width: 0;
+  overflow: hidden; /* 收合时裁掉卡片（卡片锚右，从左缘被"吞"回去） */
+  display: flex;
+  justify-content: flex-end;
+  transition: width var(--dur-hover) var(--ease-out);
+}
+
+.reader-card-slot[data-open] {
+  width: calc(var(--rail-panel-w, 280px) + var(--rail-gap, 16px));
+  padding-left: var(--rail-gap, 16px); /* 两卡之间露出底板的沟 */
+  transition: width var(--dur-panel) var(--ease-out), padding var(--dur-panel) var(--ease-out);
+}
+
+.reader-card-slot__inner {
+  width: var(--rail-panel-w, 280px);
+  height: 100%;
+  flex: none;
+}
+
 .rail-card {
-  position: absolute;
-  top: calc(var(--toc-line-top, 28px) + 12px);
-  right: var(--rail-gap, 16px);
-  z-index: 15;
   display: flex;
   flex-direction: column;
-  width: var(--rail-panel-w, 280px);
-  max-height: var(--rail-panel-h, 62vh);
+  width: 100%;
+  height: 100%;
   overflow: hidden; /* 圆角裁内容：面板行的底色不得溢出卡片圆角 */
   background: var(--desk-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
   box-shadow: var(--shadow-panel);
-  pointer-events: auto;
   opacity: 1;
   transform: translateX(0);
   transition:
@@ -1181,7 +1197,7 @@ textarea {
 
 /* 内容平填卡片：四个内容家族（參數/筆記/聊天/插件格）原先各自绝对定位贴线，
    进卡片后一律 static 占满 —— 组件标记不改，只在这里收口（几何归卡片外壳）。
-   卡片自己 overflow:hidden + max-height，内容家族的 body 滚动口径不变。 */
+   卡片自己 overflow:hidden，内容家族的 body 滚动口径不变。 */
 .rail-card .reader-controls,
 .rail-card .toc-list {
   position: static;

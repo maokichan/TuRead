@@ -967,14 +967,15 @@ export function LibraryFeature({
           onContextMenu={onContentContextMenu}
           className="h-full overflow-y-auto pr-1"
         >
-          {searching ? (
-            // 检索态空态优先于"書架為空"（两个空态分层，2026-10-31 口径裁定）：全库没命中就是说没命中
-            searchResults === null ? null : visibleBooks.length === 0 ? (
-              <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
-                整座書庫沒有匹配「{debouncedLibraryQuery.trim()}」的书
-              </p>
-            ) : null
-          ) : levelItems.length === 0 ? (
+          {searching && searchResults === null ? (
+            // 检索结果在途（代次守卫防乱序；不闪空态）
+            null
+          ) : searching && visibleBooks.length === 0 ? (
+            // 检索态空态优先于"書架為空"（两个空态分层，2026-10-31 口径）：全库没命中就是说没命中
+            <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
+              整座書庫沒有匹配「{debouncedLibraryQuery.trim()}」的书
+            </p>
+          ) : !searching && levelItems.length === 0 ? (
             <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
               {libMode === 'curated'
                 ? insideVirtual
