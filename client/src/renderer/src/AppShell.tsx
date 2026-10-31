@@ -88,7 +88,7 @@ export default function AppShell(): React.JSX.Element {
   // ── 阅读卡进出动效（docs/DIRECTION.md §2）：进场 = 暗场浮现；退场反向、更快 ──
   // 进场：scrim 压深一档（.reader-dip，只往深里走 —— 深色主题不反光）+ 阅读卡原比例自下浮起，
   // 暗场随后松开回静息；与打开来源解耦（原「从被点封面长大」随批1.9 退役，git 历史为准）。
-  // 退场 = 先播下沉显隐（--dur-hover，出比进快），落定后才真正切状态 —— 状态继承不受动画影响。
+  // 退场 = 先播下沉显隐（--dur-veil，出比进快），落定后才真正切状态 —— 状态继承不受动画影响。
   const [readerClosing, setReaderClosing] = useState(false)
   const readerClosingRef = useRef(false)
   const readerExitTimer = useRef<number | null>(null)
@@ -104,13 +104,13 @@ export default function AppShell(): React.JSX.Element {
     readerClosingRef.current = true
     setReaderClosing(true)
     if (readerExitTimer.current !== null) window.clearTimeout(readerExitTimer.current)
-    // --dur-hover 160ms + 一帧余量
+    // --dur-veil 200ms + 一帧余量
     readerExitTimer.current = window.setTimeout(() => {
       readerClosingRef.current = false
       setReaderClosing(false)
       readerExitTimer.current = null
       after()
-    }, 180)
+    }, 220)
     return true
   }, [])
 

@@ -870,8 +870,8 @@ textarea {
    .feature-card 收编（五张卡同一语法，阅读卡不特殊）。 */
 .feature-card {
   transition:
-    opacity var(--dur-panel) var(--ease-out),
-    transform var(--dur-panel) var(--ease-out);
+    opacity var(--dur-view) var(--ease-out),
+    transform var(--dur-view) var(--ease-out);
 }
 
 @starting-style {
@@ -881,26 +881,28 @@ textarea {
   }
 }
 
-/* 阅读卡退场 = 下沉显隐（出比进快 --dur-hover）：不缩放，文字不形变；
+/* 阅读卡退场 = 下沉显隐（出比进快 --dur-veil）：不缩放，文字不形变；
    scrim 同步淡出（.reader-scrim--exit）。 */
 .feature-card--exit {
   opacity: 0;
   transform: translateY(8px);
   transition:
-    opacity var(--dur-hover) var(--ease-out),
-    transform var(--dur-hover) var(--ease-out);
+    opacity var(--dur-veil) var(--ease-out),
+    transform var(--dur-veil) var(--ease-out);
 }
 
 /* 暗场（批1.9，docs/DIRECTION.md §2"暗场浮现"）：开书时现场先沉入暗场、再松开回静息。
    ⚠ 只往深里走（黑场叠加），深色主题下是"更暗一瞬"而不是亮块 —— 不做闪光弹；
    峰值 = scrim（0.55）+ 本层（--reader-dip-peak）≈ 七成黑，幅度刻意温和。
+   节奏（真机反馈"太快"后放慢）：全程 = --dur-view × 2（600ms），40% 处到峰 ——
+   暗场聚拢（~240ms）→ 卡片在其上落定（--dur-view 300ms）→ 暗场徐徐松开。
    z:-1 = 垫在 scrim 底色之上、阅读卡（常规流）之下；display:none → 显示即重放。
    本层独立可拆：删掉它与关键帧 = 回到普通 crossfade（换方法的预留口）。 */
 @keyframes reader-dip {
   0% {
     opacity: 0;
   }
-  35% {
+  40% {
     opacity: var(--reader-dip-peak, 0.32);
   }
   100% {
@@ -912,13 +914,16 @@ textarea {
   inset: 0;
   z-index: -1;
   background: #000;
-  animation: reader-dip 420ms var(--ease-out) both;
+  animation: reader-dip calc(var(--dur-view) * 2) var(--ease-out) both;
   pointer-events: none;
 }
 
-/* 阅读卡的 scrim（叠置遮罩）随卡片同节奏显隐：进 = --dur-veil 淡入，退 = 随卡片更快淡出 */
+/* 阅读卡的 scrim（叠置遮罩）随卡片同节奏显隐：进 = --dur-view 淡入，退 = 随卡片更快淡出。
+   ⚠ scrim 必须**与卡片同圆角**：它是压在圆角卡下面的直角矩形，不圆角 = 四个角从卡片
+   圆角外侧露出深色直角（真机报过）。 */
 .reader-scrim {
-  transition: opacity var(--dur-veil) var(--ease-out);
+  border-radius: var(--radius-panel);
+  transition: opacity var(--dur-view) var(--ease-out);
 }
 @starting-style {
   .reader-scrim {
@@ -927,7 +932,7 @@ textarea {
 }
 .reader-scrim--exit {
   opacity: 0;
-  transition: opacity var(--dur-hover) var(--ease-out);
+  transition: opacity var(--dur-veil) var(--ease-out);
 }
 
 /* ---------- 阅读参数（挂载线右段垂挂；2026-09-12 用户定，二次纠正定稿）----------
