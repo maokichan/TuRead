@@ -117,19 +117,22 @@
      ⚠ 这一条不是"线的长度由纸决定"（线仍是固定的），而是反过来：**纸给两挂件让位**。
      理由（用户 2026-09-16）："当纸宽调到宽的时候，左侧的目录以及右侧的参数…会盖住页面的内容"。 */
   --rail-gap: 16px;
-  /* **纸宽的生效值**（唯一定义处）：用户选的档位 ∩ "给两挂件让位后的可用宽"。
+  /* **纸宽的生效值**（唯一定义处）：用户选的档位 ∩ "给两侧让位后的可用宽"。
      `.reader-stage` 与 `.note-composer`（宽 = 它的 0.9）**都读这一个值**，不许各自再算一次
      （v1.9 就是两处各算一次 → 输入栏比被夹窄的纸还宽，被探针抓出来）。
      下限 160px：窗口窄到极限时宁可重叠，也要保住可读的正文列。
-     批1.5（卡片模型，docs/DIRECTION.md）：纸居中于**阅读卡**内、挂件贴卡缘 ——
-     算式**不再含 `--sidebar-w`**（侧边栏在卡片之外；旧口径"纸窗口居中、线从侧边栏右缘起算"
-     随全屏阅读窗方向一起退役，历史见 git）。 */
+     **批1.18（用户定"没有直接影响到显示内容区的时候就不要改变显示内容区的宽度"）**：
+     算式**锚定视口**（100vw − 侧边栏 − 两侧 inset − 两侧让位区，全是固定 token）——
+     纸宽与卡片页的开合、阅读卡的任何布局状态**彻底无关**，呼出/收起零重排。
+     （原 100% 容器相对版会跟着阅读卡宽度走：并排结构一呼出纸就被夹窄、正文全重排。） */
   --page-w: min(
-    100%,
     var(--read-width, 760px),
     max(
       160px,
-      calc(100% - 2 * (var(--rail-panel-w, 280px) + var(--rail-gap, 16px)))
+      calc(
+        100vw - var(--sidebar-w, 56px) - 2 * var(--inset-x, 20px) -
+          2 * (var(--rail-panel-w, 280px) + var(--rail-gap, 16px))
+      )
     )
   );
   --toc-line-top: 44px;
@@ -422,6 +425,12 @@ textarea {
   width: var(--page-w, 760px);
   height: 100%;
   margin: 0 auto;
+  /* **纸位移补偿**（批1.18，用户准绳"内容区宽度不变"的姊妹条——位置也不许动）：
+     卡片页呼出时阅读卡收窄 --slot-w，re-center 会让纸左移 --slot-w/2；
+     这里平移回 --slot-w/2，槽位宽度过渡与位移过渡同 token 同曲线 → 纸在窗口里全程静止。
+     reduced-motion 下无过渡（两处瞬时到位，纸同样不动）。 */
+  transform: translateX(calc(var(--slot-w, 0px) / 2));
+  transition: transform var(--dur-panel) var(--ease-out);
   /* 纸列建层压住挂载线（2026-09-12 用户定：挂载线"被书页压着"）——
      横线在左右留白可见，穿过正文的部分被纸盖住（rail z1 < stage z2 < 目录/参数 z15/16） */
   position: relative;
@@ -569,11 +578,12 @@ textarea {
   /* v1.14（§2 P5）：减动态 = 保留透明度/色温，去掉位移与揭幕 */
   .rail-hang,
   .rail-card,
+  .reader-card-slot,
   .context-menu,
   .context-menu__sub {
     transition: none;
   }
-  /* 卡片页减动态：去掉位移（槽位恒占位，无需收放），保留显影 */
+  /* 卡片页减动态：去掉位移与槽位收放，保留显影 */
   .rail-card,
   .rail-card[data-closing] {
     transform: none;
@@ -935,6 +945,16 @@ textarea {
 .reader-scrim {
   border-radius: var(--radius-panel);
   transition: opacity var(--dur-view) var(--ease-out);
+  --slot-w: 0px; /* 卡片页槽位的当前宽度（.reader-stage 的位移补偿读它） */
+}
+
+.reader-scrim[data-card-open] {
+  --slot-w: calc(var(--rail-panel-w, 280px) + var(--rail-gap, 16px));
+}
+
+/* 收回时补偿更快（与槽位宽度过渡同档，出比进快） */
+.reader-scrim:not([data-card-open]) .reader-stage {
+  transition-duration: var(--dur-hover);
 }
 @starting-style {
   .reader-scrim {
@@ -1120,25 +1140,27 @@ textarea {
   }
 }
 
-/* ── 右欄卡片页（批1.13 立；批1.14 平级化；批1.15 呼出制；批1.17 定稿）────────────
-   卡片页是 AppShell 层的面（与阅读卡同出 scrim 容器，后绘制 = 压其上）；
-   **阅读卡永远全宽**（批1.17 用户定"阅读器不要躲右边的参数栏"——批1.16 的常驻让位退役）；
-   卡片**浮在阅读卡右缘的空桌面上**：纸宽公式（--page-w = min(档位, 视口 - 2×(挂件+缝))，
-   纸居中）保证右侧让位区 ≥ 卡宽 + 缝，所以卡片**不遮任何正文**、阅读卡与纸纹丝不动。
-   几何：贴右缘但内收一道缝（--rail-gap）；同阅读卡顶底（全高）；同卡面语法
-   （桌色面 + --radius-panel + 1px 边 + 面板阴影）。
+/* ── 右欄卡片页（批1.13 立；批1.18 定稿 = 两条准绳同时成立）────────────────────
+   ① **两张卡并排在底板上**（用户拍板形态）：scrim 容器 = flex 行，阅读卡（flex-1）与槽位
+   并排，中间一道沟露出底板；同顶同底、同卡面语法（桌色面 + --radius-panel + 1px 边 + 阴影）。
+   ② **纸钉死不动**（用户准绳"没有直接影响到显示内容区的时候就不要改变显示内容区的宽度"）：
+   --page-w 锚定视口（见 :root，纸宽与开合无关）；阅读卡收窄导致的 re-center 由
+   `.reader-stage` 的**位移补偿**精确抵消（--slot-w × ½，同 token 同曲线 → 全程静止）。
    动画：自右 24px 滑入 + 显影，强 ease-out --dur-panel；收回更快（--dur-hover，
    data-closing 期间不拾取事件，收完卸载）。单槽位：一次只显示一张卡（切页 = 原地换内容）。 */
 .reader-card-slot {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: calc(var(--rail-panel-w, 280px) + var(--rail-gap, 16px));
-  padding-right: var(--rail-gap, 16px); /* 卡右缘与底面边缘的呼吸 */
-  pointer-events: none; /* 槽位空白处穿透到阅读卡；卡片自己恢复拾取 */
+  flex: none;
+  width: 0;
+  overflow: hidden; /* 收合时裁掉卡片（卡片锚右，从左缘被"吞"回去） */
   display: flex;
   justify-content: flex-end;
+  transition: width var(--dur-hover) var(--ease-out);
+}
+
+.reader-card-slot[data-open] {
+  width: calc(var(--rail-panel-w, 280px) + var(--rail-gap, 16px));
+  padding-left: var(--rail-gap, 16px); /* 两卡之间露出底板的沟 */
+  transition: width var(--dur-panel) var(--ease-out), padding var(--dur-panel) var(--ease-out);
 }
 
 .reader-card-slot__inner {
