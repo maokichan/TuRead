@@ -1120,19 +1120,23 @@ textarea {
   }
 }
 
-/* ── 右欄卡片页（批1.13 立；批1.14 平级化；批1.15 呼出制；批1.16 槽位常驻）────────
-   卡片页**不是阅读卡内的浮层**——它是阅读卡的**兄弟卡**：AppShell 卡片区的 scrim 容器
-   = flex 行，阅读卡（flex-1）与右侧槽位并排，中间一道沟露出底板；两张卡同顶同底、
-   同卡面语法（桌色面 + --radius-panel + 1px 边 + 面板阴影）。
-   **槽位恒占位**（批1.16 用户定"呼出之后显示的内容维持相对位置不变"）：卡宽 + 沟的宽度
-   永远让出来，收起时是一段空的底色 —— 呼出/收起时阅读卡与纸**纹丝不动**，卡片只在
-   自己的位置上滑入/滑出（右侧让位区本来就近乎不遮正文）。
+/* ── 右欄卡片页（批1.13 立；批1.14 平级化；批1.15 呼出制；批1.17 定稿）────────────
+   卡片页是 AppShell 层的面（与阅读卡同出 scrim 容器，后绘制 = 压其上）；
+   **阅读卡永远全宽**（批1.17 用户定"阅读器不要躲右边的参数栏"——批1.16 的常驻让位退役）；
+   卡片**浮在阅读卡右缘的空桌面上**：纸宽公式（--page-w = min(档位, 视口 - 2×(挂件+缝))，
+   纸居中）保证右侧让位区 ≥ 卡宽 + 缝，所以卡片**不遮任何正文**、阅读卡与纸纹丝不动。
+   几何：贴右缘但内收一道缝（--rail-gap）；同阅读卡顶底（全高）；同卡面语法
+   （桌色面 + --radius-panel + 1px 边 + 面板阴影）。
    动画：自右 24px 滑入 + 显影，强 ease-out --dur-panel；收回更快（--dur-hover，
    data-closing 期间不拾取事件，收完卸载）。单槽位：一次只显示一张卡（切页 = 原地换内容）。 */
 .reader-card-slot {
-  flex: none;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
   width: calc(var(--rail-panel-w, 280px) + var(--rail-gap, 16px));
-  padding-left: var(--rail-gap, 16px); /* 两卡之间露出底板的沟 */
+  padding-right: var(--rail-gap, 16px); /* 卡右缘与底面边缘的呼吸 */
+  pointer-events: none; /* 槽位空白处穿透到阅读卡；卡片自己恢复拾取 */
   display: flex;
   justify-content: flex-end;
 }
@@ -1148,6 +1152,7 @@ textarea {
   flex-direction: column;
   width: 100%;
   height: 100%;
+  pointer-events: auto; /* 槽位穿透，卡片本体恢复拾取（批1.17） */
   overflow: hidden; /* 圆角裁内容：面板行的底色不得溢出卡片圆角 */
   background: var(--desk-bg);
   border: 1px solid var(--border);

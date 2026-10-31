@@ -855,7 +855,7 @@ function RailDemo({
     <div className="flex flex-col gap-2">
       <span className="text-[12.5px] text-[var(--muted)]">{label}</span>
       <div
-        className="flex h-[300px] w-full"
+        className="relative h-[300px] w-full"
         data-rail-demo={label}
         style={
           {
@@ -864,45 +864,41 @@ function RailDemo({
             '--sidebar-w': '0px',
             /* 演示框只有 ~564px：按比例收窄挂件，好让"**纸给挂件让位**"也能量出来
                （见 styles.css 的 .reader-stage 与 smoke.cjs 的 paperClearOk）。
-               批1.14 平级结构：右槽位也吃这个 token（兄弟卡同宽）→ 演示值再收一档；
-               ⚠ **不再钉 --page-w**：纸宽让 :root 算式按阅读区实宽夹取（100% 是容器相对），
-               钉死值在平级结构下会压到目录带（smoke paperClear 抓出过） */
-            '--rail-panel-w': '120px',
-            /* 左垂挂的高度上限（卡片页已是全高兄弟卡，不再吃这个 token） */
+               ⚠ **不钉 --page-w**：纸宽让 :root 算式按容器实宽夹取（100% 是容器相对），
+               钉死值在挂件/卡片几何变动时会假（smoke paperClear 抓出过） */
+            '--rail-panel-w': '180px',
+            /* 左垂挂的高度上限（卡片页是全高浮层，不再吃这个 token） */
             '--rail-panel-h': '260px'
           } as React.CSSProperties
         }
       >
-        {/* 批1.14 平级结构 + 批1.16 槽位常驻：阅读区（阅读卡的化身）与右侧槽位是**兄弟**，
-            中间一道沟露出底板；槽位恒占位（呼出/收起时阅读区纹丝不动） */}
-        <div className="relative h-full min-w-0 flex-1">
-          <div className="reader-paper absolute inset-0">
-            <div className="reader-stage">
-              <p className="m-0 text-[13px] leading-[1.9] text-[var(--page-text)]">
-                紙（正文列 = 宿主容器）：它的 clientWidth 就是 kookit 的排版寬度依據。點掛載線（目錄段）開合目錄；卡片頁由槽位常駐位置呼出。
-              </p>
-            </div>
+        {/* 批1.17 定稿：阅读卡全宽；卡片页槽位 = 绝对定位浮于右缘上方（右侧让位区内无正文） */}
+        <div className="reader-paper absolute inset-0">
+          <div className="reader-stage">
+            <p className="m-0 text-[13px] leading-[1.9] text-[var(--page-text)]">
+              紙（正文列 = 宿主容器）：它的 clientWidth 就是 kookit 的排版寬度依據。點掛載線（目錄段）開合目錄；卡片頁浮於右緣空桌面。
+            </p>
           </div>
-          <ReaderRail
-            tocOpen={tocOpen}
-            onTocToggle={() => setTocOpen((v) => !v)}
-            tocRows={TOC}
-            onTocJump={noop}
-            controlsOpen={ctlOpen}
-            onControlsToggle={() => setCtlOpen((v) => !v)}
-            params={params}
-            onParamsChange={(patch) => setParams((p) => ({ ...p, ...patch }))}
-            notes={NOTES}
-            onNoteJump={noop}
-            onNoteRemove={noop}
-            onNoteEdit={noop}
-            activeChapter={activeChapter}
-            rightPanel={right}
-            onRightPanelChange={setRight}
-            chat={chat}
-            cardSlot={slot}
-          />
         </div>
+        <ReaderRail
+          tocOpen={tocOpen}
+          onTocToggle={() => setTocOpen((v) => !v)}
+          tocRows={TOC}
+          onTocJump={noop}
+          controlsOpen={ctlOpen}
+          onControlsToggle={() => setCtlOpen((v) => !v)}
+          params={params}
+          onParamsChange={(patch) => setParams((p) => ({ ...p, ...patch }))}
+          notes={NOTES}
+          onNoteJump={noop}
+          onNoteRemove={noop}
+          onNoteEdit={noop}
+          activeChapter={activeChapter}
+          rightPanel={right}
+          onRightPanelChange={setRight}
+          chat={chat}
+          cardSlot={slot}
+        />
         <div className="reader-card-slot">
           <div ref={setSlot} className="reader-card-slot__inner" />
         </div>

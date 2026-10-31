@@ -137,9 +137,7 @@ app.whenReady().then(async () => {
       const c = card.getBoundingClientRect()
       const cardCs = getComputedStyle(card)
       const gap = Number.parseFloat(getComputedStyle(demo).getPropertyValue('--rail-gap')) || 16
-      /* 批1.14 平级结构：阅读区 = 槽位的左邻（flex-1），卡片页是它的兄弟卡 */
-      const mainArea = card.closest('.reader-card-slot')?.previousElementSibling
-      const mainRight = mainArea ? Math.round(mainArea.getBoundingClientRect().right - box.left) : -1
+      /* 批1.17 浮层模型：阅读卡全宽，卡片页绝对定位浮于右缘上方（内收一道缝） */
       // 目录当前条目：滚动容器必须真的能滚，否则"居中"是平凡成立的
       const rowsBox = demo.querySelector('.toc-list__rows')
       const rows = rowsBox ? rowsBox.querySelectorAll('.toc-row') : []
@@ -155,10 +153,9 @@ app.whenReady().then(async () => {
         tocFlushLeft: Math.round(t.left - box.left),
         tocWidth: Math.round(t.width),
         tocMaxH: getComputedStyle(toc).maxHeight,
-        /* ② 右欄卡片页 = 兄弟卡：贴演示框右缘、圆角/描边、与阅读区之间一道沟（--rail-gap） */
+        /* ② 右欄卡片页 = 右缘浮层：内收一道缝（--rail-gap）、圆角/描边 */
         cardWidth: Math.round(c.width),
         cardRightInset: Math.round(box.right - c.right),
-        siblingGap: mainRight >= 0 ? Math.round(c.left - box.left - mainRight) : -1,
         railGap: Math.round(gap),
         cardRadius: cardCs.borderRadius,
         cardBorder: cardCs.borderTopWidth,
@@ -385,8 +382,8 @@ app.whenReady().then(async () => {
    */
   /**
    * 卡片页几何（批1.13 立，批1.14 平级化再定义；原 mirrorOk 随右段换形退役）：
-   * ① cardOk = 右欄卡片页是阅读卡的**兄弟卡**：与左垂挂同宽（同一 token）、左垂挂贴阅读区左缘、
-   *    卡贴演示框右缘、**与阅读区之间一道沟**（--rail-gap）、圆角 --radius-panel、1px 边；
+   * ① cardOk = 右欄卡片页浮于右缘（批1.17）：与左垂挂同宽（同一 token）、左垂挂贴卡缘、
+   *    卡右缘**内收一道缝**（--rail-gap）、圆角 --radius-panel、1px 边；
    * ② 不随内容 = 改 --read-width 后两件宽度**一点不变**（v1.8 的错就在这条）；
    * ③ 跟随 = 目录滚动容器**真的能滚**（否则平凡成立，必须防假通过）+「第十二章」落在容器正中（±8px）；
    * ④ 输入栏 = 零可见文字 + 无 placeholder + 非透明纯色底 + 发丝描边 + 居中 ±2px + 挂载即聚焦
@@ -397,8 +394,7 @@ app.whenReady().then(async () => {
       !geometry.error &&
       geometry.tocWidth === geometry.cardWidth &&
       Math.abs(geometry.tocFlushLeft ?? 99) <= 1 &&
-      Math.abs(geometry.cardRightInset ?? 99) <= 1 &&
-      Math.abs((geometry.siblingGap ?? 99) - (geometry.railGap ?? -1)) <= 1 &&
+      Math.abs((geometry.cardRightInset ?? 99) - (geometry.railGap ?? -1)) <= 1 &&
       Math.abs(Number.parseFloat(geometry.cardRadius ?? '') - 12) <= 0.6 &&
       Number.parseFloat(geometry.cardBorder ?? '0') > 0 &&
       Number.parseFloat(geometry.cardBorder ?? '0') <= 1.5

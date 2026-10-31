@@ -501,34 +501,33 @@ export default function AppShell(): React.JSX.Element {
         {FEATURES.map((f) => {
           const C = f.component
           if (f.id === 'reader') {
-            // 右欄卡片页（批1.14 平级化；批1.16 槽位常驻，用户定"呼出之后显示的内容维持相对位置不变"）：
-            // scrim 容器 = flex 行 —— 阅读卡与右侧槽位是**兄弟**，中间一道沟露出底板；
-            // **槽位恒占位**（卡宽 + 沟，收起时是一段空的底色）—— 呼出/收起时阅读卡与纸
-            // **纹丝不动**，卡片在自己的位置上滑入/滑出。portal 目标常驻（挂载后可查）。
+            // 右欄卡片页（批1.14 平级化；批1.17 定稿，用户定"阅读器不要躲右边的参数栏"）：
+            // 阅读卡**永远全宽**（不再为卡片页让位/收窄）；卡片页是 AppShell 层的兄弟面，
+            // 呼出时**浮在阅读卡右缘的空桌面上**——纸宽公式保证右侧让位区内没有正文，
+            // 所以卡片不遮内容、阅读卡与纸纹丝不动。portal 目标常驻（挂载后可查）。
             return (
               <div
                 key={f.id}
                 className={`reader-scrim absolute inset-0 z-[var(--z-drawer)] bg-[var(--bg)] ${
-                  activeFeature === 'reader' ? 'flex' : 'hidden'
+                  activeFeature === 'reader' ? '' : 'hidden'
                 } ${readerClosing ? 'reader-scrim--exit pointer-events-none' : ''}`}
               >
                 {/* 暗场（批1.9，docs/DIRECTION.md §2）：进场时压深一档再松开，只往深里走。
                     display:none → 显示即重放关键帧；z:-1 = 垫在 scrim 底色之上、阅读卡之下。
                     换方法 = 删掉这一层与关键帧（styles.css .reader-dip），回到普通 crossfade。 */}
                 <div className="reader-dip" aria-hidden="true" />
-                <div className="h-full min-w-0 flex-1">
-                  <FeatureCard className={readerClosing ? 'feature-card--exit' : ''}>
-                    <C
-                      container={container}
-                      host={host}
-                      selectedBookId={selectedBookId}
-                      readerBookId={readerBookId}
-                      activeFeature={activeFeature}
-                      readerTarget={readerTarget}
-                    />
-                  </FeatureCard>
-                </div>
-                {/* 右侧槽位（卡片页的家，恒占位；收起 = 空的底色） */}
+                <FeatureCard className={readerClosing ? 'feature-card--exit' : ''}>
+                  <C
+                    container={container}
+                    host={host}
+                    selectedBookId={selectedBookId}
+                    readerBookId={readerBookId}
+                    activeFeature={activeFeature}
+                    readerTarget={readerTarget}
+                  />
+                </FeatureCard>
+                {/* 右侧槽位（卡片页的家）：绝对定位浮于阅读卡右缘上方，本体不拾取事件
+                    （空白处穿透到阅读卡；卡片自己恢复拾取） */}
                 <div className="reader-card-slot">
                   <div id="reader-card-slot" className="reader-card-slot__inner" />
                 </div>
