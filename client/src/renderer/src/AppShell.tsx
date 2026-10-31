@@ -511,9 +511,8 @@ export default function AppShell(): React.JSX.Element {
               <div
                 key={f.id}
                 className={`reader-scrim absolute inset-0 z-[var(--z-drawer)] bg-[var(--overlay-dim)] ${
-                  activeFeature === 'reader' ? '' : 'hidden'
+                  activeFeature === 'reader' ? 'flex' : 'hidden'
                 } ${readerClosing ? 'reader-scrim--exit pointer-events-none' : ''}`}
-                style={{ display: 'flex' }}
               >
                 {/* 暗场（批1.9，docs/DIRECTION.md §2）：进场时压深一档再松开，只往深里走。
                     display:none → 显示即重放关键帧；z:-1 = 垫在 scrim 底色之上、阅读卡之下。
