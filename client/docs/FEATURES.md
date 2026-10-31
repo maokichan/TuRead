@@ -167,7 +167,7 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 
 ## 8. 实施落地
 
-- **容器**：`AppShell.tsx`（**chrome 底面 + 卡片层宿主** + 跨功能共享态；dev 无头自检在 `dev/selfCheck.ts`，shell 只做组合与共享态）。空间语法见 `STYLE.md` §1.1：背景 = 连续一整面（整面拖拽区），导航图标栏与窗控/后退前进（`ChromeControls`）直接坐在底面上；五张功能卡经 `FeatureCard` 浮在底面上（scrim 归阅读卡独占）。
+- **容器**：`AppShell.tsx`（**chrome 底面 + 卡片层宿主** + 跨功能共享态；dev 无头自检在 `dev/selfCheck.ts`，shell 只做组合与共享态）。空间语法见 `STYLE.md` §1.1：背景 = 连续一整面（整面拖拽区），导航图标栏与窗控/后退前进/**阅读标签条**（`ChromeControls`，标签条见 §7.10）直接坐在底面上；五张功能卡经 `FeatureCard` 浮在底面上（scrim 归阅读卡独占）。
   - **无顶栏 / 无日志栏 / 无品牌 logo**：自绘标题栏已退役；Electron 自带菜单栏已移除（`Menu.setApplicationMenu(null)` + `autoHideMenuBar` + `win.removeMenu()` 双保险）；诊断日志移入 SettingsFeature。
   - **侧边栏 = 单色符号图标栏**（宽 56px）：只显示 `FeatureDescriptor.icon`（**繁体汉字单字：書/閱/房/設**），
     样式为 `.feature-nav`（字体栈见 `STYLE.md` §3.1），label 作悬停提示；**禁用带彩色 emoji**；
@@ -474,7 +474,7 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 
 ### 12.7 视觉（**已实施** = `STYLE.md` §5.10）
 
-- 渲染层红线（`MAP.md` 红线 / `STYLE.md`）：**新组件不得自创视觉语汇** → 已按此在 **`STYLE.md` §5.10** 立案
+- 渲染层红线（根 `AGENTS.md` 红线 / `STYLE.md`）：**新组件不得自创视觉语汇** → 已按此在 **`STYLE.md` §5.10** 立案
   （卡片三段结构、两档文字主次、选中态试验档、状态栏 5 件、空态口径、`--note-col-w` 登记），
   并连带修订 §5.1（三角负片扩为"视图切换"这个功能共用）与 §5.2 例外⑤（改写为"色块 = 功能信息"）。
 - ⚠ **选中态是试验档**：1px `--accent-ring` 直角矩形 + 卡片常驻 8px 内边距；按 `STYLE.md` §7 纪律

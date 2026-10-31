@@ -75,13 +75,7 @@ npm run dist           # 打包免安装便携版 → client/release/（需代�
 
 ```bash
 npm run dev            # 跑起来（Electron + HMR）
-npm test               # 纯逻辑单测（vitest，秒级，不需要书）
-npm run swarm          # 蜂群测试：单机起 server + N 只无头机器人，语义断言（tools/swarm/README.md）
-npm run typecheck:all  # 四个 tsconfig（node / web / test / preview）
-npm run style          # 样式样张（浏览器里看 token 与组件，不用起 Electron）
-npm run build          # 只构建产物（不打包发行版）
 npm run dist           # 打包便携版（Windows x64；需代理）—— ⚠ 打包由仓库负责人决定何时做
-npm run rebuild:sqlite # 换 Electron 大版本后重建原生模块
 ```
 
 服务端：
@@ -93,41 +87,13 @@ go test ./...
 go build -o turead-server ./cmd/server
 ```
 
-无头验证（真实渲染链路，需要一本真实的书）：
+### 给 agent 与贡献者的入口
 
-```bash
-# 渲染自检；TUREAD_USER_DATA 用独立目录，别碰真实书库
-TUREAD_USER_DATA=./.probe TUREAD_DEV_BOOK="<书的绝对路径>" npm run dev
-# 笔记/划线全链路探针（选区→锚点→引擎回显→导航→重锚→删除）
-TUREAD_USER_DATA=./.probe TUREAD_DEV_PROBE=note TUREAD_DEV_BOOK="<文字类书>" npm run dev
-# 房间同步对真服务器的链路探针（会话/建房/按房间握手/聊天回执/历史 → 16 条断言）
-TUREAD_USER_DATA=./.probe TUREAD_DEV_PROBE=room TUREAD_DEV_BOOK="<任意书>" \
-  TUREAD_DEV_SERVER="http://127.0.0.1:8080" TUREAD_DEV_ACCESS="<二级令牌，可空>" npm run dev
-# 样式样张的几何机检（另开一个终端先跑 npm run style）
-node_modules/electron/dist/electron.exe tools/style-gallery/smoke.cjs
-```
-
-⚠ 沙箱/无网环境下：`npm test` 与任何探针都经 esbuild 管道 stdio，**受限文件沙箱下会 `EPERM`**，
-需放宽沙箱；打包要走本地代理（见 [`NETWORK.md`](NETWORK.md)）。
-
-### 读代码前请先知道这几条红线
-
-见 [`MAP.md`](MAP.md) 的「红线」（依赖方向 / 分层 / kookit 子模块禁提交 / 许可证核验 / 打包须明确指示）；
-通用开发纪律（解释优先、提交与版本分工）见 `generate-swe` skill。
-
-### 文档从哪读
-
-从 [`MAP.md`](MAP.md) 出发（导航地图 + 红线，含各文档的**阅读顺序**）。三句话版本：
-
-- **状态与交接** → [`docs/STATUS.md`](docs/STATUS.md)
-- **待办（唯一一份）** → [`TODO.md`](TODO.md)
-- **契约与基线** → `client/docs/`：`CONTRACTS.md`（契约）、`DATA_MODEL.md`（数据建模）、
-  `STYLE.md`（视觉基线）、`FEATURES.md`（功能组件）、`ARCHITECTURE.md`（架构）、
-  `KOOKIT.md` + `RENDER_INTERFACE.md`（渲染引擎逆向与接口）
-
-### 版本与提交约定
-
-- 两端版本号独立滚动：server `v0.2.x` / client `v0.2.x`；tag 带端名前缀（`client-v0.2.0`）。
+**根目录 [`AGENTS.md`](AGENTS.md)** = agent 会话的强制注入上下文（渐进式披露）：
+文档阅读顺序、红线、验证工具链（`npm test` / `typecheck:all` / 样张机检 / 蜂群）、
+无头探针用法、版本与提交约定 —— 都在那里，本文不再复读。
+三句话版本：**状态与交接** → [`docs/STATUS.md`](docs/STATUS.md)；
+**待办（唯一一份）** → [`TODO.md`](TODO.md)；**渲染层开发先读** [`client/docs/STYLE.md`](client/docs/STYLE.md)。
 
 ---
 
