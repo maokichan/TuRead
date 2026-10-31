@@ -576,9 +576,10 @@ textarea {
 
 /* ── 命令面板（Ctrl+Shift+P，2026-10-24 用户定；FEATURES.md §14）──────────────
    VSCode 式：顶部悬停的**非模态**浮层 —— 输入即筛（子串）、↑↓ 选择、Enter 执行、Esc 关闭、
-   外点关闭。语汇：动作区 = 纯色底 `--panel-2` + 1px `--border` + 直角（同 §5.2 例外⑥ 的
-   "动作区必须自己成一层"）；行 = 纯文字（P1），选中态 = `--accent` + `--accent-soft` 底
-   （与右键菜单项同一语言）；键位提示 11px `--muted` 靠右。
+   外点关闭。语汇（批1.11 圆角裁定，STYLE.md §3.3）：它是**全局工具浮层**，不是挂载线家族
+   （例外⑥只管阅读器正文上的右键菜单与批注输入栏）→ 圆角族 = `--radius-panel` + `--shadow-panel`
+   （浮出面板档；深色主题层级靠 1px `--border` 承担）。行 = 纯文字（P1），选中态 = `--accent`
+   + `--accent-soft` 底（与右键菜单项同一语言）；键位提示 11px `--muted` 靠右。
    **呼出不动画**：键盘起手的工具，动画就是延迟（§2 P5 频率检验）。 */
 .command-palette {
   position: fixed;
@@ -590,8 +591,11 @@ textarea {
   flex-direction: column;
   width: min(560px, calc(100vw - 48px));
   max-height: 62vh;
+  overflow: hidden; /* 圆角裁列表：行的 accent-soft 底不得溢出圆角外 */
   background: var(--panel-2);
   border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
   -webkit-app-region: no-drag; /* 根级浮层，不随底面拖拽（批1.7） */
 }
 

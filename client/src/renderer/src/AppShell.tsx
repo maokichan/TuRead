@@ -17,7 +17,6 @@ import { FEATURES } from './features/registry'
 import type { FeatureHost, FeatureId, ReaderTarget } from './features/types'
 import { pushLog } from './features/logStore'
 import { bindRoomSession } from './features/roomSession'
-import { searchFocusBus } from './features/searchFocusBus'
 import { loadPlugins } from './plugins/runtime'
 import { ChromeControls } from './components/ChromeControls'
 import type { ReaderTabItem } from './components/ReaderTabStrip'
@@ -286,11 +285,16 @@ export default function AppShell(): React.JSX.Element {
 
   // ── 命令面板（2026-10-24 用户定，Ctrl+Shift+P，FEATURES.md §14）─────────────
   const [paletteOpen, setPaletteOpen] = useState(false)
+  // 底面全局搜索框（批1.11 搜索上底板）：框住 ChromeControls 顶条带，Ctrl+F 由这里聚焦
+  const chromeSearchRef = useRef<HTMLInputElement | null>(null)
   // 意图层登记（`app.commandPalette`，组合键在输入框聚焦时也放行 —— 命令面板必须随处可呼出）
   useKeyIntents('app', {
     'app.commandPalette': () => setPaletteOpen((v) => !v),
-    // Ctrl+F：聚焦当前激活卡的本地搜索（批1.7d，搜索住进卡片后经总线到达）
-    'app.focusSearch': () => searchFocusBus.focus()
+    // Ctrl+F：聚焦全局搜索框（无绑定的域输入框禁用，focus() 静默无效——诚实语义）
+    'app.focusSearch': () => {
+      chromeSearchRef.current?.focus()
+      chromeSearchRef.current?.select()
+    }
   })
 
   const paletteCommands = useMemo<PaletteCommand[]>(() => {
@@ -415,6 +419,7 @@ export default function AppShell(): React.JSX.Element {
       )}
       <ChromeControls
         activeFeature={activeFeature}
+        searchInputRef={chromeSearchRef}
         readerTabs={readerTabs}
         activeTabId={readerBookId}
         onTabActivate={host.activateReaderTab}

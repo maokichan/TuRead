@@ -61,7 +61,7 @@ export interface FeatureHost {
 /**
  * 功能组件统一 props —— 标准容器契约。
  * 跨功能共享态由 AppShell 持有并下发；各功能组件只读自己关心的字段。
- * （批1.7d：搜索词不再是共享态——搜索是卡片本地物件，各卡自持，Ctrl+F 走 searchFocusBus。）
+ * （批1.11：搜索词仍归各功能自持，但输入框住底面顶条带 —— 激活域经 chromeSearchBus 注册绑定。）
  */
 export interface FeatureProps {
   container: ServiceContainer

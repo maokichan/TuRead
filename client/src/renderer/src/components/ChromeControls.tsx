@@ -3,28 +3,41 @@
  *
  * 背景融为连续底面后，全局件都悬浮在 --inset-top 顶条带里（z = --z-chrome，
  * 压在卡片之上但让位给一切浮层）：
- * - 左上 = 书库层级后退/前进 + **阅读标签条**（批1.10）：同一个左侧容器，前后退只服务书库
- *   （阅读态隐藏——历史栈不属于阅读），标签条全功能态可见（阅读会话的"在场"，见 ReaderTabStrip）。
+ * - 左上 = 书库层级后退/前进 + **阅读标签条**（批1.10）+ **全局搜索框**（批1.11）共一个容器。
+ *   后退/前进**恒在**（批1.11 用户定：全局生命周期——职能按域分流，不随状态消失）：
+ *   书库域 = 层级历史（libraryNavBus）；其余域尚无历史机构（阅读跳转历史 / 房间域返回
+ *   见 TODO）→ 恒禁用，视觉在场稳定。搜索框同理恒在：绑定随激活域走（chromeSearchBus），
+ *   无绑定的域 = 禁用 + 域占位（占位表承自退役 TitleBar 的作用域口径）。
  * - 右上 = 窗口控制键：最小化 / 最大化(还原) / 关闭。OS 全屏时保持可见（语义不变，
  *   原自绘标题栏"全屏收起"的布局逻辑随 TitleBar 退役）。
  *
  * 主题兼容：颜色全走 token（无 hex）；控制键 hover = --panel-2，关闭 hover = --err 负片。
  * 桥的使用：`window.turead` 在此直接使用是**文档化的例外**（窗口镶边属于 Shell，
- * 不是功能组件能力）。no-drag 由 styles.css `.chrome-base button` 全局给出，点击不被拖拽区吞掉。
+ * 不是功能组件能力）。no-drag 由 styles.css `.chrome-base button/input` 全局给出。
  */
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { IPC } from '@shared/ipc'
 import { libraryNavBus } from '../features/libraryNavBus'
+import { chromeSearchBus } from '../features/chromeSearchBus'
 import { ReaderTabStrip, type ReaderTabItem } from './ReaderTabStrip'
+
+/** 无绑定域的占位文案（承自退役 TitleBar 的作用域表；阅读器/房间接线见 TODO「全局搜索接线」） */
+const SCOPE_PLACEHOLDER: Record<string, string> = {
+  reader: '搜索本書內容…（未接線）',
+  room: '搜索房間 / 服務器書目…（未接線）',
+  settings: '搜索…'
+}
 
 export function ChromeControls({
   activeFeature,
+  searchInputRef,
   readerTabs,
   activeTabId,
   onTabActivate,
   onTabClose
 }: {
   activeFeature: string
+  searchInputRef: React.RefObject<HTMLInputElement | null>
   readerTabs: ReaderTabItem[]
   activeTabId: string | null
   onTabActivate: (editionId: string) => void
@@ -42,6 +55,9 @@ export function ChromeControls({
 
   // 书库层级后退/前进（2026-09-13 用户定，资源管理器逻辑）：状态（可否后退/前进）用外部 store 订阅
   const navState = useSyncExternalStore(libraryNavBus.subscribe, libraryNavBus.getState)
+  // 全局搜索绑定（批1.11）：激活域有注册 = 可输入；否则禁用 + 域占位
+  const searchBinding = useSyncExternalStore(chromeSearchBus.subscribe, chromeSearchBus.getState)
+  const libraryScope = activeFeature === 'library'
 
   const control = (
     label: string,
@@ -61,39 +77,47 @@ export function ChromeControls({
     </button>
   )
 
+  const navButton = (
+    label: '後退' | '前進',
+    onClick: () => void,
+    can: boolean,
+    glyph: React.JSX.Element
+  ): React.JSX.Element => (
+    <button
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      disabled={!can}
+      className="flex w-11 items-center justify-center text-[var(--muted)] transition-colors duration-[var(--dur-hover)] hover:bg-[var(--panel-2)] hover:text-[var(--text)] disabled:opacity-[var(--disabled-opacity)] disabled:hover:bg-transparent disabled:hover:text-[var(--muted)]"
+    >
+      {glyph}
+    </button>
+  )
+
   return (
     <>
-      {/* 左上：后退/前进（书库态）+ 阅读标签条（全态）共一个容器；右缘让位窗控（3 × w-11）。
-          空隙处是窗口拖拽区（.chrome-base 默认），按钮经 `.chrome-base button` 豁免。 */}
+      {/* 左上：后退/前进（恒在，职能按域分流）+ 阅读标签条（全态）+ 全局搜索框（批1.11）。
+          右缘让位窗控（3 × w-11）；空隙处是窗口拖拽区（.chrome-base 默认），
+          按钮/输入经 `.chrome-base button/input` 豁免。 */}
       <div
         className="absolute top-0 z-[var(--z-chrome)] flex items-stretch overflow-hidden"
         style={{ left: 'var(--sidebar-w)', right: '132px', height: 'var(--inset-top)' }}
       >
-        {activeFeature === 'library' && (
-          <>
-            <button
-              aria-label="後退"
-              title="後退"
-              onClick={() => libraryNavBus.back()}
-              disabled={!navState.canBack}
-              className="flex w-11 items-center justify-center text-[var(--muted)] transition-colors duration-[var(--dur-hover)] hover:bg-[var(--panel-2)] hover:text-[var(--text)] disabled:opacity-[var(--disabled-opacity)] disabled:hover:bg-transparent disabled:hover:text-[var(--muted)]"
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-                <path d="M8 1.5L3.5 6L8 10.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-              </svg>
-            </button>
-            <button
-              aria-label="前進"
-              title="前進"
-              onClick={() => libraryNavBus.forward()}
-              disabled={!navState.canForward}
-              className="flex w-11 items-center justify-center text-[var(--muted)] transition-colors duration-[var(--dur-hover)] hover:bg-[var(--panel-2)] hover:text-[var(--text)] disabled:opacity-[var(--disabled-opacity)] disabled:hover:bg-transparent disabled:hover:text-[var(--muted)]"
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-                <path d="M4 1.5L8.5 6L4 10.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-              </svg>
-            </button>
-          </>
+        {navButton(
+          '後退',
+          () => libraryNavBus.back(),
+          libraryScope && navState.canBack,
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+            <path d="M8 1.5L3.5 6L8 10.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+          </svg>
+        )}
+        {navButton(
+          '前進',
+          () => libraryNavBus.forward(),
+          libraryScope && navState.canForward,
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+            <path d="M4 1.5L8.5 6L4 10.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+          </svg>
         )}
         {readerTabs.length > 0 && (
           <ReaderTabStrip
@@ -103,6 +127,26 @@ export function ChromeControls({
             onClose={onTabClose}
           />
         )}
+        {/* 全局搜索框（批1.11，用户定"搜索回底板"）：恒在；激活域的绑定经 chromeSearchBus 注入。
+            视觉承自退役 TitleBar 的搜索栏（h-7 / --radius-control / 1px 边 / 居中占位），
+            位置改驻顶条带右端（标签条 flex-1 在左，重叠冲突由收缩解决）。 */}
+        <div className="flex flex-none items-center pr-2">
+          <input
+            ref={searchInputRef}
+            value={searchBinding?.value ?? ''}
+            onChange={(e) => searchBinding?.onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                searchBinding?.onChange('')
+                searchInputRef.current?.blur()
+              }
+            }}
+            placeholder={searchBinding?.placeholder ?? SCOPE_PLACEHOLDER[activeFeature] ?? '搜索…'}
+            aria-label="全局搜索"
+            disabled={!searchBinding}
+            className="h-7 w-[280px] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--bg)] px-2.5 text-center text-[13px] text-[var(--text)] outline-none transition-colors duration-[var(--dur-hover)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:text-left disabled:opacity-[var(--disabled-opacity)]"
+          />
+        </div>
       </div>
 
       {/* 右上：窗口控制键 */}

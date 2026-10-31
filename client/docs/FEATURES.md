@@ -249,7 +249,7 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
   （`histRef` = stack + idx，条目 = 位置 **+ 整条面包屑**，后退/前进一起还原）；
   `enterContainer` / `enterFolder` / `goToLevel` 全走 `pushEntry`（新导航截断"前进"分支），
   移动/导入等 `commitNav` 是原地重载**不入栈**；切库广播时历史重置为根。
-  两个出口：**底面后退/前进按钮**（`ChromeControls` 悬浮底面左上，左缘 = `var(--sidebar-w)`，仅书库态渲染，不可用禁用）
+  两个出口：**底面后退/前进按钮**（`ChromeControls` 悬浮底面左上，左缘 = `var(--sidebar-w)`；批1.11 起**恒在**——职能按域分流，书库域 = 层级历史，其余域无历史机构恒禁用，见 §11）
   与**鼠标侧键**（XButton1/2，仅书库态接管并 `preventDefault` 压掉 Chromium 默认历史导航）；
   跨兄弟组件经模块总线 `features/libraryNavBus.ts`（ChromeControls 与 LibraryFeature 是 AppShell 兄弟，
   props 穿 Shell 不值当 —— `logStore` 先例；ChromeControls 用 `useSyncExternalStore` 订阅可用性）。
@@ -321,10 +321,16 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
   宿主 UI 任何内容都不响应按住鼠标拖选（`styles.css` `body{user-select:none}`；`input/textarea` 豁免，
   更名/搜索/新建命名仍可选中复制）。正文在 kookit **iframe（独立 document）**内，天然不受宿主规则影响，
   选择能力原样保留。原 `LibraryFeature` 内容区的局部 `select-none` 因此删除（被全局覆盖，冗余）。
-- **底面全局件：书库层级后退/前进（住 ChromeControls）**：悬浮底面左上
-  （左缘 = `var(--sidebar-w)`，与图标栏右缘对齐，坐 `--inset-top` 顶条带）在 `activeFeature === 'library'`
-  时渲染**后退/前进**两个按钮，不可用时禁用；历史栈与还原语义在 §10「层级后退/前进」。
-  阅读态隐藏——历史栈只属于书库层级导航。
+- **底面全局件：后退/前进（批1.11 起恒在，住 ChromeControls）**：悬浮底面左上
+  （左缘 = `var(--sidebar-w)`，与图标栏右缘对齐，坐 `--inset-top` 顶条带）。**全局生命周期**
+  （用户定：职能按域分流，不随状态消失）：书库域 = 层级历史（§10），不可用时禁用；
+  其余域（阅读/笔记/房间/设置）尚无历史机构（阅读跳转历史 / 房间域返回见 TODO）→ 恒禁用，
+  视觉在场稳定。历史栈与还原语义在 §10「层级后退/前进」。
+- **底面全局件：全局搜索框（批1.11，用户定"搜索回底板"）**：住顶条带右端（窗控左侧），
+  **恒在**；激活域的绑定（value/onChange/placeholder）经 `features/chromeSearchBus.ts` 注入
+  （书库 / 笔记已接线，检索词归各 Feature 自持）；无绑定的域（阅读器/房间/设置，接线见 TODO）
+  = 输入框禁用 + 域占位文案（承自退役 TitleBar 的作用域表）。`Ctrl+F` 聚焦（AppShell 持 ref）、
+  `Esc` 清空。原批1.7d"搜索住进卡片"随本批退役（`CardSearchInput` / `searchFocusBus` 入 `trash/`）。
 - **沉浸全屏**：`F11`（意图 `reader.enterFullscreen`）
   = **进入**全屏（幂等，**不切换** —— 退出走 `Esc` 分流）或设置开关「進入閱讀器時進入全屏」
   （默认关，`appearance.readerFullscreen`）= OS 级全屏（无标题栏可退场；底面全局件保持可见）；
@@ -480,10 +486,11 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 - ⚠ **选中态是试验档**：1px `--accent-ring` 直角矩形 + 卡片常驻 8px 内边距；按 `STYLE.md` §7 纪律
   **单 commit 可回退**，实测若与 P1 冲突 → 回退为"元行套负片块"。
 
-### 12.8 检索接线（笔记卡 · 本地搜索）
+### 12.8 检索接线（笔记作用域 · 底面全局搜索）
 
-- 搜索是**卡片本地物件**（`docs/DIRECTION.md` §2）：笔记卡的检索词由 `NotesFeature` 自持，
-  搜**笔记**（`excerpt` + `body` 子串），`Ctrl+F` 聚焦（`searchFocusBus`，激活态注册）/ `Esc` 清空复用。
+- 搜索住**底面顶条带**（批1.11，`docs/DIRECTION.md` §2 修订：全局生命周期、按激活域分流）：
+  笔记被激活时经 `chromeSearchBus` 注册绑定（检索词仍由 `NotesFeature` 自持），
+  搜**笔记**（`excerpt` + `body` 子串）；`Ctrl+F` 聚焦全局输入框 / `Esc` 清空复用。
 - ⚠ 与另外两类检索**不是一回事**（见 `TODO.md`「全局搜索接线」）：阅读器作用域 = `IRenderService.search`（书内全文）；
   "跨书库全文搜索"**没有待办**，属新专题。
 
@@ -530,8 +537,10 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 
 - **非模态**顶部悬停浮层（`fixed top 14%` 居中，宽 ≤560px）：输入框即筛（子串、大小写不敏感、
   纯空白 = 全量）、`↑/↓` 循环选择、`Enter` 执行、`Esc` 关闭、外点关闭、hover 同步选中。
-- 语汇 = 动作区（§5.2 例外⑥）：纯色底 `--panel-2` + 1px `--border` + 直角；行 = 纯文字（P1），
-  选中态 = `--accent` + `--accent-soft` 底（与右键菜单项同一语言）；键位提示 11px `--muted` 靠右。
+- 语汇 = **全局工具浮层**（批1.11 圆角裁定，`STYLE.md` §3.3：不是挂载线家族，例外⑥只管阅读器
+  正文上的动作浮层）：纯色底 `--panel-2` + 1px `--border` + `--radius-panel` + `--shadow-panel`；
+  行 = 纯文字（P1），选中态 = `--accent` + `--accent-soft` 底（与右键菜单项同一语言）；
+  键位提示 11px `--muted` 靠右。
 - **命令 = 纯数据**（label + keyLabel? + run），检索判据在 `components/commandFilter.ts`
   （纯函数 + 单测）；面板组件 `components/CommandPalette.tsx` 是纯 props。
 - 挂载策略 = AppShell 条件渲染：每次呼出全新挂载，查询词不残留。
