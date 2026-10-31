@@ -671,7 +671,7 @@ export function Gallery(): React.JSX.Element {
       <Panel
         title="阅读器 · 挂载线与右欄卡片页（ReaderRail：桌/纸 + 目录垂挂 + 卡片页）"
         path="components/ReaderRail.tsx（内含 TocPanel / NotesPanel / ReaderControls）"
-        note="沉浸态（STYLE.md §5.8）：全屏的是「桌」不是「正文」—— 纸在居中定宽列里，靠 --desk-bg / --page-edge **用颜色区分**。挂载线退役第一步（批1.13 用户定）：**左段 = 目录垂挂（暂留）**；**右段 = 独立的卡片页**（.rail-card：圆角族卡面、内收一道沟、自右滑入显影），单槽位，页签切换 參數/筆記/聊天/插件格。召唤 = 线右段 / p / c / 命令面板。**目录/笔记的当前条目自动滚到容器正中**（这里把位置钉在第 12 章）。目录条目高亮 = **遮罩按到鼠标的距离**；纸照旧给右车道让位（--page-w 算式不变）"
+        note="沉浸态（STYLE.md §5.8）：全屏的是「桌」不是「正文」—— 纸在居中定宽列里，靠 --desk-bg / --page-edge **用颜色区分**。挂载线退役第一步（批1.13 用户定）：**左段 = 目录垂挂（暂留）**；**右段 = 独立的卡片页**（.rail-card：圆角族卡面、内收一道沟、自右滑入显影），单槽位，页签切换 參數/筆記/聊天/插件格。召唤 = 反引号（总开关）/ p / c / 命令面板。**目录的当前条目自动滚到容器正中**（这里把位置钉在第 12 章）。目录条目高亮 = **遮罩按到鼠标的距离**；右侧槽位恒占位（--page-w 算式不变，呼出不挪正文）"
       >
         <div className="grid gap-6 md:grid-cols-2">
           <RailDemo label="只剩掛載線（左欄與右卡都收起）" />
@@ -873,12 +873,13 @@ function RailDemo({
           } as React.CSSProperties
         }
       >
-        {/* 批1.14 平级结构：阅读区（阅读卡的化身）与卡片页槽位是**兄弟**，中间一道沟露出底板 */}
+        {/* 批1.14 平级结构 + 批1.16 槽位常驻：阅读区（阅读卡的化身）与右侧槽位是**兄弟**，
+            中间一道沟露出底板；槽位恒占位（呼出/收起时阅读区纹丝不动） */}
         <div className="relative h-full min-w-0 flex-1">
           <div className="reader-paper absolute inset-0">
             <div className="reader-stage">
               <p className="m-0 text-[13px] leading-[1.9] text-[var(--page-text)]">
-                紙（正文列 = 宿主容器）：它的 clientWidth 就是 kookit 的排版寬度依據。點掛載線的左段 / 右段開合掛件。
+                紙（正文列 = 宿主容器）：它的 clientWidth 就是 kookit 的排版寬度依據。點掛載線（目錄段）開合目錄；卡片頁由槽位常駐位置呼出。
               </p>
             </div>
           </div>
@@ -902,7 +903,7 @@ function RailDemo({
             cardSlot={slot}
           />
         </div>
-        <div className="reader-card-slot" data-open={ctlOpen || undefined}>
+        <div className="reader-card-slot">
           <div ref={setSlot} className="reader-card-slot__inner" />
         </div>
       </div>

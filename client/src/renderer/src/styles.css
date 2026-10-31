@@ -569,12 +569,11 @@ textarea {
   /* v1.14（§2 P5）：减动态 = 保留透明度/色温，去掉位移与揭幕 */
   .rail-hang,
   .rail-card,
-  .reader-card-slot,
   .context-menu,
   .context-menu__sub {
     transition: none;
   }
-  /* 卡片页减动态：去掉位移与槽位收放（阅读卡瞬时让位），保留显影 */
+  /* 卡片页减动态：去掉位移（槽位恒占位，无需收放），保留显影 */
   .rail-card,
   .rail-card[data-closing] {
     transform: none;
@@ -1043,20 +1042,17 @@ textarea {
    也不占用/遮挡侧边栏的贴缘召回按钮；宽度 = 左侧留白可用宽度（上限 `--toc-line-w`）→ 不侵入正文列。
    高亮：不是改文字颜色，而是**条目容器上覆盖一层遮罩**（`--desk-bg`），
    其不透明度按**条目到鼠标的距离**调整（近 → 揭开，远 → 盖上），并带 200ms 过渡（见 TocPanel）。 */
-/* ---------- 挂载线实体（ReaderRail；2026-09-12 用户定，二次纠正定稿）----------
-   一条**横向**挂载线：自目录段起**延伸整个页面宽度**（左段=目录挂载区、中段=纯线跨过正文上方、
-   右段=参数挂载区）。目录折叠时点左段 = 展开目录；参数面板挂在右段下方，**折叠 = 向上收回线里**。
-   三段 border-top 拼出同一条线；容器不接事件（pointer-events:none），只有两段按钮可点。
-   **镜像口径（2026-09-16 用户定，v1.9 纠正）**：线 = 从 `--sidebar-w` 到窗口右缘的**固定一条**；
-   两段**等宽**（`--rail-panel-w`）且**各贴线的一端** → 关于**线的中心**互为镜像。
-   ⚠ 不存在"中心点算式"这种东西：等宽 + 两端贴齐就已经是镜像了；曾经用 `--read-width`
+/* ---------- 挂载线实体（ReaderRail；2026-09-12 立，批1.16 收缩为目录段）----------
+   原"一条横线贯穿页面宽"（左段目录 / 中段纯线 / 右段召唤位）随挂载线退役推进收束：
+   批1.16（用户定"右边的挂载线清掉"）**只剩目录段** —— 线 = 目录的挂载点，
+   目录折叠时点它 = 展开目录；卡片页的召唤不在线上（`` ` `` / `p` / `c` / 命令面板）。
+   **镜像口径（2026-09-16 用户定，v1.9 纠正）随右段退役** —— 曾经用 `--read-width`
    反推宽度与位置（`--rail-shift` / `--rail-w-cap`）是**错的**，已删（线的长度不许是纸的函数）。 */
 .reader-rail {
   position: absolute;
   top: var(--toc-line-top, 28px);
   /* 批1.5：线贴**阅读卡**的左缘（卡片模型，侧边栏在卡外） */
   left: 0;
-  right: 0;
   z-index: 1; /* 桌（z-auto）之上、纸列（z2）之下 —— 线被书页压着 */
   display: flex;
   align-items: stretch;
@@ -1065,8 +1061,7 @@ textarea {
   pointer-events: none;
 }
 
-.reader-rail__zone,
-.reader-rail__span {
+.reader-rail__zone {
   border-top: 1px solid var(--muted);
   /* 灯的法则（v1.14 §5.8）：光标即光源 —— 不透明度在 [静息 0.34, 满值 0.75] 间随
      光标到线段的距离**连续呼吸**（`veil.ts` paintGlow 写接近度因子 --rail-glow；
@@ -1085,17 +1080,7 @@ textarea {
   cursor: pointer;
 }
 
-/* 两段**等宽**：左段贴线的左端、右段贴线的右端（镜像的全部条件就是这两条） */
 .reader-rail__zone--toc {
-  width: var(--rail-panel-w, 280px);
-}
-
-.reader-rail__span {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.reader-rail__zone--params {
   width: var(--rail-panel-w, 280px);
 }
 
@@ -1135,28 +1120,21 @@ textarea {
   }
 }
 
-/* ── 右欄卡片页（批1.13 立；批1.14 平级化，用户定"卡片页和阅读器界面平级，
-   参数面板和阅读器一样都是置于底板之上"）────────────────────────────────
+/* ── 右欄卡片页（批1.13 立；批1.14 平级化；批1.15 呼出制；批1.16 槽位常驻）────────
    卡片页**不是阅读卡内的浮层**——它是阅读卡的**兄弟卡**：AppShell 卡片区的 scrim 容器
-   改 flex 行，阅读卡（flex-1）与槽位并排，中间一道沟露出底板；两张卡同顶同底、同卡面语法
-   （桌色面 + --radius-panel + 1px 边 + 面板阴影）。
-   槽位开合 = 宽度 0 ↔ (卡宽 + 沟)，与卡片的滑入/滑出同节奏；阅读卡随 flex 收窄，
-   纸宽公式（--page-w 的 100% 是容器相对）自动夹取 —— **切卡不重排正文**（纸宽不变）。
+   = flex 行，阅读卡（flex-1）与右侧槽位并排，中间一道沟露出底板；两张卡同顶同底、
+   同卡面语法（桌色面 + --radius-panel + 1px 边 + 面板阴影）。
+   **槽位恒占位**（批1.16 用户定"呼出之后显示的内容维持相对位置不变"）：卡宽 + 沟的宽度
+   永远让出来，收起时是一段空的底色 —— 呼出/收起时阅读卡与纸**纹丝不动**，卡片只在
+   自己的位置上滑入/滑出（右侧让位区本来就近乎不遮正文）。
    动画：自右 24px 滑入 + 显影，强 ease-out --dur-panel；收回更快（--dur-hover，
    data-closing 期间不拾取事件，收完卸载）。单槽位：一次只显示一张卡（切页 = 原地换内容）。 */
 .reader-card-slot {
   flex: none;
-  width: 0;
-  overflow: hidden; /* 收合时裁掉卡片（卡片锚右，从左缘被"吞"回去） */
-  display: flex;
-  justify-content: flex-end;
-  transition: width var(--dur-hover) var(--ease-out);
-}
-
-.reader-card-slot[data-open] {
   width: calc(var(--rail-panel-w, 280px) + var(--rail-gap, 16px));
   padding-left: var(--rail-gap, 16px); /* 两卡之间露出底板的沟 */
-  transition: width var(--dur-panel) var(--ease-out), padding var(--dur-panel) var(--ease-out);
+  display: flex;
+  justify-content: flex-end;
 }
 
 .reader-card-slot__inner {

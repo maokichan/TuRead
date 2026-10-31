@@ -300,8 +300,6 @@ export default function AppShell(): React.JSX.Element {
 
   // 右欄卡片页清单（批1.13）：ReaderFeature 经 readerCardBus 登记，命令面板据此给"呼出X"
   const readerCardPages = useSyncExternalStore(readerCardBus.subscribe, readerCardBus.getState)
-  // 卡片页开合视图（批1.14 平级化）：AppShell 布局据此让出右槽位、收窄阅读卡
-  const readerCardView = useSyncExternalStore(readerCardBus.subscribe, readerCardBus.getView)
 
   const paletteCommands = useMemo<PaletteCommand[]>(() => {
     /** 主题命令：写偏好（patchSetting 原子合并）→ 应用 data-theme → 阅读中同步注入书 iframe */
@@ -503,11 +501,10 @@ export default function AppShell(): React.JSX.Element {
         {FEATURES.map((f) => {
           const C = f.component
           if (f.id === 'reader') {
-            // 右欄卡片页（批1.14 平级化，用户定"卡片页和阅读器界面平级，都置于底板之上"）：
-            // scrim 容器改 flex 行 —— 阅读卡与卡片页槽位是**兄弟**，中间一道沟露出底板。
-            // 槽位开合 = 宽度 0 ↔ (卡宽 + 沟)（styles.css .reader-card-slot 同节奏过渡），
-            // 阅读卡 flex-1 随动收窄；纸宽公式（--page-w 的 100% 是容器相对）自动夹取，切卡不重排正文。
-            const cardOpen = activeFeature === 'reader' && readerCardView.open
+            // 右欄卡片页（批1.14 平级化；批1.16 槽位常驻，用户定"呼出之后显示的内容维持相对位置不变"）：
+            // scrim 容器 = flex 行 —— 阅读卡与右侧槽位是**兄弟**，中间一道沟露出底板；
+            // **槽位恒占位**（卡宽 + 沟，收起时是一段空的底色）—— 呼出/收起时阅读卡与纸
+            // **纹丝不动**，卡片在自己的位置上滑入/滑出。portal 目标常驻（挂载后可查）。
             return (
               <div
                 key={f.id}
@@ -531,13 +528,8 @@ export default function AppShell(): React.JSX.Element {
                     />
                   </FeatureCard>
                 </div>
-                {/* 卡片页槽位（兄弟卡的家）：常驻渲染（ReaderFeature 的 portal 目标要挂载后可查），
-                    开合经 data-open 驱动宽度过渡；随本容器 hidden 而隐藏，状态天然继承 */}
-                <div
-                  className="reader-card-slot"
-                  data-open={cardOpen || undefined}
-                  aria-hidden={!cardOpen || undefined}
-                >
+                {/* 右侧槽位（卡片页的家，恒占位；收起 = 空的底色） */}
+                <div className="reader-card-slot">
                   <div id="reader-card-slot" className="reader-card-slot__inner" />
                 </div>
               </div>

@@ -98,8 +98,8 @@ interface ReaderRailProps {
 /** 卡片页收回的卸载延迟：与 styles.css 的收回时长（`--dur-hover` = 160ms）同步，稍留余量 */
 const HANG_EXIT_MS = 180
 
-/** 挂载线灯光的目标段（veil.ts paintGlow 的选择器：线段一起呼吸） */
-const RAIL_GLOW_SELECTOR = '.reader-rail__zone, .reader-rail__span'
+/** 挂载线灯光的目标段（veil.ts paintGlow 的选择器：目录段呼吸） */
+const RAIL_GLOW_SELECTOR = '.reader-rail__zone'
 
 /**
  * 开合的卸载状态机（v1.14 垂挂揭幕沿用）：`open=false` 时**先播收回**
@@ -255,14 +255,11 @@ export function ReaderRail({
     }
   }, [])
 
-  // 挂载线右段（卡片页召唤位）的提示文字 = 当前内容
-  const rightZoneTitle = controlsOpen ? '收起右欄卡片' : (activePlugin?.title ?? (rightPanel === 'chat' && chat ? '聊天' : rightPanel === 'notes' ? '筆記' : '閱讀參數'))
-
   return (
     <>
-      {/* 横向挂载线：左段（目录，暂留）+ 中段（纯线）+ 右段（右欄卡片页召唤位）。
-          ⚠ 批1.13 起右段不再是"挂件"而是卡片页的召唤位（卡片内收一道沟，不贴线端），
-          镜像口径随右段换形退役（对左段仍然成立：贴卡缘、宽度 = --rail-panel-w） */}
+      {/* 挂载线（批1.16 用户定"右边的挂载线清掉"）：只剩**目录段** —— 线 = 目录的挂载点
+          （中段纯线与右段召唤位一并退役；卡片页的召唤 = `` ` `` / p / c / 命令面板，
+          不再有线上的鼠标位） */}
       <div className="reader-rail" ref={railRef}>
         <button
           className="reader-rail__zone reader-rail__zone--toc"
@@ -270,14 +267,6 @@ export function ReaderRail({
           aria-expanded={tocOpen}
           title={tocOpen ? '收起左欄' : '目錄'}
           onClick={onTocToggle}
-        />
-        <div className="reader-rail__span" aria-hidden="true" />
-        <button
-          className="reader-rail__zone reader-rail__zone--params"
-          aria-label={rightZoneTitle}
-          aria-expanded={controlsOpen}
-          title={rightZoneTitle}
-          onClick={onControlsToggle}
         />
       </div>
 
