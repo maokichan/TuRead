@@ -78,6 +78,9 @@ export function LibraryFeature({
   const [libraryId, setLibraryId] = useState('')
   const [view, setView] = useState<LibraryView>(DEFAULT_SETTINGS.view)
   const [covers, setCovers] = useState<Record<string, string>>({})
+  /** 检索态的封面/阅读状态（独立于 covers：loadLevel 的随层级生命周期走，检索结果随检索词走） */
+  const [searchCovers, setSearchCovers] = useState<Record<string, string>>({})
+  const [searchReadingStates, setSearchReadingStates] = useState<Record<string, ReadingState>>({})
   const [detailId, setDetailId] = useState<string | null>(null)
   const [importing, setImporting] = useState<{ done: number; total: number } | null>(null)
   const [coverProgress, setCoverProgress] = useState<{ done: number; total: number } | null>(null)
@@ -175,7 +178,7 @@ export function LibraryFeature({
   useEffect(() => {
     if (activeFeature !== 'library') return
     chromeSearchBus.register({
-      placeholder: '搜索書庫…（標題 / 路徑）',
+      placeholder: '搜索書庫…',
       value: libraryQuery,
       onChange: setLibraryQuery
     })
@@ -762,32 +765,74 @@ export function LibraryFeature({
     ]
   )
 
-  const detailBook = books.find((b) => b.id === detailId) ?? null
-
-  // 书库搜索（标题栏搜索栏）：标题/路径包含即命中，过滤当前层的书（書箱/文件夹不参与过滤）。
-  // 检索防抖 ~200ms（STYLE.md §5.10 纪律③，与 NotesFeature 同款）：标题栏逐键 setState，
-  // 不防抖就是"每字符一次过滤 + 可视区全量重渲染"。
+  // 书库检索（底面全局搜索·书库作用域，批1.12 换源）：**全库检索** —— 跨書箱/文件夹层级，
+  // SQL 侧按 标题/来源路径/收录路径 子串匹配（`store.searchHoldings`）；不看当前层。
+  // 检索防抖 ~200ms（STYLE.md §5.10 纪律③，与 NotesFeature 同款）；词非空 = 检索态：
+  // 结果是**书的平面列表**（書箱/文件夹不参与），清词回到当前层。
   const [debouncedLibraryQuery, setDebouncedLibraryQuery] = useState(libraryQuery)
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedLibraryQuery(libraryQuery), QUERY_DEBOUNCE_MS)
     return () => window.clearTimeout(t)
   }, [libraryQuery])
   const q = debouncedLibraryQuery.trim().toLowerCase()
-  const visibleBooks =
-    q.length > 0
-      ? books.filter(
-          (b) =>
-            (b.metadata.title || '').toLowerCase().includes(q) ||
-            b.filePath.toLowerCase().includes(q)
-        )
-      : books
+  const searching = q.length > 0
 
-  // 当前层条目 = 書箱/文件夹在前、书在后
-  const levelItems: LevelItem[] = [
-    ...containers.map((container) => ({ kind: 'container' as const, container })),
-    ...folders.map((f) => ({ kind: 'folder' as const, name: f.name, path: f.path })),
-    ...visibleBooks.map((book) => ({ kind: 'book' as const, book }))
-  ]
+  // 检索态的结果装载（代次守卫防乱序回填；空串不发起）。
+  // 封面/阅读状态随结果补齐（与 loadLevel 同一套 coverCache / 状态表）。
+  const [searchResults, setSearchResults] = useState<EditionRecord[] | null>(null)
+  const searchSeq = useRef(0)
+  useEffect(() => {
+    if (!searching || !libraryId) {
+      setSearchResults(null)
+      return
+    }
+    const seq = ++searchSeq.current
+    void container.store
+      .searchHoldings(libraryId, q)
+      .then(async (items) => {
+        if (seq !== searchSeq.current) return
+        setSearchResults(items.map((it) => it.edition))
+        setSearchReadingStates(
+          Object.fromEntries(
+            items.flatMap((it) =>
+              it.readingState ? [[it.edition.id, it.readingState] as const] : []
+            )
+          )
+        )
+        const pairs = await Promise.all(
+          items.map(
+            async (it) =>
+              [
+                it.edition.id,
+                await getCoverUrl(container.store, it.edition.id, it.edition.coverPath)
+              ] as const
+          )
+        )
+        if (seq !== searchSeq.current) return
+        setSearchCovers(Object.fromEntries(pairs.filter((p): p is [string, string] => p[1] !== null)))
+      })
+      .catch((err) => {
+        if (seq !== searchSeq.current) return
+        host.pushLog(`書庫檢索失敗：${(err as Error).message}`)
+        setSearchResults([])
+      })
+  }, [container, searching, q, libraryId])
+
+  const visibleBooks = searching ? (searchResults ?? []) : books
+
+  // 条目源：检索态 = 全库命中书的平面列表；常态 = 当前层（書箱/文件夹在前、书在后）
+  const levelItems: LevelItem[] = searching
+    ? visibleBooks.map((book) => ({ kind: 'book' as const, book }))
+    : [
+        ...containers.map((container) => ({ kind: 'container' as const, container })),
+        ...folders.map((f) => ({ kind: 'folder' as const, name: f.name, path: f.path })),
+        ...books.map((book) => ({ kind: 'book' as const, book }))
+      ]
+
+  // 详情对象从两个来源找（常态 = 当前层 books；检索态 = 全库命中 searchResults）
+  const detailBook =
+    books.find((b) => b.id === detailId) ??
+    (searching ? (searchResults ?? []).find((b) => b.id === detailId) ?? null : null)
 
   // —— 窗口化渲染（2026-09-12）：只挂载可视区 ± 缓冲条目。
   // 書箱/文件夹条目与书籍条目同几何（网格 2:3+34px 标签；列表 h-16），共用同一 stride。
@@ -815,7 +860,7 @@ export function LibraryFeature({
   const itemProps = (b: EditionRecord) => ({
     book: b,
     active: b.id === selectedBookId,
-    coverUrl: covers[b.id] ?? null,
+    coverUrl: covers[b.id] ?? searchCovers[b.id] ?? null,
     onDetail: () => openDetail(b.id),
     onOpen: () => openBook(b.id),
     onDelete: () => requestDelete(b),
@@ -875,7 +920,7 @@ export function LibraryFeature({
           <BookRow
             key={it.book.id}
             {...itemProps(it.book)}
-            readingState={readingStates[it.book.id] ?? null}
+            readingState={readingStates[it.book.id] ?? searchReadingStates[it.book.id] ?? null}
           />
         )
       case 'container':
@@ -922,17 +967,20 @@ export function LibraryFeature({
           onContextMenu={onContentContextMenu}
           className="h-full overflow-y-auto pr-1"
         >
-          {levelItems.length === 0 ? (
+          {searching ? (
+            // 检索态空态优先于"書架為空"（两个空态分层，2026-10-31 口径裁定）：全库没命中就是说没命中
+            searchResults === null ? null : visibleBooks.length === 0 ? (
+              <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
+                整座書庫沒有匹配「{debouncedLibraryQuery.trim()}」的书
+              </p>
+            ) : null
+          ) : levelItems.length === 0 ? (
             <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
               {libMode === 'curated'
                 ? insideVirtual
                   ? '此書箱還沒有書。右鍵空白處可新建子書箱'
                   : '書架為空：點右下角「導入」添加電子書，或右鍵空白處新建書箱'
                 : '此文件夾沒有電子書'}
-            </p>
-          ) : q.length > 0 && visibleBooks.length === 0 ? (
-            <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
-              没有匹配「{debouncedLibraryQuery.trim()}」的书
             </p>
           ) : view === 'grid' ? (
             <div
@@ -959,8 +1007,10 @@ export function LibraryFeature({
         {detailBook && (
           <BookDetailPanel
             book={detailBook}
-            readingState={readingStates[detailBook.id] ?? null}
-            coverUrl={covers[detailBook.id] ?? null}
+            readingState={
+              readingStates[detailBook.id] ?? searchReadingStates[detailBook.id] ?? null
+            }
+            coverUrl={covers[detailBook.id] ?? searchCovers[detailBook.id] ?? null}
             onClose={() => setDetailId(null)}
             onOpen={() => openBook(detailBook.id)}
             onDelete={() => requestDelete(detailBook)}

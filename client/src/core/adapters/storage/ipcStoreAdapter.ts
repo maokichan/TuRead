@@ -85,6 +85,10 @@ export class IpcStoreAdapter implements ILibraryStore {
     return (await this.bridge.invoke(IPC.storeListItemsAtLevel, query)) as LibraryItem[]
   }
 
+  async searchHoldings(libraryId: string, text: string): Promise<LibraryItem[]> {
+    return (await this.bridge.invoke(IPC.storeSearchHoldings, { libraryId, text })) as LibraryItem[]
+  }
+
   async listAllHeldEditions(): Promise<EditionRecord[]> {
     return (await this.bridge.invoke(IPC.storeListAllHeldEditions)) as EditionRecord[]
   }

@@ -657,6 +657,12 @@ interface ILibraryStore {
   listHoldings(libraryId: string): Promise<Holding[]>;
   /** 层级取书（读模型）。**缺省不含"来源缺失"**；映射库走 `parent_path` 的 SQL 侧过滤 */
   listItemsAtLevel(query: LibraryLevelQuery): Promise<LibraryItem[]>;
+  /**
+   * **全库检索**（读模型，批1.12）：跨書箱/文件夹层级按 标题/来源路径/收录路径 子串匹配
+   * 某库收录的书（大小写不敏感；不含 missing；LIKE 通配符转义在实现内做，调用方传原文）。
+   * 检索是书库的"另一只眼睛"——**不看当前层，看整库**；SQL 侧完成，不走 N+1。
+   */
+  searchHoldings(libraryId: string, text: string): Promise<LibraryItem[]>;
   listAllHeldEditions(): Promise<EditionRecord[]>;
   /** 移动收录到书箱（单亲归属；containerId=null = 移回库根层）—— **唯一的"移动"入口** */
   moveHolding(editionId: string, libraryId: string, containerId: string | null): Promise<void>;

@@ -120,6 +120,12 @@ export interface ILibraryStore {
   removeHolding(libraryId: string, editionId: string): Promise<void>
   /** 层级取书（读模型）。映射库走 `parent_path` 的 SQL 侧过滤（不再全量拉回 JS 过滤） */
   listItemsAtLevel(query: LibraryLevelQuery): Promise<LibraryItem[]>
+  /**
+   * **全库检索**（读模型，批1.12）：跨書箱/文件夹层级，按 **标题 / 来源路径** 子串匹配
+   * 某库收录的书（大小写不敏感；不含 `missing`；LIKE 通配符已转义）。
+   * 检索是书库的"另一只眼睛"——不看当前层，看整库；SQL 侧完成，不走 N+1。
+   */
+  searchHoldings(libraryId: string, text: string): Promise<LibraryItem[]>
   /** 移动收录到书箱（资源管理器语义 = 移动，单亲归属；`containerId=null` = 移回库根层） */
   moveHolding(editionId: string, libraryId: string, containerId: string | null): Promise<void>
   /** 取某 edition 在某库的收录；`null` = 该库没有收录它 */

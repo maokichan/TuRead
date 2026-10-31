@@ -89,7 +89,7 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
   useEffect(() => {
     if (activeFeature !== 'notes') return
     chromeSearchBus.register({
-      placeholder: '搜索筆記…（摘錄 / 批註）',
+      placeholder: '搜索筆記…',
       value: notesQuery,
       onChange: setNotesQuery
     })

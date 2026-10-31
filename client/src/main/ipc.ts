@@ -81,6 +81,9 @@ export function registerIpc(
   ipcMain.handle(IPC.storeListItemsAtLevel, (_e, q: LibraryLevelQuery) =>
     store().listItemsAtLevel(q)
   )
+  ipcMain.handle(IPC.storeSearchHoldings, (_e, p: { libraryId: string; text: string }) =>
+    store().searchHoldings(p.libraryId, p.text)
+  )
   ipcMain.handle(IPC.storeListAllHeldEditions, () => store().listAllHeldEditions())
   ipcMain.handle(
     IPC.storeMoveHolding,

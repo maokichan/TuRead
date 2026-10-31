@@ -28,6 +28,7 @@ export const IPC = {
   storeListHoldings: 'store:list-holdings',
   storeSetHoldingMissing: 'store:set-holding-missing',
   storeListItemsAtLevel: 'store:list-items-at-level',
+  storeSearchHoldings: 'store:search-holdings',
   storeListAllHeldEditions: 'store:list-all-held-editions',
   storeMoveHolding: 'store:move-holding',
   storeGetSetting: 'store:get-setting',

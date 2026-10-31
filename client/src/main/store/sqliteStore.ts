@@ -437,18 +437,12 @@ export class SqliteStore {
      */
     const includeMissing = query.includeMissing === true
     const missClause = includeMissing ? '' : ' AND h.missing = 0'
-    const cols = `${EDITION_COLS}, h.library_id AS h_library_id, h.container_id AS h_container_id,
-      h.origin AS h_origin, h.path AS h_path, h.parent_path AS h_parent_path,
-      h.missing AS h_missing, h.sort AS h_sort, h.added_at AS h_added_at,
-      rs.last_read_at AS rs_last_read_at, rs.last_location AS rs_last_location,
-      rs.total_read_ms AS rs_total_read_ms`
-    const from = 'FROM holdings h JOIN editions e ON e.id = h.edition_id LEFT JOIN reading_state rs ON rs.edition_id = e.id'
     let rows: Record<string, unknown>[]
     if (query.folder != null) {
       // 映射库：直接位于该文件夹的收录
       rows = this.db
         .prepare(
-          `SELECT ${cols} ${from}
+          `SELECT ${ITEM_COLS} ${ITEM_FROM}
            WHERE h.library_id = ? AND h.parent_path = ?${missClause}
            ORDER BY e.title COLLATE NOCASE`
         )
@@ -456,7 +450,7 @@ export class SqliteStore {
     } else if (query.containerId) {
       rows = this.db
         .prepare(
-          `SELECT ${cols} ${from}
+          `SELECT ${ITEM_COLS} ${ITEM_FROM}
            WHERE h.library_id = ? AND h.container_id = ?${missClause}
            ORDER BY h.sort, e.title COLLATE NOCASE`
         )
@@ -464,12 +458,34 @@ export class SqliteStore {
     } else {
       rows = this.db
         .prepare(
-          `SELECT ${cols} ${from}
+          `SELECT ${ITEM_COLS} ${ITEM_FROM}
            WHERE h.library_id = ? AND h.container_id IS NULL${missClause}
            ORDER BY e.created_at`
         )
         .all(query.libraryId)
     }
+    return rows.map((r) => this.fromItemRow(r))
+  }
+
+  /**
+   * 全库检索（批1.12）：跨层级 LIKE 匹配 标题/来源路径/收录路径，SQL 侧完成（无 N+1）。
+   * 口径与 listItemsAtLevel 对齐：不含 `missing`；空串 = 不检索（返回空，调用方自行分流）。
+   */
+  async searchHoldings(libraryId: string, text: string): Promise<LibraryItem[]> {
+    const q = text.trim()
+    if (!q) return []
+    // LIKE 通配符转义（%/_/\），配合 ESCAPE——用户输入"100%"不能变成通配模式
+    const pat = `%${q.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`
+    const rows: Record<string, unknown>[] = this.db
+      .prepare(
+        `SELECT ${ITEM_COLS} ${ITEM_FROM}
+         WHERE h.library_id = ? AND h.missing = 0
+           AND (LOWER(e.title) LIKE ? ESCAPE '\\'
+             OR LOWER(e.file_path) LIKE ? ESCAPE '\\'
+             OR LOWER(COALESCE(h.path, '')) LIKE ? ESCAPE '\\')
+         ORDER BY e.title COLLATE NOCASE`
+      )
+      .all(libraryId, pat, pat, pat)
     return rows.map((r) => this.fromItemRow(r))
   }
 
@@ -1021,6 +1037,15 @@ const EDITION_COLS = `e.id AS id, e.work_id AS work_id, e.fp_algo AS fp_algo, e.
   e.fp_size AS fp_size, e.format AS format, e.title AS title, e.metadata AS metadata,
   e.file_path AS file_path, e.cover_path AS cover_path, e.cover_failed AS cover_failed,
   e.created_at AS created_at`
+
+/** 层级/检索读模型的公共 SELECT 主体（holdings ⨝ editions ⨝ reading_state）—— listItemsAtLevel 与 searchHoldings 共用 */
+const ITEM_COLS = `${EDITION_COLS}, h.library_id AS h_library_id, h.container_id AS h_container_id,
+  h.origin AS h_origin, h.path AS h_path, h.parent_path AS h_parent_path,
+  h.missing AS h_missing, h.sort AS h_sort, h.added_at AS h_added_at,
+  rs.last_read_at AS rs_last_read_at, rs.last_location AS rs_last_location,
+  rs.total_read_ms AS rs_total_read_ms`
+const ITEM_FROM =
+  'FROM holdings h JOIN editions e ON e.id = h.edition_id LEFT JOIN reading_state rs ON rs.edition_id = e.id'
 
 /**
  * 路径父目录归一：去尾分隔符 + 统一为**反斜杠**（Windows 主导）。

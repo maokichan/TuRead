@@ -3,11 +3,12 @@
  *
  * 背景融为连续底面后，全局件都悬浮在 --inset-top 顶条带里（z = --z-chrome，
  * 压在卡片之上但让位给一切浮层）：
- * - 左上 = 书库层级后退/前进 + **阅读标签条**（批1.10）+ **全局搜索框**（批1.11）共一个容器。
- *   后退/前进**恒在**（批1.11 用户定：全局生命周期——职能按域分流，不随状态消失）：
- *   书库域 = 层级历史（libraryNavBus）；其余域尚无历史机构（阅读跳转历史 / 房间域返回
- *   见 TODO）→ 恒禁用，视觉在场稳定。搜索框同理恒在：绑定随激活域走（chromeSearchBus），
- *   无绑定的域 = 禁用 + 域占位（占位表承自退役 TitleBar 的作用域口径）。
+ * - 左上 = 书库层级后退/前进 + **全局搜索框**（批1.11 上底板 / 批1.12 定位左簇）+
+ *   **阅读标签条**（批1.10）共一个容器。后退/前进**恒在**（批1.11 用户定：全局生命周期——
+ *   职能按域分流，不随状态消失）：书库域 = 层级历史（libraryNavBus）；其余域尚无历史机构
+ *   （阅读跳转历史 / 房间域返回见 TODO）→ 恒禁用。搜索框同理恒在：绑定随激活域走
+ *   （chromeSearchBus），无绑定的域 = 禁用 + 域占位；**位置固定在导航键之后**（左簇），
+ *   标签条伸缩不挪动它。
  * - 右上 = 窗口控制键：最小化 / 最大化(还原) / 关闭。OS 全屏时保持可见（语义不变，
  *   原自绘标题栏"全屏收起"的布局逻辑随 TitleBar 退役）。
  *
@@ -21,10 +22,11 @@ import { libraryNavBus } from '../features/libraryNavBus'
 import { chromeSearchBus } from '../features/chromeSearchBus'
 import { ReaderTabStrip, type ReaderTabItem } from './ReaderTabStrip'
 
-/** 无绑定域的占位文案（承自退役 TitleBar 的作用域表；阅读器/房间接线见 TODO「全局搜索接线」） */
+/** 无绑定域的占位文案（承自退役 TitleBar 的作用域表；阅读器/房间接线见 TODO「全局搜索接线」。
+    不写"未接线"之类的工程腔——禁用态本身已经说明不可用，占位只说这个域搜什么） */
 const SCOPE_PLACEHOLDER: Record<string, string> = {
-  reader: '搜索本書內容…（未接線）',
-  room: '搜索房間 / 服務器書目…（未接線）',
+  reader: '搜索本書…',
+  room: '搜索房間…',
   settings: '搜索…'
 }
 
@@ -96,7 +98,8 @@ export function ChromeControls({
 
   return (
     <>
-      {/* 左上：后退/前进（恒在，职能按域分流）+ 阅读标签条（全态）+ 全局搜索框（批1.11）。
+      {/* 左上：后退/前进（恒在，职能按域分流）+ 全局搜索框（批1.12 定位：**左簇固定**，
+          紧跟导航键——不随标签条伸缩，标签多时挤的是标签自己）+ 阅读标签条（全态）。
           右缘让位窗控（3 × w-11）；空隙处是窗口拖拽区（.chrome-base 默认），
           按钮/输入经 `.chrome-base button/input` 豁免。 */}
       <div
@@ -119,18 +122,9 @@ export function ChromeControls({
             <path d="M4 1.5L8.5 6L4 10.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
           </svg>
         )}
-        {readerTabs.length > 0 && (
-          <ReaderTabStrip
-            tabs={readerTabs}
-            activeId={activeTabId}
-            onActivate={onTabActivate}
-            onClose={onTabClose}
-          />
-        )}
-        {/* 全局搜索框（批1.11，用户定"搜索回底板"）：恒在；激活域的绑定经 chromeSearchBus 注入。
-            视觉承自退役 TitleBar 的搜索栏（h-7 / --radius-control / 1px 边 / 居中占位），
-            位置改驻顶条带右端（标签条 flex-1 在左，重叠冲突由收缩解决）。 */}
-        <div className="flex flex-none items-center pr-2">
+        {/* 全局搜索框（批1.11 搜索回底板；批1.12 移左簇）：恒在；激活域的绑定经 chromeSearchBus 注入。
+            视觉承自退役 TitleBar 的搜索栏（h-7 / --radius-control / 1px 边 / 居中占位）。 */}
+        <div className="flex flex-none items-center px-1.5">
           <input
             ref={searchInputRef}
             value={searchBinding?.value ?? ''}
@@ -144,9 +138,17 @@ export function ChromeControls({
             placeholder={searchBinding?.placeholder ?? SCOPE_PLACEHOLDER[activeFeature] ?? '搜索…'}
             aria-label="全局搜索"
             disabled={!searchBinding}
-            className="h-7 w-[280px] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--bg)] px-2.5 text-center text-[13px] text-[var(--text)] outline-none transition-colors duration-[var(--dur-hover)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:text-left disabled:opacity-[var(--disabled-opacity)]"
+            className="h-7 w-[240px] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--bg)] px-2.5 text-center text-[13px] text-[var(--text)] outline-none transition-colors duration-[var(--dur-hover)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:text-left disabled:opacity-[var(--disabled-opacity)]"
           />
         </div>
+        {readerTabs.length > 0 && (
+          <ReaderTabStrip
+            tabs={readerTabs}
+            activeId={activeTabId}
+            onActivate={onTabActivate}
+            onClose={onTabClose}
+          />
+        )}
       </div>
 
       {/* 右上：窗口控制键 */}
