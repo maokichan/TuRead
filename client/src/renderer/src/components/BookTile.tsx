@@ -52,7 +52,7 @@ export function BookTile({
         }}
         className="relative z-[var(--z-menu)] flex cursor-pointer flex-col gap-1.5"
       >
-        <div data-book-cover className="relative flex aspect-[2/3] w-full items-center justify-center rounded-[var(--radius-item)] border border-[var(--border-soft)]">
+        <div data-book-cover className="relative flex aspect-[2/3] w-full items-center justify-center rounded-[var(--radius-item)] border border-[var(--muted)]">
           <span className="text-[12.5px] text-[var(--muted)] opacity-45 transition-opacity duration-[var(--dur-hover)] hover:opacity-80">
             再次點擊打開
           </span>
