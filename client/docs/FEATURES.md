@@ -1,12 +1,12 @@
 # UI 功能组件设计（Feature Components）
 
-> 状态：**v0.1.6 落地实施；视觉语汇由 `STYLE.md` 统一约束**：标准容器（`features/types.ts` + `registry.ts` + `AppShell`）+ 四个功能组件
-> （Library/Reader/Room/Settings，Server 已并入 Room）+ Tailwind v4 迁移完成。
+> 状态：**v0.1.6 落地实施；视觉语汇由 `STYLE.md` 统一约束**：标准容器（`features/types.ts` + `registry.ts` + `AppShell`）+ 五个功能组件
+> （Library/Reader/Room/Notes/Settings，Server 已并入 Room）+ Tailwind v4 迁移完成。
 > 本文只管**功能划分与容器契约**；字体/字号/颜色/边框/动效/负片等一律以 **`STYLE.md`（渲染层风格基线）** 为准。
 > 已定决策（原待定项见 §7）：**纯 React 状态 + props 下发**；**Tailwind 与拆组件同步迁移**；
 > **侧边栏 = 功能组件导航，主面板 = 宿主容器**；功能组件**常驻挂载、非激活隐藏** → 状态继承。
 > 归属：**client 专属**。相关权威：六边形/端口见 `ARCHITECTURE.md`；契约见 `CONTRACTS.md`；
-> 插件态度见 `ARCHITECTURE.md` §4（v1 不做插件运行时，ports 即边界）。
+> 插件态度见 `ARCHITECTURE.md` §4（服务侧 v1 不做插件运行时，ports 即边界；渲染层运行时见 §13）。
 
 ---
 
@@ -19,7 +19,7 @@
 4. 为将来「官方插件」留出 UI 侧边界（与 ARCHITECTURE §4 的服务层插件观点同构）。
 
 **不做（本轮）**
-- ❌ 不引入插件运行时（v1 明确排除，见 `ARCHITECTURE.md` §4）；
+- ❌ 不引入**服务侧**插件运行时（ports 即边界，见 `ARCHITECTURE.md` §4）；渲染层插件运行时已落地（官方插件专用，见 §13）。
 - ❌ 不引入 UI 状态库（纯 React；新依赖先核许可证与 AGPL 兼容性 —— 登记仪式已退役，见 `docs/STATUS.md` §3）。
 
 ---
@@ -41,22 +41,31 @@
 
 ```
 src/renderer/src/
-├── AppShell.tsx          # 组合各功能组件；持有 activeFeature（FeatureId）+ 跨功能共享态
+├── AppShell.tsx          # 组合各功能组件；持有 activeFeature（FeatureId）+ 阅读标签态 + 跨功能共享态
 ├── features/             # 功能组件：一个完整交互域，自持该域用例编排
-│   ├── LibraryFeature/   # 书架 + 导入/删除 + 选中（本地）
-│   ├── ReaderFeature/    # 渲染容器 + 目录跳转 + 进度/位置（本地 + 房间同位落点）
+│   ├── LibraryFeature/   # 书架（层级浏览/書箱）+ 导入/扫描/删除 + 选中（本地）
+│   ├── ReaderFeature/    # 渲染容器 + 目录/右欄卡片页（參數/筆記/聊天/插件格）+ 批注 + 进度/位置
 │   ├── RoomFeature/      # 服务器连接 + 大厅/会话（连接是房间的一部分）
 │   ├── NotesFeature/     # 笔记管理（跨书浏览/检索/跳转；只读 store 读模型，见 §12）
-│   ├── SettingsFeature/  # 全局设置（主题[含跟随系统]/阅读模式/诊断日志）
-│   ├── types.ts          # 功能组件标准容器契约（FeatureDescriptor/FeatureProps/FeatureHost）
-│   ├── registry.ts       # 功能组件注册表（官方插件 = 追加一条 descriptor）
-│   └── coverCache.ts     # 封面 objectURL 缓存（模块级）
+│   ├── SettingsFeature/  # 全局设置（主题[含跟随系统]/全屏开关/导入/插件/诊断日志）
+│   ├── types.ts / registry.ts  # 标准容器契约 + 注册表（官方插件 = 追加一条 descriptor）
+│   ├── chromeSearchBus.ts / libraryNavBus.ts / readerCardBus.ts / roomSession.ts / logStore.ts
+│   │                     # 底面全局件与跨功能共享态的模块级总线/单例
+│   └── coverCache.ts / format.ts  # 封面 objectURL 缓存（模块级）/ 展示格式工具
 ├── components/           # 展示组件（纯 props，无业务编排）
-│   ├── BookRow.tsx / BookTile.tsx / BookDetailPanel.tsx / LibraryToolbar.tsx
-│   ├── TocPanel.tsx / MemberList.tsx / ChatLog.tsx / RoomRow.tsx / StatePill.tsx
-│   └── FittedTitle.tsx（文字封面拟合）/ Marquee.tsx（单行超出才滚）/ ConfirmDialog.tsx
+│   ├── BookRow.tsx / BookTile.tsx / ContainerItem.tsx / LibraryToolbar.tsx / LibraryManagerDialog.tsx
+│   ├── FocusStage.tsx（聚焦舞台；引擎 focusStageEngine.ts）/ TagRail.tsx（侧栏标签区）/ FeatureCard.tsx
+│   ├── ChromeControls.tsx（窗控 + 后退/前进 + 全局搜索）/ ContextMenu.tsx / CommandPalette.tsx
+│   ├── TocPanel.tsx / ReaderRail.tsx / ReaderControls.tsx / NotesPanel.tsx
+│   ├── NoteFlow.tsx / NoteCard.tsx / NoteComposer.tsx / NotesToolbar.tsx
+│   ├── MemberList.tsx / ChatLog.tsx / ChatPanel.tsx / RoomRow.tsx / StatePill.tsx
+│   └── FittedTitle.tsx（文字封面拟合）/ Marquee.tsx（单行超出才滚）/ ConfirmDialog.tsx / iframeBridge.ts
+│      （另有纯函数/接线模块：useKeyIntents / viewSwitchFlash / useVirtualRange / readerFollow /
+│        noteLayout / themeTransition / motion / veil，及各自的 .test.ts）
 ├── dev/                  # 开发工具（非产品代码）
-│   └── selfCheck.ts      # TUREAD_DEV_BOOK 无头渲染自检
+│   ├── selfCheck.ts      # TUREAD_DEV_BOOK 无头渲染自检
+│   └── {pdfWidth,pagedInteract,library,note,room,roomPeer}Probe.ts  # TUREAD_DEV_PROBE 专项探针
+├── plugins/runtime.ts    # 渲染层插件运行时（§13；模块级单例，不进 ServiceContainer）
 └── styles.css            # 主题语义 token + kookit 契约（Tailwind 入口）
 ```
 
@@ -72,11 +81,11 @@ src/renderer/src/
 
 | Feature | 职责（编排的用例/端口） | 对外状态 | 关键事件（订阅） |
 |---|---|---|---|
-| **LibraryFeature** | `books.*`（导入/去重/列表/删除/选中）+ `picker.*`（选文件/选目录/扫描/读文件）+ `covers.*`（封面异步提取） | `selectedBookId`（= 详情抽屉显示的书） | `covers` 的 progress/cover-ready/cover-failed/done |
-| **ReaderFeature** | `render.*`（open/renderTo/翻页/goToChapter/goToPosition）+ `store`（lastLocation 恢复） | 当前书、进度、目录、阅读位置 | `render.location-changed`、`rendered`；房间侧 `location-updated` 落点（未来跟随） |
+| **LibraryFeature** | `books.*`（导入/去重/列表/删除/选中）+ `picker.*`（选文件/选目录/扫描/读文件）+ `covers.*`（封面异步提取） | `selectedBookId`（聚焦舞台详情与 Room 标定 / Reader 打开共用） | `covers` 的 progress/cover-ready/cover-failed/done |
+| **ReaderFeature** | `render.*`（open/renderTo/翻页/goToChapter/goToPosition）+ `store`（lastLocation 恢复） | 当前书、进度、目录、阅读位置 | `render.location-changed`、`rendered`；房间侧 `location-updated`（跟随模式落点，已实现，见 §15.3） |
 | **RoomFeature** | `net.*`（连接服务器）+ `room.*`（joinRoom/leaveRoom/createRoom/sendChat/listRooms）+ presence/chat | 连接配置/状态、`roomPhase`、成员、聊天 | `net.connection-changed`、`room.presence-updated`、`chat-message`、`book-mismatch` |
 | **NotesFeature** | `store` 笔记**读模型**（`listAllNotes` / `countAllNotes`，见 `CONTRACTS.md` §4.4）；跳转 = `host.openReader(editionId, { revealNoteId })`；複製 = `clipboard.writeText`（§4.6） | **无**（纯查询，不持有跨功能状态） | **无**（**激活时重读** —— 它与阅读器**不同屏**，故不会陈旧；见 §12） |
-| **SettingsFeature** | `store`（appearance/readerSettings 持久化）+ 主题应用 | 主题、阅读模式、诊断日志 | 无（启动载入 + 系统主题监听） |
+| **SettingsFeature** | `store`（appearance/librarySettings 持久化）+ 主题应用 + 插件启停（重载插件运行时） | 主题、全屏开关、导入选项、插件清单、诊断日志 | 无（启动载入 + 系统主题监听） |
 
 > 房间与阅读是**两个独立 Feature**：翻页（ReaderFeature 内部）只是 RoomFeature 位置的来源——通过用例层 `emitLocation`/`location-updated` 解耦，不互相 import。
 > 服务器连接是**房间的一部分**（非独立 Feature）：连接配置/状态由 RoomFeature 自持。
@@ -94,7 +103,7 @@ type FeatureId = 'library' | 'reader' | 'room' | 'notes' | 'settings'
 ```
 
 切换规则：
-- `reader` 需要先有 `selectedBook`（Library 产出）；
+- `reader` 无侧边栏入口（「閱」不入栏，入口只有书）：`openReader` 打开即进；侧边栏进阅读器时无书则自动恢复上次阅读（§10）；
 - `room` 里的聊天/位置操作需要 `connState === 'connected'`（连接由 RoomFeature 自持）；
 - `room` 的“同位显示”需要同时在 `reader`（future：多面板布局由 Shell 组合决定，模式仍归一）。
 
@@ -104,9 +113,9 @@ type FeatureId = 'library' | 'reader' | 'room' | 'notes' | 'settings'
 
 ```ts
 // 连接状态（net 适配器 emit，RoomFeature 消费）
-type ConnectionState = 'connected' | 'disconnected' | 'reconnecting'
+type ConnectionState = 'connected' | 'disconnected' | 'reconnecting' | 'failed'
 type RoomView = 'lobby' | 'session'
-type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-error'
+type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-error' | 'superseded'
 ```
 
 转移示例：
@@ -124,11 +133,9 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 
 ## 6. 与插件系统的关系（只讨论）
 
-- 服务侧插件态度（`ARCHITECTURE.md` §4）：ports 即边界，官方插件 = 注册进 `ServiceContainer` 的适配器，v1 无运行时。
-- UI 侧同构推论：**Feature 即 UI 边界**。一个“功能插件”（如未来的 OCR/翻译/词典面板）=
-  实现某端口的适配器（进 `ServiceContainer`）+ 一个可选 Feature（进 Shell 的挂载点/视图模式）。
-  届时新增：挂载点注册表 + Feature manifest，**不修改既有 Feature**。
-- 因此本设计刻意要求：Feature 只依赖用例接口与容器，互不 import——这为将来“插件化接入”保留形状。
+- 服务侧（`ARCHITECTURE.md` §4）：ports 即边界，v1 无运行时；插件不进 `ServiceContainer`。
+- UI 侧：**Feature 即 UI 边界** —— Feature 只依赖用例接口与容器、互不 import，为插件化接入保留形状。
+- 渲染层插件运行时已落地：插件 = 右欄卡片页的一个面板格（§13），不新增 Feature。
 
 ---
 
@@ -152,6 +159,7 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
    退出阅读卡的三条鼠标/键盘路径（`Esc`、底面「書」、命令面板）都走同一退场节奏。
 8. **侧边栏符号与字体** ✅ 定案：**繁体汉字单字**（書/閱/房/設）以「源流明体」显示（`styles.css` `.feature-nav`；
    **选中态 = 负片块**），**禁用带彩色 emoji**；设置钉在最下角（`pinned`）。
+   （现形态：「閱」不入栏——阅读不是"地方"而是书上的模式，入口只有书，见 §8。）
    字体已**打包进资源**（SIL OFL 1.1，见 §10）；与西文 Times New Roman 合为全局统一字体栈（`STYLE.md` §3.1）。
 9. **「工具组件」= 统一容器的「功能组件」（用户定，纠正一次分类倾向）** ✅ 定案：
    **不引入 `kind`（域工具 / 辅助工具）之类的二级分类** —— 侧边栏条目**本来就是**统一容器的功能组件，
@@ -162,7 +170,7 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
    契约不变）；一本书一个标签（重复打开 = 激活既有标签，书不重开、位置不丢）；**切换 = 重开链路**
    （B1：适配器代次守卫护换书，位置随 `ReadingState` 自动恢复；B2 真并行留作性能升级，UI 不变）。
    标签区 = **侧栏组件（`TagRail`，2026-11-03 标签条形态重设计）**：住最末功能（筆記）之下、
-   「設」钉底之上，上方一道短分界线隔离功能流与开着的书。原顶栏形态（`ReaderTabStrip`，"几乎看不出来"）退役。
+   「設」钉底之上，上方一道短分界线隔离功能流与开着的书。原顶栏形态（`ReaderTabStrip`）退役。
    形态 = **窄格首字 + 悬停揭示全题**（用户定）：与 `.feature-nav` 同款 40×40 几何，
    `--sidebar-w` 承重墙不动；格内只显示书名首字（跳过符号），悬停 = 首字交叉淡出、带衬底胶囊的
    全题自格左缘展开微微左滑、越过格界显示（视觉见 `STYLE.md` §5.2 ⑦）。**关闭交右键菜单**
@@ -175,7 +183,8 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 
 - **容器**：`AppShell.tsx`（**chrome 底面 + 卡片层宿主** + 跨功能共享态；dev 无头自检在 `dev/selfCheck.ts`，shell 只做组合与共享态）。空间语法见 `STYLE.md` §1.1：背景 = 连续一整面（整面拖拽区），导航图标栏与窗控/后退前进（`ChromeControls`，顶栏恢复仅窗控——标签条已迁侧栏 §7.10）直接坐在底面上；五张功能卡经 `FeatureCard` 浮在底面上（scrim 归阅读卡独占）。
   - **无顶栏 / 无日志栏 / 无品牌 logo**：自绘标题栏已退役；Electron 自带菜单栏已移除（`Menu.setApplicationMenu(null)` + `autoHideMenuBar` + `win.removeMenu()` 双保险）；诊断日志移入 SettingsFeature。
-  - **侧边栏 = 单色符号图标栏**（宽 56px）：只显示 `FeatureDescriptor.icon`（**繁体汉字单字：書/閱/房/設**），
+  - **侧边栏 = 单色符号图标栏**（宽 56px）：只显示 `FeatureDescriptor.icon`（**繁体汉字单字：書/房/筆**，
+    `設` 钉底；「閱」不入栏——阅读入口只有书，registry 里的 reader 仅作路由），
     样式为 `.feature-nav`（字体栈见 `STYLE.md` §3.1），label 作悬停提示；**禁用带彩色 emoji**；
     **选中态 = 负片块**（`.feature-nav--active`，见 `STYLE.md` §5.5）。
   - **settings 钉在侧边栏最下角**（`FeatureDescriptor.pinned`，AppShell 单独渲染）。
@@ -184,13 +193,15 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
   **连接是房间组件的一部分**，顶部可折叠「服务器连接」卡片 + 大厅[列表/创建/选房] + 会话[成员/聊天]；进入后 `host.openReader` 状态继承）、
   `SettingsFeature`（**全局设置**：外观主题 **四套色彩取向**（`dark` / `light` / `sepia-light` / `sepia-dark`，
   `data-theme` 应用到 `<html>`）+ `system` 跟随系统（`matchMedia` 解析并监听，只在暗色/亮色之间切换）
-  + 沉浸全屏开关（「進入閱讀器時進入全屏」，默认关。阅读排版/布局参数已全部移入阅读器参数面板）+ **导入（含子文件夹）** + 诊断日志页）。
+  + 沉浸全屏开关（「進入閱讀器時進入全屏」，默认关。阅读排版/布局参数已全部移入阅读器参数面板）
+  + **导入（含子文件夹）** + **插件启停**（§13.3）+ 诊断日志页）。
 - **颜色标准化（设计 token）**：所有颜色一律走 `styles.css` 的语义 token，组件内**禁止写死 hex/rgba**；
   字体、负片、阴影等规则见 `STYLE.md` §3。
 - **样式效果确认**：`cd client && npm run style` 起**浏览器样式样张**（`tools/style-gallery/`，
   只导入真实组件与真实 token）；改 token 秒级可见。排版类最终判定仍在 Electron 内复核。
-- **展示组件**：`components/{BookRow,BookTile,BookDetailPanel,LibraryToolbar,FittedTitle,ConfirmDialog,`
-  `TocPanel,ChatLog,RoomRow,MemberList,StatePill}`（纯 props，无编排）。
+- **展示组件**：`components/{BookRow,BookTile,ContainerItem,LibraryToolbar,FittedTitle,ConfirmDialog,`
+  `TocPanel,ChatLog,ChatPanel,RoomRow,MemberList,StatePill,FocusStage,TagRail,ReaderRail,ReaderControls,`
+  `NotesPanel,NoteFlow,NoteComposer,NotesToolbar,ContextMenu,CommandPalette,FeatureCard}`（纯 props，无编排）。
 - **Tailwind**：`@tailwindcss/vite` v4 接入；`styles.css` 保留主题 token / 全局 base / 滚动条 + **kookit 硬编码契约**
   （`.reader-stage` overflow + iframe 不设 height，见 KOOKIT.md §5）——这两条不能用 utility 替代。
 - **已知例外（记录在案）**：UI 层直用 `window.turead` 桥已消除（收敛为 `IBookPicker` 端口，见 §10 与
@@ -220,12 +231,12 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 - **列表行**：左侧是**封面槽**（宽 2/5），槽内可以是封面图或**文字封面**（两者同等对待，见下），
   槽整体套 `.book-row-cover` 渐隐（mask 在 18%→82% 之间淡出）；
   右侧内容层（标题 + 详情）从 **30%** 处起排 —— 自然压住封面右缘（"适当覆盖封面"）。
-- **底部状态栏**：全部元素左对齐；视图切换 + 封面提取进度 + 导入 + 进度/取消。**不显示书目数量**（用户定）；
-  两个文字按钮 **22px + 字距 0.08em**。
+- **底部状态栏**：全部元素左对齐；视图切换 + 封面提取进度 + 导入 + 进度/取消 + 書庫管理 + 掃描（仅映射库）。
+  **不显示书目数量**（用户定）；文字按钮字号/字距走 `.text-action` 家族（`STYLE.md` §5.1）。
   **视图切换是单个按钮**：显示**当前**视图名（`列表` / `網格`，繁体），点击后视图与文字同时切换；
-  动画节奏 ① 判定区域变**深色**（旧文字被"吞没"）② 浅色**新**文字从深色块里浮出（文字在动画 50% 处替换）
-  ③ 区域与文字**同时**复原。实现：`.view-switch-flash`（**900ms**，动画期间按钮 `disabled`）+
-  四主题各自的 `--flash-bg/--flash-text`（暗色主题为**亮块 + 暗字**，否则深块与底色同色看不见）；
+  动画节奏 ① 判定区域变**深色** ② 浅色**新**文字从深色块里浮出 ③ 区域与文字**同时**复原。
+  实现：`.view-switch-flash`（**240ms**，`--dur-flash`，v1.14 提速；闪屏中再点 = 重开一轮动画，
+  状态切换不被动画挡住）+ 四主题各自的 `--flash-bg/--flash-text`；
   按钮右下角有**负片三角标记**（`difference` 混合、压在字上）—— 视觉规则见 `STYLE.md` §5.1。
 - **列表标题**：行内标题用源流明体、放大到 17px、不加粗。
 - **阅读器恢复上次内容**：从侧边栏进入阅读器时若还没打开书，自动恢复**上次阅读**的那本
@@ -237,10 +248,9 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
   批量**串行** + 进度 + **可取消**；失败逐条进诊断日志；指纹去重继续生效；递归扫描有上限（2000 本 / 12 层）。
 - **交互语义**：单击 → 选中并弹出**「聚焦舞台」**（`FocusStage`：全屏焦点态，卡片携旋转飞向
   视口中央、其余景深失焦、三维绶带绕卡流转文字，形态见 `docs/prototypes/detail-orbit.html`
-  定妆与 TODO「聚焦舞台」条；收场 = Esc / 点击场外）。**聚焦期原卡 = 空缺提示槽**（用户定）：
-  原位留空不剩底色，只给一圈**淡边框**（`--border-soft`，示意此处可交互）+ 很浅的
-  「再次點擊打開」，点击 = 直接打开阅读（双击语义不变：第二击落进空缺槽——开场期幕不拦点击，
-  故**不加动画等待**，双击的第二击直接撕掉动画进书，可中断性覆盖该意图）。
+  定妆；收场 = Esc / 点击场外）。**聚焦期原卡 = 空缺提示槽**（用户定）：
+  原位留空不剩底色，只给一圈**淡边框**（`--border-soft`）+ 很浅的「再次點擊打開」，
+  点击 = 直接打开阅读。**开场期幕不拦点击**：双击的第二击直接进书（双击语义不变）。
   **雕塑卡（居中卡片）本身可点击**（用户定：卡可能挡住空位）= 直接打开阅读，命中区 = 落定矩形。
   **动作交给右键**（用户定：舞台内不放操作键）——右键书卡 → 菜单
   「打開 / 詳情 / 從書庫移除」（资源管理器语义；聚焦期先收舞台再右键）；书可**拖拽**（拖到書箱 = 移入）。
@@ -251,7 +261,7 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
   **書箱 = 与书籍同地位的一等条目**——外观、选中、右键、拖拽、更名全部对齐书籍，唯一区别是
   "打开 = 进入下一层"。交互全部对齐文件资源管理器：**单击选中、双击进入、Enter 进入、F2 更名
   （Enter/失焦提交，不用 Esc——全局键义归意图层）、右键菜单（新建子書箱/更名/移動到/移除）、
-  拖书入箱 = 移动（单亲归属，`moveBookToContainer`）**、拖到状态栏面包屑段 = 移动到该层（拖到根 = 移出，
+  拖书入箱 = 移动（单亲归属，`moveHolding`）**、拖到状态栏面包屑段 = 移动到该层（拖到根 = 移出，
   拖入段高亮提示）。
   **移动全量交互**：書箱本身也是**拖拽源**（`moveContainer`，拖箱入箱 / 拖到面包屑段，
   防成环由后端拒绝）；书与書箱右键均有**「移動到」子菜单**（上一層〔可出書箱〕/ 根層 / 当前层各兄弟書箱；
@@ -273,24 +283,21 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
   "書箱"即文件夹；⚠ **不能在里面导入**——书只能在真实路径上加，靠**扫描**对账（§6.1）；
   ② **自建库**（`mode='curated'`，原"自建書箱"）：空库起步，用户自建書箱树，书靠导入。
   ⚠ **文字选择 = 阅读正文专属**（全局规则见 §11）。
-- **全库检索（批1.12）**：底面全局搜索·书库作用域（入口见 §11 全局搜索框）。**检索 = 书库的
-  "另一只眼睛"——不看当前层，看整库**：词非空 = 检索态，结果 = 跨書箱/文件夹的**命中书平面列表**
+- **全库检索（批1.12）**：底面全局搜索·书库作用域（入口见 §11 全局搜索框）。检索 = **全库范围**，
+  不看当前层：词非空 = 检索态，结果 = 跨書箱/文件夹的**命中书平面列表**
   （SQL 侧 `searchHoldings`，标题/来源路径/收录路径子串、大小写不敏感、不含来源缺失；
   書箱/文件夹不参与，防抖 ~200ms）；清词回当前层。检索态空态**优先于**"書架為空"
-  （两个空态分层，2026-10-31 口径）：「整座書庫沒有匹配…」。
-- **抽屉位置纪律**：**状态栏之上是内容区，抽屉只在内容区弹出** —— 抽屉由内容区容器
-  `relative` 定位为 `absolute inset-y-0 right-0`（宽 **280px**），**不覆盖底部状态栏**。
-  **外壳完全透明**（无边框/无阴影/无底色）→ 下层书库内容从文字块之间透出来；
-  平面结构（封面 2:3 + 三行三等分 + 单行滚动 + 无标签指标行）见 **`STYLE.md` §5.5**。
-  关闭 = Esc / 点击抽屉外任意位置 / 底部「关闭」按钮（document mousedown，**不用全屏遮罩** ——
-  全屏遮罩会吞掉列表项的第二次点击，双击打开会失效）。
-- **移除语义**：所有"删除"都是**从书库索引移除，不删源文件**。首次点击弹确认弹窗说明
-  这一点，并提供**「下次不再提示」**（持久化 `deleteNotice.skip`）；确认后才移除（封面缓存一并清理）。
+  （两个空态分层）：「整座書庫沒有匹配…」。
+- **详情抽屉已退役**（2026-11-03，组件进 trash/）：详情现形态 = 上文「聚焦舞台」全屏焦点态，
+  旧抽屉的定位/关闭纪律一并作废（git 历史为准）。
+- **移除语义**：所有"删除"都是**取消收录**（v0.4.0：只删收录关系，不删源文件，笔记与阅读状态保留）。
+  首次点击弹确认弹窗说明这一点，并提供**「下次不再提示」**（持久化 `deleteNotice.skip`）；
+  确认后才移除（封面缓存一并清理）。
 - **封面：缩略图落盘**。canvas 生成（目标宽 400px、JPEG q0.82，实测 157KB 原图 → **38KB**）→ `userData/covers/<bookId>.jpg`，
   `BookRecord.coverPath` 只存文件名 —— **字节绝不进 JSON**（一本 data URL ≈ 210KB，书库全量重写会被拖垮）。
   渲染侧经 IPC 取字节 → `Blob` → `objectURL`（CSP 已放行 `blob:`），模块级缓存避免重复分配。
-- **封面提取时机**：**导入后异步**（`CoverQueue` 用例：串行、进度、可取消、单本失败不影响其余）；存量老书在启动时后台补齐
-  （dev 无头自检跳过）。
+- **封面提取时机**：**导入后异步**（`CoverQueue` 用例：串行、进度、可取消、单本失败不影响其余）；
+  存量老书在启动后延迟 20s 后台补齐（只补没提取过的；dev 无头自检跳过）。
 - **无封面 → 文字封面**：`FittedTitle` **二分搜索不溢出的最大字号**（只按高度拟合 —— 宽度由容器约束 +
   `overflow-wrap: anywhere` 自动换行），字号定下后把剩余垂直空间分给行距（上限 2.4）以铺满；
   `ResizeObserver` + `requestAnimationFrame` + `document.fonts.ready` 三重重新拟合（打包字体加载后字形度量会变）。
@@ -331,7 +338,7 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 - 滚动条 2px、静息几乎不可见（指针进入纸内才微现）；**短章节（只有 kookit +300px 余量）整条隐藏**。
 - `AppShell`：图标栏**恒可见**——
   卡片模型下侧边栏是恒定框架，阅读态「書」常亮宣示"你在哪"（`STYLE.md` §5.8）。
-- 关闭阅读器 = 回书库（`host.closeReader` 同时 `navigate('library')`）。
+- 关闭阅读器 = 关当前标签（批1.10 标签页语义，见下「退出」；最后一个标签回书库）。
 
 **控件（阅读页零控件）**
 - **阅读页上没有任何栏**：书名/页码/上一页/下一页/目录/关闭都**不常驻、也不做"浮现栏"**。
@@ -346,14 +353,12 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
   （用户定：职能按域分流，不随状态消失）：书库域 = 层级历史（§10），不可用时禁用；
   其余域（阅读/笔记/房间/设置）尚无历史机构（阅读跳转历史 / 房间域返回见 TODO）→ 恒禁用，
   视觉在场稳定。历史栈与还原语义在 §10「层级后退/前进」。
-- **底面全局件：全局搜索框（批1.11 上底板，批1.12 定位左簇）**：位置**固定在导航键之后**
-  （左簇；标签条退役后顶栏无伸缩源——批1.11 曾驻右端，标签一多搜索框被挤到窗控边上，用户否），
-  **恒在**；激活域的绑定（value/onChange/placeholder）经 `features/chromeSearchBus.ts` 注入
+- **底面全局件：全局搜索框（批1.11 上底板，批1.12 定位左簇）**：位置**固定在导航键之后**（左簇，
+  恒在）；激活域的绑定（value/onChange/placeholder）经 `features/chromeSearchBus.ts` 注入
   （书库 / 笔记已接线，检索词归各 Feature 自持）；无绑定的域（阅读器/房间/设置，接线见 TODO）
-  = 输入框禁用 + 域占位文案（承自退役 TitleBar 的作用域表；不写"未接线"工程腔——禁用态本身
-  已说明不可用）。`Ctrl+F` 聚焦（AppShell 持 ref）、`Esc` 清空。原批1.7d"搜索住进卡片"
-  随批1.11 退役（`CardSearchInput` / `searchFocusBus` 入 `trash/`）。书库作用域的检索语义
-  = **全库检索**，见 §10「全库检索」。
+  = 输入框禁用 + 域占位文案。`Ctrl+F` 聚焦（AppShell 持 ref）、`Esc` 清空。
+  原批1.7d"搜索住进卡片"随批1.11 退役（`CardSearchInput` / `searchFocusBus` 入 `trash/`）。
+  书库作用域的检索语义 = **全库检索**，见 §10「全库检索」。
 - **沉浸全屏**：`F11`（意图 `reader.enterFullscreen`）
   = **进入**全屏（幂等，**不切换** —— 退出走 `Esc` 分流）或设置开关「進入閱讀器時進入全屏」
   （默认关，`appearance.readerFullscreen`）= OS 级全屏（无标题栏可退场；底面全局件保持可见）；
@@ -371,7 +376,8 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
   + 冷却窗防连翻；scroll 模式不拦（iframe 内原生滚动自管）。
 - **PDF 纸宽填充（用户定：应当填充）**：kookit PdfRender 渲染时刻定 canvas 像素、
   无重排入口 → **PDF 改纸宽时阅读器原地重开**（同布局模式的 `reopenTick` 机制，位置自动恢复）。
-- **翻页**：键盘 `←/→` `Space(分页模式)` `PgUp/PgDn` + 鼠标点击左右 1/3 区域（仅分页模式）；scroll 模式滚轮。
+- **翻页**：键盘 `←/→` `Space(分页模式)` `PgUp/PgDn` + 鼠标点击左右 **1/4** 区域（仅分页模式）
+  + 鼠标侧键（XButton1/XButton2 = 上/下一页，仅阅读态）；scroll 模式滚轮。
 - **右欄卡片页（批1.13 立；批1.14 平级化，用户定"卡片页和阅读器界面平级，都置于底板之上"）**：
   右段从"垂挂抽屉"换成**独立的卡片页**——**两张卡并排在底板上**（批1.18 定稿，用户拍板）：
   AppShell 卡片区的 scrim 容器 = flex 行，阅读卡（flex-1）与槽位并排、中间一道沟露出底板；
@@ -383,7 +389,8 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
   **召唤** = **`` ` ``**（批1.15：卡片页**总开关**——开→上次的页、首次 = 參數面，
   关→收起；键位临时定反引号，随「配键体系」可调）/ `p`（參數面）/ `c`（聊天面）/
   **命令面板「呼出X」**（ReaderFeature 经 `features/readerCardBus.ts` 登记页族清单，AppShell
-  面板据此给命令——页族随内容走：聊天仅房间态、插件格按注册序）。
+  面板据此给命令——页族随内容走：聊天仅房间态、插件格按注册序；声明互斥的插件格
+  （AI 的「問」，`hideWhenInRoom`）进房间时让位给聊天）。
   ⚠ 线右段（旧鼠标召唤位）随批1.16 清除；批1.18：并排形态 + 纸位移补偿（呼出零挪动）。
   **默认收起**（批1.15 用户定"卡片页需要是呼出"——2026-09-13"默认展开"随卡片页模型作废；
   默认视野 = 纯正文 + 目录，重开书保持收起）。
@@ -409,7 +416,7 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
   （纯函数 + 单测），打开/换书瞬时落位、跨章平滑跟随。⚠ 位置只到章（kookit 不给章内进度），
   章内精确到某一条见 `TODO.md`。
 - **点高亮 = 看内容，不是改内容**：单击正文高亮 → 右欄卡片切「筆記」并定位到该条（只读）；
-  编辑走右键菜单或抽屉行内「編輯」。
+  编辑走右键菜单或筆記页行内「編輯」。
 - **目录默认展示**：有目录的书进入即展开；**点击条目跳转不收起**；只有「折疊」/`t` 才临时隐藏（不持久化）。
 - **空目录占位（用户定）**：没有目录索引的书也展开垂挂区，显示「本書沒有目錄索引」——
   缺失要可见，不静默。真正的目录补全（TXT 分章/PDF 页码/MD 层级）见 TODO「自建目录」。
@@ -420,9 +427,9 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
   （kookit `setStyle` 注入口，一次注入全书生效）。
 
 **不做的**
-- **PDF 像素反相**（夜间模式第二半，方案见 `KOOKIT.md` §7）；**PDF 改纸宽异常**（下个版本修）—— 均见 `TODO.md`。
+- **PDF 像素反相**（夜间模式第二半，方案见 `KOOKIT.md` §7）—— 见 `TODO.md`。
 - **剩余阅读参数**（字距/字体/对齐/首行缩进/中文标点开关）与**自由调节/自适应**：改法已定（注入），
-  按频率决定进挂载线面板还是设置页。
+  按频率决定进卡片页「參數」页还是设置页。
 - **右侧"模型阅读"容器**（预留）：右侧已有阅读参数面板，将来若也要右侧**先定共存形态**；
   原则不变：**只占留白，不挤压纸的语义**。
 - **同步相关控件** → **已定形态（契约 v0.4.3）**：阅读页的同步入口 = 卡片页族的**「聊天」页**
@@ -431,9 +438,9 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 
 ## 12. 笔记管理工具组件（已实施）
 
-> 动机（用户原话）："当用户的笔记积累到近千条，管理和索引也就变得同样重要了"。
-> 入口形态 = **左侧工具组件**（用户定；**不再考虑**"书库侧栏第三个入口 / 书库页下的视图"）。
-> 本节定**形态与容器契约**；**视觉语汇在 `STYLE.md` §5.10 立案**；实施步骤见根 `../../TODO.md`。
+> 动机：笔记积累到近千条量级后，管理与检索与阅读同等重要。
+> 入口形态 = **左侧功能组件**（用户定；**不再考虑**"书库侧栏第三个入口 / 书库页下的视图"）。
+> 本节定**形态与容器契约**；**视觉语汇在 `STYLE.md` §5.10 立案**。
 > 契约：`CONTRACTS.md` **v0.4.1**（§4.4 读模型）+ **v0.4.2**（`NoteView`/`NoteFilter`/`NoteTextFocus`/`NoteSettings`/`IClipboard`）
 > + `DATA_MODEL.md` §5 问题 6（检索批复）。
 
@@ -441,11 +448,11 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 
 - **「工具组件」不是新分类**：侧边栏条目**就是**统一容器的「功能组件」，**彼此同级**；
   笔记管理 = **新增一条 `FeatureDescriptor`**。**不引入 `kind`（域工具/辅助工具）之类的二级分类。**
-- 侧栏顺序（= registry 数组序）＝ `書 / 閱 / 房 / 筆`，`設` 仍 `pinned` 钉底
+- 侧栏顺序（= registry 数组序）＝ `書 / 房 / 筆`（「閱」不入栏，入口只有书），`設` 仍 `pinned` 钉底
   —— **`pinned` 只表达"贴底"，不是分类**。
 - 容器、宿主（`AppShell` 单面板）、**常驻挂载 + `display:none` 的状态继承**、
   跨功能跳转唯一通道 `FeatureHost` —— **全部复用，零新机制**。
-- `FeatureId` 增 `'notes'`（§5.1 已同步）；代码侧 `FEATURE_IDS` / `registry.ts` 待实施同步（契约先行）。
+- `FeatureId` 增 `'notes'`（§5.1 已同步）；代码侧 `FEATURE_IDS` / `registry.ts` 已同步。
 
 ### 12.2 作用域
 
@@ -466,34 +473,33 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 - **文字主次（单按钮两态循环）**：`批註為主`（默认）/ `摘錄為主`；筛选为「劃線」时禁用。
 - **作用域（单按钮两态循环）**：`當前庫`（默认）/ `全部庫`。
 - 颜色 / 有无批注 / 关键词仍可作为读模型的筛选维度（`NoteQuery`）；排序默认 **`updated` 倒序**。
-- **平铺、不按书分组**：分组头会打断瀑布流的流向，且每条已带书名（信息冗余）。
+- **平铺、不按书分组**（每条已带书名，分组头冗余）。
 - **计数显示筛选后的条数** —— ⚠ 与书库"不显示书目数量"不同：这是**筛选器的必要反馈**。
 - **空态（缺失要可见，不静默）**：当前筛选为「批註」时**必须报出被隐藏的划线数量**并提示切换。
-- **检索入口 = 笔记卡头部本地搜索**（见 §12.8）。
+- **检索入口 = 底面全局搜索框·笔记作用域**（批1.11 迁出卡内，见 §12.8）。
 - **待定（实施期定，不阻塞）**：批量操作（清理 / 导出？）。
 - 近千条性能：**已实现窗口化**（自实现装箱 + 按列二分，见 `STYLE.md` §5.10 的 A/B 与两个实现期坑）；
   实测 1000 条时 DOM 只留 **42** 张卡片、首屏 22ms、整片重渲染 21ms。
 
-### 12.4 跳转链路（本次**唯一新增的机制** —— 补上一个契约缺口）
+### 12.4 跳转链路（新增的机制 —— 补契约缺口）
 
 - **鼠标分工：单击 = 选中、双击 = 跳转**（与书库资源管理器语义一致）。
   卡片自身已展示内容，**不做详情抽屉**。
-- **缺口**：`FeatureHost` 原只有 `openReader(bookId)`，**没有"带目标打开"的通道**
-  → TODO 要求的"点击笔记 → 打开他书并落到锚点"此前**无路可走**（`ReaderFeature.jumpNote` 只在"书已开着"时可用）。
-- **定案**：`openReader(editionId, target?: { revealNoteId?: string })` —— **可选参数、向后兼容**
-  （Library / Room 及四个 dev 探针的既有调用不变）；AppShell 持有 `readerTarget`
-  （`{ editionId, revealNoteId?, tick }`，**递增 tick 防重复消费**）随 `FeatureProps` 下发，ReaderFeature 只消费一次。
+- **通道**：`openReader(editionId, target?: { revealNoteId?: string })` —— 可选参数、向后兼容；
+  AppShell 持有 `readerTarget`（`{ editionId, revealNoteId?, tick }`，**递增 tick 防重复消费**）
+  随 `FeatureProps` 下发，ReaderFeature 只消费一次。
 - **时序约束（做错会静默落空）**：reveal 依赖 DOM 里那条高亮（`.kookit-note[data-key=…]`），
   而高亮由 `renderHighlighters` 画、**只对当前渲染节生效**
   → 必须**等 ①书已打开 ②笔记载入完成 ③目标章 `rendered`** 之后再
-  `resolveAnchor(anchor, { revealNoteId })`；失败**补一次重试**。
+  `resolveAnchor(anchor, { revealNoteId })`；失败补重试。
   弱锚点笔记（`fragment=null`）也能落到**章级**落点（`resolveAnchor` 不依赖 Fragment 解算）。
 - **文件缺失时**（映射库 `missing` 的 edition）打开会失败 → **进日志、不静默**（口径同"缺失要可见"）。
 
 ### 12.5 与阅读器的关系（由单面板必然推出 —— 写死以免反复）
 
 - **笔记管理与阅读器不同屏**：从阅读态切到笔记管理 = **离开阅读器**（`closeReader` 语义）。
-- **阅读器内看/管当前书的笔记仍走左挂件 `NotesPanel`**（挂载线左段「目錄 / 筆記」开关）；
+- **阅读器内看/管当前书的笔记走卡片页「筆記」页**（`NotesPanel`；批1.13 自左垂挂迁入卡片页族，
+  左栏只剩目录）；
   本工具管的是**跨书**（列出他书、跳转他书）。
 - 附带好处：**工具"激活时重读"就足以保证数据新鲜**（两者不可能同屏）
   → **不需要新增 `notes-changed` 广播 / IPC 通道**；将来若真出现同屏形态，再补广播。
@@ -545,6 +551,8 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
   （需要沙箱与审核）。侧边栏 descriptor 口 v1 **不**开放给插件（内置五格是编译期注册的）。
 - 插件**不进** `ServiceContainer`（六边形内核不变）；插件运行时是渲染层外壳的一个模块
   （同 `roomSession` / `logStore` 的先例）。
+- 插件格与聊天**互斥**（manifest/面板声明 `hideWhenInRoom`：进房间时该格让位给聊天
+  —— AI 的「問」用，時鐘不设）。
 
 ### 13.2 目录与生命周期
 - **运行时**：`<userData>/plugins/<id>/`（与 store.db / covers 平级，随数据目录整体迁移）；
@@ -563,6 +571,9 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 ### 13.4 時鐘插件（首个验证插件，用户定形态）
 - `client/plugins/clock/`：「時鐘」面板格（批1.13 起住右欄卡片页），**纯文字**走时（跟随主题 token）。
   验收链 = 发现 / 加载 / 占格 / token / 启停。
+- **問插件（AI 共读，第二批，已在开发工作区）**：`client/plugins/ai/`，「問」面板格——
+  带当前位置与全书目录对话、引用原文可点击跳回（`ctx.reader.snapshot()` / `jumpToQuote`）；
+  自带 key（OpenAI 兼容接口）；与聊天互斥（`hideWhenInRoom`）。
 
 ## 14. 命令面板（`Ctrl+Shift+P`）
 
@@ -590,7 +601,7 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 ### 14.3 命令集（v1）
 
 - 前往书架 / 前往阅读 / 前往房间 / 前往筆記 / 前往设置（`FEATURES` 注册表枚举，走 `host.navigate`）。
-- 退出閱讀器（**仅阅读态**给这条；走 `host.closeReader`）。
+- 退出閱讀器（**仅阅读态**给这条；走 `host.closeReader`；多标签时命令名 = 「關閉當前標籤」）。
 - **呼出右欄卡片页**（批1.13 用户定"标记同步呼出命令面板"：**仅阅读态**给；命令 =
   `呼出參數 / 呼出筆記 / 呼出聊天 / 呼出<插件格>`，清单由 ReaderFeature 经 `readerCardBus`
   登记、**随页族增减**——聊天仅房间态、插件格按注册；run = `readerCardBus.summon(kind)`）。

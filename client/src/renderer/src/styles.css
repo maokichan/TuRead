@@ -629,7 +629,6 @@ textarea {
   max-width: var(--tag-flyout-max-w);
   line-height: 38px;
   font-size: 13px;
-  font-weight: 500;
   color: var(--text);
   background: var(--panel-2);
   border: 1px solid var(--border);
