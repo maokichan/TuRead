@@ -14,6 +14,9 @@
 
 ## 阅读顺序（按需加载，不要一次全读）
 
+> **子树入口**：进入 `docs/` 或 `client/` 工作前，先读该子树自己的 `AGENTS.md`
+> （只放该域的地图与增量红线，全局内容不重复）。文档行数门控见「常用命令」区。
+
 1. [`docs/STATUS.md`](docs/STATUS.md) —— **状态与交接快照，先读这个**（§3 = 决策索引，一行一条）
 2. [`TODO.md`](TODO.md) —— 唯一待办清单
 3. [`docs/DIRECTION.md`](docs/DIRECTION.md) —— 产品方向（批次的先验；条款改动须用户明示）
@@ -55,6 +58,13 @@ npm run typecheck:all  # 四个 tsconfig（node/web/test/preview）—— ⚠ �
 npm run style          # 样式样张（浏览器里看 token 与组件，不起 Electron）
 npm run swarm          # 蜂群同步回归（一次性 server + N 只 roombot，语义断言 A1-A5）
 npm run rebuild:sqlite # 换 Electron 大版本后重建原生模块
+```
+
+### 文档门控（pre-commit 自动跑；口径与上限表见脚本头注）
+
+```bash
+git config core.hooksPath .githooks  # clone 后一次性激活（hooks 配置不随仓库传播）
+node scripts/docGuard.mjs --report   # 手动体检：全量文档 行数/上限/占用率
 ```
 
 ### 无头验证（真实渲染链路，需要一本真实的书）

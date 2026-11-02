@@ -1,0 +1,4 @@
+#!/bin/sh
+# 文档门控：全项目 Markdown 行数上限（scripts/docGuard.mjs，口径与上限表见其头注）。
+# 激活方式（clone 后一次性）：git config core.hooksPath .githooks
+exec node scripts/docGuard.mjs
