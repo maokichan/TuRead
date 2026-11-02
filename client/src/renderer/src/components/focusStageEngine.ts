@@ -61,6 +61,8 @@ export function stageSupported(): boolean {
   } catch {
     supportCache = false
   }
+  /* 探测结果落日志：回落旧抽屉必须可归因（真机首跑 WebGL 探测在沙箱化启动下失败过） */
+  console.warn('[focusStage] WebGL 探测 =', supportCache)
   return supportCache
 }
 
@@ -279,6 +281,7 @@ let session: {
   host: HTMLElement
   reduceMotion: boolean
   onExited: () => void
+  onSettled?: () => void
   coverVersion: number
 } | null = null
 
@@ -455,6 +458,8 @@ export interface FocusStageOptions {
   reduceMotion: boolean
   /** 收场补间落定（或异常拆台）后回调；React 据此卸载组件 */
   onExited: () => void
+  /** 开场编排落定（state → focused）时回调；RM 路径即时 */
+  onSettled?: () => void
 }
 export interface FocusStageSession {
   /** 封面异步就位/变化后补画 */
@@ -497,6 +502,7 @@ export function openFocusStage(opts: FocusStageOptions): FocusStageSession {
     host: opts.host,
     reduceMotion: opts.reduceMotion,
     onExited: opts.onExited,
+    onSettled: opts.onSettled,
     coverVersion: 0
   }
   const originCenter = {
@@ -527,14 +533,19 @@ export function openFocusStage(opts: FocusStageOptions): FocusStageSession {
     })
     gl.renderer.render(s.content.scene, gl.camera)
     state = 'focused'
+    s.onSettled?.()
   } else {
-    /* ① 飞行：位移（强 ease-out）+ 旋转（ease-in-out），落点即焦点 */
-    const sx = originCenter.x, sy = originCenter.y
+    /* ① 飞行：从当前位置（buildScene 已摆到原格的世界坐标）插值到中央，落点即焦点。
+       起点必须捕获现场位置——不能拿 host-local 的 originCenter 直接当世界坐标
+       （world y-up、host-local y-down，直接用会从镜像位置起飞；下半屏的书起点会被镜到
+       屏幕外上方，叠加 ease-out 可见运动段在起点附近 → 整段飞行几乎全在画外，
+       观感 = "动画弹不出来"，真机首跑踩过） */
+    const px = s.content.card.position.x, py = s.content.card.position.y
     addTween(s, {
       dur: 460,
       ease: easeOutT,
       fn: (t) => {
-        s.content.card.position.set(sx * (1 - t), sy * (1 - t), 0)
+        s.content.card.position.set(px * (1 - t), py * (1 - t), 0)
         s.content.shadow.position.set(s.content.card.position.x, s.content.card.position.y, -40)
       }
     })
@@ -550,7 +561,12 @@ export function openFocusStage(opts: FocusStageOptions): FocusStageSession {
         addTween(s, { dur: 350, ease: easeOutT, fn: (t) => { b.textMat.opacity = t } })
       }, 400 + i * 120))
     })
-    s.timers.push(window.setTimeout(() => { if (state === 'opening') state = 'focused' }, 480))
+    s.timers.push(window.setTimeout(() => {
+      if (state === 'opening') {
+        state = 'focused'
+        s.onSettled?.()
+      }
+    }, 480))
     startLoop(s)
   }
 

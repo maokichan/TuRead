@@ -32,6 +32,8 @@ export function FocusStage({
   const hostRef = useRef<HTMLDivElement | null>(null)
   const sessionRef = useRef<FocusStageSession | null>(null)
   const [closing, setClosing] = useState(false)
+  /** 开场编排未落定前，幕不拦点击——双击打开阅读的第二次点击要能落到书卡上 */
+  const [settled, setSettled] = useState(false)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
 
@@ -40,7 +42,11 @@ export function FocusStage({
     if (!host) return
     const originSelector = `[data-book-id="${CSS.escape(book.id)}"] [data-book-cover]`
     const originEl = document.querySelector(originSelector)
-    if (!originEl) return
+    if (!originEl) {
+      /* 防御性可见失败：舞台不弹出的无声路径只有这一条（渲染层日志可查） */
+      console.warn('[FocusStage] 原格元素未找到，舞台不弹出：', originSelector)
+      return
+    }
     const rect = originEl.getBoundingClientRect()
     const m = book.metadata
     const last = readingState?.lastReadAt ? formatRelative(readingState.lastReadAt) : '未閱讀'
@@ -66,7 +72,8 @@ export function FocusStage({
       texts,
       bands: DEFAULT_BANDS,
       reduceMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
-      onExited: () => onCloseRef.current()
+      onExited: () => onCloseRef.current(),
+      onSettled: () => setSettled(true)
     })
     sessionRef.current = session
     const onKey = (e: KeyboardEvent): void => {
@@ -102,7 +109,7 @@ export function FocusStage({
       <div
         aria-hidden
         onClick={requestClose}
-        className={`fixed inset-x-0 bottom-0 top-[var(--inset-top)] z-[var(--z-drawer)] bg-transparent backdrop-blur-[var(--scrim-blur)] transition-opacity ${closing ? 'duration-[var(--dur-veil)] opacity-0' : 'duration-[var(--dur-view)] opacity-100'}`}
+        className={`fixed inset-x-0 bottom-0 top-[var(--inset-top)] z-[var(--z-drawer)] bg-transparent backdrop-blur-[var(--scrim-blur)] transition-opacity ${closing ? 'duration-[var(--dur-veil)] opacity-0' : 'duration-[var(--dur-view)] opacity-100'} ${settled && !closing ? 'pointer-events-auto' : 'pointer-events-none'}`}
       />
       {/* WebGL 舞台：指针全穿透（关闭路径 = scrim / Esc） */}
       <div
