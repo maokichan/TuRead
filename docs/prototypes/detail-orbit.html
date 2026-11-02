@@ -397,7 +397,10 @@ function buildBandGeometry(cfg, faceOffset = 0) {
     b.copy(p).addScaledVector(w, cfg.w / 2); b.y += offY
     pos.push(a.x, a.y, a.z, b.x, b.y, b.z)
     norm.push(nrm.x, nrm.y, nrm.z, nrm.x, nrm.y, nrm.z)
-    uv.push(i / SEG, 0, i / SEG, 1)
+    /* 文字正立修正（用户报"颠倒"）：v 翻转 = 近弧（正对镜头的主弧）字面向上；
+       u 翻转 = 近弧阅读自左向右。净效果 = 纹理映射旋转 180°；远弧随之呈"绶带背面字"
+       （与真实绶带一致）。接缝处 u=1 与 u=0 经 RepeatWrapping 相接，闭环仍无缝。 */
+    uv.push(1 - i / SEG, 1, 1 - i / SEG, 0)
   }
   for (let i = 0; i < SEG; i++) {
     const k = i * 2
