@@ -1,0 +1,115 @@
+import { useEffect, useRef, useState } from 'react'
+import type { EditionRecord, ReadingState } from '@core/domain/types'
+import { formatRelative, formatSize, progressText } from '../features/format'
+import { DEFAULT_BANDS, openFocusStage, type FocusStageSession } from './focusStageEngine'
+
+interface FocusStageProps {
+  /** 内容身份（v0.4.0：`EditionRecord`） */
+  book: EditionRecord
+  readingState: ReadingState | null
+  coverUrl: string | null
+  /** 当前层末段面包屑文本（"收錄於…"），无可为 null */
+  collectionLabel: string | null
+  /** 收场补间落定后回调（父级据此清 detailId 卸载本组件） */
+  onClose: () => void
+}
+
+/**
+ * 书库·详情「聚焦舞台」（单击书卡的全屏焦点态；替代旧详情抽屉的入口，FEATURES §10）。
+ *
+ * React 壳只管三件事：① 景深幕（blur + 点场外收场）；② Esc；③ 引擎会话的生命周期。
+ * 3D 编排全部在 `focusStageEngine.ts`（持久渲染器 / 墙钟补间 / 看门狗 / 文字承载层）。
+ * 顶条带（窗控 / 后退前进）在幕外（top = --inset-top）——底面全局件恒可点（DIRECTION §2）。
+ * 操作接口（打开阅读 / 移除等）按用户定**先不进来**——动画定稿后再裁落点（TODO「详情页操作清单」）。
+ */
+export function FocusStage({
+  book,
+  readingState,
+  coverUrl,
+  collectionLabel,
+  onClose
+}: FocusStageProps): React.JSX.Element {
+  const hostRef = useRef<HTMLDivElement | null>(null)
+  const sessionRef = useRef<FocusStageSession | null>(null)
+  const [closing, setClosing] = useState(false)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  useEffect(() => {
+    const host = hostRef.current
+    if (!host) return
+    const originSelector = `[data-book-id="${CSS.escape(book.id)}"] [data-book-cover]`
+    const originEl = document.querySelector(originSelector)
+    if (!originEl) return
+    const rect = originEl.getBoundingClientRect()
+    const m = book.metadata
+    const last = readingState?.lastReadAt ? formatRelative(readingState.lastReadAt) : '未閱讀'
+    const progress = progressText(readingState)
+    const time = readingState?.totalReadMs
+      ? `共 ${Math.max(1, Math.round(readingState.totalReadMs / 60000))} 分鐘`
+      : '共 —'
+    const phy = `${book.format} · ${formatSize(book.fingerprint.size)}`
+    const desc = m.description?.trim()
+    const texts = [
+      `${last}　·　${progress}`,
+      `${phy}　·　${time}`,
+      desc ? `描述：${desc}` : `來源：${book.filePath}`,
+      collectionLabel ? `收錄於「${collectionLabel}」` : phy,
+      `${progress}　·　${last}`
+    ]
+    const session = openFocusStage({
+      host,
+      originRect: rect,
+      originSelector,
+      title: m.title || '未命名',
+      coverUrl,
+      texts,
+      bands: DEFAULT_BANDS,
+      reduceMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      onExited: () => onCloseRef.current()
+    })
+    sessionRef.current = session
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') sessionRef.current?.close()
+    }
+    document.addEventListener('keydown', onKey)
+    /* 主题切换 → 重建纹理（颜色唯一来源 = styles.css 的 data-theme token） */
+    const themeObs = new MutationObserver(() => session.refreshTheme())
+    themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      themeObs.disconnect()
+      session.dispose()
+    }
+    // 一次性编排：生命周期绑定在 book 上（父级以 key={book.id} 保证换书即重挂）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book.id])
+
+  /* 封面异步就位 / 变化 → 补画（不重播编排） */
+  useEffect(() => {
+    sessionRef.current?.setCover(coverUrl)
+  }, [coverUrl])
+
+  const requestClose = (): void => {
+    if (closing) return
+    setClosing(true)
+    sessionRef.current?.close()
+  }
+
+  return (
+    <>
+      {/* 景深幕：光学失焦（不压色）；点击场外 = 收场。收场比进 faster（P5：出比进快） */}
+      <div
+        aria-hidden
+        onClick={requestClose}
+        className={`fixed inset-x-0 bottom-0 top-[var(--inset-top)] z-[var(--z-drawer)] bg-transparent backdrop-blur-[var(--scrim-blur)] transition-opacity ${closing ? 'duration-[var(--dur-veil)] opacity-0' : 'duration-[var(--dur-view)] opacity-100'}`}
+      />
+      {/* WebGL 舞台：指针全穿透（关闭路径 = scrim / Esc） */}
+      <div
+        ref={hostRef}
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 bottom-0 top-[var(--inset-top)] z-[var(--z-drawer)]"
+      />
+    </>
+  )
+}

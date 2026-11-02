@@ -229,8 +229,12 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 - **导入**：文字按钮「導入」→ 小菜单「导入文件…」/「导入文件夹…」（⚠ Electron 不允许文件与目录同框选择，[issue #26885](https://github.com/electron/electron/issues/26885)）；
   「含子文件夹」在设置界面配置，持久化 `librarySettings.importRecursive`；
   批量**串行** + 进度 + **可取消**；失败逐条进诊断日志；指纹去重继续生效；递归扫描有上限（2000 本 / 12 层）。
-- **交互语义**：单击 → 右侧**详情抽屉**；双击 → 打开；键盘 Enter 打开、Space 详情、Delete 移除；
-  抽屉显示的书 = `selectedBookId`（单一真相，Room 标定 / Reader 打开不变）。
+- **交互语义**：单击 → 选中并弹出**详情**——WebGL 可用时 = **「聚焦舞台」**（`FocusStage`：
+  全屏焦点态，卡片携旋转飞向视口中央、其余景深失焦、三维绶带绕卡流转文字，形态见
+  `docs/prototypes/detail-orbit.html` 定妆与 TODO「聚焦舞台」条；收场 = Esc / 点击场外；
+  **操作接口先不进来**，随「详情页操作清单」裁落点）；不可用时 = 旧**详情抽屉**回落。
+  双击 → 打开；键盘 Enter 打开、Space 详情、Delete 移除；
+  详情显示的书 = `selectedBookId`（单一真相，Room 标定 / Reader 打开不变）。
   右键书 → 菜单「打開 / 詳情 / 從書庫移除」（资源管理器语义）；书可**拖拽**（拖到書箱 = 移入）。
 - **层级浏览与書箱（资源管理器式）**：书架 = 层级结构（不再只是平面全库）。
   **書箱 = 与书籍同地位的一等条目**——外观、选中、右键、拖拽、更名全部对齐书籍，唯一区别是

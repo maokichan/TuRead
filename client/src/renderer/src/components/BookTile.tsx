@@ -55,6 +55,7 @@ export function BookTile({
       className="group flex cursor-pointer flex-col gap-1.5 transition-colors duration-[var(--dur-hover)] hover:bg-[var(--state-hover)]"
     >
       <div
+        data-book-cover
         className={`relative aspect-[2/3] w-full overflow-hidden rounded-[var(--radius-item)] border bg-[var(--panel-2)] transition-colors duration-[var(--dur-hover)] ${
           active
             ? 'border-[var(--accent-ring)] ring-1 ring-[var(--accent-ring)]'

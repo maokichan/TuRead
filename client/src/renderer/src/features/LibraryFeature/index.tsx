@@ -41,6 +41,8 @@ import { BookTile } from '../../components/BookTile'
 import { ContainerItem } from '../../components/ContainerItem'
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
 import { BookDetailPanel } from '../../components/BookDetailPanel'
+import { FocusStage } from '../../components/FocusStage'
+import { stageSupported } from '../../components/focusStageEngine'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { LibraryManagerDialog } from '../../components/LibraryManagerDialog'
 import { LibraryToolbar } from '../../components/LibraryToolbar'
@@ -833,6 +835,8 @@ export function LibraryFeature({
   const detailBook =
     books.find((b) => b.id === detailId) ??
     (searching ? (searchResults ?? []).find((b) => b.id === detailId) ?? null : null)
+  // 单击详情 = 「聚焦舞台」（WebGL 可用时；否则回落旧详情抽屉——降级路径见 TODO「聚焦舞台」）
+  const stageMode = stageSupported()
 
   // —— 窗口化渲染（2026-09-12）：只挂载可视区 ± 缓冲条目。
   // 書箱/文件夹条目与书籍条目同几何（网格 2:3+34px 标签；列表 h-16），共用同一 stride。
@@ -1005,18 +1009,32 @@ export function LibraryFeature({
           )}
         </div>
 
-        {detailBook && (
-          <BookDetailPanel
-            book={detailBook}
-            readingState={
-              readingStates[detailBook.id] ?? searchReadingStates[detailBook.id] ?? null
-            }
-            coverUrl={covers[detailBook.id] ?? searchCovers[detailBook.id] ?? null}
-            onClose={() => setDetailId(null)}
-            onOpen={() => openBook(detailBook.id)}
-            onDelete={() => requestDelete(detailBook)}
-          />
-        )}
+        {detailBook &&
+          (stageMode ? (
+            /* 单击详情 = 「聚焦舞台」（key = book.id：换书即重挂，编排一次性）。
+               操作接口（打开/移除）按用户定先不进来，随「详情页操作清单」裁落点 */
+            <FocusStage
+              key={detailBook.id}
+              book={detailBook}
+              readingState={
+                readingStates[detailBook.id] ?? searchReadingStates[detailBook.id] ?? null
+              }
+              coverUrl={covers[detailBook.id] ?? searchCovers[detailBook.id] ?? null}
+              collectionLabel={crumbs.at(-1)?.label ?? null}
+              onClose={() => setDetailId(null)}
+            />
+          ) : (
+            <BookDetailPanel
+              book={detailBook}
+              readingState={
+                readingStates[detailBook.id] ?? searchReadingStates[detailBook.id] ?? null
+              }
+              coverUrl={covers[detailBook.id] ?? searchCovers[detailBook.id] ?? null}
+              onClose={() => setDetailId(null)}
+              onOpen={() => openBook(detailBook.id)}
+              onDelete={() => requestDelete(detailBook)}
+            />
+          ))}
 
         {ctxMenu && (
           <ContextMenu x={ctxMenu.x} y={ctxMenu.y} items={ctxMenu.items} onClose={() => setCtxMenu(null)} />

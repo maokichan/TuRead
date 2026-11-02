@@ -137,6 +137,9 @@
   );
   --toc-line-top: 44px;
   --toc-veil-rest: 0.74;
+  /* 聚焦舞台（书库单击详情，FEATURES §10）：景深幕的模糊半径。光学失焦不压色——
+     对焦靠 backdrop-filter，页面其余退为焦外散景。 */
+  --scrim-blur: 18px;
   /* 笔记管理（跨书）流的**列宽**（STYLE.md §5.10）：固定值、只变高，列数随窗口自适应
      （`repeat(auto-fill, minmax(--note-col-w, 1fr))`，与书库网格 auto-fill 同口径）。
      ⚠ NoteFlow.tsx 的首帧高度估算也用这个宽度做基数（改这里要同步那里的 CJK_PER_LINE 口径）。 */
