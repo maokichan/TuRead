@@ -1,0 +1,849 @@
+<!doctype html>
+<!-- ==========================================================================
+  TuRead · 书详情「聚焦舞台」交互原型（独立页，不进产品构建）
+
+  任务来源：TODO「书库单击详情页重做」（用户 2026-11-02 披露想法）。
+  旧形态（右侧 280px 透明抽屉 BookDetailPanel）整体退役，本页不继承它的任何结构。
+
+  编排（用户定，复述见会话记录）：
+    ① 汇聚   单击书卡 → 卡片作为共享元素，携带旋转自网格原位飞向视口中央（尺寸不变）。
+    ② 景深幕 与飞行同时，页面其余部分整体失焦（全局 backdrop-filter 高斯模糊，不压色）。
+    ③ 轨道带 卡片落位前后，若干**有宽度的三维平绶带**自无到有**渐显**（用户定：进场 =
+             透明度过渡，不是描画扫掠），文字贴带面循环流转；近处掠过卡前、环到卡后
+             被深度缓冲精确遮挡（参照 2024 巴黎奥运 Louise Michel 雕像绶带段）。
+             卡片即雕像，环带即绶带。
+             ⚠ 带面**不扭转**（用户定：扭转伤可读性）——带宽方向全程取轨道面法向。
+             ⚠ 半径**上下短、中间长**（用户定）= 纺锤包络；倾角**同族微差**（用户定：
+             全同太呆板），各占一条"纬道"（offY 拉开）互不冲突。
+             ⚠ **文字不住在带上**（用户定）：带 = 纯形状；内容由**独立文字层**承载
+             （贴带面 2px 的专属网格 + 透明文字纹理）→ 字重/字号/颜色直接控制
+             （TEXT_WEIGHT / cfg.textPx / cssVar('--text')）。
+    ④ 退出   Esc / 点击场外 → 原路反向：环带渐隐，卡片飞回原格，模糊松开。
+             **opening 态可打断**（Esc/点击场外随时生效，从当前状态平滑收场）。
+
+  渲染分工（2026-11-02 用户定：大胆上 3D）：
+    - **聚焦舞台 = WebGL（three.js r187，MIT，与 AGPL-3.0 兼容）**——只有这一层是 3D：
+      卡片平面 + 四条绶带曲面 + 文字层 + 深度缓冲遮挡。CSS 2.5D 平面投影画不出宽带曲面，已否。
+    - **渲染器全局持久**（一次创建、反复复用、闲时隐藏）——每次开合新建/销毁 WebGL
+      上下文会被浏览器回收（丢上下文 = 画面冻在模糊幕上，实机踩过）；场景内容逐次重建。
+    - 页面其余一切（网格、景深幕、点击、主题）仍是 DOM/CSS；模糊幕垫在 canvas 之下照常工作。
+    - three 以本地 ESM 文件随原型携带（lib/three.module.js + lib/three.core.js，npm 官方包原样拷贝，
+      未改动）；若形态定稿进产品，client 再正式引依赖并走许可证核对红线。
+
+  纪律：
+    - 颜色/时长/曲线 = TuRead token（值镜像自 client/src/renderer/src/styles.css，
+      本文件是探索原型，产品实现时回到真 token，不得从这里复制）。
+    - 卡片尺寸全程不变（用户定：环带绕封面卡自转，不是"放大到舞台"）。
+    - 操作接口预留：见 stage.actions —— 动画定稿后再裁形态与落点。
+    - reduced-motion：去位移/自转/流转，静态一帧呈现焦点态；收场直接复位（弱化，不是归零）。
+
+  打开方式：经本地静态服务器打开（three 是 ESM 模块，file:// 会被 CORS 拦）：
+    cd docs/prototypes && python -m http.server 8392
+    → http://127.0.0.1:8392/detail-orbit.html
+=========================================================================== -->
+<html lang="zh-Hant" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TuRead 原型 · 书詳情「聚焦舞台」</title>
+<script>
+/* 启动期错误捕获（module 之前挂载；复查用） */
+window.__boot = []
+addEventListener('error', e => window.__boot.push('ERR ' + e.message + ' @ ' + (e.filename || '') + ':' + e.lineno))
+addEventListener('unhandledrejection', e => window.__boot.push('REJ ' + String(e.reason)))
+</script>
+<style>
+/* ======== TuRead token 镜像（值 = styles.css；仅原型用） ======== */
+:root {
+  --font-ui: 'Times New Roman', 'GenRyuMin TW', 'Source Han Serif TC', 'Source Han Serif SC',
+             'Noto Serif TC', 'Noto Serif SC', 'Songti SC', SimSun, serif;
+
+  --bg: #0e0f10; --panel: #161819; --panel-2: #1e2123;
+  --border: #2c3033; --border-soft: #22262a;
+  --text: #e9ebed; --muted: #9aa1a8;
+  --accent: #c2c8cf; --accent-soft: rgba(194,200,207,.12); --accent-ring: rgba(194,200,207,.3);
+  --shadow-panel: 0 1px 3px rgb(0 0 0 / .12), 0 4px 14px rgb(0 0 0 / .08);
+  --shadow-modal: 0 8px 32px rgb(0 0 0 / .22);
+
+  --radius-control: 4px; --radius-item: 8px; --radius-panel: 12px; --radius-modal: 16px;
+  --dur-press: 100ms; --dur-hover: 160ms; --dur-veil: 200ms;
+  --dur-panel: 220ms; --dur-flash: 240ms; --dur-view: 300ms;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-inout: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* 原型专用：全局速度因子（慢速复查；产品不得保留）。1 = 原速，4 = 时长 ×4 */
+  --k: 1;
+  /* 景深幕的模糊半径（原型可调旋钮） */
+  --scrim-blur: 18px;
+}
+[data-theme='light'] {
+  --bg: #e7e9eb; --panel: #f2f3f5; --panel-2: #dde0e2;
+  --border: #cfd3d6; --border-soft: #dbdee1;
+  --text: #1b1d1f; --muted: #62686d;
+  --accent: #2a2d30; --accent-soft: rgba(42,45,48,.08); --accent-ring: rgba(42,45,48,.28);
+  --shadow-panel: 0 1px 3px rgb(0 0 0 / .12), 0 4px 14px rgb(0 0 0 / .08);
+  --shadow-modal: 0 8px 32px rgb(0 0 0 / .22);
+}
+[data-theme='sepia-light'] {
+  --bg: #f1e9d7; --panel: #e9dfc6; --panel-2: #ddcfb0;
+  --border: #c6b489; --border-soft: #d4c5a3;
+  --text: #3a2f21; --muted: #857354;
+  --accent: #4a3a22; --accent-soft: rgba(74,58,34,.13); --accent-ring: rgba(74,58,34,.32);
+  --shadow-panel: 0 1px 3px rgb(0 0 0 / .12), 0 4px 14px rgb(0 0 0 / .08);
+  --shadow-modal: 0 8px 32px rgb(0 0 0 / .22);
+}
+[data-theme='sepia-dark'] {
+  --bg: #17130e; --panel: #1f1a13; --panel-2: #292218;
+  --border: #3a3125; --border-soft: #2c2519;
+  --text: #e6dcc9; --muted: #a3957c;
+  --accent: #cbb48c; --accent-soft: rgba(203,180,140,.13); --accent-ring: rgba(203,180,140,.32);
+  --shadow-panel: 0 1px 3px rgb(0 0 0 / .12), 0 4px 14px rgb(0 0 0 / .08);
+  --shadow-modal: 0 8px 32px rgb(0 0 0 / .22);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: var(--font-ui); font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none; overflow-x: hidden;
+}
+
+/* ======== 原型专用顶栏（产品里对应 chrome 底面顶条带；这里只放说明与复查旋钮） ======== */
+.proto-bar {
+  position: fixed; inset: 0 0 auto 0; z-index: 40;
+  display: flex; align-items: center; gap: 20px;
+  padding: 12px 20px; pointer-events: none;
+}
+.proto-bar .proto-title { font-size: 12.5px; color: var(--muted); }
+.proto-bar .proto-tools { margin-left: auto; display: flex; gap: 18px; pointer-events: auto; }
+.proto-btn {
+  border: 0; background: none; padding: 0; cursor: pointer;
+  font: inherit; font-size: 13px; color: var(--muted);
+  transition: color var(--dur-hover) ease;
+}
+.proto-btn:hover { color: var(--text); }
+.proto-btn:active { color: var(--accent); }
+.proto-btn[data-on="1"] { color: var(--accent); }
+
+/* ======== 书库网格（mock） ======== */
+.library { max-width: 1060px; margin: 0 auto; padding: 72px 32px 64px; }
+.lib-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 24px; }
+.lib-head h1 { font-size: 17px; font-weight: 700; margin: 0; letter-spacing: .6px; }
+.lib-head span { font-size: 12.5px; color: var(--muted); }
+.grid {
+  display: grid; gap: 24px 20px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.book { cursor: pointer; }
+.book .cover {
+  aspect-ratio: 2 / 3; background: var(--panel-2);
+  border: 1px solid var(--border); border-radius: 2px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px; overflow: hidden; text-align: center;
+  transition: border-color var(--dur-hover) ease;
+}
+/* hover：图像卡吃掉底色叠加 → 用边框升档作辅助信号（STYLE §3.5） */
+.book:hover .cover { border-color: var(--muted); }
+.book .title {
+  font-weight: 700; line-height: 1.35; overflow-wrap: anywhere;
+  letter-spacing: .01em;
+}
+.book .bt-meta { margin-top: 8px; font-size: 11px; color: var(--muted); }
+
+/* ======== 景深幕（blur scrim；canvas 之下，网格之上） ======== */
+.scrim {
+  position: fixed; inset: 0; z-index: 50;
+  backdrop-filter: blur(var(--scrim-blur));
+  -webkit-backdrop-filter: blur(var(--scrim-blur));
+  background: transparent;               /* 对焦靠光学，不靠颜色 */
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--dur-view) var(--ease-out);
+}
+.scrim.on { opacity: 1; pointer-events: auto; }
+.scrim.closing { transition: opacity var(--dur-veil) ease-out; }
+
+/* ======== 聚焦舞台（WebGL；指针事件全穿透，关闭路径走 scrim/Esc） ======== */
+.gl-stage { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
+.gl-stage canvas { display: block; width: 100%; height: 100%; }
+
+/* ======== 調參面板（原型工具；产品不得保留） ======== */
+.tune-panel {
+  position: fixed; top: 44px; right: 0; bottom: 0; z-index: 70;
+  width: 268px; overflow-y: auto; display: none;
+  background: var(--panel); border-left: 1px solid var(--border);
+  padding: 14px 16px 28px; pointer-events: auto;
+}
+.tune-panel.on { display: block; }
+.tune-panel h2 { font-size: 14px; font-weight: 700; margin: 0 0 4px; }
+.tune-panel .tune-hint { font-size: 11px; color: var(--muted); margin: 0 0 10px; line-height: 1.6; }
+.tune-actions { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 10px 0 12px; border-bottom: 1px solid var(--border-soft); }
+.tune-band { border-bottom: 1px solid var(--border-soft); padding: 10px 0 8px; }
+.tune-band h3 { font-size: 12.5px; font-weight: 700; margin: 0 0 6px; display: flex; align-items: center; }
+.tune-band h3 .tune-remove { margin-left: auto; }
+.tune-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+.tune-row label { font-size: 11px; color: var(--muted); width: 64px; flex: none; }
+.tune-row input[type='range'] { flex: 1; accent-color: var(--accent); min-width: 0; }
+.tune-row output { font-size: 11px; width: 36px; text-align: right; flex: none; }
+</style>
+</head>
+<body>
+
+<header class="proto-bar">
+  <div class="proto-title">原型 · 书詳情「聚焦舞台」— 單擊任意書卡觸發；Esc / 點擊場外收場（任何時刻可打斷）</div>
+  <div class="proto-tools">
+    <button class="proto-btn" id="btnSlow" title="全局放慢（時長 ×4，實時生效）">慢速</button>
+    <button class="proto-btn" id="btnReplay" title="重播上一次聚焦">重播</button>
+    <button class="proto-btn" id="btnTune" title="绶带调参面板（逐带：半径/倾角/高度/前后/宽度/转速/字高）">調參</button>
+    <button class="proto-btn" id="btnTheme" title="循環四套取向">主題</button>
+  </div>
+</header>
+
+<main class="library" id="library">
+  <div class="lib-head">
+    <h1>書庫</h1>
+    <span>映射庫 · D:\Books</span>
+  </div>
+  <div class="grid" id="grid"></div>
+</main>
+
+<script type="module">
+import * as THREE from './lib/three.module.js'
+
+/* ======== token 读取（CSS 变量是唯一来源；three 侧消费同一组值） ======== */
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+const K = () => parseFloat(cssVar('--k')) || 1
+const EASE_OUT = [0.23, 1, 0.32, 1]
+const EASE_INOUT = [0.77, 0, 0.175, 1]
+const FONT_STACK = cssVar('--font-ui')
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)')
+
+/* cubic-bezier 采样（token 曲线进 JS 侧，与 CSS 同源） */
+function bezier(p1x, p1y, p2x, p2y) {
+  const cx = 3 * p1x, bx = 3 * (p2x - p1x) - cx, ax = 1 - cx - bx
+  const cy = 3 * p1y, by = 3 * (p2y - p1y) - cy, ay = 1 - cy - by
+  const fx = t => ((ax * t + bx) * t + cx) * t
+  const dfx = t => (3 * ax * t + 2 * bx) * t + cx
+  return u => {
+    if (u <= 0) return 0
+    if (u >= 1) return 1
+    let t = u
+    for (let i = 0; i < 6; i++) { const e = fx(t) - u; if (Math.abs(e) < 1e-5) break; t -= e / dfx(t) }
+    return ((ay * t + by) * t + cy) * t
+  }
+}
+const easeOutT = bezier(...EASE_OUT)
+const easeInOutT = bezier(...EASE_INOUT)
+
+/* ======== mock 数据 ======== */
+const BOOKS = [
+  { title: '一九八四',           meta: { last: '3 天前', progress: '已讀 42%', time: '共 84 分鐘', phy: 'EPUB · 1.2 MB', loc: '收錄於「反烏托邦」', desc: '描述：戰爭即和平，自由即奴役，無知即力量。' } },
+  { title: '圍城',               meta: { last: '昨天',   progress: '已讀 88%', time: '共 216 分鐘', phy: 'MOBI · 0.8 MB', loc: '收錄於「文學」', desc: '描述：婚姻是一座圍城，城外的人想進去，城裡的人想出來。' } },
+  { title: '高級運動營養學（第2版）', meta: { last: '未閱讀', progress: '已讀 0%',  time: '共 —',        phy: 'PDF · 38.4 MB', loc: '收錄於「工具書」', desc: '描述：能量代謝、蛋白質攝入與肌肉合成的系統性參照。' } },
+  { title: '百年孤獨',           meta: { last: '2 週前', progress: '已讀 15%', time: '共 31 分鐘',  phy: 'AZW3 · 2.1 MB', loc: '收錄於「文學」', desc: '描述：多年以後，面對行刑隊，奧雷里亞諾上校將會回想起父親帶他去見識冰塊的那個遙遠的下午。' } },
+  { title: '三體',               meta: { last: '5 小時前', progress: '已讀 63%', time: '共 402 分鐘', phy: 'EPUB · 3.4 MB', loc: '收錄於「科幻」', desc: '描述：給歲月以文明，而不是給文明以歲月。' } },
+  { title: '紅樓夢（校注本）',     meta: { last: '上個月', progress: '已讀 27%', time: '共 588 分鐘', phy: 'EPUB · 8.9 MB', loc: '收錄於「古典」', desc: '描述：滿紙荒唐言，一把辛酸淚。' } },
+  { title: '人類簡史',           meta: { last: '昨天',   progress: '已讀 51%', time: '共 173 分鐘', phy: 'EPUB · 4.6 MB', loc: '收錄於「社科」', desc: '描述：我們研究歷史，不是為了知道未來，而是為了拓寬視野。' } },
+  { title: '靜靜的頓河',          meta: { last: '未閱讀', progress: '已讀 0%',  time: '共 —',        phy: 'EPUB · 6.2 MB', loc: '收錄於「文學」', desc: '描述：頓河草原上的哥薩克史詩。' } },
+  { title: '槍炮、病菌與鋼鐵',     meta: { last: '4 天前', progress: '已讀 34%', time: '共 129 分鐘', phy: 'PDF · 22.7 MB', loc: '收錄於「社科」', desc: '描述：不同民族的歷史遵循不同的道路前進，其原因是環境差異，而非生物差異。' } },
+  { title: '雪國',               meta: { last: '剛剛',   progress: '已讀 96%', time: '共 98 分鐘',  phy: 'EPUB · 0.6 MB', loc: '收錄於「文學」', desc: '描述：穿過縣界長長的隧道，便是雪國。' } },
+  { title: '老人與海',           meta: { last: '1 週前', progress: '已讀 100%', time: '共 74 分鐘', phy: 'EPUB · 0.4 MB', loc: '收錄於「文學」', desc: '描述：人可以被毀滅，但不能被打敗。' } },
+  { title: '柳林風聲',           meta: { last: '3 個月前', progress: '已讀 9%',  time: '共 22 分鐘', phy: 'EPUB · 1.1 MB', loc: '收錄於「童書」', desc: '描述：河岸邊的鼴鼠、水鼠、獾與蟾蜍先生的四季。' } },
+]
+const fitSize = t => t.length <= 4 ? 26 : t.length <= 8 ? 20 : t.length <= 12 ? 16 : 13.5
+
+const grid = document.getElementById('grid')
+BOOKS.forEach((b, i) => {
+  const el = document.createElement('figure')
+  el.className = 'book'
+  el.style.margin = '0'
+  el.innerHTML =
+    `<div class="cover"><div class="title" style="font-size:${fitSize(b.title)}px">${b.title}</div></div>` +
+    `<div class="bt-meta">${b.meta.phy.split(' · ')[0]} · ${b.meta.last}</div>`
+  el.addEventListener('click', () => openFocus(el, b, i))
+  grid.appendChild(el)
+})
+
+/* ======== 绶带配置（可调参；px 世界单位；卡片 ~174×261） ========
+   机制口径（用户定）：平绶带不扭转（带宽方向全程 = 轨道面法向）；**文字不住在带上**——
+   带 = 纯形状，内容由独立文字层承载（贴带面 2px 的专属网格 + 透明文字纹理）→
+   字重（TEXT_WEIGHT）/字号（textPx 世界字高）/颜色直接控制。
+   **調參面板**（右上「調參」）逐带改 rx/ry/tiltX/tiltZ/offY/zOff/w/dur/textPx；
+   localStorage 的调参优先于本默认；「重置默認」回到下面这组。
+   zOff = 轨道中心前后平移（正 = 靠近镜头）。
+   构图数值 = **用户定妆**（2026-11-03 調參面板手调后导出固化）：小頂環高高在上 ·
+   寬上緯道 · 居中大快環 · 大扭向下緯 · 卡下立環（前移 16px）。 */
+const DEFAULT_BANDS = [
+  { rx: 120, ry:  60, tiltX: 78, tiltZ:  -3, offY: -195, zOff:  0, w: 24, dur: 26, textPx: 15 },
+  { rx: 214, ry: 112, tiltX: 63, tiltZ:  12, offY:  -70, zOff:  0, w: 45, dur: 22, textPx: 15 },
+  { rx: 408, ry: 144, tiltX: 62, tiltZ:  19, offY:   28, zOff:  0, w: 36, dur:  8, textPx: 15 },
+  { rx: 246, ry: 102, tiltX: 61, tiltZ: -20, offY:  122, zOff:  0, w: 40, dur: 26, textPx: 15 },
+  { rx: 120, ry: 174, tiltX: 85, tiltZ:  -1, offY:  260, zOff: 16, w: 30, dur: 12, textPx: 15 },
+]
+const TUNE_KEY = 'turead-orbit-tuning-v1'
+let bandConfigs = loadTuning() || DEFAULT_BANDS.map(b => ({ ...b }))
+function loadTuning() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(TUNE_KEY) || 'null')
+    if (!Array.isArray(arr) || !arr.length) return null
+    return arr.map(b => ({
+      rx: b.rx, ry: b.ry, tiltX: b.tiltX, tiltZ: b.tiltZ,
+      offY: b.offY, zOff: b.zOff || 0, w: b.w, dur: b.dur, textPx: b.textPx
+    }))
+  } catch { return null }
+}
+function saveTuning() { try { localStorage.setItem(TUNE_KEY, JSON.stringify(bandConfigs)) } catch {} }
+function textsFor(book) {
+  const m = book.meta
+  return [`${m.last}　·　${m.progress}`, `${m.phy}　·　${m.time}`, m.desc, m.loc, `${m.progress}　·　${m.last}`]
+}
+function makeBands(book) {
+  const texts = textsFor(book)
+  return bandConfigs.map((cfg, i) => ({ ...cfg, text: texts[i % texts.length] }))
+}
+
+/* ======== 封面纹理（与 DOM 封面同语汇：panel-2 槽 + 1px 边 + 拟合标题） ======== */
+function drawCoverTexture(w, h, title) {
+  const s = 2                                     /* 2x 采样保清晰 */
+  const cv = document.createElement('canvas')
+  cv.width = w * s; cv.height = h * s
+  const ctx = cv.getContext('2d')
+  ctx.fillStyle = cssVar('--panel-2'); ctx.fillRect(0, 0, cv.width, cv.height)
+  ctx.strokeStyle = cssVar('--border'); ctx.lineWidth = s
+  ctx.strokeRect(s / 2, s / 2, cv.width - s, cv.height - s)
+  /* 标题：贪心逐字折行（CJK），行数超限则降字号（FittedTitle 的原型替身） */
+  let size = fitSize(title) * s
+  let lines = []
+  for (; size >= 18; size -= 2 * s) {
+    ctx.font = `700 ${size}px ${FONT_STACK}`
+    lines = []
+    let line = ''
+    for (const ch of title) {
+      if (ctx.measureText(line + ch).width > cv.width - 20 * s && line) { lines.push(line); line = ch }
+      else line += ch
+    }
+    if (line) lines.push(line)
+    if (lines.length <= 4) break
+  }
+  ctx.fillStyle = cssVar('--text')
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  const lh = size * 1.35
+  const y0 = cv.height / 2 - (lines.length - 1) * lh / 2
+  lines.forEach((ln, i) => ctx.fillText(ln, cv.width / 2, y0 + i * lh))
+  const tex = new THREE.CanvasTexture(cv)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.anisotropy = 4
+  return tex
+}
+
+/* ======== 文字层纹理（**内容承载层**，用户定：与带分离） ========
+   透明底 + 一段墨字（整周期画布）；字重/字号/颜色在此直接控制 ——
+   textPx = 世界字高（canvas 字号按 带宽/worldW 换算，四条带字高一致）；
+   返回 repeat.x（沿轨道的整周期数 —— 闭环无缝的充要条件）。 */
+const TEXT_WEIGHT = 700                              /* 文字层字重（直接控制点） */
+const TEXT_GAP = '　　'                               /* 周期间距（两个全宽空格） */
+function drawBandTextTexture(text, worldW, circumference, textPx) {
+  const CH = 256                                     /* 画布高（2x 超采样于 128 基准） */
+  const fontPx = Math.max(12, (textPx / worldW) * CH)
+  const probe = document.createElement('canvas').getContext('2d')
+  probe.font = `${TEXT_WEIGHT} ${fontPx}px ${FONT_STACK}`
+  try { probe.letterSpacing = '1px' } catch {}
+  const periodCanvas = Math.max(64, probe.measureText(text + TEXT_GAP).width)
+  const cv = document.createElement('canvas')
+  cv.width = Math.round(periodCanvas); cv.height = CH
+  const ctx = cv.getContext('2d')
+  ctx.font = `${TEXT_WEIGHT} ${fontPx}px ${FONT_STACK}`
+  try { ctx.letterSpacing = '1px' } catch {}
+  ctx.fillStyle = cssVar('--text')
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+  ctx.fillText(text + TEXT_GAP, 0, CH / 2 + 2)
+  const tex = new THREE.CanvasTexture(cv)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.wrapS = THREE.RepeatWrapping
+  tex.anisotropy = 8
+  const periodWorld = (periodCanvas / CH) * worldW   /* 画布周期 → 世界周期 */
+  const n = Math.max(1, Math.round(circumference / periodWorld))
+  tex.repeat.set(n, 1)
+  return { tex, n }
+}
+
+/* 椭圆周长（Ramanujan 近似）—— 文字平铺周期数的换算依据 */
+function ellipseCircumference(rx, ry) {
+  const h = ((rx - ry) * (rx - ry)) / ((rx + ry) * (rx + ry))
+  return Math.PI * (rx + ry) * (1 + 3 * h / (10 + Math.sqrt(4 - 3 * h)))
+}
+
+/* ======== 绶带几何（倾斜椭圆轨道上扫出的平带；带宽方向全程不变） ========
+   faceOffset = 沿面法向的外移量（文字层 = 2，浮在带面之上避免 z-fighting） */
+function buildBandGeometry(cfg, faceOffset = 0) {
+  const SEG = 220
+  const pos = [], uv = [], idx = [], norm = []
+  const euler = new THREE.Euler(THREE.MathUtils.degToRad(cfg.tiltX), 0, THREE.MathUtils.degToRad(cfg.tiltZ), 'XYZ')
+  const q = new THREE.Quaternion().setFromEuler(euler)
+  const p = new THREE.Vector3(), t = new THREE.Vector3()
+  const w = new THREE.Vector3(), nrm = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3()
+  const offY = -cfg.offY                              /* px 的"下移"换成 three 的 y-up */
+  for (let i = 0; i <= SEG; i++) {
+    const th = (i / SEG) * Math.PI * 2
+    /* 轨道点与切向（平面内椭圆），随后整体按姿态四元数转动；zOff = 轨道中心前后平移 */
+    p.set(cfg.rx * Math.cos(th), cfg.ry * Math.sin(th), 0).applyQuaternion(q)
+    if (cfg.zOff) p.z += cfg.zOff
+    t.set(-cfg.rx * Math.sin(th), cfg.ry * Math.cos(th), 0).normalize().applyQuaternion(q)
+    w.set(0, 0, 1).applyQuaternion(q)                 /* 带宽方向 = 轨道面法向，全程不变（平绶带） */
+    nrm.copy(t).cross(w).normalize()
+    if (faceOffset) p.addScaledVector(nrm, faceOffset)
+    a.copy(p).addScaledVector(w, -cfg.w / 2); a.y += offY
+    b.copy(p).addScaledVector(w, cfg.w / 2); b.y += offY
+    pos.push(a.x, a.y, a.z, b.x, b.y, b.z)
+    norm.push(nrm.x, nrm.y, nrm.z, nrm.x, nrm.y, nrm.z)
+    uv.push(i / SEG, 0, i / SEG, 1)
+  }
+  for (let i = 0; i < SEG; i++) {
+    const k = i * 2
+    idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2)
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(norm, 3))
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  g.setIndex(idx)
+  return g
+}
+
+/* ======== 持久 GL（渲染器一次创建、反复复用、闲时隐藏 —— 上下文反复创建会被浏览器回收） ======== */
+const FOCV = 40                                     /* fov */
+let GL = null                                       /* { root, canvas, renderer, camera } */
+function ensureGL() {
+  if (GL) return GL
+  const root = document.createElement('div')
+  root.className = 'gl-stage'
+  const canvas = document.createElement('canvas')
+  root.appendChild(canvas)
+  document.body.appendChild(root)
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true })
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+  const camera = new THREE.PerspectiveCamera(FOCV, 1, 10, 8000)
+  GL = { root, canvas, renderer, camera }
+  return GL
+}
+function camDistFor(vh) { return (vh / 2) / Math.tan(THREE.MathUtils.degToRad(FOCV / 2)) }
+function sizeGL(gl, vw, vh) {
+  gl.renderer.setSize(vw, vh)
+  gl.camera.aspect = vw / vh
+  gl.camera.updateProjectionMatrix()
+}
+
+/* ======== 场景内容（每次聚焦重建；1 世界单位 = 1 css px @ z=0 平面） ======== */
+function buildScene(book, rect, vw, vh) {
+  const scene = new THREE.Scene()
+
+  /* 光：环境光为主（平绶带不需要明暗戏剧）；方向光弱背光（远弧略暗 = 深度线索） */
+  scene.add(new THREE.AmbientLight(0xffffff, 2.3))
+  const dir = new THREE.DirectionalLight(0xffffff, 0.55)
+  dir.position.set(0, 300, 800)
+  scene.add(dir)
+
+  /* 卡片（共享元素；尺寸全程不变） */
+  const card = new THREE.Mesh(
+    new THREE.PlaneGeometry(rect.width, rect.height),
+    new THREE.MeshBasicMaterial({ map: drawCoverTexture(rect.width, rect.height, book.title) })
+  )
+  card.position.set(rect.left + rect.width / 2 - vw / 2, vh / 2 - (rect.top + rect.height / 2), 0)
+  scene.add(card)
+
+  /* 卡影：卡片背后的软暗晕（把卡从远侧绶带里剥出来；跟随卡片补间移动） */
+  const shadowCv = document.createElement('canvas')
+  shadowCv.width = 256; shadowCv.height = 256
+  {
+    const ctx = shadowCv.getContext('2d')
+    const g = ctx.createRadialGradient(128, 128, 20, 128, 128, 126)
+    g.addColorStop(0, 'rgba(0,0,0,0.6)')
+    g.addColorStop(0.55, 'rgba(0,0,0,0.3)')
+    g.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, 256, 256)
+  }
+  const shadowTex = new THREE.CanvasTexture(shadowCv)
+  const shadow = new THREE.Mesh(
+    new THREE.PlaneGeometry(rect.width * 1.75, rect.height * 1.55),
+    new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false })
+  )
+  shadow.position.set(card.position.x, card.position.y, -40)
+  scene.add(shadow)
+
+  /* 绶带：带 = 纯形状（纯色面，无纹理）；文字 = 独立承载层（贴面 2px，透明纹理）。
+     两者透明度都从 0 起（用户定：绶带从无到有渐显）。 */
+  const bands = makeBands(book).map(cfg => {
+    const b = makeBandObjects(cfg)
+    scene.add(b.bandMesh); scene.add(b.textMesh)
+    return b
+  })
+
+  return { scene, card, shadow, bands, book }
+}
+
+/* 单条绶带的全部对象（buildScene 与調參面板的实时重建共用同一构造） */
+function makeBandObjects(cfg) {
+  const bandMat = new THREE.MeshLambertMaterial({
+    color: cssVar('--panel'), side: THREE.DoubleSide, transparent: true, opacity: 0
+  })
+  const bandMesh = new THREE.Mesh(buildBandGeometry(cfg), bandMat)
+
+  const C = ellipseCircumference(cfg.rx, cfg.ry)
+  const { tex } = drawBandTextTexture(cfg.text, cfg.w, C, cfg.textPx)
+  const textMat = new THREE.MeshBasicMaterial({
+    map: tex, side: THREE.DoubleSide, transparent: true, opacity: 0, depthWrite: false
+  })
+  const textMesh = new THREE.Mesh(buildBandGeometry(cfg, 2), textMat)
+
+  return { cfg, bandMesh, bandMat, textMesh, textMat, tex }
+}
+
+/* 主题/字号变化 → 重建（颜色唯一来源仍是 CSS 变量；带色与文字层都随主题） */
+function refreshStage(s) {
+  s.card.material.map.dispose()
+  s.card.material.map = drawCoverTexture(s.card.geometry.parameters.width, s.card.geometry.parameters.height, s.book.title)
+  s.card.material.needsUpdate = true
+  s.bands.forEach(b => {
+    b.bandMat.color.set(cssVar('--panel'))
+    b.tex.dispose()
+    const C = ellipseCircumference(b.cfg.rx, b.cfg.ry)
+    b.tex = drawBandTextTexture(b.cfg.text, b.cfg.w, C, b.cfg.textPx).tex
+    b.textMat.map = b.tex
+    b.textMat.needsUpdate = true
+  })
+  if (reduceMotion.matches) s.gl.renderer.render(s.scene, s.gl.camera)   /* 静态帧重画一次 */
+}
+
+/* 场景资源释放（几何/材质/纹理；渲染器持久不释放） */
+function disposeScene(s) {
+  s.scene.traverse(o => {
+    if (o.geometry) o.geometry.dispose()
+    if (o.material) {
+      const ms = Array.isArray(o.material) ? o.material : [o.material]
+      ms.forEach(m => { if (m.map) m.map.dispose(); m.dispose() })
+    }
+  })
+}
+
+/* ======== 舞台主循环（唯一 rAF：补间 + 文字流转 + 渲染；K() 每帧现读 → 慢速实时生效） ======== */
+function addTween(s, tw) {
+  tw.p = 0
+  tw.t0 = 0                                      /* 首帧落墙钟（进度 = 真实时间，见下） */
+  tw.k0 = K()                                    /* 速度因子在补间开始时定格 */
+  s.tweens.push(tw)
+}
+
+function startLoop(s) {
+  let last = performance.now()
+  const step = (tms) => {
+    if (stage !== s) return                       /* 已拆台 → 循环自然终止 */
+    try {
+      const k = K()
+      const dt = Math.min(64, tms - last); last = tms
+      /* 进度走墙钟（tms - t0），不走逐帧 dt 累加 —— rAF 被节流/冻结时 dt=0 会把
+         补间永久卡在半途（实机踩过：closing 挂死在模糊幕上）；墙钟进度在冻结恢复后
+         一次性补完，永不挂死。慢速因子在补间开始时定格（k0）。 */
+      s.tweens = s.tweens.filter(tw => {
+        if (tw.p >= 1) return false
+        if (!tw.t0) tw.t0 = tms
+        tw.p = Math.min(1, (tms - tw.t0) / (tw.dur * tw.k0))
+        tw.fn((tw.ease || (x => x))(tw.p))
+        return tw.p < 1
+      })
+      /* 文字沿轨道流转（offset 0→1 = 恰好一整圈 → 无缝循环） */
+      s.bands.forEach(b => { b.tex.offset.x = (b.tex.offset.x + dt / 1000 / (b.cfg.dur * k)) % 1 })
+      s.gl.renderer.render(s.scene, s.gl.camera)
+      if (state === 'closing') {
+        if (!s.closeT0) s.closeT0 = tms
+        /* 看门狗：收场 3s 内必须归位（墙钟补间已保证；此处兜底未知环境因素） */
+        if (s.tweens.length === 0 || tms - s.closeT0 > 3000) { finishClose(s); return }
+      } else {
+        s.closeT0 = 0
+      }
+    } catch (err) {
+      /* 循环永不带病运行：任何异常 → 记录 + 强制复位回网格（用户绝不被困在模糊幕上） */
+      window.__boot.push('LOOP ' + String(err && err.stack || err))
+      forceTeardown(s)
+      return
+    }
+    s.raf = requestAnimationFrame(step)
+  }
+  s.raf = requestAnimationFrame(step)
+}
+
+/* ======== 舞台拆装 ======== */
+function finishClose(s) {
+  s.timers.forEach(clearTimeout)
+  const sc = document.querySelector('.scrim')
+  if (sc) sc.remove()
+  if (lastTrigger) lastTrigger.el.style.visibility = ''
+  disposeScene(s)
+  s.gl.root.style.display = 'none'
+  stage = null
+  state = 'idle'
+}
+function forceTeardown(s) {                        /* 异常兜底：无条件回到网格 */
+  try { disposeScene(s) } catch {}
+  finishClose(s)
+}
+
+/* ======== 聚焦舞台状态机：idle → opening → focused → closing（opening 可打断） ======== */
+let state = 'idle'
+let stage = null
+let lastTrigger = null
+
+function openFocus(cardEl, book, index) {
+  if (state !== 'idle') return
+  state = 'opening'
+  lastTrigger = { el: cardEl, book, index }
+
+  const rect = cardEl.querySelector('.cover').getBoundingClientRect()
+  cardEl.style.visibility = 'hidden'
+
+  const vw = innerWidth, vh = innerHeight
+  const gl = ensureGL()
+  gl.root.style.display = ''
+  sizeGL(gl, vw, vh)
+  const camDist = camDistFor(vh)
+  gl.camera.position.set(0, 0, camDist)
+
+  const content = buildScene(book, rect, vw, vh)
+  stage = {
+    gl, ...content, camDist,
+    tweens: [], timers: [], raf: 0,
+    actions: null,                                  /* 预留：操作接口（动画定稿后裁） */
+  }
+  const s = stage
+
+  buildScrim()
+
+  if (reduceMotion.matches) {
+    /* 弱化：不飞不转不流转，静态一帧呈现焦点态（颜色与层次保留）；收场直接复位 */
+    s.card.position.set(0, 0, 0)
+    s.shadow.position.set(0, 0, -40)
+    s.bands.forEach(b => { b.bandMat.opacity = 1; b.textMat.opacity = 1 })
+    gl.renderer.render(s.scene, s.camera)
+    state = 'focused'
+    return
+  }
+
+  const sx = rect.left + rect.width / 2 - vw / 2, sy = vh / 2 - (rect.top + rect.height / 2)
+
+  /* ① 飞行：位移（强 ease-out）+ 旋转（ease-in-out），落点即焦点 */
+  addTween(s, { dur: 460, ease: easeOutT, fn: t => {
+    s.card.position.set(sx * (1 - t), sy * (1 - t), 0)
+    s.shadow.position.set(s.card.position.x, s.card.position.y, -40)
+  } })
+  addTween(s, { dur: 460, ease: easeInOutT, fn: t => { s.card.rotation.y = t * Math.PI * 2 } })
+  /* ③ 绶带：从无到有**渐显**（用户定；错峰 120ms），文字层稍后跟进显影 */
+  s.bands.forEach((b, i) => {
+    s.timers.push(setTimeout(() => {
+      if (stage !== s || state === 'closing' || state === 'idle') return
+      addTween(s, { dur: 450, ease: easeOutT, fn: t => { b.bandMat.opacity = t } })
+    }, (240 + i * 120) * K()))
+    s.timers.push(setTimeout(() => {
+      if (stage !== s || state === 'closing' || state === 'idle') return
+      addTween(s, { dur: 350, ease: easeOutT, fn: t => { b.textMat.opacity = t } })
+    }, (400 + i * 120) * K()))
+  })
+  s.timers.push(setTimeout(() => { if (state === 'opening') state = 'focused' }, 480 * K()))
+  startLoop(s)
+}
+
+function buildScrim() {
+  const scrim = document.createElement('div')
+  scrim.className = 'scrim'
+  document.body.appendChild(scrim)
+  scrim.getBoundingClientRect()          /* 强制布局：过渡起点就绪，不依赖 rAF（后台节流也生效） */
+  scrim.classList.add('on')
+  scrim.addEventListener('click', closeFocus)
+  return scrim
+}
+
+function closeFocus() {
+  if (!stage || (state !== 'focused' && state !== 'opening')) return
+  const s = stage
+  state = 'closing'
+  s.timers.forEach(clearTimeout); s.timers = []
+
+  const sc = document.querySelector('.scrim')
+  if (sc) { sc.classList.add('closing'); sc.classList.remove('on') }
+
+  if (reduceMotion.matches) { finishClose(s); return }
+
+  /* 回原格：现场重测（窗口在聚焦期间可能变过尺寸）；从**当前**状态平滑收场（可打断） */
+  const rect = lastTrigger.el.querySelector('.cover').getBoundingClientRect()
+  const vw = innerWidth, vh = innerHeight
+  const sx = rect.left + rect.width / 2 - vw / 2, sy = vh / 2 - (rect.top + rect.height / 2)
+
+  s.tweens = []                                    /* 打断进行中的补间，改从现场状态接管 */
+  const px = s.card.position.x, py = s.card.position.y, rz = s.card.rotation.y
+  addTween(s, { dur: 300, ease: easeOutT, fn: t => {
+    s.card.position.set(px + (sx - px) * t, py + (sy - py) * t, 0)
+    s.shadow.position.set(s.card.position.x, s.card.position.y, -40)
+  } })
+  addTween(s, { dur: 300, ease: easeInOutT, fn: t => { s.card.rotation.y = rz * (1 - t) } })
+  s.bands.forEach(b => {
+    ;[b.bandMat, b.textMat].forEach(m => {
+      const op0 = m.opacity
+      if (op0 <= 0) { m.opacity = 0; return }
+      addTween(s, { dur: 180, ease: easeOutT, fn: t => { m.opacity = op0 * (1 - t) } })
+    })
+  })
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeFocus() })
+
+/* 复查诊断钩子（原型专用） */
+window.__protoState = () => ({ state, hasStage: !!stage, scrims: document.querySelectorAll('.scrim').length })
+
+/* ======== 原型旋钮 ======== */
+const THEMES = ['dark', 'light', 'sepia-light', 'sepia-dark']
+const THEME_NAMES = { dark: '純色·深', light: '純色·淺', 'sepia-light': '羊皮紙·淺', 'sepia-dark': '羊皮紙·深' }
+let themeIdx = 0
+document.getElementById('btnTheme').addEventListener('click', e => {
+  themeIdx = (themeIdx + 1) % THEMES.length
+  document.documentElement.dataset.theme = THEMES[themeIdx]
+  if (stage) { try { refreshStage(stage) } catch (err) { window.__boot.push('THEME ' + String(err)) } }
+  e.currentTarget.textContent = '主題 · ' + THEME_NAMES[THEMES[themeIdx]]
+})
+let slow = false
+document.getElementById('btnSlow').addEventListener('click', e => {
+  slow = !slow
+  document.documentElement.style.setProperty('--k', slow ? '4' : '1')
+  e.currentTarget.dataset.on = slow ? '1' : '0'
+})
+document.getElementById('btnReplay').addEventListener('click', () => {
+  if (state === 'idle') {
+    if (lastTrigger) openFocus(lastTrigger.el, lastTrigger.book, lastTrigger.index)
+    return
+  }
+  const t = lastTrigger
+  if (!t) return
+  closeFocus()
+  let n = 0
+  const wait = setInterval(() => {                 /* 收场完再开（时长随慢速因子可变，轮询而非定时） */
+    if (state === 'idle') { clearInterval(wait); openFocus(t.el, t.book, t.index) }
+    else if (++n > 80) clearInterval(wait)
+  }, 50)
+})
+
+/* ======== 調參面板（原型工具；产品不得保留） ======== */
+const panel = document.createElement('aside')
+panel.className = 'tune-panel'
+document.body.appendChild(panel)
+
+let rebuildQueued = false
+function queueBandRebuild() {                       /* 拖动滑杆 → 每帧至多重建一次 */
+  if (rebuildQueued || !stage) return
+  rebuildQueued = true
+  requestAnimationFrame(() => {
+    rebuildQueued = false
+    if (!stage) return
+    rebuildBandMeshes(stage)
+    if (reduceMotion.matches) stage.gl.renderer.render(stage.scene, stage.gl.camera)
+  })
+}
+function rebuildBandMeshes(s) {                     /* 按当前 bandConfigs 重建全部绶带对象（保留现场透明度） */
+  const oldOp = s.bands.map(b => [b.bandMat.opacity, b.textMat.opacity])
+  s.bands.forEach(b => {
+    s.scene.remove(b.bandMesh); s.scene.remove(b.textMesh)
+    b.bandMesh.geometry.dispose(); b.bandMat.dispose()
+    b.textMesh.geometry.dispose(); if (b.textMat.map) b.textMat.map.dispose(); b.textMat.dispose()
+  })
+  s.bands = makeBands(s.book).map(cfg => {
+    const b = makeBandObjects(cfg)
+    s.scene.add(b.bandMesh); s.scene.add(b.textMesh)
+    return b
+  })
+  s.bands.forEach((b, i) => {
+    const op = oldOp[i] || [1, 1]
+    b.bandMat.opacity = op[0]; b.textMat.opacity = op[1]
+  })
+}
+
+const TUNE_ROWS = [
+  ['水平半徑 rx', 'rx', 120, 520, 2], ['縱向半徑 ry', 'ry', 60, 320, 2],
+  ['傾角 tiltX', 'tiltX', 30, 85, 1], ['扭向 tiltZ', 'tiltZ', -20, 20, 1],
+  ['高度 offY', 'offY', -260, 260, 2], ['前後 zOff', 'zOff', -140, 140, 2],
+  ['寬 w', 'w', 16, 90, 1], ['轉速 dur', 'dur', 8, 40, 1], ['字高 textPx', 'textPx', 10, 24, 1],
+]
+function renderPanel() {
+  panel.innerHTML = ''
+  const h = document.createElement('h2'); h.textContent = '綬帶調參'
+  const hint = document.createElement('p'); hint.className = 'tune-hint'
+  hint.textContent = '聚焦一張書卡後拖動即時生效；配置自動留存（重開頁面仍在）。調好後「導出配置」把 JSON 發給助手固化為默認值。'
+  panel.append(h, hint)
+  const actions = document.createElement('div'); actions.className = 'tune-actions'
+  const mkBtn = (text, fn) => { const b = document.createElement('button'); b.className = 'proto-btn'; b.textContent = text; b.addEventListener('click', fn); return b }
+  actions.append(
+    mkBtn('＋加帶', () => { bandConfigs.push({ ...(bandConfigs[bandConfigs.length - 1] || DEFAULT_BANDS[0]) }); saveTuning(); renderPanel(); if (stage) rebuildBandMeshes(stage) }),
+    mkBtn('－減帶', () => { if (bandConfigs.length > 1) { bandConfigs.pop(); saveTuning(); renderPanel(); if (stage) rebuildBandMeshes(stage) } }),
+    mkBtn('導出配置', exportConfig),
+    mkBtn('重置默認', () => { bandConfigs = DEFAULT_BANDS.map(b => ({ ...b })); saveTuning(); renderPanel(); if (stage) rebuildBandMeshes(stage) }),
+  )
+  panel.appendChild(actions)
+  bandConfigs.forEach((cfg, i) => panel.appendChild(bandSection(i)))
+}
+function bandSection(i) {
+  const cfg = bandConfigs[i]
+  const div = document.createElement('div'); div.className = 'tune-band'
+  const h3 = document.createElement('h3')
+  h3.append(`帶 ${i + 1}`)
+  const rm = document.createElement('button'); rm.className = 'proto-btn tune-remove'; rm.textContent = '移除'
+  rm.addEventListener('click', () => { if (bandConfigs.length > 1) { bandConfigs.splice(i, 1); saveTuning(); renderPanel(); if (stage) rebuildBandMeshes(stage) } })
+  h3.appendChild(rm); div.appendChild(h3)
+  TUNE_ROWS.forEach(([label, key, min, max, step]) => {
+    const row = document.createElement('div'); row.className = 'tune-row'
+    const lab = document.createElement('label'); lab.textContent = label
+    const inp = document.createElement('input'); inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step; inp.value = cfg[key]
+    const out = document.createElement('output'); out.textContent = cfg[key]
+    inp.addEventListener('input', () => {
+      cfg[key] = parseFloat(inp.value); out.textContent = inp.value; saveTuning(); queueBandRebuild()
+    })
+    row.append(lab, inp, out); div.appendChild(row)
+  })
+  return div
+}
+function exportConfig() {                           /* 导出当前配置 JSON（复制给助手固化） */
+  const ov = document.createElement('div')
+  ov.style.cssText = 'position:fixed;inset:0;z-index:80;background:rgb(0 0 0 / .4);display:flex;align-items:center;justify-content:center'
+  const box = document.createElement('div')
+  box.style.cssText = 'background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-panel);padding:16px;width:440px;box-shadow:var(--shadow-modal)'
+  const p = document.createElement('p'); p.style.cssText = 'margin:0 0 8px;font-size:12.5px'
+  p.textContent = '当前绶带配置（复制发给助手即可固化为默认值）：'
+  const ta = document.createElement('textarea')
+  ta.style.cssText = 'width:100%;height:180px;background:var(--input-bg);color:var(--text);border:1px solid var(--border);font:12px/1.5 var(--font-ui);user-select:text'
+  ta.value = JSON.stringify(bandConfigs)
+  const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:16px;margin-top:10px'
+  const copy = document.createElement('button'); copy.className = 'proto-btn'; copy.textContent = '複製'
+  copy.addEventListener('click', async () => {
+    ta.select()
+    let ok = false
+    try { await navigator.clipboard.writeText(ta.value); ok = true } catch { try { ok = document.execCommand('copy') } catch {} }
+    copy.textContent = ok ? '已複製' : '請手動複製'
+  })
+  const close = document.createElement('button'); close.className = 'proto-btn'; close.textContent = '關閉'
+  close.addEventListener('click', () => ov.remove())
+  row.append(copy, close); box.append(p, ta, row); ov.appendChild(box); document.body.appendChild(ov)
+  ta.focus(); ta.select()
+}
+document.getElementById('btnTune').addEventListener('click', () => {
+  panel.classList.toggle('on')
+  if (panel.classList.contains('on')) renderPanel()
+})
+
+addEventListener('resize', () => {
+  if (!GL) return
+  sizeGL(GL, innerWidth, innerHeight)
+  if (stage) {
+    stage.camDist = camDistFor(innerHeight)
+    stage.gl.camera.position.z = stage.camDist
+    if (reduceMotion.matches) stage.gl.renderer.render(stage.scene, stage.gl.camera)
+  }
+})
+</script>
+</body>
+</html>
