@@ -46,7 +46,10 @@ export const DEFAULT_BANDS: BandConfig[] = [
 ]
 
 const cssVar = (name: string): string => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
-const FONT_STACK = cssVar('--font-ui')
+/* 字体栈**画时现读**，不在模块加载时缓存——dev 模式 styles.css 经 JS 注入，
+   模块求值早于样式注入时缓存会得到空串，canvas 判字体串非法后退回 10px 默认字号，
+   绶带文字缩成点阵（真机踩过；原型无此坑是它的样式内联在 head 里） */
+const fontStack = (): string => cssVar('--font-ui')
 const TEXT_WEIGHT = 700
 const TEXT_GAP = '　　'
 const FOCV = 40
@@ -112,7 +115,7 @@ function drawCoverTexture(cover: HTMLImageElement | null, w: number, h: number, 
     let size = fitSize(title) * s
     let lines: string[] = []
     for (; size >= 18; size -= 2 * s) {
-      ctx.font = `700 ${size}px ${FONT_STACK}`
+      ctx.font = `700 ${size}px ${fontStack()}`
       lines = []
       let line = ''
       for (const ch of title) {
@@ -145,14 +148,14 @@ function drawBandTextTexture(text: string, worldW: number, circumference: number
   const CH = 256
   const fontPx = Math.max(12, (textPx / worldW) * CH)
   const probe = document.createElement('canvas').getContext('2d')!
-  probe.font = `${TEXT_WEIGHT} ${fontPx}px ${FONT_STACK}`
+  probe.font = `${TEXT_WEIGHT} ${fontPx}px ${fontStack()}`
   try { probe.letterSpacing = '1px' } catch { /* 旧内核无此 API */ }
   const periodCanvas = Math.max(64, probe.measureText(text + TEXT_GAP).width)
   const cv = document.createElement('canvas')
   cv.width = Math.round(periodCanvas)
   cv.height = CH
   const ctx = cv.getContext('2d')!
-  ctx.font = `${TEXT_WEIGHT} ${fontPx}px ${FONT_STACK}`
+  ctx.font = `${TEXT_WEIGHT} ${fontPx}px ${fontStack()}`
   try { ctx.letterSpacing = '1px' } catch { /* 同上 */ }
   ctx.fillStyle = cssVar('--text')
   ctx.textAlign = 'left'
@@ -222,7 +225,12 @@ interface PersistentGL {
 }
 let GL: PersistentGL | null = null
 function ensureGL(host: HTMLElement): PersistentGL {
-  if (GL) return GL
+  if (GL) {
+    /* 二次聚焦：旧 host 随组件卸载，画布成了孤儿——必须跟新 host 走，
+       否则渲染照跑、画布不在文档里 = 第二次聚焦永远看不见（真机踩过） */
+    if (GL.canvas.parentElement !== host) host.appendChild(GL.canvas)
+    return GL
+  }
   const canvas = document.createElement('canvas')
   canvas.style.cssText = 'display:block;width:100%;height:100%'
   host.appendChild(canvas)
