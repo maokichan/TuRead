@@ -3,12 +3,12 @@
  *
  * 背景融为连续底面后，全局件都悬浮在 --inset-top 顶条带里（z = --z-chrome，
  * 压在卡片之上但让位给一切浮层）：
- * - 左上 = 书库层级后退/前进 + **全局搜索框**（批1.11 上底板 / 批1.12 定位左簇）+
- *   **阅读标签条**（批1.10）共一个容器。后退/前进**恒在**（批1.11 用户定：全局生命周期——
- *   职能按域分流，不随状态消失）：书库域 = 层级历史（libraryNavBus）；其余域尚无历史机构
- *   （阅读跳转历史 / 房间域返回见 TODO）→ 恒禁用。搜索框同理恒在：绑定随激活域走
- *   （chromeSearchBus），无绑定的域 = 禁用 + 域占位；**位置固定在导航键之后**（左簇），
- *   标签条伸缩不挪动它。
+ * - 左上 = 书库层级后退/前进 + **全局搜索框**（批1.11 上底板 / 批1.12 定位左簇）共一个容器。
+ *   后退/前进**恒在**（批1.11 用户定：全局生命周期——职能按域分流，不随状态消失）：
+ *   书库域 = 层级历史（libraryNavBus）；其余域尚无历史机构（阅读跳转历史 / 房间域返回见 TODO）
+ *   → 恒禁用。搜索框同理恒在：绑定随激活域走（chromeSearchBus），无绑定的域 = 禁用 + 域占位。
+ *   **阅读标签条（批1.10 顶栏形态）已退役（2026-11-03 用户定）**：标签迁入左侧栏（TagRail，
+ *   功能组件之下、分界线之下），顶栏恢复仅窗控（TODO「标签条形态重设计」既定落点）。
  * - 右上 = 窗口控制键：最小化 / 最大化(还原) / 关闭。OS 全屏时保持可见（语义不变，
  *   原自绘标题栏"全屏收起"的布局逻辑随 TitleBar 退役）。
  *
@@ -20,7 +20,6 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { IPC } from '@shared/ipc'
 import { libraryNavBus } from '../features/libraryNavBus'
 import { chromeSearchBus } from '../features/chromeSearchBus'
-import { ReaderTabStrip, type ReaderTabItem } from './ReaderTabStrip'
 
 /** 无绑定域的占位文案（承自退役 TitleBar 的作用域表；阅读器/房间接线见 TODO「全局搜索接线」。
     不写"未接线"之类的工程腔——禁用态本身已经说明不可用，占位只说这个域搜什么） */
@@ -32,18 +31,10 @@ const SCOPE_PLACEHOLDER: Record<string, string> = {
 
 export function ChromeControls({
   activeFeature,
-  searchInputRef,
-  readerTabs,
-  activeTabId,
-  onTabActivate,
-  onTabClose
+  searchInputRef
 }: {
   activeFeature: string
   searchInputRef: React.RefObject<HTMLInputElement | null>
-  readerTabs: ReaderTabItem[]
-  activeTabId: string | null
-  onTabActivate: (editionId: string) => void
-  onTabClose: (editionId: string) => void
 }): React.JSX.Element {
   const [maximized, setMaximized] = useState(false)
 
@@ -99,9 +90,8 @@ export function ChromeControls({
   return (
     <>
       {/* 左上：后退/前进（恒在，职能按域分流）+ 全局搜索框（批1.12 定位：**左簇固定**，
-          紧跟导航键——不随标签条伸缩，标签多时挤的是标签自己）+ 阅读标签条（全态）。
-          右缘让位窗控（3 × w-11）；空隙处是窗口拖拽区（.chrome-base 默认），
-          按钮/输入经 `.chrome-base button/input` 豁免。 */}
+          紧跟导航键）。原右邻的阅读标签条已退役迁入侧栏（TagRail）；右缘让位窗控（3 × w-11）；
+          空隙处是窗口拖拽区（.chrome-base 默认），按钮/输入经 `.chrome-base button/input` 豁免。 */}
       <div
         className="absolute top-0 z-[var(--z-chrome)] flex items-stretch overflow-hidden"
         style={{ left: 'var(--sidebar-w)', right: '132px', height: 'var(--inset-top)' }}
@@ -141,14 +131,6 @@ export function ChromeControls({
             className="h-7 w-[240px] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--bg)] px-2.5 text-center text-[13px] text-[var(--text)] outline-none transition-colors duration-[var(--dur-hover)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:text-left disabled:opacity-[var(--disabled-opacity)]"
           />
         </div>
-        {readerTabs.length > 0 && (
-          <ReaderTabStrip
-            tabs={readerTabs}
-            activeId={activeTabId}
-            onActivate={onTabActivate}
-            onClose={onTabClose}
-          />
-        )}
       </div>
 
       {/* 右上：窗口控制键 */}

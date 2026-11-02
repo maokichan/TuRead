@@ -20,7 +20,8 @@ import { bindRoomSession } from './features/roomSession'
 import { readerCardBus } from './features/readerCardBus'
 import { loadPlugins } from './plugins/runtime'
 import { ChromeControls } from './components/ChromeControls'
-import type { ReaderTabItem } from './components/ReaderTabStrip'
+import { TagRail, type ReaderTabItem } from './components/TagRail'
+import { ContextMenu } from './components/ContextMenu'
 import { FeatureCard } from './components/FeatureCard'
 import { CommandPalette } from './components/CommandPalette'
 import type { PaletteCommand } from './components/commandFilter'
@@ -44,12 +45,15 @@ export default function AppShell(): React.JSX.Element {
   const [readerBookId, setReaderBookId] = useState<string | null>(null)
   /**
    * 阅读标签页（批1.10，用户定）：**打开一本书 = 开一个标签**，阅读器从"串行单本"变复数在场。
-   * `readerBookId` = 活跃标签的书（ReaderFeature 契约不变）；标签条住顶栏（ChromeControls）。
+   * `readerBookId` = 活跃标签的书（ReaderFeature 契约不变）；标签区住侧栏（TagRail，2026-11-03
+   *   标签条形态重设计：功能组件之下、分界线之下，窄格首字 + 悬停揭示全题）。
    * 书名异步补齐（`books.get`）；一个 edition 一个标签（重复打开 = 激活既有标签）。
    * 会话级状态（不持久化）；切库广播清空。
    */
   const [readerTabs, setReaderTabs] = useState<ReaderTabItem[]>([])
   const readerTabsRef = useRef<ReaderTabItem[]>([])
+  /** 标签右键菜单（2026-11-03 用户定：关闭交右键——格子内不放「×」，与聚焦舞台同构） */
+  const [tagMenu, setTagMenu] = useState<{ x: number; y: number; editionId: string } | null>(null)
   /**
    * 「带目标打开」载荷（v0.4.2，2026-09-16）：笔记管理双击条目时要把"打开后跳到哪条笔记"
    * 带进阅读器。**tick 递增**用来防重复消费（同一个目标只跳一次）。见 `ReaderTarget`。
@@ -227,6 +231,19 @@ export default function AppShell(): React.JSX.Element {
       pushLog
     }),
     [container, beginReaderExit, activateTab]
+  )
+
+  /** 「關閉其他標籤」（标签右键菜单，2026-11-03）：只留右键的这个——标准语义。
+      留下的若不是活跃书则顺手激活它（关其他 = "收拢到这一个"） */
+  const closeOtherReaderTabs = useCallback(
+    (keepId: string) => {
+      if (readerTabsRef.current.length <= 1) return
+      const keep = readerTabsRef.current.filter((t) => t.editionId === keepId)
+      readerTabsRef.current = keep
+      setReaderTabs(keep)
+      if (readerBookIdRef.current !== keepId) host.activateReaderTab(keepId)
+    },
+    [host]
   )
 
   // dev-only：TUREAD_DEV_BOOK 指定书时启动即导入并打开（无头验证渲染链路，实现见 dev/selfCheck.ts）；
@@ -432,23 +449,16 @@ export default function AppShell(): React.JSX.Element {
           <span className="text-[15px] text-[var(--text)]">鬆開以導入到當前書庫</span>
         </div>
       )}
-      <ChromeControls
-        activeFeature={activeFeature}
-        searchInputRef={chromeSearchRef}
-        readerTabs={readerTabs}
-        activeTabId={readerBookId}
-        onTabActivate={host.activateReaderTab}
-        onTabClose={host.closeReaderTab}
-      />
+      <ChromeControls activeFeature={activeFeature} searchInputRef={chromeSearchRef} />
       {/* 恒定框架（批1.5）批1.7 起融进底面：不再自持底色与右边框——图标列直接坐在
           chrome 底面上，区域感交给不可见留白（inset/gutter，STYLE.md §1.1）。
           「閱」不入栏——阅读不是"地方"而是书上的模式（入口只有书），registry 里的 reader 仅作路由。
           阅读态「書」常亮（DIRECTION.md：下层书库是阅读卡的来处，侧边栏宣示"你在哪"）。 */}
       <aside
-        className="absolute inset-y-0 left-0 z-[var(--z-chrome)] flex flex-col items-center py-2"
+        className="sidebar-rail absolute inset-y-0 left-0 z-[var(--z-chrome)] flex flex-col items-center py-2"
         style={{ width: 'var(--sidebar-w)' }}
       >
-          <nav className="flex w-full flex-1 flex-col items-center gap-1.5">
+          <nav className="flex w-full flex-col items-center gap-1.5">
             {FEATURES.filter((f) => !f.pinned && f.id !== 'reader').map((f) => (
               <button
                 key={f.id}
@@ -465,6 +475,19 @@ export default function AppShell(): React.JSX.Element {
               </button>
             ))}
           </nav>
+          {/* 标签区（2026-11-03 标签条形态重设计）：**跟随功能流**——紧随最末功能（筆記）之下
+              （用户裁：贴底"根本不是给人访问的"），上方短分界线隔离功能与开着的书；
+              其下的弹性空隙把「設」单独推回钉底。窄格首字 + 悬停揭示全题；
+              关闭交右键菜单。顶栏标签条随本区退役。 */}
+          <div className="tag-rail__divider" aria-hidden="true" />
+          <TagRail
+            tabs={readerTabs}
+            activeId={readerBookId}
+            onActivate={host.activateReaderTab}
+            onMenu={(x, y, editionId) => setTagMenu({ x, y, editionId })}
+          />
+          {/* 弹性空隙：标签区贴着功能流，「設」独自钉底 */}
+          <div className="flex-1" aria-hidden="true" />
           <nav className="flex w-full flex-col items-center gap-1.5">
             {FEATURES.filter((f) => f.pinned).map((f) => (
               <button
@@ -479,6 +502,25 @@ export default function AppShell(): React.JSX.Element {
             ))}
           </nav>
         </aside>
+
+        {tagMenu && (
+          <ContextMenu
+            x={tagMenu.x}
+            y={tagMenu.y}
+            items={[
+              { label: '關閉標籤', onClick: () => host.closeReaderTab(tagMenu.editionId) },
+              ...(readerTabs.length > 1
+                ? [
+                    {
+                      label: '關閉其他標籤',
+                      onClick: () => closeOtherReaderTabs(tagMenu.editionId)
+                    }
+                  ]
+                : [])
+            ]}
+            onClose={() => setTagMenu(null)}
+          />
+        )}
 
       {/* 卡片区（.card-region，styles.css）：几何 = --inset-* 四值（顶条让位给底面全局件，
           左 = rail + 一道沟，右/下 = 统一沟），是卡片层的唯一落点。

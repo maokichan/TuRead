@@ -182,8 +182,10 @@
   /* 暗场浮现（批1.9，docs/DIRECTION.md §2）：开书瞬间压深一档的峰值（叠加在 scrim 之上），
      只往深里走、不随主题反光 —— 深色主题下是"更暗一瞬"，不是闪光弹。 */
   --reader-dip-peak: 0.32;
-  /* 阅读标签条（批1.10）：单格标题宽度上限（超出省略号）；标签多时靠顶条带 overflow 收窄 */
-  --tab-max-w: 168px;
+  /* 侧栏标签揭示胶囊的宽度上限（2026-11-03 用户定：胶囊宽随标题自适应，上限"适当增长"
+     ——168px（退役顶栏 --tab-max-w 的语义值）太矮，长到 240px 封顶；
+     到顶仍显示不完的在胶囊内滚动，不省略号截断） */
+  --tag-flyout-max-w: 240px;
   /* 笔记/划线四色（2026-09-14，STYLE.md §3.4）——**语义内容标记色**（同 --ok/--warn/--err 的性质：
      表达内容状态，不做装饰）。四套取向**各给一组**（不派生：深浅纸上同一色不可用）。
      ⚠ 深色取向必须用**低亮度高饱和**：kookit 对非 PDF 高亮统一渲染为
@@ -546,6 +548,125 @@ textarea {
 .feature-nav--active:hover {
   background: var(--negative-bg);
   color: var(--negative-text);
+}
+
+/* ---------- 侧栏阅读标签区（TagRail，2026-11-03 用户定）----------
+   标签从顶栏迁入侧栏，住功能组件之下、短分界线之下（线上 = 功能图标、线下 = 开着的书）。
+   「窄格 + 按需揭示」：与 .feature-nav 同款几何（40×40，--sidebar-w 承重墙不动），
+   格内只显示书名首字（tagGlyph 跳过符号）；悬停 = 首字交叉淡出、全题自格左缘展开
+   并微微左滑（--ease-out），带衬底胶囊越过格界显示在卡片层上（侧栏 --z-chrome 压过
+   无 z 的 .card-region）。三条配套（用户定）：胶囊 = 托字的影不是盒子（直角、无阴影）；
+   关闭交右键（格子无「×」）；选中不用负片（--panel-2 轻底 + --text，负片留给功能导航）。
+   揭示动画全部收进 hover:hover 门控（触屏 tap = 直接激活，不产生假悬停）；
+   reduced-motion 下只留色温与透明度过渡（无位移）。 */
+.tag-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  /* 不设滚动：overflow-y:auto 会把横向也强制收敛，胶囊越过格界就触发水平滚动条
+     （2026-11-03 用户报）。标签量级（= 同时打开的书）用不到滚动；极多时溢出窗口底的
+     「更多」折叠态登记 TODO，视反馈再做。 */
+  overflow: visible;
+}
+
+/* 短分界线（2026-10-31 裁）：隔离职能只靠一道线，长度短于栏宽、居中，不作盒子 */
+.tag-rail__divider {
+  width: 24px;
+  height: 1px;
+  margin: 6px 0;
+  background: var(--border);
+  flex: none;
+}
+
+.tag-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  font-family: var(--font-serif-cn);
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition: color var(--dur-hover) ease, background-color var(--dur-hover) ease,
+    transform var(--dur-press) ease-out;
+}
+
+.tag-cell:hover {
+  color: var(--text);
+}
+
+/* 按压与 .feature-nav 同款：1px 下沉，色温瞬时到位（§5.1） */
+.tag-cell:active {
+  transform: translateY(1px);
+}
+
+/* 选中 = --panel-2 满格轻底 + --text（不用负片——负片留给功能导航） */
+.tag-cell--active,
+.tag-cell--active:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+/* 揭示层：全题 + 衬底胶囊。静态不可见且不挡格内点击；hover 自格左缘展开，
+   6px 左滑（呼应"内容逐渐左移"）+ 胶囊渐显。left:0 + padding 托住胶囊的两端留白。
+   宽随标题自适应、上限 --tag-flyout-max-w；超限的由内嵌 Marquee 无缝滚动看全题
+   （绝对定位容器 shrink-to-fit 量的是 track 的 max-content，自适应与封顶都自然成立；
+   垂直居中走 line-height——flex 容器上的 text-overflow 不生效的历史教训不再需要，
+   截断已让位给滚动）。行高 38px = 40px 格高 - 上下 1px 边 */
+.tag-cell__flyout {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  padding: 0 10px;
+  max-width: var(--tag-flyout-max-w);
+  line-height: 38px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  opacity: 0;
+  transform: translateX(6px);
+  pointer-events: none;
+  transition: opacity var(--dur-hover) ease, transform var(--dur-hover) var(--ease-out);
+}
+
+.tag-cell__glyph {
+  transition: opacity var(--dur-hover) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* 揭示时**侧栏整体**提层（--z-menu）：.tag-cell 内部的 z-index 出不去侧栏自己的
+     层叠上下文（aside z=10 建立了 context），而卡片区 scrim 是 --z-drawer(30)——
+     胶囊会被压住（2026-11-03 用户报）。:has 从格子悬停提到 aside，越过卡片层；
+     z 跳变无需过渡。 */
+  .sidebar-rail:has(.tag-cell:hover) {
+    z-index: var(--z-menu);
+  }
+
+  .tag-cell:hover .tag-cell__flyout {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .tag-cell:hover .tag-cell__glyph {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tag-cell__flyout {
+    transform: none;
+    transition: opacity var(--dur-hover) ease;
+  }
 }
 
 /* ---------- 单行滚动（Marquee 组件，STYLE.md §5.5）----------
