@@ -16,7 +16,7 @@
 吃一个文件的 `ArrayBuffer` + config，产出"渲染进容器 DOM、可翻页/滚动的章节内容"，
 对外暴露 `rendition`：`renderTo` + 导航 + 位置/进度读取 + 事件。
 
-- 入口 `src/index.ts`（ESM，我们引用的）；许可证 **AGPL-3.0**。
+- 入口 `src/index.ts`（ESM，我们引用的）；许可证 **AGPL-3.0-or-later**。
 - **单文件 ESM 并非全自包含**：依赖表见 §4，PDF/漫画需要宿主页面注入全局对象 + 静态资源。
 
 ## 2. 渲染生命周期（最重要）
@@ -28,11 +28,13 @@
 2. rendition.renderTo(element)                                // EpubRender.ts:15
      解析 → chapterList / chapterDocList → createIframe → handleLayout
      ⚠ 只建 iframe + 布局，【不渲染任何章节正文】
-3. 必须再调一次导航方法才渲染正文：
-     goToChapterIndex(0) | goToPosition(lastLocation) | next() | prev()
+3. 必须再调一次导航方法才渲染正文。renderTo 后 tempLocation 为空，可靠入口是
+     goToChapterIndex(0) | goToPosition(lastLocation)
+     （next()/prev() 空态下算不出章节号，只会渲染出空章节；有位置后在章节边界同样走渲染）
      → handleRenderChapter（navigationUtil.ts:318）：doc.body.innerHTML = chapterText
      → trigger("rendered")
-4. 之后：record() / next() / prev() → handleRecord（算位置）+ trigger("page-changed"|"scroll-text")
+4. 之后：record() / next() / prev() → handleRecord（算位置）+ trigger("page-changed")；
+   "scroll-text" 只由 scrollToText()（文本跳转）发出（GeneralRender.ts:224/271）
 ```
 
 ## 3. 类层次与模块
@@ -61,14 +63,14 @@ GeneralRender (GeneralRender.ts，事件基类)
 
 | 依赖 | 是否内联进 vendor | 说明 |
 |---|---|---|
-| foliate-js（EPUB/MOBI/AZW3/FB2） | ✅ | 主流格式靠它 |
+| foliate-js（EPUB/MOBI/AZW3/FB2 解析） | ✅ | 以源码形式并入 kookit `src/libs/`（epub.js/mobi.js/fb2.js/epubcfi.js），非 npm 依赖 |
 | jszip / fflate / @zip.js | ✅ | 三重解压容错 |
 | rangy | ✅ | 选区/高亮（笔记 range） |
 | mammoth / marked / mhtml2html | ✅ | DOCX/MD/MHTML |
 | **pdf.js（pdfjsLib）** | ❌ **外部** | `window.pdfjsLib` + `/lib/pdfjs/` 静态资源 |
 | fabric | ❌ 外部 | PDF 标注（`window.fabric`） |
-| PDFLib / Tesseract / onnxruntime | ❌ 外部 | PDF 文本化/OCR（走 external-engine 插槽） |
-| RPC / 7z-wasm | ❌ 外部 | 漫画 CBR/CB7（v1 不支持） |
+| PDFLib / Tesseract / onnxruntime | ❌ 外部 | `PdfTextRender` 各 OCR 引擎的运行时依赖（按 `ocrEngine` 取用） |
+| RPC / 7z-wasm | ❌ 外部 | 漫画 CBR/CB7：`window.RPC` + `./lib/` 静态资源（v1 不支持） |
 
 ## 5. 关键硬编码契约 / 坑（违反就翻车）
 
@@ -77,8 +79,9 @@ GeneralRender (GeneralRender.ts，事件基类)
 > 中涉及的「宿主容器」均指它；「宿主页面」则指承载 kookit 的应用页面（CSP / 全局对象注入，见坑 §5.3/§5.5）。
 > 术语锚点见 `RENDER_INTERFACE.md` §2；位置语义概念名 =「定位系统」（`CONTRACTS.md` §2.1）。
 
-1. **`getDocument()` 硬编码 `document.getElementById("page-area")`**（GeneralRender.ts:582、
-   PdfRender.ts:750）——不认 `renderTo` 传入的元素。**宿主容器必须带 `id="page-area"`**，
+1. **`getDocument()` 硬编码 `document.getElementById("page-area")`**（GeneralRender.ts:582；
+   PdfRender 侧同款硬编码在 `getSubDocument`/`getSubIframe`，PdfRender.ts:760/777）——
+   不认 `renderTo` 传入的元素。**宿主容器必须带 `id="page-area"`**，
    否则 `renderTo` 后续流程直接 return（永不 resolve）。
 2. **`renderTo` 不渲染正文** —— 必须补一次导航调用（§2 步骤 3）。
 3. **blob URL 是内部通道**：正文经 `item.load()` → `fetch(blobUrl)` → `doc.body.innerHTML`；
@@ -86,14 +89,15 @@ GeneralRender (GeneralRender.ts，事件基类)
    （connect/img/style/frame/font-src；worker-src 另需 PDF worker）。
 4. **非 PDF/非移动时 iframe 带 `sandbox="allow-same-origin"`** —— 禁脚本。
 5. **PDF/漫画需要外部全局**（§4 表）；vendor 必须在 `window.pdfjsLib` 注入**之后**动态 import
-   （kookit 模块顶层捕获该全局，顺序不可反——适配器 `loadKookit()` 已保证）。
+   （libs/pdf.js:3 顶层 `const pdfjsLib = window.pdfjsLib` 捕获全局，顺序不可反——适配器
+   `loadKookit()` 已保证）。
 6. **`isElectron()` 检测**影响 `pdfjsPath` 前缀（Electron 下 `.` 开头）。
 7. **`tempLocation` 初始为 `{}`** —— 首次 `getPosition()` 字段可能 undefined，适配器已兜底。
 8. **scroll 模式的滚动发生在宿主容器上**：kookit 把 iframe 拉到 `doc.body.scrollHeight + 300`
-   （layoutUtil.ts:99-103，仅文字类），翻页是对宿主容器 `scrollTo/scrollBy` →
+   （layoutUtil.ts:101-102，仅文字类 scroll 模式），翻页是对宿主容器 `scrollTo/scrollBy` →
    **宿主容器必须 `overflow-y: auto`，且 CSS 不得对其内 iframe 设 `height: 100%`**
    （作者样式会覆盖 kookit 设的 height 属性 → iframe 压回一屏、宿主容器不可滚、翻页退化为跳章，
-   2026-09-07 定位，App 与 harness 同病同修）。single/double 分页模式走 iframe 内列滚动，无此要求。
+   2026-09-07 定位）。single/double 分页模式走 iframe 内列滚动，无此要求。
 9. **PDF scroll 模式 kookit 不拉高外层 iframe**（`handleIframeHeight` 只被文字类调用）——
    页面容器全在外层 iframe 内，宿主容器永不可滚。适配器 `renderTo` 按 `doc.body.scrollHeight + 300` 补齐。
 10. **文字类渲染不监听宿主容器 scroll**：`next()` 是 smooth 滚动刚开始就 `record()` → 位置是旧值。
@@ -102,15 +106,14 @@ GeneralRender (GeneralRender.ts，事件基类)
 11. **`record()` 有动画等待**：`animation !== "none" && isMobile !== "yes"` 时 sleep(1000)。
 12. **`getPosition()` 的数值字段是 string**（`tempLocation` 原样返回）——域层一律经
     `normalizeLocation` 归一为 number（CONTRACTS §2.1）。
-13. **`rendered` 事件的载荷是"看运气"的**（2026-09-14 逆向 + `note` 探针实测，坑「静默型」）：
+13. **`rendered` 事件的载荷不可靠**（2026-09-14 逆向 + `note` 探针实测，坑「静默型」）：
     - **文字类（`GeneralRender`，EPUB/MOBI/AZW3/AZW/TXT/MD/FB2/DOCX/HTML 全走它）**：
       `this.trigger("rendered")` —— **不带任何参数**（多处，如 goToChapter 尾、next/prev 尾）；
-    - **`PdfRender`**：`this.trigger("rendered", [chapterDocIndex])` —— **带章号**。
-    后果：若按"事件带章号"实现，文字类会拿到 `undefined`。**这个 `undefined` 极毒**——
-    它既不等于 `null`，也不触发任何告警，表现为下游"按章过滤"条件恒不成立而**静默 0 命中**
-    （实翻车现场：高亮永远不出现，日志干净，排查极难）。
+    - **`PdfRender`**：`this.trigger("rendered", [chapterDocIndex])` —— **带章号**（PdfRender.ts:1402）。
+    ⚠ 按"事件带章号"实现时，文字类拿到 `undefined`：不等于 `null`、不报错，下游"按章过滤"
+    恒不成立而**静默 0 命中**（高亮不出现，日志干净）。
     **正确做法**：一律以**位置**为权威 —— `getPosition().chapterDocIndex`
-    （kookit 多数渲染路径在 `trigger("rendered")` 前已 `yield this.record()`，tempLocation 就绪）。
+    （kookit 多数渲染路径在 `trigger("rendered")` 前已 `record()`，tempLocation 就绪）。
     实现见 `kookitRenderAdapter.resolveRenderedChapter()`；事件真给数字（PDF）时用事件值省一次读取。
 14. **笔记/高亮契约（文字类）**（2026-09-14 逆向，`note` 探针验证）：
     - 载荷 = **rangy 序列化字符范围**（不是 CFI）：`getHightlightCoords()` =
@@ -123,21 +126,23 @@ GeneralRender (GeneralRender.ts，事件基类)
     - 颜色要 **`"background-#RRGGBB"`** 形态（`buildHighlightStyleForType` 按 `-` 切分；
       传裸 hex 会让 switch 无命中而**静默不显色**），且内部再包成 `rgba(色, 0.8)` 叠在正文上
       → **深色主题必须给低亮度色**，否则浅色块配浅色字必然糊掉。
-    - **点击高亮回调（`handleNoteClick`）是"委托 + 配对"的**（2026-09-14 逆向，`note` 探针验证）：
-      它在 **`doc.body` 上以 capture 挂一个 `click`**（`doc.body.__kookitDelegated` 一次性标记），
-      逻辑 = `e.target.closest('.kookit-note[data-key]')` → `handleNoteClick({ target })`；
+    - **点击高亮回调（`handleNoteClick`）是"委托 + 配对"的**：
+      在 **`doc.body` 上以 capture 挂 `mousemove`/`mousedown`/`click`/`touchend` 四个监听**
+      （`doc.body.__kookitDelegated` 一次性标记）。`click` 路径 =
+      `e.target.closest('.kookit-note[data-key]')` → `handleNoteClick({ target })`；
       ⚠ **前置条件：`mousedown` 与 `click` 坐标相差 ≤ 5px**（防拖选误触）——
       `if (Math.abs(e.clientX - delegateDownX) > 5 || …) return`，`delegateDownX/Y` 由同文档
       的 `mousedown` 写入（初值 0）。三点含义：
       ① 回调**只在"点"而非"拖"时触发**；② 回调参数是 `{ target }`（**只有元素、没有鼠标坐标**）
       → 要坐标得自己 `getBoundingClientRect()` 量（适配器即这么做）；
       ③ 合成事件测它必须**成对派发且坐标一致**，否则 kookit 直接 return（**静默**，不报错）。
-      另：hover 时会读 `data-note-content` 弹 tooltip（`showNoteTooltip`）—— 所以**带批注的笔记
-      在书里 hover 就能看到正文**，这是 kookit 自带能力，不需要我们实现。
+      `touchend` 路径走 `elementFromPoint` 命中（无选区时），不受 5px 约束。
+      另：hover（mousemove）时读 `data-note-content` 弹 tooltip（`showNoteTooltip`）——
+      带批注的笔记 hover 可见正文，kookit 自带能力，不需要我们实现。
 15. **`contextmenu` 在桌面端是空的**（2026-09-14 逆向）：本包内 `oncontextmenu` 只有两处赋值，
     都在 `addAndroidTouchEvent` / `addAppleTouchEvent` 里，而它们的唯一调用者 `addTouchEvent()`
-    **全包只有定义、没有调用点**（`TouchEvent` 全包 5 处，均为定义或定义体内）→ 整条触屏/右键
-    接线是**死代码**。**结论：桌面端书文档上没有任何 kookit 右键处理，右键槽位可自由使用**
+    **全包只有定义、没有调用点** → 整条触屏/右键接线是**死代码**。
+    **结论：桌面端书文档上没有任何 kookit 右键处理，右键槽位可自由使用**
     （Electron 默认也不弹原生菜单）。我们因此把"新建标记/批注"的主入口放在右键。
 
 ## 6. 位置 / 进度语义（kookit 侧）
@@ -157,7 +162,8 @@ GeneralRender (GeneralRender.ts，事件基类)
 - **vendor 动态加载**：`open()` 先 `ensurePdfjs()`（`import('pdfjs-dist')` 挂全局）再
   `import('@vendor/kookit.esm')` —— 不能静态 import（坑 §5.5）。
 - **renderTo**：`rendition.renderTo(el)` → PDF 时补拉高外层 iframe（坑 §5.9）→
-  有 `lastLocation` 走 `goToPosition`，否则 `goToChapterIndex(0)`（坑 §5.2）。
+  `record()` 先算一次位置 → 有 `lastLocation` 走 `goToPosition`，否则 `goToChapterIndex(0)`
+  （坑 §5.2）。
 - **目录（v0.2.3）**：`getChapter()` 返回 TOC 树，适配器把每项的 `index` 透传为
   `Chapter.chapterDocIndex`（= 起始渲染节号，与 `tempLocation.chapterDocIndex` 同标尺）；
   `goToChapter(idx)` = 透传 `goToChapterDocIndex(idx)`（直接按渲染节跳转，不依赖 flatten 顺序）。
@@ -167,32 +173,36 @@ GeneralRender (GeneralRender.ts，事件基类)
   并上报 `location-changed` —— 即坑 §5.10 的消费侧义务落到了适配器里（文字类手动滚动此前不留任何位置痕迹）。
 - **PDF**：pdfjs-dist@4.8.69 注入 + `/lib/pdfjs/` 静态资源（cmaps/standard_fonts/
   text_layer_builder.css/annotation_layer_builder.css/worker）。pdfjs-dist v4.x 是匹配版本线
-  （v5+ 移除 `PDFDataRangeTransport` 等 API，勿升）。**定位**：页码为主键（`chapterDocIndex` = 页码，
-  每页一个 section），不依赖 OCR；笔记走页码+视口坐标。
-- **扫描版 PDF**：`isScannedPDF` 走 `PdfTextRender`，OCR 是插槽（`external-engine`，
-  `config.externalWorker = { recognize }`），无需改 kookit 源码；引擎实现单独立项。
-- **PDF 夜间模式 = 逐像素烘焙（已实现，2026-10-02）**：PDF 页面是**位图**（pdfjs 渲染到 canvas），
-  改 CSS 文字颜色对它无效。旧实现是 `#koodoPDFLayer` 挂 `filter: invert(1) hue-rotate(180deg)` ——
-  filter 让合成器**每帧**都对整张大图重做像素变换，是滚动掉帧的共犯。现改为 kookit
+  （v5+ 移除 `PDFDataRangeTransport` 等 API，勿升；kookit libs/pdf.js:402 在用）。
+  **定位**：页码为主键（`chapterDocIndex` = 页码，每页一个 section，libs/pdf.js:495），不依赖 OCR。
+  PDF 选区锚点暂不产出：`getSelectionAnchor` 对 PDF 返回 null，「页 + 视口坐标」载荷
+  （`engine: 'kookit-pdf-rect'`）仅在域类型中预留，尚无生产者。
+- **扫描版 PDF（当前未启用）**：文本化路由由 `isConvertPDF:"yes"` 决定（bookHelper.ts:67 →
+  `PdfTextRender`）；`isScannedPDF:"yes"` + `ocrEngine:"external-engine"` 时 bookHelper 把
+  `config.externalWorker` **覆写**为 kookit 内置 RN 桥 `getPDFOcrResult`（`PdfTextRender`
+  构造函数读 `config.externalWorker`）。适配器恒传 `isConvertPDF:"no"`，
+  `RenderOptions.isScannedPDF` 只透传、不影响路由。引擎实现单独立项。
+- **PDF 夜间模式 = 逐像素烘焙（2026-10-02 实现）**：PDF 页面是**位图**（pdfjs 渲染到 canvas），
+  改 CSS 文字颜色对它无效。旧实现 `#koodoPDFLayer` 挂 `filter: invert(1) hue-rotate(180deg)`，
+  合成器**每帧**都对整张大图重做像素变换，滚动掉帧。现为 kookit
   `PdfRender.bakeDarkModePixels`：每页渲染完成时对主画布 `getImageData` → **逐像素复算原
   filter 的精确数学**（invert(1) → hue-rotate(180deg) 规范矩阵（含钳制）→ contrast(0.95)）
-  → `putImageData`，开销变成每页一次，色彩观感与旧实现逐位一致（2026-10-02 二次修订：
-  首版用"HSL 亮度反转保留色相"的近似，彩色像素与 filter 有可见偏差，已弃）。`#fabric` 批注画布不烘焙（保持批注原色）。暗色随开书配置生效，
-  改主题仍需重开（`applyTheme` 对 PDF 是运行时 no-op）。扫描版 OCR 路径（`PdfTextRender`）
-  独立渲染、本无暗色处理，存量缺口另立项。**深底跳过（2026-10-25）**：烘焙前
-  `isSelfDarkCanvas` 把画布降采样到 64×64 探测——不透明覆盖率（alpha 加权）> 0.6 且
-  不透明像素均亮度 < 0.35 判定为自带深色底，跳过烘焙保持原样（反转会把夜间变成刺眼
-  白页）。必须联合判据：文字页在透明背景下不透明像素只剩深色字形，只看亮度会误判。
-- **PDF 滚动模式渲染调度（kookit 侧，2026-10-02；2026-10-25 收队列）**：滚动卡手的根因在
-  kookit `PdfRender` —— 旧写法滚动只 debounce 100ms 就开火，且当前页渲染 + 3 页预渲染
-  **并发**抢主线程。现改为：① 滚动回调挂 `requestIdleCallback`（300ms 兜底），滚动帧先落地；
+  → `putImageData`，开销变成每页一次，色彩与旧 filter 逐位一致。`#fabric` 批注画布不烘焙
+  （保持批注原色）。暗色随开书配置生效，改主题仍需重开（`applyTheme` 对 PDF 是运行时 no-op）。
+  扫描版 OCR 路径（`PdfTextRender`）独立渲染、无暗色处理，存量缺口另立项。
+  **深底跳过（2026-10-25）**：烘焙前 `isSelfDarkCanvas` 把画布降采样到 64×64 探测——
+  不透明覆盖率（alpha 加权）> 0.6 且不透明像素均亮度 < 0.35 判定为自带深色底，跳过烘焙
+  （反转会把自带深色页变成刺眼白页）。必须联合判据：文字页在透明背景下不透明像素只剩
+  深色字形，只看亮度会误判。
+- **PDF 滚动模式渲染调度（kookit 侧，2026-10-02；2026-10-25 收队列）**：滚动卡手根因在
+  kookit `PdfRender`（旧写法滚动 debounce 100ms 即开火，当前页渲染 + 3 页预渲染并发抢主线程）。
+  现为：① 滚动回调挂 `requestIdleCallback`（300ms 兜底），滚动帧先落地；
   ② **页级工作（卸载旧页 / 渲染当前页 / 预渲染）一律串行过同一条队列**（`pdfPrefetchChain` +
   `pdfPrefetchGen` 代次令牌）——当前页任务带新代次入队，排在前面的旧任务一运行即在代次
   检查处退出，等价插队到队首；调用方仍 await 当前页任务。触屏缩放整页重载走
-  `reloadPdfPage`（同一队列）。此举修复：立即通道与在飞预渲染对**同一页**并发渲染，
-  后完成者 `replaceChildren` 把已烘焙 canvas 换成未烘焙的（暗色挂白页；body 非空后幂等
-  检查跳过重渲，白页卡死）；卸载与在飞渲染互不知情导致 `replaceChildren` 查 `#canvas`
-  得 null 抛 TypeError 的同源竞态一并消失。
+  `reloadPdfPage`（同一队列）。消除两类竞态：同页并发渲染时后完成者 `replaceChildren`
+  把已烘焙 canvas 换成未烘焙的（暗色挂白页），以及卸载与在飞渲染互踩致 `replaceChildren`
+  查 `#canvas` 得 null 抛 TypeError。
 - **PDF 滚动模式页卡边缘（适配器侧，2026-10-02）**：滚动模式本就是"每页独立容器 + 2% 页间
   距"，但页边界不可见。适配器 `renderTo` 在 PDF scroll 模式往书文档注入
   `.pdf-container{border:1px solid <--page-edge>}`（`turead-pdf-page-edge`，先注入后量
@@ -219,14 +229,14 @@ GeneralRender (GeneralRender.ts，事件基类)
   再停稳检测 + 补 `record()`（坑 §5.10：隐藏窗口推迟 smooth scroll ~2s，停稳检测无法区分
   「未开始/已结束」）③ 位置快照（章节索引/count/percentage/scrollTop 任一变化）才算翻页生效。
 - **v0.1.8 健壮性修正（App 自检 `dev/selfCheck.ts`，2026-09-08）**：书库启动即渲染封面后，
-  自检时序窗口变窄，暴露出三类假阴性 ——
+  自检时序窗口变窄，暴露出下列假阴性/无效断言 ——
   ① `MobiRender`/AZW3 偶发晚于首帧才设 iframe 高度 → 加 `waitIframeSized()`（等高度落地，超时仍判可疑）；
   ② 书被"上次阅读位置"恢复到接近结尾处时 `next()` 本就无处可去 → 翻页断言**先 `goToChapter(0)` 再起跑**；
   ③ 翻页判定改为"等变化出现"（`waitForTurn`：位置或宿主 scrollTop 变化，15s 超时）而不是"停稳后再量"；
   ④ **阅读器面板偶发不可见**（功能组件常驻挂载、非激活 `display:none`，隐藏时所有 rect/scrollHeight 均为 0）
   → `ensureReaderVisible()` 等可见、必要时重试 `openReader`，仍不可见则明确报错（渲染本身正常）；
-  ⑤ **断言必须走真实用户路径** —— "恢复上次阅读"最初直接调 `host.navigate('reader')`，于是"通过"了，
-  但侧边栏按钮其实绕过 `host.navigate`，功能在真机上不生效。改为**点击侧边栏按钮**后才是有效断言。
+  ⑤ **断言必须走真实用户路径**：「恢复上次阅读」要**点击侧边栏按钮** —— 按钮路径绕过
+    `host.navigate`，直接调 `host.navigate('reader')` 的断言在真机失效时仍然"通过"。
 - **当前结果**：EPUB/MOBI/AZW3 全绿（App 无头自检四格式亦全绿，含 PDF）；
   harness 侧 PDF canvas 未渲染待定位（低优先级，见 TODO）。
 
