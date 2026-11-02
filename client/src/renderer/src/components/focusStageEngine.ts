@@ -394,7 +394,7 @@ function startLoop(s: NonNullable<typeof session>): void {
       }
     } catch (err) {
       console.warn('[focusStage] loop error, force teardown', err)
-      forceTeardown(s)
+      forceTeardown(s, true)
       return
     }
     s.raf = requestAnimationFrame(step)
@@ -402,7 +402,10 @@ function startLoop(s: NonNullable<typeof session>): void {
   s.raf = requestAnimationFrame(step)
 }
 
-/* ======== 拆装 ======== */
+/* ======== 拆装 ========
+   ⚠ 通知边界（真机踩坑）：`onExited` = "用户主动收场已落定"，**只有 finishClose 发**。
+   dispose（React 卸载清理）绝不通知——StrictMode 的模拟卸载会跑一遍清理，
+   若它也通知，父级会把 detailId 置空，第二次挂载直接被拆（舞台"弹不出来"）。 */
 function restoreOrigin(s: NonNullable<typeof session>): void {
   const el = document.querySelector(s.originSelector)
   if (el instanceof HTMLElement) el.style.visibility = ''
@@ -415,8 +418,8 @@ function finishClose(s: NonNullable<typeof session>): void {
   state = 'idle'
   s.onExited()
 }
-function forceTeardown(s: NonNullable<typeof session>): void {
-  /* 异常兜底：跳过补间，无条件复位（用户绝不被困在模糊幕上） */
+function forceTeardown(s: NonNullable<typeof session>, notify = false): void {
+  /* notify = true 仅限"运行时故障需父级复位"（循环崩溃）；卸载清理必须静默（见上） */
   try {
     s.timers.forEach(clearTimeout)
     restoreOrigin(s)
@@ -424,7 +427,7 @@ function forceTeardown(s: NonNullable<typeof session>): void {
   } catch { /* 拆台失败不再抛 */ }
   session = null
   state = 'idle'
-  s.onExited()
+  if (notify) s.onExited()
 }
 
 function refreshTextures(s: NonNullable<typeof session>): void {
@@ -441,6 +444,16 @@ function refreshTextures(s: NonNullable<typeof session>): void {
     b.textMat.needsUpdate = true
   })
 }
+
+/* 复查诊断钩子（原型 __protoState 同款；CDP 真机调试用，生产无害） */
+;(window as unknown as { __focusStageDebug?: () => unknown }).__focusStageDebug = () => ({
+  state,
+  hasSession: !!session,
+  sessionKeys: session ? Object.keys(session) : [],
+  canvases: [...document.querySelectorAll('canvas')].map((c) => ({
+    w: c.clientWidth, h: c.clientHeight, bufW: c.width, bufH: c.height, connected: c.isConnected
+  }))
+})
 
 /* ======== 对外 API ======== */
 export interface FocusStageOptions {
