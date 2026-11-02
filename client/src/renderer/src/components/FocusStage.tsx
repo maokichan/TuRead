@@ -12,6 +12,8 @@ interface FocusStageProps {
   collectionLabel: string | null
   /** 收场补间落定后回调（父级据此清 detailId 卸载本组件） */
   onClose: () => void
+  /** 点击雕塑卡（居中卡片）直接打开阅读（用户 2026-11-03 定：卡片可点击） */
+  onOpen: () => void
 }
 
 /**
@@ -27,15 +29,19 @@ export function FocusStage({
   readingState,
   coverUrl,
   collectionLabel,
-  onClose
+  onClose,
+  onOpen
 }: FocusStageProps): React.JSX.Element {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const sessionRef = useRef<FocusStageSession | null>(null)
   const [closing, setClosing] = useState(false)
   /** 开场编排未落定前，幕不拦点击——双击打开阅读的第二次点击要能落到书卡上 */
   const [settled, setSettled] = useState(false)
+  const cardSizeRef = useRef<{ width: number; height: number } | null>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  const onOpenRef = useRef(onOpen)
+  onOpenRef.current = onOpen
 
   useEffect(() => {
     const host = hostRef.current
@@ -48,6 +54,7 @@ export function FocusStage({
       return
     }
     const rect = originEl.getBoundingClientRect()
+    cardSizeRef.current = { width: rect.width, height: rect.height }
     const m = book.metadata
     const last = readingState?.lastReadAt ? formatRelative(readingState.lastReadAt) : '未閱讀'
     const progress = progressText(readingState)
@@ -111,12 +118,24 @@ export function FocusStage({
         onClick={requestClose}
         className={`fixed inset-x-0 bottom-0 top-[var(--inset-top)] z-[var(--z-drawer)] bg-transparent backdrop-blur-[var(--scrim-blur)] transition-opacity ${closing ? 'duration-[var(--dur-veil)] opacity-0' : 'duration-[var(--dur-view)] opacity-100'} ${settled && !closing ? 'pointer-events-auto' : 'pointer-events-none'}`}
       />
-      {/* WebGL 舞台：指针全穿透（关闭路径 = scrim / Esc） */}
+      {/* WebGL 舞台：指针全穿透（关闭路径 = scrim / Esc）；雕塑卡命中层唯一例外 */}
       <div
         ref={hostRef}
         aria-hidden
         className="pointer-events-none fixed inset-x-0 bottom-0 top-[var(--inset-top)] z-[var(--z-drawer)]"
-      />
+      >
+        {settled && !closing && cardSizeRef.current && (
+          /* 雕塑卡（居中卡片）本身可点击 = 直接打开阅读（用户 2026-11-03 定）。
+             命中区 = 卡片落定矩形（容器正中），出现于编排落定后、收场即撤 */
+          <button
+            type="button"
+            aria-label={`打開《${book.metadata.title || '未命名'}》`}
+            onClick={() => onOpenRef.current()}
+            className="pointer-events-auto absolute left-1/2 top-1/2 z-[var(--z-menu)] -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+            style={{ width: cardSizeRef.current.width, height: cardSizeRef.current.height }}
+          />
+        )}
+      </div>
     </>
   )
 }

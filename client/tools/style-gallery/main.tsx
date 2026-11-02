@@ -19,7 +19,6 @@ import { FittedTitle } from '@renderer/components/FittedTitle'
 import { FeatureCard } from '@renderer/components/FeatureCard'
 import { BookRow } from '@renderer/components/BookRow'
 import { BookTile } from '@renderer/components/BookTile'
-import { BookDetailPanel } from '@renderer/components/BookDetailPanel'
 import { LibraryToolbar } from '@renderer/components/LibraryToolbar'
 import { ReaderRail, type CardPageKind } from '@renderer/components/ReaderRail'
 import { ContextMenu, type ContextMenuItem } from '@renderer/components/ContextMenu'
@@ -766,20 +765,10 @@ export function Gallery(): React.JSX.Element {
       </Panel>
 
       <Panel
-        title="浮层 · 详情抽屉（BookDetailPanel）与确认弹窗（ConfirmDialog）"
-        path="components/BookDetailPanel.tsx + components/Marquee.tsx / components/ConfirmDialog.tsx"
-        note="封面 64×96（2:3 不拉伸）+ 三行各 32px（= 封面高度三等分）：标题条 / 数据行（含路径）/ 指标行；都不带标签（内容自述）；①② 单行超出才滚；外壳完全透明，关闭在底部"
+        title="浮层 · 确认弹窗（ConfirmDialog）"
+        path="components/ConfirmDialog.tsx"
+        note="（2026-11-03 详情抽屉退役 = 「聚焦舞台」，原 BookDetailPanel 进 trash/；Marquee 保留待复用）"
       >
-        <div className="relative h-[380px] overflow-hidden rounded-xl border border-[var(--border-soft)]">
-          {/* 下层内容：用来验证抽屉的透明（抽屉只画文字块，不画底） */}
-          <div className="flex flex-col gap-1 p-2">
-            <BookRow book={BOOK} readingState={READING_STATE} active={false} coverUrl={FAKE_COVER} onDetail={noop} onOpen={noop} onDelete={noop} />
-            <BookRow book={BOOK_PDF} readingState={READING_STATE_PDF} active={false} coverUrl={null} onDetail={noop} onOpen={noop} onDelete={noop} />
-            <BookRow book={BOOK} readingState={READING_STATE} active={false} coverUrl={null} onDetail={noop} onOpen={noop} onDelete={noop} />
-            <BookRow book={BOOK_PDF} readingState={READING_STATE_PDF} active={false} coverUrl={FAKE_COVER} onDetail={noop} onOpen={noop} onDelete={noop} />
-          </div>
-          <BookDetailPanel book={BOOK} readingState={READING_STATE} coverUrl={null} onClose={noop} onOpen={noop} onDelete={noop} />
-        </div>
         <button onClick={() => setShowDialog(true)} className="text-action text-action--primary mt-4">
           打开确认弹窗
         </button>

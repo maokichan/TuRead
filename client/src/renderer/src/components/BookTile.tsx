@@ -6,6 +6,8 @@ interface BookTileProps {
   book: EditionRecord
   active: boolean
   coverUrl: string | null
+  /** 聚焦舞台在场：本卡即"空缺提示槽"——原位留空 + 浅提示，点击直接打开阅读 */
+  vacant?: boolean
   onDetail: () => void
   onOpen: () => void
   onDelete: () => void
@@ -23,6 +25,7 @@ export function BookTile({
   book,
   active,
   coverUrl,
+  vacant,
   onDetail,
   onOpen,
   onDelete,
@@ -30,6 +33,34 @@ export function BookTile({
   onDragStartBook
 }: BookTileProps): React.JSX.Element {
   const title = book.metadata.title || '未命名'
+  if (vacant) {
+    /* 空缺提示槽（用户 2026-11-03 定）：聚焦舞台在场时原位留空（不剩底色），
+       只给很浅的"再次點擊打開"；点击 = 直接进阅读。z 取提示层（--z-menu），
+       盖过景深幕（--z-drawer），槽位几何与原卡一致（回飞落点 = 现场重测的它） */
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        data-book-id={book.id}
+        title={`打開《${title}》`}
+        onClick={onOpen}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            onOpen()
+          }
+        }}
+        className="relative z-[var(--z-menu)] flex cursor-pointer flex-col gap-1.5"
+      >
+        <div data-book-cover className="relative flex aspect-[2/3] w-full items-center justify-center rounded-[var(--radius-item)] border border-[var(--border-soft)]">
+          <span className="text-[12.5px] text-[var(--muted)] opacity-45 transition-opacity duration-[var(--dur-hover)] hover:opacity-80">
+            再次點擊打開
+          </span>
+        </div>
+        <span className="h-[34px]" />
+      </div>
+    )
+  }
   return (
     <div
       role="button"

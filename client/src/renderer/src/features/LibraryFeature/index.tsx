@@ -40,9 +40,11 @@ import { BookRow } from '../../components/BookRow'
 import { BookTile } from '../../components/BookTile'
 import { ContainerItem } from '../../components/ContainerItem'
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
-import { BookDetailPanel } from '../../components/BookDetailPanel'
 import { FocusStage } from '../../components/FocusStage'
 import { stageSupported } from '../../components/focusStageEngine'
+
+/* WebGL 能力与会话同寿命：false 时单击只选中（无详情视觉；概率极低，见 TODO「聚焦舞台」） */
+const STAGE_SUPPORTED = stageSupported()
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { LibraryManagerDialog } from '../../components/LibraryManagerDialog'
 import { LibraryToolbar } from '../../components/LibraryToolbar'
@@ -496,7 +498,7 @@ export function LibraryFeature({
   const openDetail = useCallback(
     (id: string) => {
       host.selectBook(id)
-      setDetailId(id)
+      if (STAGE_SUPPORTED) setDetailId(id)
     },
     [host]
   )
@@ -832,11 +834,10 @@ export function LibraryFeature({
       ]
 
   // 详情对象从两个来源找（常态 = 当前层 books；检索态 = 全库命中 searchResults）
+  // 单击详情 = 「聚焦舞台」（唯一形态；旧抽屉已退役进 trash/，见 TODO「聚焦舞台」）
   const detailBook =
     books.find((b) => b.id === detailId) ??
     (searching ? (searchResults ?? []).find((b) => b.id === detailId) ?? null : null)
-  // 单击详情 = 「聚焦舞台」（WebGL 可用时；否则回落旧详情抽屉——降级路径见 TODO「聚焦舞台」）
-  const stageMode = stageSupported()
 
   // —— 窗口化渲染（2026-09-12）：只挂载可视区 ± 缓冲条目。
   // 書箱/文件夹条目与书籍条目同几何（网格 2:3+34px 标签；列表 h-16），共用同一 stride。
@@ -868,6 +869,8 @@ export function LibraryFeature({
     onDetail: () => openDetail(b.id),
     onOpen: () => openBook(b.id),
     onDelete: () => requestDelete(b),
+    /* 聚焦舞台在场：该卡变"空缺提示槽"（原位留空 + 浅提示，点击 = 直接打开阅读） */
+    vacant: detailId === b.id,
     // 页面内拖拽源（书 → 書箱 移动）：数据走 dataTransfer，路径真实 id
     draggable: true,
     onDragStartBook: (e: React.DragEvent) => {
@@ -1009,32 +1012,21 @@ export function LibraryFeature({
           )}
         </div>
 
-        {detailBook &&
-          (stageMode ? (
-            /* 单击详情 = 「聚焦舞台」（key = book.id：换书即重挂，编排一次性）。
-               操作接口（打开/移除）按用户定先不进来，随「详情页操作清单」裁落点 */
-            <FocusStage
-              key={detailBook.id}
-              book={detailBook}
-              readingState={
-                readingStates[detailBook.id] ?? searchReadingStates[detailBook.id] ?? null
-              }
-              coverUrl={covers[detailBook.id] ?? searchCovers[detailBook.id] ?? null}
-              collectionLabel={crumbs.at(-1)?.label ?? null}
-              onClose={() => setDetailId(null)}
-            />
-          ) : (
-            <BookDetailPanel
-              book={detailBook}
-              readingState={
-                readingStates[detailBook.id] ?? searchReadingStates[detailBook.id] ?? null
-              }
-              coverUrl={covers[detailBook.id] ?? searchCovers[detailBook.id] ?? null}
-              onClose={() => setDetailId(null)}
-              onOpen={() => openBook(detailBook.id)}
-              onDelete={() => requestDelete(detailBook)}
-            />
-          ))}
+        {detailBook && (
+          /* 单击详情 = 「聚焦舞台」（key = book.id：换书即重挂，编排一次性）。
+             舞台内无操作（用户 2026-11-03 定：功能键交给右键菜单）；聚焦期原卡 = 空缺提示槽 */
+          <FocusStage
+            key={detailBook.id}
+            book={detailBook}
+            readingState={
+              readingStates[detailBook.id] ?? searchReadingStates[detailBook.id] ?? null
+            }
+            coverUrl={covers[detailBook.id] ?? searchCovers[detailBook.id] ?? null}
+            collectionLabel={crumbs.at(-1)?.label ?? null}
+            onClose={() => setDetailId(null)}
+            onOpen={() => openBook(detailBook.id)}
+          />
+        )}
 
         {ctxMenu && (
           <ContextMenu x={ctxMenu.x} y={ctxMenu.y} items={ctxMenu.items} onClose={() => setCtxMenu(null)} />

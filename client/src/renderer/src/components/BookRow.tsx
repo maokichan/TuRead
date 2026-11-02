@@ -7,9 +7,11 @@ interface BookRowProps {
   book: EditionRecord
   /** 阅读状态（来自 `LibraryItem.readingState`，读模型已 JOIN 好，避免 N+1） */
   readingState: ReadingState | null
-  /** 当前选中（= 详情抽屉显示的书） */
+  /** 当前选中（= 聚焦舞台显示的书） */
   active: boolean
   coverUrl: string | null
+  /** 聚焦舞台在场：本行即"空缺提示槽"（用户 2026-11-03 定），点击直接打开阅读 */
+  vacant?: boolean
   /** 单击 → 详情；双击 → 打开；Delete → 删除；Enter → 打开；Space → 详情 */
   onDetail: () => void
   onOpen: () => void
@@ -29,6 +31,7 @@ export function BookRow({
   readingState,
   active,
   coverUrl,
+  vacant,
   onDetail,
   onOpen,
   onDelete,
@@ -36,6 +39,31 @@ export function BookRow({
   onDragStartBook
 }: BookRowProps): React.JSX.Element {
   const title = book.metadata.title || '未命名'
+  if (vacant) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        data-book-id={book.id}
+        title={`打開《${title}》`}
+        onClick={onOpen}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            onOpen()
+          }
+        }}
+        className="relative z-[var(--z-menu)] flex h-16 cursor-pointer items-center justify-center"
+      >
+        <span
+          data-book-cover
+          className="rounded-[var(--radius-item)] border border-[var(--border-soft)] px-3 py-2 text-[12.5px] text-[var(--muted)] opacity-45 transition-opacity duration-[var(--dur-hover)] hover:opacity-80"
+        >
+          再次點擊打開
+        </span>
+      </div>
+    )
+  }
   const meta = (
     <span className="flex items-center gap-2 text-[11px] text-[var(--muted)]">
       <b className="text-[11px] font-bold tracking-label text-[var(--muted)]">{book.format}</b>

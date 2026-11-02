@@ -414,13 +414,8 @@ function startLoop(s: NonNullable<typeof session>): void {
    ⚠ 通知边界（真机踩坑）：`onExited` = "用户主动收场已落定"，**只有 finishClose 发**。
    dispose（React 卸载清理）绝不通知——StrictMode 的模拟卸载会跑一遍清理，
    若它也通知，父级会把 detailId 置空，第二次挂载直接被拆（舞台"弹不出来"）。 */
-function restoreOrigin(s: NonNullable<typeof session>): void {
-  const el = document.querySelector(s.originSelector)
-  if (el instanceof HTMLElement) el.style.visibility = ''
-}
 function finishClose(s: NonNullable<typeof session>): void {
   s.timers.forEach(clearTimeout)
-  restoreOrigin(s)
   disposeContent(s.content)
   session = null
   state = 'idle'
@@ -430,7 +425,6 @@ function forceTeardown(s: NonNullable<typeof session>, notify = false): void {
   /* notify = true 仅限"运行时故障需父级复位"（循环崩溃）；卸载清理必须静默（见上） */
   try {
     s.timers.forEach(clearTimeout)
-    restoreOrigin(s)
     disposeContent(s.content)
   } catch { /* 拆台失败不再抛 */ }
   session = null
@@ -469,7 +463,7 @@ export interface FocusStageOptions {
   host: HTMLElement
   /** 原格封面矩形（viewport 坐标；飞行起点） */
   originRect: { left: number; top: number; width: number; height: number }
-  /** 原格封面元素选择器（聚焦期隐藏、收场落位恢复） */
+  /** 原格封面元素选择器（收场回飞落点的现场重测；可见性归 React 的"空缺提示槽"） */
   originSelector: string
   title: string
   coverUrl: string | null
@@ -502,10 +496,7 @@ export function openFocusStage(opts: FocusStageOptions): FocusStageSession {
   sizeGL(gl, hostRect.width, hostRect.height)
   gl.camera.position.set(0, 0, camDistFor(hostRect.height))
 
-  /* 隐藏原格（引擎直改 style：BookTile/BookRow 不持 visibility，无回写冲突） */
-  const originEl = document.querySelector(opts.originSelector)
-  if (originEl instanceof HTMLElement) originEl.style.visibility = 'hidden'
-
+  /* 原格的可见性归 React（空缺提示槽），引擎不再直改 style */
   const cover = opts.coverUrl ? new Image() : null
   const s: NonNullable<typeof session> = {
     gl,
@@ -626,7 +617,7 @@ export function openFocusStage(opts: FocusStageOptions): FocusStageSession {
         forceTeardown(s)
         return
       }
-      /* 回原格：现场重测（窗口可能变过尺寸）；从当前状态平滑收场（可打断） */
+      /* 回原格：现场重测空缺槽位（窗口可能变过尺寸）；从当前状态平滑收场（可打断） */
       const el = document.querySelector(s.originSelector)
       const r0 = el instanceof HTMLElement ? el.getBoundingClientRect() : s.originRect
       const hr = s.host.getBoundingClientRect()
