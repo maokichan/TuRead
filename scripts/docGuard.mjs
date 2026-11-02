@@ -17,56 +17,30 @@
  * 本脚本把文档纪律从手写自觉变成提交时的机器约束：超限 = 挡，直到把细节下沉到该在的
  * 小节、把旧条目退役进 git 历史（这正是期望的维护动作）。
  *
- * ── 上限表口径（两级） ──
- * ① 入口/索引类：硬上限——渐进式披露的命脉，短是结构性的，没有商量；
- * ② 存量冻结基线：大体量的契约/设计文档一次砍到理想值会丢信息，冻结当前值取整
- *    （注释标"冻结"）——语义是"只许降，不许升"；降到理想线后应把上限收紧。
- * 未登记的 .md 按保守默认值门控（防新文档绕过）；新文档请来表里登记并给级别。
+ * ── 上限表口径 ──
+ * 只登记入口/索引类（AGENTS 族）的硬上限——渐进式披露的命脉，短是结构性的，没有商量；
+ * 其余文档（契约/设计/状态/待办/README）统一默认 800（用户 2026-11-03 定）：
+ * 超限 = 洗——按纪律结合程序事实（对照代码现状），去没必要的形容词与不必要的推演过程，
+ * 只留判定、事实与接口形状。
  * 运行环境：零依赖 Node ESM（node >= 20）；路径一律 / 分隔（git ls-files 口径）。
  */
 
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
-/** 上限表：路径（/ 分隔）→ 行数上限。注释 = 级别（硬上限 / 冻结基线 + 理想线）。 */
+/** 上限表：路径（/ 分隔）→ 行数上限。只登记入口/索引类硬上限——其余文档一律默认 800。 */
 const DOC_LIMITS = {
-  // ── 入口/索引类（硬上限：渐进式披露命脉）──
-  'AGENTS.md': 100, // agent 全局入口（现 84）
+  // ── 入口/索引类（硬上限：渐进式披露命脉，短是结构性的；"其他文档统一 800"不含此级）──
+  'AGENTS.md': 100, // agent 全局入口
   'docs/AGENTS.md': 80, // docs 子树入口
   'client/AGENTS.md': 80, // client 子树入口
-  'README.md': 140, // 项目门面（现 121）
-
-  // ── 待办/状态类 ──
-  'TODO.md': 320, // 冻结基线（现 306）——只许消化，理想线 250：条目细节该归 FEATURES/CONTRACTS
-  'docs/STATUS.md': 300, // 冻结基线（现 232）——版本史 append-only，超限时折叠最早版本行
-
-  // ── 契约/设计文档（冻结基线：只许降不许升）──
-  'client/docs/CONTRACTS.md': 1100, // 冻结（现 1085）——理想线 800：随 B2 并行等重构收
-  'client/docs/STYLE.md': 700, // 冻结（现 689）
-  'client/docs/FEATURES.md': 650, // 冻结（现 634）
-  'client/docs/DATA_MODEL.md': 480, // 冻结（现 461）
-  'client/docs/KOOKIT.md': 260, // 冻结（现 245）
-  'client/docs/RENDER_INTERFACE.md': 230, // 冻结（现 213）
-  'client/docs/ARCHITECTURE.md': 120, // 硬上限级（现 96）
-  'docs/ARCHITECTURE.md': 80, // 硬上限级（现 48）
-  'docs/DIRECTION.md': 80, // 硬上限级（现 66）——条款改动须用户明示，防随手加
-  // docs/LANDSCAPE.md 与 借物表.md 是有意不入库的本地文档（.gitignore），门控不扫
-
-  // ── server/docs ──
-  'server/docs/API.md': 350, // 冻结（现 335）
-  'server/docs/ARCHITECTURE.md': 140, // 硬上限级（现 121）
-  'server/docs/OPS.md': 130, // 硬上限级（现 107）
-
-  // ── 工具/杂项 README ──
-  'client/tools/style-gallery/README.md': 100, // 冻结（现 82）
-  'client/tools/swarm/README.md': 80,
-  'client/tools/ui-shot/README.md': 80,
-  'client/plugins/README.md': 80,
-  'client/src/renderer/src/assets/fonts/NOTICE.md': 60 // 许可声明，只随字体包变动
+  'client/docs/AGENTS.md': 80 // client/docs 文档群入口
 }
+// 其余文档（契约/设计/状态/待办/README）统一默认 800（用户 2026-11-03 定）：
+// 超限 = 按纪律结合程序事实洗一遍——去没必要的形容词、去不必要的推演过程，只留判定与事实。
 
-/** 未登记文档的保守默认上限（防新文档绕过门控；请给新文档登记正式条目） */
-const DEFAULT_LIMIT = 100
+/** 未登记文档的默认上限 */
+const DEFAULT_LIMIT = 800
 
 /** git 追踪的全部 .md（含暂存区新文件；submodule/trash 之外不会混进别的） */
 const tracked = execSync('git ls-files -- "*.md"', { encoding: 'utf8' })
