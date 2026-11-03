@@ -204,12 +204,14 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
           const entries = Object.entries(DEFAULT_BINDINGS).filter(([intent]) => intent.startsWith(`${scope}.`))
           if (entries.length === 0) return null
           return (
-            <div key={scope} className="flex flex-col gap-1">
-              <span className="text-[12.5px] text-[var(--muted)]">{label}</span>
+            // 键值对的数据特征 = 键与值**相邻**（批1.23 用户纠偏："明显应该靠近一点"）——
+            // 层级缩进承担结构（域 → 条目），行内 = 意图名（注脚）+ 键位（值），一道小缝。
+            <div key={scope} className="flex flex-col gap-1.5">
+              <span className="pl-5 text-[13px] text-[var(--muted)]">{label}</span>
               {entries.map(([intent, keys]) => (
-                <div key={intent} className="grid grid-cols-[1fr_auto] items-baseline gap-4">
-                  <span className="text-[13px] text-[var(--muted)]">{INTENT_LABEL[intent] ?? intent}</span>
-                  <span className={`text-[13px] ${keys.length > 0 ? 'text-[var(--text)]' : 'text-[var(--muted)]'}`}>
+                <div key={intent} className="flex items-baseline gap-3 pl-10">
+                  <span className="text-[15px] text-[var(--muted)]">{INTENT_LABEL[intent] ?? intent}</span>
+                  <span className={`text-[15px] ${keys.length > 0 ? 'text-[var(--text)]' : 'text-[var(--muted)]'}`}>
                     {keys.length > 0 ? keys.map(keyLabel).join(' / ') : '未設'}
                   </span>
                 </div>
@@ -232,7 +234,7 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
           <div className="flex flex-col gap-3">
             {plugins.installed.map((p) => (
               <div key={p.id} className="flex items-center gap-4">
-                <span className="text-[15px]">{p.name}</span>
+                <span className="text-[17px]">{p.name}</span>
                 <OptionRow
                   label=""
                   options={[
@@ -242,7 +244,7 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
                   value={p.enabled}
                   onPick={() => void setPluginEnabled(container, p.id, !p.enabled)}
                 />
-                <span className="text-[11px] text-[var(--muted)]">
+                <span className="text-[12.5px] text-[var(--muted)]">
                   v{p.version}
                   {p.error ? `（加載失敗：${p.error}）` : ''}
                 </span>
@@ -259,7 +261,7 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
 function Group({ title, children }: { title: string; children: React.ReactNode }): React.JSX.Element {
   return (
     <section className="flex flex-col gap-2.5">
-      <h3 className="m-0 font-ui text-[15px] font-bold">{title}</h3>
+      <h3 className="m-0 font-ui text-[17px] font-bold">{title}</h3>
       <div className="flex flex-col gap-3">{children}</div>
     </section>
   )
@@ -278,9 +280,9 @@ function OptionRow<T extends string | boolean>({
   onPick: (v: T) => void
 }): React.JSX.Element {
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-baseline gap-3">
       {label !== '' && <span className="set-label">{label}</span>}
-      <div className="flex items-center gap-3">
+      <div className="flex items-baseline gap-3">
         {options.map((o) => (
           <button
             key={String(o.value)}

@@ -836,8 +836,10 @@ textarea {
    选项值 15px（--text/选中金棕）承担行内主声部；标签 12.5px --muted 退后。
    布尔 = 「關｜開」两枚文字选项（app 自己 on/off 语汇的唯一定义处，§5.7 同步）；
    原生 checkbox 全灭；按压 = scale(0.97)（与 .text-action 同一口径）。 */
+/* 层级（批1.23 用户纠偏"字号小气"）：值 = 17px 主声部（§3.2 列表标题档），
+   标签 = 13px 注脚——不再是 15/12.5 的试探，设置的阅读面就该读得清楚。 */
 .set-label {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--muted);
 }
 
@@ -846,7 +848,7 @@ textarea {
   background: none;
   padding: 0;
   font-family: var(--font-serif-cn);
-  font-size: 15px;
+  font-size: 17px;
   color: var(--muted);
   cursor: pointer;
   transition:
