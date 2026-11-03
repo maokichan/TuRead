@@ -35,3 +35,6 @@ powershell -File tools/ui-shot/printwin.ps1 -targetPid <PID> -out shot.png
 - 坐标两套空间：PrintWindow 输出 = 逻辑像素（DPI 虚拟化）；`click.ps1`/`shot.ps1` = 物理像素（已 SetProcessDPIAware）。换算 ×DPI（本机 125% = ×1.25）。
 - 鼠标悬停会触发原生 tooltip 黏进截图——抓图前把光标挪开。
 - dev 自检（`TUREAD_DEV_BOOK`）跑完会自退；要留在界面：不带该变量重启同一 userData。
+- **PrintWindow 仍可能抓到陈旧帧**（ShowWindow 6→9 强刷都救不回，批1.22 实测）→
+  **CDP compositor 截图是终审手段**：dev 加 `-- --remote-debugging-port=9223`，
+  `node -e` 走 `Page.captureScreenshot`（参照 `dom.mjs` 的连接方式；DOM 真相查询同路）。
