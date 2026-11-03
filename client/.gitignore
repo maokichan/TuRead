@@ -25,3 +25,8 @@ tools/swarm/roombot.cjs
 # 探针/真机试跑的隔离 userData 与日志(运行时数据,不进仓库)
 .probe/
 .probe-run*.log
+
+# ui-shot/试跑临时物
+.shot-*.png
+.winrect.ps1
+.probe-shot/

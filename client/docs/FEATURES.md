@@ -47,7 +47,7 @@ src/renderer/src/
 │   ├── ReaderFeature/    # 渲染容器 + 目录/右欄卡片页（參數/筆記/聊天/插件格）+ 批注 + 进度/位置
 │   ├── RoomFeature/      # 服务器连接 + 大厅/会话（连接是房间的一部分）
 │   ├── NotesFeature/     # 笔记管理（跨书浏览/检索/跳转；只读 store 读模型，见 §12）
-│   ├── SettingsFeature/  # 全局设置（主题[含跟随系统]/全屏开关/导入/插件/诊断日志）
+│   ├── SettingsFeature/  # 全局设置（主题[含跟随系统]/全屏/导入/快捷键只读清单/插件注册表；批1.22 重构）
 │   ├── types.ts / registry.ts  # 标准容器契约 + 注册表（官方插件 = 追加一条 descriptor）
 │   ├── chromeSearchBus.ts / libraryNavBus.ts / readerCardBus.ts / roomSession.ts / logStore.ts
 │   │                     # 底面全局件与跨功能共享态的模块级总线/单例
@@ -191,10 +191,12 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
 - **功能组件**：`LibraryFeature`（书架/导入/去重/删除/选中/打开）、`ReaderFeature`（受 `readerBookId` 驱动打开/关闭，
   翻页/目录/进度/位置保存；布局模式读 `readerSettings`，重开书生效）、`RoomFeature`（**服务器连接 + 大厅 + 会话**——
   **连接是房间组件的一部分**，顶部可折叠「服务器连接」卡片 + 大厅[列表/创建/选房] + 会话[成员/聊天]；进入后 `host.openReader` 状态继承）、
-  `SettingsFeature`（**全局设置**：外观主题 **四套色彩取向**（`dark` / `light` / `sepia-light` / `sepia-dark`，
-  `data-theme` 应用到 `<html>`）+ `system` 跟随系统（`matchMedia` 解析并监听，只在暗色/亮色之间切换）
-  + 沉浸全屏开关（「進入閱讀器時進入全屏」，默认关。阅读排版/布局参数已全部移入阅读器参数面板）
-  + **导入（含子文件夹）** + **插件启停**（§13.3）+ 诊断日志页）。
+  `SettingsFeature`（**全局设置**，批1.22 重构：无标题/无提示/去线——`STYLE.md` §5.7；
+  外观主题 **四套色彩取向**（`dark` / `light` / `sepia-light` / `sepia-dark`，`data-theme` 应用到
+  `<html>`）+ `system` 跟随系统（`matchMedia` 解析并监听，只在暗色/亮色之间切换）
+  + 沉浸全屏「關｜開」（「進入閱讀器時進入全屏」，默认关。阅读排版/布局参数已全部移入阅读器参数面板）
+  + **导入（含子文件夹）關｜開** + **快捷键只读清单**（渲染意图绑定表，改键随配键体系批）
+  + **插件注册表**（一行一生死：名稱 + 啟｜停 + 版本；配置住卡片页面板，§13.3））。
 - **颜色标准化（设计 token）**：所有颜色一律走 `styles.css` 的语义 token，组件内**禁止写死 hex/rgba**；
   字体、负片、阴影等规则见 `STYLE.md` §3。
 - **样式效果确认**：`cd client && npm run style` 起**浏览器样式样张**（`tools/style-gallery/`，

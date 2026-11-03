@@ -813,7 +813,13 @@ textarea {
   border: 0;
   padding: 0;
   cursor: pointer;
-  transition: color var(--dur-hover) ease;
+  transition:
+    color var(--dur-hover) ease,
+    transform var(--dur-press) ease-out;
+}
+
+.text-action:active {
+  transform: scale(0.97);
 }
 
 .text-action:hover {
@@ -823,6 +829,42 @@ textarea {
 .text-action:disabled {
   opacity: var(--disabled-opacity);
   cursor: default;
+}
+
+/* ── 设置页选项组（批1.22）────────────────────────────────────────
+   层级 = 值是内容、标签是注脚（用户纠偏"整页没有重点、字太小"）：
+   选项值 15px（--text/选中金棕）承担行内主声部；标签 12.5px --muted 退后。
+   布尔 = 「關｜開」两枚文字选项（app 自己 on/off 语汇的唯一定义处，§5.7 同步）；
+   原生 checkbox 全灭；按压 = scale(0.97)（与 .text-action 同一口径）。 */
+.set-label {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.set-opt {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: var(--font-serif-cn);
+  font-size: 15px;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    color var(--dur-hover) ease,
+    transform var(--dur-press) ease-out;
+}
+
+.set-opt:hover {
+  color: var(--text);
+}
+
+.set-opt:active {
+  transform: scale(0.97);
+}
+
+.set-opt--on,
+.set-opt--on:hover {
+  color: var(--accent);
 }
 
 /* 按压态（v1.14 §5.1）：瞬时到位（0ms）、释放按 hover 时长回落 —— "系统听到了"的那一下。
