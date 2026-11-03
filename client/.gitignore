@@ -33,3 +33,6 @@ tools/swarm/roombot.cjs
 .spike-*
 .style-server.log
 .probe-run*.log
+
+# 截图/抓帧临时 userData
+.shot-gd/

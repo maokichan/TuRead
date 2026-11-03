@@ -24,6 +24,8 @@ import { ReaderRail, type CardPageKind } from '@renderer/components/ReaderRail'
 import { ContextMenu, type ContextMenuItem } from '@renderer/components/ContextMenu'
 import { NoteComposer } from '@renderer/components/NoteComposer'
 import { NoteFlow, type NoteFlowItem } from '@renderer/components/NoteFlow'
+import { ReadingStatsView } from '@renderer/components/ReadingStats'
+import type { ReadDayMinutes, TopReadEdition } from '@core/domain/types'
 import { DEFAULT_READER_PARAMS, type ReaderParams } from '@renderer/components/ReaderControls'
 import { StatePill } from '@renderer/components/StatePill'
 import { ChatLog } from '@renderer/components/ChatLog'
@@ -742,6 +744,17 @@ export function Gallery(): React.JSX.Element {
       </Panel>
 
       <Panel
+        title="阅读统计（ReadingStatsView）· 批1.24 寄生筆記卡片页尾部的「閱讀」段"
+        path="components/ReadingStats.tsx"
+        note="贡献图 = 26 周 × 7 日列流,--accent 透明度 5 档(不引新色相),今天描边;Top 榜 = 时长投影倒序,长题 Marquee(目录同款);格子无点击(无按日下钻口径,v1 只读)。真实取数段 ReadingStatsSection 挂 NotesPanel 尾部(容器 prop);这里挂纯视图 + mock。"
+      >
+        <ReadingStatsView
+          days={MOCK_READ_DAYS}
+          top={MOCK_READ_TOP}
+        />
+      </Panel>
+
+      <Panel
         title="房间 · 大厅行（RoomRow）"
         path="components/RoomRow.tsx"
         note="同样是导航文字：无边框/无底色/无分隔线，靠留白分行（五列对齐不变）"
@@ -792,6 +805,20 @@ export function Gallery(): React.JSX.Element {
 }
 
 /* ------------------------------ 小工具 ------------------------------ */
+
+/** 阅读统计 mock:稀疏的逐日分钟(今天最亮) + Top3(时长含旧账口径) */
+const MOCK_READ_DAYS: ReadDayMinutes[] = Array.from({ length: 40 }, (_, i) => {
+  if (i % 3 === 1) return null
+  const d = new Date()
+  d.setDate(d.getDate() - (39 - i))
+  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return { day: key, minutes: i === 39 ? 96 : Math.round(10 + 80 * Math.abs(Math.sin(i * 7))) }
+}).filter((x): x is ReadDayMinutes => x !== null)
+const MOCK_READ_TOP: TopReadEdition[] = [
+  { editionId: 'e1', title: '论持久战与人民战争（批注版·第三卷）', totalMs: 43_200_000 },
+  { editionId: 'e2', title: '星表與航路', totalMs: 21_600_000 },
+  { editionId: 'e3', title: '潮汐表勘誤', totalMs: 5_400_000 }
+]
 
 function noop(): void {}
 

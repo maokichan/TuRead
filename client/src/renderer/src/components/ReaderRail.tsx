@@ -23,6 +23,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ChatMessage, Note } from '@core/domain/types'
+import type { ServiceContainer } from '@core/container'
 import type { PluginReaderContext } from '@shared/plugin'
 import type { TocRow } from './TocPanel'
 import { TocPanel } from './TocPanel'
@@ -90,6 +91,8 @@ interface ReaderRailProps {
   readerContext?: PluginReaderContext
   /** 卡片页的槽位元素（批1.14 平级化：AppShell 卡片区里的兄弟槽，portal 目标；null = 槽未就绪不渲染卡） */
   cardSlot?: HTMLElement | null
+  /** 容器（批1.24）：传给筆記页 → 尾部挂「閱讀」统计段 */
+  container?: ServiceContainer
 }
 
 /** 卡片页收回的卸载延迟：与 styles.css 的收回时长（`--dur-hover` = 160ms）同步，稍留余量 */
@@ -188,7 +191,8 @@ export function ReaderRail({
   isPdf,
   pluginPanels = [],
   readerContext,
-  cardSlot = null
+  cardSlot = null,
+  container
 }: ReaderRailProps): React.JSX.Element {
   /**
    * 右欄卡片页的页签 —— **格数随内容走**（v1.13）：
@@ -280,6 +284,7 @@ export function ReaderRail({
                 onEdit={onNoteEdit}
                 activeChapter={activeChapter}
                 focusNote={focusNote}
+                container={container}
               />
             ) : (
               <ReaderControls params={params} onChange={onParamsChange} isPdf={isPdf} />
