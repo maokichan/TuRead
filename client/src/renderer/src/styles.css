@@ -432,10 +432,12 @@ textarea {
   margin: 0 auto;
   /* **纸位移补偿**（批1.18，用户准绳"内容区宽度不变"的姊妹条——位置也不许动）：
      卡片页呼出时阅读卡收窄 --slot-w，re-center 会让纸左移 --slot-w/2；
-     这里平移回 --slot-w/2，槽位宽度过渡与位移过渡同 token 同曲线 → 纸在窗口里全程静止。
-     reduced-motion 下无过渡（两处瞬时到位，纸同样不动）。 */
+     这里平移回 --slot-w/2。⚠ 批1.19 起补偿**不再是独立过渡**（原"同 token 同曲线"
+     两条 transition 并行 = 宽度走主线程、transform 走合成器，主线程繁忙时两线程
+     进度错开 → 纸瞬态漂移）：--slot-w 注册为可插值属性、只在 .reader-scrim 上过渡
+     **这一个值**（见 @property 块），槽位宽度与本位移每帧读同一个数 → 纸静止由构造保证，
+     也不再需要 transform 自己的 transition。reduced-motion 下 --slot-w 不过渡（瞬时到位）。 */
   transform: translateX(calc(var(--slot-w, 0px) / 2));
-  transition: transform var(--dur-panel) var(--ease-out);
   /* 纸列建层压住挂载线（2026-09-12 用户定：挂载线"被书页压着"）——
      横线在左右留白可见，穿过正文的部分被纸盖住（rail z1 < stage z2 < 目录/参数 z15/16） */
   position: relative;
@@ -692,26 +694,11 @@ textarea {
   .marquee-track {
     animation: none;
   }
-
-  /* 减动态 = 保留透明度/色温，去掉位移与揭幕；阅读卡退场同样只留显隐（暗场 .reader-dip
-     本身是纯透明度，保留） */
-  .feature-card--exit {
-    transform: none;
-  }
-  /* v1.14（§2 P5）：减动态 = 保留透明度/色温，去掉位移与揭幕 */
-  .rail-hang,
-  .rail-card,
-  .reader-card-slot,
-  .context-menu,
-  .context-menu__sub {
-    transition: none;
-  }
-  /* 卡片页减动态：去掉位移与槽位收放，保留显影 */
-  .rail-card,
-  .rail-card[data-closing] {
-    transform: none;
-  }
 }
+
+/* ⚠ 批1.19：动效豁免的 RM 块**整体挪到文件末尾**（原位置在各基础规则之前 ——
+   同特异性下后声明的基础 transition/transform 会把它整个盖掉，等于从未生效；
+   批1.19 排查补偿动画时发现）。reduced-motion 的裁决见块内注释。 */
 
 /* ── 命令面板（Ctrl+Shift+P，2026-10-24 用户定；FEATURES.md §14）──────────────
    VSCode 式：顶部悬停的**非模态**浮层 —— 输入即筛（子串）、↑↓ 选择、Enter 执行、Esc 关闭、
@@ -1065,19 +1052,34 @@ textarea {
    阅读态背景 = 干净的一整面底色（AppShell 处 bg = --bg），不再透出压暗的书库；
    本层只剩两件事 —— 进出场的显隐节奏（进 = --dur-view 淡入，退 = 随卡片更快淡出）
    与**挡住下层交互**（书库存活但不可见、不可点）。圆角随历史保留（同色后不可见，无害）。 */
+/* ── 卡片页开合的**唯一驱动值**（批1.19）────────────────────────────────
+   `--slot-w` 注册为可插值的 <length>：开合过渡只在 .reader-scrim 上发生这**一个**属性，
+   槽位宽度（.reader-card-slot）与纸的位移补偿（.reader-stage）每帧读同一个继承值 ——
+   纸静止由构造保证，不再是"两条 transition 同 token 同曲线"的时间对齐（那种并行
+   = 排版走主线程、transform 走合成器，主线程繁忙时两线程进度错开，纸会瞬态漂移）。
+   附带收益：开/收全程只有主线程一条插值，没有合成器动画要迁就。 */
+@property --slot-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
 .reader-scrim {
   border-radius: var(--radius-panel);
-  transition: opacity var(--dur-view) var(--ease-out);
-  --slot-w: 0px; /* 卡片页槽位的当前宽度（.reader-stage 的位移补偿读它） */
+  /* opacity = 进出阅读态的显隐；--slot-w = 卡片页开合（槽位 + 纸补偿的唯一来源） */
+  transition:
+    opacity var(--dur-view) var(--ease-out),
+    --slot-w var(--dur-panel) var(--ease-out);
+  --slot-w: 0px; /* 卡片页槽位的当前宽度（槽位与 .reader-stage 的位移补偿读它） */
 }
 
 .reader-scrim[data-card-open] {
   --slot-w: calc(var(--rail-panel-w, 280px) + var(--rail-gap, 16px));
 }
 
-/* 收回时补偿更快（与槽位宽度过渡同档，出比进快） */
-.reader-scrim:not([data-card-open]) .reader-stage {
-  transition-duration: var(--dur-hover);
+/* 收回更快（出比进快）：duration 按位对应 opacity / --slot-w，只收后者 */
+.reader-scrim:not([data-card-open]) {
+  transition-duration: var(--dur-view), var(--dur-hover);
 }
 @starting-style {
   .reader-scrim {
@@ -1086,7 +1088,10 @@ textarea {
 }
 .reader-scrim--exit {
   opacity: 0;
-  transition: opacity var(--dur-veil) var(--ease-out);
+  /* 退出阅读态时槽位/补偿也要跟着走（否则 --slot-w 瞬时归零，纸在淡出中跳一下） */
+  transition:
+    opacity var(--dur-veil) var(--ease-out),
+    --slot-w var(--dur-hover) var(--ease-out);
 }
 
 /* ---------- 阅读参数（挂载线右段垂挂；2026-09-12 用户定，二次纠正定稿）----------
@@ -1268,22 +1273,19 @@ textarea {
    并排，中间一道沟露出底板；同顶同底、同卡面语法（桌色面 + --radius-panel + 1px 边 + 阴影）。
    ② **纸钉死不动**（用户准绳"没有直接影响到显示内容区的时候就不要改变显示内容区的宽度"）：
    --page-w 锚定视口（见 :root，纸宽与开合无关）；阅读卡收窄导致的 re-center 由
-   `.reader-stage` 的**位移补偿**精确抵消（--slot-w × ½，同 token 同曲线 → 全程静止）。
+   `.reader-stage` 的**位移补偿**精确抵消 —— 批1.19 起**单驱动**：开合只过渡
+   `--slot-w` 这一个注册属性（见 .reader-scrim 旁的 @property），槽位宽度直接读它
+   （自己不再挂 transition），纸位移也读它 → 两处每帧同值，纸静止由构造保证。
    动画：自右 24px 滑入 + 显影，强 ease-out --dur-panel；收回更快（--dur-hover，
-   data-closing 期间不拾取事件，收完卸载）。单槽位：一次只显示一张卡（切页 = 原地换内容）。 */
+   data-closing 期间不拾取事件，收完卸载）。单槽位：一次只显示一张卡（切页 = 原地换内容）。
+   （槽位自身透明：**两卡之间的沟** = 槽位宽 − 卡宽的富余空间，justify-content: flex-end
+   把卡钉在右缘，富余自然落在卡左 —— 不再需要 padding 参与过渡。） */
 .reader-card-slot {
   flex: none;
-  width: 0;
+  width: var(--slot-w, 0px);
   overflow: hidden; /* 收合时裁掉卡片（卡片锚右，从左缘被"吞"回去） */
   display: flex;
   justify-content: flex-end;
-  transition: width var(--dur-hover) var(--ease-out);
-}
-
-.reader-card-slot[data-open] {
-  width: calc(var(--rail-panel-w, 280px) + var(--rail-gap, 16px));
-  padding-left: var(--rail-gap, 16px); /* 两卡之间露出底板的沟 */
-  transition: width var(--dur-panel) var(--ease-out), padding var(--dur-panel) var(--ease-out);
 }
 
 .reader-card-slot__inner {
@@ -2066,4 +2068,30 @@ textarea {
   font-size: 11px;
   color: var(--err);
   min-height: 1em;
+}
+
+/* ── reduced-motion 豁免（v1.14 立；批1.19 挪到文件末尾）──────────────────
+   ⚠ 必须**排在全部基础规则之后**：同特异性下后声明者胜，原位置（文件前部）
+   被各基础规则的 transition/transform 覆盖，等于从未生效（批1.19 排查补偿动画时发现）。
+   裁决：减动态 = 保留透明度/色温（显隐、暗场 .reader-dip 本身是纯透明度，保留），
+   去掉位移与揭幕。 */
+@media (prefers-reduced-motion: reduce) {
+  .feature-card--exit {
+    transform: none;
+  }
+  .rail-hang,
+  .rail-card,
+  .context-menu,
+  .context-menu__sub {
+    transition: none;
+  }
+  /* 卡片页减动态：去掉位移与槽位收放，保留显影。
+     --slot-w 不过渡（瞬时到位）→ 槽位宽与纸补偿同帧跳变，纸照样一动不动 */
+  .reader-scrim {
+    transition-property: opacity;
+  }
+  .rail-card,
+  .rail-card[data-closing] {
+    transform: none;
+  }
 }

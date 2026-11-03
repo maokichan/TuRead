@@ -199,6 +199,87 @@ app.whenReady().then(async () => {
   }
 
   /**
+   * ————— 纸静止机检（批1.19 立）—————
+   *
+   * 批1.18 的准绳"呼出/收起，纸纹丝不动"此前只有静帧量法（cardOk/paperClearOk 量的是停稳态），
+   * 过渡进行中的漂移"实机截图静帧看不出来"（TODO 批1.18 收尾原话）。根因 = 旧机制两条
+   * 独立 transition（槽位 width 走主线程排版、纸补偿 transform 走合成器）靠"同 token 同曲线"
+   * 在时间上对齐，线程一忙就错开。批1.19 改单驱动（--slot-w 注册属性，两处每帧同值），
+   * 这里给**过渡中**的动态判据：
+   * ① still：拨真实开合（window.__railDemoToggleCtl，基準演示注册），过渡全程采样纸的
+   *    视口左缘（getBoundingClientRect 含 transform），与收回态基线差 ≤ 1px；
+   * ② 同源：每帧实测槽位宽 ≈ 2 × 纸位移（都派生自同一个 --slot-w；旧机制下 --slot-w
+   *    会瞬时跳到终值而槽位宽还在过渡，中途必然量出大幅偏差 → 此判据能抓住回归）。
+   */
+  let paperStill = null
+  try {
+    paperStill = await win.webContents.executeJavaScript(`(async () => {
+      const demos = Array.prototype.slice.call(document.querySelectorAll('[data-rail-demo]'))
+      const demo = demos.filter((el) => (el.dataset.railDemo || '').indexOf('基準') >= 0)[0]
+      if (!demo) return { error: 'base demo not found' }
+      const stage = demo.querySelector('.reader-stage')
+      const slot = demo.querySelector('.reader-card-slot')
+      if (!stage || !slot) return { error: 'stage/slot missing' }
+      const toggle = window.__railDemoToggleCtl
+      if (typeof toggle !== 'function') return { error: 'toggle hook missing' }
+      const settle = (ms) => new Promise((r) => setTimeout(r, ms))
+      await settle(300)
+      /* 基线：收回态的纸左缘（基準演示默认开着 → 先收到位） */
+      if (demo.hasAttribute('data-card-open')) {
+        toggle()
+        await settle(400)
+      }
+      const restLeft = stage.getBoundingClientRect().left
+      const sample = () => {
+        const w = Number.parseFloat(getComputedStyle(demo).getPropertyValue('--slot-w')) || 0
+        const tf = getComputedStyle(stage).transform
+        const tx = tf === 'none' ? 0 : new DOMMatrixReadOnly(tf).m41
+        return { slotW: slot.getBoundingClientRect().width, tx, left: stage.getBoundingClientRect().left }
+      }
+      const run = async () => {
+        const out = []
+        const t0 = performance.now()
+        while (performance.now() - t0 < 400) {
+          out.push(sample())
+          await new Promise((r) => requestAnimationFrame(r))
+        }
+        return out
+      }
+      toggle()
+      const openSamples = await run()
+      await settle(120)
+      const openLeft = stage.getBoundingClientRect().left
+      toggle()
+      const closeSamples = await run()
+      await settle(120)
+      const restLeft2 = stage.getBoundingClientRect().left
+      const drift = (arr) => arr.reduce((m, s) => Math.max(m, Math.abs(s.left - restLeft)), 0)
+      const srcDev = (arr) => arr.reduce((m, s) => Math.max(m, Math.abs(s.slotW - 2 * s.tx)), 0)
+      return {
+        restLeft,
+        openLeft,
+        restLeft2,
+        driftOpen: Math.round(drift(openSamples) * 100) / 100,
+        driftClose: Math.round(drift(closeSamples) * 100) / 100,
+        srcMaxDev: Math.round(Math.max(srcDev(openSamples), srcDev(closeSamples)) * 100) / 100,
+        n: openSamples.length + closeSamples.length
+      }
+    })()`)
+  } catch (e) {
+    logs.push({ kind: 'paperstill-throw', message: String(e) })
+  }
+  const paperStillOk = Boolean(
+    paperStill &&
+      !paperStill.error &&
+      paperStill.n >= 6 &&
+      paperStill.driftOpen <= 1 &&
+      paperStill.driftClose <= 1 &&
+      Math.abs(paperStill.openLeft - paperStill.restLeft) <= 1 &&
+      Math.abs(paperStill.restLeft2 - paperStill.restLeft) <= 1 &&
+      paperStill.srcMaxDev <= 1
+  )
+
+  /**
    * ————— 聊天卡片页机检（2026-09-17 立，批1.13 随右段换形重定义）—————
    *
    * 用户定的口径（语义不变，形态随批1.13 从"右抽屉"换"卡片页"）：
@@ -510,13 +591,15 @@ app.whenReady().then(async () => {
         chatDrawerOk &&
         noRoomTabsOk &&
         composerOk &&
+        paperStillOk &&
         (SCALE <= 0 || (scale && rafGapMs <= 60))
     ),
     url: URL,
     notesOk,
     /** 几何判据（批1.13 重定义）：卡片页成卡 / 宽度不随纸变 / 纸不被压住 / 卡内页签对称 /
      *  当前条目居中 / 输入栏 ＋ 聊天卡片页 `chatDrawerOk` / 非房间无聊天页签 `noRoomTabsOk`
-     *  （原 mirrorOk = 两挂件镜像，随右段换形退役——右段已是内收沟的独立卡片） */
+     *  （原 mirrorOk = 两挂件镜像，随右段换形退役——右段已是内收沟的独立卡片）
+     *  批1.19 增 `paperStillOk` = 开合**过渡中**纸纹丝不动（单驱动 --slot-w 的动态判据） */
     cardOk,
     widthIndependentOk,
     paperClearOk,
@@ -525,6 +608,8 @@ app.whenReady().then(async () => {
     chatDrawerOk,
     noRoomTabsOk,
     composerOk,
+    paperStillOk,
+    paperStill,
     stats,
     geometry,
     chatGeometry,
@@ -538,7 +623,7 @@ app.whenReady().then(async () => {
   fs.writeFileSync(OUT, JSON.stringify({ verdict, logs }, null, 2))
   console.log(
     `[style-gallery smoke] ${verdict.ok ? 'OK' : 'FAIL'}` +
-      ` | card=${cardOk ? 'ok' : 'FAIL'} fixedWidth=${widthIndependentOk ? 'ok' : 'FAIL'} paperClear=${paperClearOk ? 'ok' : 'FAIL'} tabsSym=${tabsSymOk ? 'ok' : 'FAIL'} followed=${followedOk ? 'ok' : 'FAIL'} chatCard=${chatDrawerOk ? 'ok' : 'FAIL'} noRoomChatTab=${noRoomTabsOk ? 'ok' : 'FAIL'} composer=${composerOk ? 'ok' : 'FAIL'}` +
+      ` | card=${cardOk ? 'ok' : 'FAIL'} fixedWidth=${widthIndependentOk ? 'ok' : 'FAIL'} paperClear=${paperClearOk ? 'ok' : 'FAIL'} tabsSym=${tabsSymOk ? 'ok' : 'FAIL'} followed=${followedOk ? 'ok' : 'FAIL'} chatCard=${chatDrawerOk ? 'ok' : 'FAIL'} noRoomChatTab=${noRoomTabsOk ? 'ok' : 'FAIL'} composer=${composerOk ? 'ok' : 'FAIL'} paperStill=${paperStillOk ? 'ok' : 'FAIL'}` +
       (scale ? ` | scale n=${scale.n} commit=${scale.commitMs}ms settle=${scale.settleMs}ms refresh=${scale.refreshMs}ms cards=${scale.cardCount}/${scale.n} rafGap=${rafGapMs}ms` : '') +
       ` → ${OUT}`
   )

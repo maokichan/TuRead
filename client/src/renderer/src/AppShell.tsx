@@ -550,7 +550,9 @@ export default function AppShell(): React.JSX.Element {
             //    与槽位并排，中间一道沟露出底板；槽位开合 = 宽度 0 ↔ (卡宽 + 沟)。
             // ② **纸钉死不动**（用户准绳"没有直接影响到显示内容区的时候就不要改变显示内容区的
             //    宽度"）：--page-w 锚定视口（:root），纸宽不随开合变；阅读卡收窄导致的 re-center
-            //    由 .reader-stage 的位移补偿精确抵消（styles.css，同 token 同曲线 = 全程静止）。
+            //    由 .reader-stage 的位移补偿精确抵消。批1.19 起 = **单驱动**：data-card-open 只拨
+            //    --slot-w 这一个注册属性（styles.css @property），槽位宽度与纸位移每帧读同一个值
+            //    （原先两条独立 transition 走不同线程，主线程繁忙时纸会瞬态漂移）。
             const cardOpen = activeFeature === 'reader' && readerCardView.open
             return (
               <div

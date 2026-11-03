@@ -840,12 +840,25 @@ function RailDemo({
         onToggleFollow: () => setFollowing((v) => !v)
       }
     : null
+  // 纸静止机检的驱动钩（批1.19）：smoke.cjs 经 window 钩子拨开合、采样过渡中的纸位置。
+  // 只在基準演示上登记（smoke 找的就是它），避免多演示互相覆盖。
+  useEffect(() => {
+    if (label.indexOf('基準') < 0) return
+    ;(window as unknown as Record<string, unknown>).__railDemoToggleCtl = () => setCtlOpen((v) => !v)
+    return () => {
+      delete (window as unknown as Record<string, unknown>).__railDemoToggleCtl
+    }
+  }, [label])
+
   return (
     <div className="flex flex-col gap-2">
       <span className="text-[12.5px] text-[var(--muted)]">{label}</span>
+      {/* reader-scrim 类 = 借真机的 --slot-w 驱动（data-card-open 拨注册属性，槽位与纸补偿同源）。
+          槽位开合经 --slot-w 过渡驱动（批1.19 单驱动），纸的位移补偿（.reader-stage）让纸全程静止 */}
       <div
-        className="flex h-[300px] w-full"
+        className="reader-scrim flex h-[300px] w-full"
         data-rail-demo={label}
+        data-card-open={ctlOpen || undefined}
         style={
           {
             '--read-width': '260px',
@@ -863,8 +876,7 @@ function RailDemo({
         }
       >
         {/* 批1.18 定稿（用户拍板"就是这个"）：阅读区（阅读卡的化身）与卡片页槽位是**兄弟**，
-            中间一道沟露出底板；槽位开合经 data-open 驱动宽度过渡；
-            纸的位移补偿（.reader-stage 的 --slot-w 平移）让纸在开合全程静止 */}
+            中间一道沟露出底板 */}
         <div className="relative h-full min-w-0 flex-1">
           <div className="reader-paper absolute inset-0">
             <div className="reader-stage">
