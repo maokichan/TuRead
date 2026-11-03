@@ -95,7 +95,7 @@ app.whenReady().then(async () => {
         panels: document.querySelectorAll('section').length,
         textLen: (body.innerText || '').length,
         bodyBg: getComputedStyle(body).backgroundColor,
-        railZones: document.querySelectorAll('.reader-rail').length,
+        tocEmbeds: document.querySelectorAll('.rail-hang .toc-list').length,
         tocLists: document.querySelectorAll('.toc-list').length,
         noteCards: document.querySelectorAll('.note-card').length,
         noteFlows: document.querySelectorAll('.note-flow').length,

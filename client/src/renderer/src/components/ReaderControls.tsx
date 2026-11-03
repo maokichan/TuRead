@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { paintGlow, paintVeil as paintVeilImpl } from './veil'
+import { paintVeil as paintVeilImpl } from './veil'
 
 /**
  * 阅读参数面板内容（挂载线实体的底部挂件，线本体与开合把手在 `ReaderRail`）——
@@ -129,8 +129,6 @@ function Row<T>({ label, options, value, onPick }: {
 interface ReaderControlsProps {
   params: ReaderParams
   onChange: (patch: Partial<ReaderParams>) => void
-  /** 折叠面板（底部「折疊」按钮；挂载线右段 / `p` 亦可） */
-  onToggle: () => void
   /** 当前书是否 PDF：PDF 时「紙寬」行显示专属档位（readerWidthPdf） */
   isPdf?: boolean
   /**
@@ -143,16 +141,14 @@ interface ReaderControlsProps {
 export function ReaderControls({
   params,
   onChange,
-  onToggle,
   header,
   isPdf
 }: ReaderControlsProps): React.JSX.Element {
   const boxRef = useRef<HTMLDivElement | null>(null)
 
   /**
-   * 按鼠标位置重画：① 行遮罩（遮罩按距离，共享实现见 veil.ts）：
-   * 近 → 揭开，远 → 静息（--reader-veil-rest，缺省回落 --toc-veil-rest）；
-   * ② 「折疊」灯光（灯的法则，v1.14：静息 0.5 → 光标靠近连续点亮到 1）。
+   * 按鼠标位置重画行遮罩（遮罩按距离，共享实现见 veil.ts）：
+   * 近 → 揭开，远 → 静息（--reader-veil-rest，缺省回落 --toc-veil-rest）。
    */
   const paint = (clientX: number | null, clientY: number | null): void => {
     paintVeilImpl(
@@ -164,7 +160,6 @@ export function ReaderControls({
       },
       clientY
     )
-    paintGlow(boxRef.current, { selector: '.reader-controls__fold .text-action', glowVar: '--fold-glow' }, clientX, clientY)
   }
 
   return (
@@ -214,12 +209,6 @@ export function ReaderControls({
           value={params.readerMode}
           onPick={(v) => onChange({ readerMode: v })}
         />
-        {/* 底部「折疊」：与目录列表的折疊同款（居中 + 引导分割线，样式类见 styles.css） */}
-        <div className="reader-controls__fold">
-          <button className="text-action" onClick={onToggle}>
-            折疊
-          </button>
-        </div>
       </div>
     </div>
   )

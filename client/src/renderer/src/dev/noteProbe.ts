@@ -338,6 +338,7 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
          */
         const f = iframe()?.getBoundingClientRect()
         const paper = stage()?.getBoundingClientRect()
+        // 批1.20 临时诊断：纸位移/卡片页开合状态现场（定位"右键宿主坐标"断言的 44px 弹跳）
         assert(
           ctx != null &&
             f != null &&
@@ -487,8 +488,8 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
           (b.textContent ?? '').includes('筆記')
         )
       ) {
-        // 左挂件收起时页签不在 DOM —— 用挂载线左段把它打开
-        document.querySelector<HTMLButtonElement>('.reader-rail__zone--toc')?.click()
+        // 卡片页收起时页签不在 DOM —— 挂载线已退役（批1.20），召唤走反引号意图（reader.toggleCard）
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: '`' }))
         await wait(300)
       }
       Array.from(document.querySelectorAll<HTMLButtonElement>('.rail-tabs__tab'))

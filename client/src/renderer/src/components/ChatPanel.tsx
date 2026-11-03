@@ -14,7 +14,7 @@
  */
 import { useEffect, useRef } from 'react'
 import type { ChatMessage } from '@core/domain/types'
-import { paintGlow, paintVeil as paintVeilImpl } from './veil'
+import { paintVeil as paintVeilImpl } from './veil'
 
 interface ChatPanelProps {
   messages: ChatMessage[]
@@ -24,7 +24,6 @@ interface ChatPanelProps {
   header?: React.ReactNode
   /** 发消息（空文本由上游忽略；失败由上游进日志） */
   onSend: (text: string) => void
-  onToggle: () => void
   /** 当前草稿（受控：输入内容归调用方，便于将来键盘意图直接提交） */
   draft: string
   onDraftChange: (text: string) => void
@@ -46,7 +45,6 @@ export function ChatPanel({
   roomId,
   header,
   onSend,
-  onToggle,
   draft,
   onDraftChange,
   following,
@@ -66,7 +64,6 @@ export function ChatPanel({
   /** 遮罩按距离（共享实现见 veil.ts）+ 「折疊」灯光（灯的法则，v1.14）；mousemove 挂根层 */
   const paint = (clientX: number | null, clientY: number | null): void => {
     paintVeilImpl(rootRef.current, { selector: '.chat-row', veilVar: '--toc-veil', restVars: ['--toc-veil-rest'] }, clientY)
-    paintGlow(rootRef.current, { selector: '.toc-list__fold .text-action', glowVar: '--fold-glow' }, clientX, clientY)
   }
 
   const submit = (): void => {
@@ -127,11 +124,6 @@ export function ChatPanel({
         />
         <button className="text-action text-action--primary" onClick={submit} disabled={!draft.trim()}>
           送出
-        </button>
-      </div>
-      <div className="toc-list__fold">
-        <button className="text-action" onClick={onToggle}>
-          折疊
         </button>
       </div>
     </div>

@@ -21,3 +21,7 @@ tools/style-gallery/.smoke-user-data/
 
 # 蜂群机器人构建产物（npm run swarm 每次自动重建）
 tools/swarm/roombot.cjs
+
+# 探针/真机试跑的隔离 userData 与日志(运行时数据,不进仓库)
+.probe/
+.probe-run*.log

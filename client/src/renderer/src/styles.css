@@ -103,14 +103,13 @@
      右/下 = 统一沟宽。卡片区（.card-region）是这组值的唯一消费方，几何不许在别处重算。 */
   --inset-top: 44px;
   --inset-x: 20px;
-  /* 挂载线两挂件（左 = 目錄/筆記，右 = 閱讀參數）的几何（STYLE.md §5.8）：
-     **挂载线自己定义长度** —— 线从侧边栏右缘（`--sidebar-w`）拉到窗口右缘，是**固定的一条**；
-     两个挂件各占线的一端、**同宽**（都用 `--rail-panel-w`）→ 关于**线的中心**天然镜像
-     （等宽 + 两端贴齐 ⟺ 互为镜像，且不需要任何中心点算式）。
-     ⚠ **不许把宽/位置写成 `--read-width` 的函数**（2026-09-16 犯过：那样"线的长度"就变成了
+  /* 左内嵌目录与右卡片页的几何（STYLE.md §5.8；**挂载线本体已随批1.20 退役**——
+     用户定"去掉的只是线这个语法"，目录 = 阅读卡内部左缘的内嵌件）：
+     两件**同宽**（都用 `--rail-panel-w`）——左 = 内嵌目录，右 = 兄弟卡片页。
+     ⚠ **不许把宽/位置写成 `--read-width` 的函数**（2026-09-16 犯过：那样宽度就变成了
      相对中间正文的派生量，纸一改宽两段跟着变，用户判定为不可接受）。纸只决定纸自己。
-     --rail-panel-h = 两挂件**共用**的高度上限（→ "同高"）。
-     --toc-veil-rest = 静息遮罩不透明度（越大越淡、越"退场"）；--toc-line-top = 挂载线纵向位置。 */
+     --rail-panel-h = 高度上限（插件格外壳等沿用）。
+     --toc-veil-rest = 静息遮罩不透明度（越大越淡、越"退场"；参数面/聊天行的遮罩按距离仍用）。 */
   --rail-panel-w: 280px;
   --rail-panel-h: 62vh;
   /* 两挂件与纸之间必须留的缝隙 —— **纸宽会被它夹住**（见 .reader-stage）：
@@ -135,7 +134,14 @@
       )
     )
   );
-  --toc-line-top: 44px;
+  /* 内嵌目录的**压印字**（批1.20，拟物 letterpress；用户定"透明字符 + 边缘阴影"）：
+     --toc-press-ink = 条目文字静息的**整色**（淡字，与 --text 静态 mix）——
+     静息近乎隐没，靠两道边缘阴影读出字形；显影由 .toc-row__fill 的字色层承担（--row-near 因子）。
+     --toc-press-hi / -lo = 压痕的两道边缘阴影（光来自上方：**亮缘在下**接住反光、**暗缘在上**
+     沉出凹刻）。四主题各一组：浅色桌面亮缘强；深色桌面亮缘极弱、暗缘更重。 */
+  --toc-press-ink: color-mix(in srgb, var(--text) 10%, transparent);
+  --toc-press-hi: rgba(255, 255, 255, 0.07);
+  --toc-press-lo: rgba(0, 0, 0, 0.55);
   --toc-veil-rest: 0.74;
   /* 聚焦舞台（书库单击详情，FEATURES §10）：景深幕的模糊半径。光学失焦不压色——
      对焦靠 backdrop-filter，页面其余退为焦外散景。 */
@@ -278,6 +284,10 @@
   --note-red: #f8ccc6;
   /* 选区：纯色·浅 = 中性灰（不引入色相，同本主题取向） */
   --selection-bg: rgba(27, 29, 31, 0.2);
+  /* 压印字（批1.20）：纯色·浅 = 浅灰桌上的凹刻，亮缘强、暗缘轻 */
+  --toc-press-ink: color-mix(in srgb, var(--text) 14%, transparent);
+  --toc-press-hi: rgba(255, 255, 255, 0.65);
+  --toc-press-lo: rgba(0, 0, 0, 0.18);
 }
 
 [data-theme='sepia-light'] {
@@ -320,6 +330,10 @@
   --note-red: #eec4b4;
   /* 选区：羊皮纸·浅 = 暖调淡扫（贴合米色纸） */
   --selection-bg: rgba(122, 86, 32, 0.26);
+  /* 压印字（批1.20）：羊皮纸·浅 = 暖桌上的凹刻，亮缘暖白 */
+  --toc-press-ink: color-mix(in srgb, var(--text) 14%, transparent);
+  --toc-press-hi: rgba(255, 255, 255, 0.55);
+  --toc-press-lo: rgba(74, 58, 34, 0.3);
 }
 
 [data-theme='sepia-dark'] {
@@ -362,6 +376,10 @@
   --note-red: #66352c;
   /* 选区：羊皮纸·深 = 暖调提亮（低饱和，不刺眼） */
   --selection-bg: rgba(230, 220, 201, 0.28);
+  /* 压印字（批1.20）：羊皮纸·深 = 暗桌上的凹刻，亮缘极弱、暗缘更重 */
+  --toc-press-ink: color-mix(in srgb, var(--text) 12%, transparent);
+  --toc-press-hi: rgba(255, 255, 255, 0.06);
+  --toc-press-lo: rgba(0, 0, 0, 0.6);
 }
 
 * {
@@ -1101,8 +1119,10 @@ textarea {
    ⚠ 2026-09-17：右段成为"两格内容的抽屉"（參數 / 聊天）→ 面板顶部可以有页签，页签**不随档位滚动**
    （档位区另装一层 `.reader-controls__body`；与左抽屉的 header + rows 分层同构）。 */
 .reader-controls {
+  /* 原挂载线右段垂挂几何：批1.20 线本体退役后，参数面板恒住卡片页
+     （.rail-card 内覆写为 static 平填）—— 这里只留兜底值，不再是活几何 */
   position: absolute;
-  top: calc(var(--toc-line-top, 28px) + 1px);
+  top: 29px;
   right: 0;
   z-index: 16;
   display: flex;
@@ -1162,26 +1182,6 @@ textarea {
   gap: 4px 12px;
 }
 
-/* 底部「折疊」：与目录列表的折疊同款（居中 + 引导分割线；静息淡、hover 亮） */
-.reader-controls__fold {
-  display: flex;
-  justify-content: center;
-  margin-top: 8px;
-  padding-top: 10px;
-  border-top: 1px solid color-mix(in srgb, var(--muted) 40%, transparent);
-}
-
-.reader-controls__fold .text-action {
-  /* 灯的法则（v1.14）：与目录折疊同款（静息 0.5 → 靠近点亮 1） */
-  opacity: calc(0.5 + 0.5 * var(--fold-glow, 0));
-  transition: opacity var(--dur-veil) ease-out;
-}
-
-.reader-controls__fold:hover .text-action,
-.reader-controls__fold .text-action:focus-visible {
-  --fold-glow: 1;
-}
-
 
 /* ---------- 目录：挂载线 + 垂挂列表（STYLE.md §5.8）----------
    形态（用户 2026-09-11 二次定）：挂载线是**目录的挂载点**，条目自线下方**逐条向下**垂挂，
@@ -1190,67 +1190,25 @@ textarea {
    也不占用/遮挡侧边栏的贴缘召回按钮；宽度 = 左侧留白可用宽度（上限 `--toc-line-w`）→ 不侵入正文列。
    高亮：不是改文字颜色，而是**条目容器上覆盖一层遮罩**（`--desk-bg`），
    其不透明度按**条目到鼠标的距离**调整（近 → 揭开，远 → 盖上），并带 200ms 过渡（见 TocPanel）。 */
-/* ---------- 挂载线实体（ReaderRail；2026-09-12 立，批1.16 收缩为目录段）----------
-   原"一条横线贯穿页面宽"（左段目录 / 中段纯线 / 右段召唤位）随挂载线退役推进收束：
-   批1.16（用户定"右边的挂载线清掉"）**只剩目录段** —— 线 = 目录的挂载点，
-   目录折叠时点它 = 展开目录；卡片页的召唤不在线上（`` ` `` / `p` / `c` / 命令面板）。
-   **镜像口径（2026-09-16 用户定，v1.9 纠正）随右段退役** —— 曾经用 `--read-width`
-   反推宽度与位置（`--rail-shift` / `--rail-w-cap`）是**错的**，已删（线的长度不许是纸的函数）。 */
-.reader-rail {
-  position: absolute;
-  top: var(--toc-line-top, 28px);
-  /* 批1.5：线贴**阅读卡**的左缘（卡片模型，侧边栏在卡外） */
-  left: 0;
-  z-index: 1; /* 桌（z-auto）之上、纸列（z2）之下 —— 线被书页压着 */
-  display: flex;
-  align-items: stretch;
-  height: 30px; /* 点击判定高度：线画在顶缘，向下撑出可点带 */
-  margin-top: -15px; /* 线的视觉位置仍由 --toc-line-top 决定（判定带上下各让一半） */
-  pointer-events: none;
-}
+/* ── 挂载线本体：**已退役**（批1.20，用户定"去掉的只是线这个语法"）──────────
+   曾经的 .reader-rail / .reader-rail__zone（目录挂载点 + 灯的法则 --rail-glow）一并清除；
+   目录 = 阅读卡内部左缘的**内嵌件**（几何见 .toc-list；开合 = `t` /「折疊」）。
+   历史口径存档：一条横线贯穿（左段目录/中段纯线/右段召唤位）→ 批1.16 收缩为目录段 →
+   批1.20 线本体退役；镜像口径（2026-09-16 定，v1.9 纠正）早已随右段换形退役。 */
 
-.reader-rail__zone {
-  border-top: 1px solid var(--muted);
-  /* 灯的法则（v1.14 §5.8）：光标即光源 —— 不透明度在 [静息 0.34, 满值 0.75] 间随
-     光标到线段的距离**连续呼吸**（`veil.ts` paintGlow 写接近度因子 --rail-glow；
-     静息/满值归这里）。hover / 键盘聚焦 = 满亮下限（JS 不画时 CSS 仍权威） */
-  opacity: calc(0.34 + 0.41 * var(--rail-glow, 0));
-  transition: opacity var(--dur-veil) ease-out;
-}
-
-.reader-rail__zone {
-  flex: 0 0 auto;
-  pointer-events: auto;
-  padding: 0;
-  background: none;
-  border: 0;
-  border-top: 1px solid var(--muted);
-  cursor: pointer;
-}
-
-.reader-rail__zone--toc {
-  width: var(--rail-panel-w, 280px);
-}
-
-.reader-rail__zone:hover,
-.reader-rail__zone:focus-visible {
-  --rail-glow: 1;
-}
-
-/* ── 垂挂揭幕（v1.14，STYLE.md §5.8）──────────────────────────────────
-   抽屉自挂载线**向下揭开**：包装层 .rail-hang 铺满阅读舞台（inset:0、自身不拾取事件），
-   内部抽屉（.toc-list / .reader-controls）保持原有绝对定位坐标不变；
-   clip-path 自上缘（= 挂载线）向下扫开 —— "挂件挂在线上"的空间故事在时间上成立。
-   进 = 220ms 强 ease-out；收回更快（出比进快）= data-closing 160ms，期间不拾取事件，
-   收完由 ReaderRail 卸载（closing 状态机在那边）。`@starting-style` = 挂载首帧从"藏"开始
-   过渡（Chromium 123+，Electron 33 ✓）；不支持时无动画直接出现，优雅降级。 */
+/* ── 内嵌目录的显影淡入（批1.20；原"垂挂揭幕"clip 语法随线退役）────────────
+   包装层 .rail-hang 铺满阅读舞台（inset:0、自身不拾取事件），内部 .toc-list 保持
+   绝对定位坐标不变；开合 = **透明度显影**（低注意力件不做大动作）。
+   进 = --dur-panel 强 ease-out；收回更快 = data-closing --dur-hover，期间不拾取事件，
+   收完由 ReaderRail 卸载（closing 状态机在那边）。`@starting-style` = 首帧从"藏"开始
+   过渡（Chromium 123+ ✓）；不支持时无动画直接出现，优雅降级。 */
 .rail-hang {
   position: absolute;
   inset: 0;
   z-index: 15;
   pointer-events: none;
-  clip-path: inset(0 0 0 0);
-  transition: clip-path var(--dur-panel) var(--ease-out);
+  opacity: 1;
+  transition: opacity var(--dur-panel) var(--ease-out);
 }
 
 .rail-hang > * {
@@ -1258,13 +1216,13 @@ textarea {
 }
 
 .rail-hang[data-closing] {
-  clip-path: inset(0 0 100% 0);
+  opacity: 0;
   transition-duration: var(--dur-hover);
 }
 
 @starting-style {
   .rail-hang:not([data-closing]) {
-    clip-path: inset(0 0 100% 0);
+    opacity: 0;
   }
 }
 
@@ -1295,6 +1253,7 @@ textarea {
 }
 
 .rail-card {
+  position: relative; /* 卡侧「卡」按钮的定位宿主 */
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -1326,6 +1285,38 @@ textarea {
   pointer-events: none;
 }
 
+/* ── 「卡」按钮（批1.21 用户定）：卡片页呼出/缩回的**点击交互**，压印字与目录同一语汇 ──
+   两位点：阅读界面右上角（卡收起时，ReaderRail 渲染）/ 卡片页右上角页签行之下
+   （卡展开时，比原「筆記」页签略靠下）。静息淡字 + 边缘阴影，hover/聚焦显影全强度。 */
+.card-corner {
+  position: absolute;
+  z-index: 16;
+  top: 12px;
+  right: 12px;
+  border: 0;
+  background: none;
+  font-family: var(--font-serif-cn);
+  font-size: 15px;
+  line-height: 1.4;
+  padding: 2px 8px;
+  cursor: pointer;
+  color: var(--toc-press-ink, color-mix(in srgb, var(--text) 12%, transparent));
+  text-shadow:
+    0 1px 0 var(--toc-press-hi, rgba(255, 255, 255, 0.4)),
+    0 -1px 1px var(--toc-press-lo, rgba(0, 0, 0, 0.35));
+  transition: color var(--dur-hover) ease;
+}
+
+.card-corner:hover,
+.card-corner:focus-visible {
+  color: var(--text);
+  text-shadow: none;
+}
+
+.card-corner--oncard {
+  top: 36px; /* 页签行之下（用户定"大概稍微再靠下一些"） */
+}
+
 /* 内容平填卡片：四个内容家族（參數/筆記/聊天/插件格）原先各自绝对定位贴线，
    进卡片后一律 static 占满 —— 组件标记不改，只在这里收口（几何归卡片外壳）。
    卡片自己 overflow:hidden，内容家族的 body 滚动口径不变。 */
@@ -1344,17 +1335,19 @@ textarea {
   padding-top: 2px;
 }
 
-/* 垂挂列表：从挂载线下方开始，**与左段线段同宽同侧**（左端与线段对齐），**全透明** */
+/* 内嵌目录（批1.20 换形，用户定）：**阅读卡内部左缘的内嵌件** —— 挂靠阅读器边缘、
+   低注意力；**头部处于阅读器半高处**（top: 50%，用户定"不要顶住头"），条目向下排列，
+   到底留一道缝；容器**全透明**（层级靠排版与压印字，不靠底色）。
+   卡片页内的 .toc-list（聊天）由 `.rail-card .toc-list` 覆写为 static，不受本几何影响。 */
 .toc-list {
   position: absolute;
-  top: calc(var(--toc-line-top, 28px) + 1px);
-  /* 批1.5：与线同贴阅读卡左缘 */
+  top: 50%;
+  bottom: 16px;
   left: 0;
   width: var(--rail-panel-w, 280px);
   z-index: 15;
   display: flex;
   flex-direction: column;
-  max-height: var(--rail-panel-h, 62vh);
   background: none;
 }
 
@@ -1387,40 +1380,22 @@ textarea {
   overflow: hidden;
 }
 
-/* 折叠按钮：与目录条目容器**中间对齐**；静息也保持淡（与条目同一个"退场"口径）。
-   ⚠ 与条目区之间必须有**一条引导分割线**（用户 2026-09-11 定）：没有它，条目滚到边界时
-   "像是凭空出现/消失"；有了它，滚动被可视地截在线上。 */
-.toc-list__fold {
-  display: flex;
-  flex: none;
-  justify-content: center;
-  margin-top: 8px;
-  padding-top: 10px;
-  border-top: 1px solid color-mix(in srgb, var(--muted) 40%, transparent);
-}
-
-.toc-list__fold .text-action {
-  /* 灯的法则（v1.14）：静息 0.5，光标靠近连续点亮到 1（--fold-glow 因子由 paintGlow 写） */
-  opacity: calc(0.5 + 0.5 * var(--fold-glow, 0));
-  transition: opacity var(--dur-veil) ease-out;
-}
-
-.toc-list__fold:hover .text-action,
-.toc-list__fold .text-action:focus-visible {
-  --fold-glow: 1;
-}
+/* 「折疊」已随折叠语法退役（批1.21 用户定）：目录常驻，`t` = 强隐藏。 */
 
 .toc-row {
   position: relative;
   display: block;
   width: 100%;
   padding: 5px 12px 5px 0;
+  /* 基础左缩进 24px（批1.21 用户定"目录条目太靠边缘"）+ 层级深度（--toc-depth 内联下发）——
+     压印基底/显影层/滚动层三层共用，对齐靠它
+     （聊天面板共用 .toc-row 行语汇：无 --toc-depth → 只有基础缩进差，另由 .chat-panel 覆写） */
+  padding-left: calc(24px + var(--toc-depth, 0) * 16px);
   text-align: left;
   font-family: var(--font-serif-cn);
   font-size: 15px;
   line-height: 1.55;
-  /* 文字给足强度，明暗**全部由遮罩承担**（这样"距离→不透明度"的过渡才平滑可解释） */
-  color: var(--text);
+  color: var(--text); /* 全强度基础字色；内嵌目录的压印/显影在下面两条作用域规则里 */
   background: none;
   border: 0;
   cursor: pointer;
@@ -1435,6 +1410,65 @@ textarea {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 压印字**基底层**（批1.20，拟物 letterpress；仅内嵌目录，聊天面板不经过）：
+   静息 = 淡字（--toc-press-ink）+ 两道边缘阴影（亮缘在下接反光、暗缘在上沉凹刻）——
+   字形在静息靠阴影读出。显影不由本层承担：上面盖 .toc-row__fill 全强度字色层。 */
+.toc-list:not(.chat-panel) .toc-row__label {
+  color: var(--toc-press-ink, color-mix(in srgb, var(--text) 12%, transparent));
+  text-shadow:
+    0 1px 0 var(--toc-press-hi, rgba(255, 255, 255, 0.4)),
+    0 -1px 1px var(--toc-press-lo, rgba(0, 0, 0, 0.35));
+}
+
+/* 显影层（遮罩按距离的**换装**，批1.20）：同一文字的全强度副本，透明度 = 接近度因子。
+   不变量与旧遮罩同一条：**靠近只会"显影"，远端保持静息、绝不比静息更暗**；
+   hover / 键盘聚焦 = 满强度（CSS 恒权威，JS 不画时也成立）。 */
+.toc-row__fill {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 5px 12px 5px 0;
+  padding-left: calc(24px + var(--toc-depth, 0) * 16px);
+  color: var(--text);
+  opacity: var(--row-near, 0);
+  transition: opacity var(--dur-veil) ease-out;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 聊天面板的行不用目录的新缩进/滚动层（批1.21）：维持原有左缘对齐 */
+.chat-panel .toc-row {
+  padding-left: 0;
+}
+
+/* 悬停滚动层（批1.21 用户定"长目录别只省略"）：静息不存在；hover 换装成 Marquee
+   无缝滚动读完全题（侧栏标签胶囊同款语汇），字色全强度，桌色垫底盖住下层；静态显影层让位 */
+.toc-row__roll {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  padding: 5px 12px 5px 0;
+  padding-left: calc(24px + var(--toc-depth, 0) * 16px);
+  color: var(--text);
+  pointer-events: none;
+  background: var(--desk-bg);
+}
+
+.toc-row:hover .toc-row__roll {
+  display: block;
+}
+
+.toc-row:hover .toc-row__fill {
+  opacity: 0;
+}
+
+.toc-row:focus-visible .toc-row__fill {
+  opacity: 1;
 }
 
 /* 遮罩：盖在条目容器上的一层"桌色"。静息 `--toc-veil-rest`；鼠标靠近时该值趋 0（揭开）。 */
@@ -1610,8 +1644,9 @@ textarea {
   display: flex;
   flex: none;
   padding: 0 0 4px 0;
-  border-bottom: 1px solid var(--border-soft);
   margin-bottom: 4px;
+  /* 批1.21 去线（用户定"参数本身被贯穿卡片的线所分割"）：页签行不再有横线，
+     选中态 = 字色（--accent vs --muted），层级靠排版不靠线 */
 }
 
 .rail-tabs__tab {

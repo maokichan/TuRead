@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { activeTocIndex, centerInScrollBox, type TocRow } from './readerFollow'
-import { paintGlow, paintVeil as paintVeilImpl } from './veil'
+import { paintGlow } from './veil'
+import { Marquee } from './Marquee'
 
 /** 目录行形状定义在 `readerFollow.ts`（纯 `.ts`，测试工程不设 jsx）—— 这里再导出，调用方不必改 */
 export type { TocRow }
@@ -8,7 +9,6 @@ export type { TocRow }
 interface TocPanelProps {
   rows: TocRow[]
   onJump: (row: TocRow) => void
-  onToggle: () => void
   /** 顶部插槽（挂载线左挂件的「目錄 / 筆記」开关，由 ReaderRail 生成并与 NotesPanel 共用） */
   header?: React.ReactNode
   /** 当前阅读位置（章号 = `BookLocation.chapterDocIndex`）：**当前条目自动滚到容器正中**（2026-09-16 用户定） */
@@ -16,24 +16,28 @@ interface TocPanelProps {
 }
 
 /**
- * 目录垂挂列表（挂载线实体的顶部挂件，线本体在 `ReaderRail`）。
+ * 目录（挂载线退役后 = **左缘内嵌件**，批1.20/1.21 用户定）。
  *
- * 形态（用户 2026-09-11 定，2026-09-12 并入挂载线实体）：
- * - 条目自挂载线**下方逐条向下**垂挂，左端与线对齐；容器全透明 + 顶端一条引导分割线
- *   （滚动被可视地截在线上）。
- * - **高亮不是改文字颜色**，而是条目容器上覆盖一层遮罩（`.toc-row__veil`，桌色）：
- *   其不透明度按**条目到鼠标的距离**调整（近 → 揭开，远 → 盖上），过渡交给 CSS（200ms）。
- * - 点击条目**不**收起目录，只有「折疊」/`t`/点挂载线才收（ReaderFeature 管状态）。
+ * 形态（用户 2026-11-03 定，样张 `docs/prototypes/toc-final-home.html`）：
+ * - 挂载线**本体退役**：目录**内嵌**在阅读卡内部的左缘、挂靠阅读器边缘、
+ *   **头部处于阅读器半高处**（top: 50%），条目向下排列，低注意力。
+ * - **压印字（拟物）**：条目文字静息近乎隐没（`--toc-press-rest` 档的字色）+ 双向边缘阴影
+ *   （`--toc-press-hi/-lo`，压进桌面的 letterpress 质感）——不只是 hover 高亮一种语义。
+ * - **显影 = 字色按距离**（遮罩按距离的换装，`.toc-row__fill`）：靠近只会"显影"到全强度，
+ *   远端保持静息，绝不比静息更暗；hover = 满强度。因子由 `paintGlow` 写 `--row-near`。
+ * - **长题 = 悬停滚动**（批1.21 用户定）：静息照旧省略，hover 时该行换装成 `Marquee`
+ *   无缝滚动读完全题（侧栏标签胶囊的同款语汇；`pauseOnHover` 必关 —— 该层只在 hover 时存在）。
+ * - **无折叠**（批1.21 用户定"去掉折叠这个语法"）：目录常驻；`t` = 强隐藏（ReaderFeature 管状态）。
+ * - 点击条目**不**收起目录。
  */
 export function TocPanel({
   rows,
   onJump,
-  onToggle,
   header,
   activeChapter = 0
 }: TocPanelProps): React.JSX.Element {
   const rowsRef = useRef<HTMLDivElement | null>(null)
-  /** 根层引用：遮罩与「折疊」灯光的绘制范围（mousemove 也挂在根层 —— 页签/折疊区也要响应） */
+  /** 根层引用：显影因子的绘制范围（mousemove 也挂在根层） */
   const rootRef = useRef<HTMLDivElement | null>(null)
   /** 上一次的 `rows` 引用：换了书就是"首次落位"（不做平滑动画，直接就在那儿） */
   const lastRowsRef = useRef<TocRow[] | null>(null)
@@ -57,18 +61,11 @@ export function TocPanel({
   }, [rows, activeChapter])
 
   /**
-   * 按鼠标位置重画：① 条目遮罩（先**读**全部条目矩形，再**写**各自的 `--toc-veil`，
-   * 读写分离，避免逐条读写交替触发强制重排）；② 「折疊」灯光（灯的法则，v1.14：
-   * 静息 0.5 → 光标靠近连续点亮到 1，因子由 paintGlow 写、换算归 styles.css）。
-   *
-   * 语义（用户 2026-09-11 定）：**靠近只会"揭开"，远端保持静息** ——
-   * 遮罩不透明度在 `[0, 静息值]` 之间取值：正中 → 0（完全揭开）；够远 → 静息值（**不再更暗**）。
-   * 静息值从 CSS 读 `--toc-veil-rest`（样式的单一来源在 styles.css，不在这里写死数字）。
-   * `clientX/Y === null` = 鼠标离开面板 → 清掉内联值，全部回到静息。
+   * 按鼠标位置重画条目**字色显影**因子（`--row-near` ∈ [0,1]，欧氏距离，换算归 styles.css）。
+   * 读写分离：先读全部矩形，再统一写变量。`clientX/Y === null` = 鼠标离开 → 清内联值回静息。
    */
   const paint = (clientX: number | null, clientY: number | null): void => {
-    paintVeilImpl(rootRef.current, { selector: '.toc-row', veilVar: '--toc-veil', restVars: ['--toc-veil-rest'] }, clientY)
-    paintGlow(rootRef.current, { selector: '.toc-list__fold .text-action', glowVar: '--fold-glow' }, clientX, clientY)
+    paintGlow(rootRef.current, { selector: '.toc-row', glowVar: '--row-near' }, clientX, clientY)
   }
 
   return (
@@ -85,20 +82,22 @@ export function TocPanel({
           <button
             key={i}
             className="toc-row"
-            style={{ paddingLeft: `${row.depth * 16}px` }}
+            style={{ '--toc-depth': row.depth } as React.CSSProperties}
             disabled={row.chapterDocIndex === undefined}
             title={row.chapterDocIndex === undefined ? '（無可直達章節）' : '跳轉'}
             onClick={() => onJump(row)}
           >
             <span className="toc-row__label">{row.label}</span>
-            <span className="toc-row__veil" aria-hidden="true" />
+            <span className="toc-row__fill" aria-hidden="true">
+              {row.label}
+            </span>
+            <span className="toc-row__roll" aria-hidden="true">
+              <Marquee duration={14} pauseOnHover={false}>
+                {row.label}
+              </Marquee>
+            </span>
           </button>
         ))}
-      </div>
-      <div className="toc-list__fold">
-        <button className="text-action" onClick={onToggle}>
-          折疊
-        </button>
       </div>
     </div>
   )

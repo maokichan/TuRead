@@ -1,10 +1,10 @@
 /**
  * 笔记垂挂列表（Stage 4，2026-09-14）—— 挂载线实体的**左挂件另一种内容**。
  *
- * 为什么复用 `.toc-list` 几何：左挂件的坐标由挂载线几何（`--toc-line-top` / `--sidebar-w` /
- * `--rail-shift` / `--rail-w-cap` / `--read-width` 夹取）决定，**是一套已经调好的视觉语汇**。笔记面板与目录
- * 是"同一位置、同一形态、不同内容"，另起一套几何必然与目录错位 —— 故直接共用同一容器类，
- * 只换行内容。切换形态 = 顶部两格文字开关（目錄 / 筆記），不做第二块浮层。
+ * 为什么复用 `.toc-list` 容器类：与目录是"同一位置、同一形态、不同内容"——卡片页平填几何
+ * 由 `.rail-card .toc-list` 统一收口（批1.13 起笔记住卡片页；批1.20 挂载线本体退役，
+ * 原垂挂坐标参数已废），另起一套几何必然与目录错位 —— 故直接共用同一容器类，只换行内容。
+ * 切换形态 = 顶部两格文字开关（目錄 / 筆記），不做第二块浮层。
  *
  * 视觉依据 `STYLE.md`：文字优先（摘录即标签）、字号走阶梯、遮罩高亮沿用目录同款
  * （`--toc-veil` 按距离）—— 与目录行同一套"退场"口径，不新造视觉。
@@ -12,7 +12,6 @@
 import { useEffect, useRef } from 'react'
 import type { Note } from '@core/domain/types'
 import { centerInScrollBox, activeNoteIndex } from './readerFollow'
-import { paintGlow } from './veil'
 
 export interface NotesPanelProps {
   /** 当前书的笔记（**必须是阅读序**：章 → 章内进度 → 创建时间，见 `domain/anchor.ts` 的 `compareNoteOrder`） */
@@ -23,7 +22,6 @@ export interface NotesPanelProps {
   onRemove: (note: Note) => void
   /** 打开这条的**编辑**（底部输入栏；用户 2026-09-16：抽屉里必须保留编辑功能） */
   onEdit: (note: Note) => void
-  onToggle: () => void
   /** 当前阅读位置（章号）：**当前条目自动滚到容器正中**（2026-09-16 用户定，与目录同一判据） */
   activeChapter?: number
   /**
@@ -42,7 +40,6 @@ export function NotesPanel({
   onJump,
   onRemove,
   onEdit,
-  onToggle,
   activeChapter = 0,
   focusNote = null
 }: NotesPanelProps): React.JSX.Element {
@@ -79,12 +76,6 @@ export function NotesPanel({
     <div
       className="toc-list"
       ref={rootRef}
-      onMouseMove={(e) =>
-        paintGlow(rootRef.current, { selector: '.toc-list__fold .text-action', glowVar: '--fold-glow' }, e.clientX, e.clientY)
-      }
-      onMouseLeave={() =>
-        paintGlow(rootRef.current, { selector: '.toc-list__fold .text-action', glowVar: '--fold-glow' }, null, null)
-      }
     >
       {header}
       <div className="toc-list__rows" ref={rowsRef}>
@@ -126,11 +117,6 @@ export function NotesPanel({
             </div>
           )
         })}
-      </div>
-      <div className="toc-list__fold">
-        <button className="text-action" onClick={onToggle}>
-          折疊
-        </button>
       </div>
     </div>
   )

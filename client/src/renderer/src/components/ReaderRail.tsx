@@ -1,21 +1,19 @@
 /**
- * ReaderRail —— 阅读器的挂载线 + 右欄卡片页（挂载线退役第一步，批1.13/1.14 用户定）。
+ * ReaderRail —— 阅读器的左缘内嵌目录 + 右欄卡片页（挂载线退役，批1.13~1.20 用户定）。
  *
- * **左段（暂留）**：横向挂载线的目录挂载区 —— 目录**向下垂挂**（TocPanel）；
- * 目录折叠时，点线（左段）= 展开目录。目录"仍然有保留在阅读器内的必要"（用户定），
- * 其余内容的归属见下。
+ * **左段（批1.20 换形）**：挂载线**本体退役**（用户定"去掉的只是线这个语法"，2026-11-03）——
+ * 目录不再是"自线下垂挂"，而是**内嵌**在阅读卡内部左缘的**低注意力内嵌件**（TocPanel：
+ * 头部处于阅读器半高、压印字、字色按距离显影）；开合只归 `t` /「折疊」。
  *
  * **右段（批1.14 平级化）**：卡片页**不再是阅读卡内的浮层** —— 它是阅读卡的**兄弟卡**，
  * 与阅读器界面**平级**、同样**置于底板之上**（用户定："参数面板和阅读器一样都是置于底板之上的"）。
  * 宿主在 AppShell 卡片区（`readerCardBus.getView` 驱动布局：阅读卡收窄、右槽位让出），
  * 本组件经 **portal** 把卡片内容送进槽位（数据/状态仍归 ReaderFeature）：
  * - 页族 = 參數 / 筆記 / 聊天（仅房间）/ 插件格（v1.13 起）——卡片顶部页签切换（单槽位换内容）；
- * - 召唤 = 线右段（鼠标）/ `p` / `c` / 命令面板（readerCardBus 登记）；
+ * - 召唤 = `p` / `c` / 命令面板（readerCardBus 登记）；（线右段召唤位随批1.16 清除，
+ *   鼠标召唤入口 = m1 右键菜单 / m2 右缘悬停，两候选随批1.20 样张在档，待裁）；
  * - 动画 = 自右滑入 + 显影（.rail-card 的 @starting-style），收回更快，收完卸载；
- *   槽位宽度同节奏收放（styles.css .reader-card-slot），阅读卡随之让位。
- *
- * ⚠ **2026-09-16（用户定，批1.13 修正）**：~~左右两挂件关于线中心镜像~~ —— 右段已转卡片页，
- * 镜像口径退役（左垂挂仍贴卡缘，宽度 = --rail-panel-w）。
+ *   槽位宽度同节奏收放（styles.css .reader-card-slot 与 .reader-scrim 的单驱动 --slot-w）。
  *
  * ⚠ **v1.13：右段开放插件面板格**（契约 = CONTRACTS §9，功能 = FEATURES §13）——
  * 渲染权在宿主：插件只注册"一个格"（label + mount），几何/页签/开合/滚动外壳全部在这里给；
@@ -27,7 +25,6 @@ import { createPortal } from 'react-dom'
 import type { ChatMessage, Note } from '@core/domain/types'
 import type { PluginReaderContext } from '@shared/plugin'
 import type { TocRow } from './TocPanel'
-import { paintGlow } from './veil'
 import { TocPanel } from './TocPanel'
 import { NotesPanel } from './NotesPanel'
 import { ChatPanel } from './ChatPanel'
@@ -98,9 +95,6 @@ interface ReaderRailProps {
 /** 卡片页收回的卸载延迟：与 styles.css 的收回时长（`--dur-hover` = 160ms）同步，稍留余量 */
 const HANG_EXIT_MS = 180
 
-/** 挂载线灯光的目标段（veil.ts paintGlow 的选择器：目录段呼吸） */
-const RAIL_GLOW_SELECTOR = '.reader-rail__zone'
-
 /**
  * 开合的卸载状态机（v1.14 垂挂揭幕沿用）：`open=false` 时**先播收回**
  * （data-closing → 滑出/收拢，160ms），收完才真正卸载。CSS 管动画，这里只管
@@ -151,16 +145,7 @@ function RailTabs<T extends string>({
  * 生命周期 = 绑定即挂载、卸载/换格即清理（cleanup + AbortSignal）——
  * 插件的定时器/订阅据此自清，不靠插件自觉。
  */
-function RailPluginMount({
-  panel,
-  onToggle,
-  reader
-}: {
-  panel: RailPluginPanel
-  header: React.JSX.Element | null
-  onToggle: () => void
-  reader?: PluginReaderContext
-}): React.JSX.Element {
+function RailPluginMount({ panel, reader }: { panel: RailPluginPanel; reader?: PluginReaderContext }): React.JSX.Element {
   const bodyRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     const el = bodyRef.current
@@ -177,11 +162,6 @@ function RailPluginMount({
     <div className="reader-controls">
       <div className="reader-controls__body">
         <div className="plugin-panel__content" ref={bodyRef} />
-      </div>
-      <div className="reader-controls__fold">
-        <button className="text-action" onClick={onToggle}>
-          折疊
-        </button>
       </div>
     </div>
   )
@@ -230,57 +210,31 @@ export function ReaderRail({
   const showChat = Boolean(chat) && rightPanel === 'chat'
   const activePlugin = visiblePluginPanels.find((p) => p.key === rightPanel)
 
-  // 开合状态机：左垂挂与右卡片页各自持"收回中"状态，收回播完才卸载
+  // 开合状态机：左内嵌目录与右卡片页各自持"收回中"状态，收回播完才卸载
   const leftHang = useHangingPanel(tocOpen)
   const rightCard = useHangingPanel(controlsOpen)
 
-  // 灯的法则（§5.8 v1.14）：光标即光源 —— 挂载线段随光标距离连续呼吸。
-  // ReaderFeature 常驻挂载（其他功能态 display:none）→ 矩形为空时跳过；鼠标离开窗口回静息。
-  const railRef = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    const paint = (x: number | null, y: number | null): void => {
-      paintGlow(railRef.current, { selector: RAIL_GLOW_SELECTOR, glowVar: '--rail-glow' }, x, y)
-    }
-    const onMove = (e: MouseEvent): void => {
-      const rail = railRef.current
-      if (!rail || rail.getClientRects().length === 0) return
-      paint(e.clientX, e.clientY)
-    }
-    const onLeave = (): void => paint(null, null)
-    window.addEventListener('mousemove', onMove)
-    document.documentElement.addEventListener('mouseleave', onLeave)
-    return () => {
-      window.removeEventListener('mousemove', onMove)
-      document.documentElement.removeEventListener('mouseleave', onLeave)
-    }
-  }, [])
-
   return (
     <>
-      {/* 挂载线（批1.16 用户定"右边的挂载线清掉"）：只剩**目录段** —— 线 = 目录的挂载点
-          （中段纯线与右段召唤位一并退役；卡片页的召唤 = `` ` `` / p / c / 命令面板，
-          不再有线上的鼠标位） */}
-      <div className="reader-rail" ref={railRef}>
-        <button
-          className="reader-rail__zone reader-rail__zone--toc"
-          aria-label={tocOpen ? '收起左欄' : '打開左欄'}
-          aria-expanded={tocOpen}
-          title={tocOpen ? '收起左欄' : '目錄'}
-          onClick={onTocToggle}
-        />
-      </div>
+      {/* 阅读侧「卡」按钮（批1.21 用户定）：阅读界面右上角，压印字与目录同一语汇，
+          单点呼出卡片页（键盘 ` / p / c 仍是加速器）；卡展开时让位给卡侧那颗，避免双按钮 */}
+      <button
+        className="card-corner"
+        aria-label="呼出卡片頁"
+        title="呼出卡片頁"
+        onClick={onControlsToggle}
+        style={controlsOpen ? { visibility: 'hidden' } : undefined}
+      >
+        卡
+      </button>
 
-      {/* 左挂件（暂留）：目录垂挂。无目录索引的书也垂挂占位说明
+      {/* 左内嵌目录（批1.20 换形）：挂载线本体已退役 —— 目录**内嵌**在阅读卡内部左缘
+          （压印字 + 字色按距离显影，几何归 styles.css .toc-list）。无目录索引的书也占位说明
           （2026-09-13 用户定："本书没有目录索引"要可见，不静默消失）。
-          .rail-hang = 垂挂揭幕包装层（自挂载线向下揭开，收回播完才卸载，v1.14） */}
+          .rail-hang = 收合包装层（原"垂挂揭幕"的 clip 语法随线退役，现为显影淡入，收回播完才卸载） */}
       {leftHang.mounted && (
         <div className="rail-hang" data-closing={leftHang.closing || undefined} aria-hidden={leftHang.closing || undefined}>
-          <TocPanel
-            rows={tocRows}
-            onJump={onTocJump}
-            onToggle={onTocToggle}
-            activeChapter={activeChapter}
-          />
+          <TocPanel rows={tocRows} onJump={onTocJump} activeChapter={activeChapter} />
         </div>
       )}
 
@@ -296,37 +250,39 @@ export function ReaderRail({
             data-closing={rightCard.closing || undefined}
             aria-hidden={rightCard.closing || undefined}
           >
+            {/* 卡侧「卡」按钮（批1.21 用户定）：页签行之下、右上角，点击缩回 —— 与阅读侧同一颗 */}
+            <button
+              className="card-corner card-corner--oncard"
+              aria-label="收起卡片頁"
+              title="收起卡片頁"
+              onClick={onControlsToggle}
+            >
+              卡
+            </button>
             {rightTabs}
             {showChat && chat ? (
               <ChatPanel
                 messages={chat.messages}
                 roomId={chat.roomId}
                 onSend={chat.onSend}
-                onToggle={onControlsToggle}
                 draft={chat.draft}
                 onDraftChange={chat.onDraftChange}
                 following={chat.following}
                 onToggleFollow={chat.onToggleFollow}
               />
             ) : activePlugin ? (
-              <RailPluginMount panel={activePlugin} header={null} onToggle={onControlsToggle} reader={readerContext} />
+              <RailPluginMount panel={activePlugin} reader={readerContext} />
             ) : rightPanel === 'notes' ? (
               <NotesPanel
                 notes={notes}
                 onJump={onNoteJump}
                 onRemove={onNoteRemove}
                 onEdit={onNoteEdit}
-                onToggle={onControlsToggle}
                 activeChapter={activeChapter}
                 focusNote={focusNote}
               />
             ) : (
-              <ReaderControls
-                params={params}
-                onChange={onParamsChange}
-                onToggle={onControlsToggle}
-                isPdf={isPdf}
-              />
+              <ReaderControls params={params} onChange={onParamsChange} isPdf={isPdf} />
             )}
           </div>,
           cardSlot
