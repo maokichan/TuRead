@@ -27,7 +27,7 @@
 8. [`client/docs/FEATURES.md`](client/docs/FEATURES.md) —— UI 功能组件设计（功能划分 + 交互语义）
 9. [`client/docs/STYLE.md`](client/docs/STYLE.md) —— **渲染层风格基线（渲染层开发先读）**
 10. `server/docs/{ARCHITECTURE,API,OPS}.md` —— server 架构 / 协议 / 运维
-11. `D:\PROJECT\NETWORK.md` —— 网络配置（git 代理 + OpenSSL、GOPROXY、打包代理）
+11. **网络配方**收编在 `docs/STATUS.md` §5（git 代理、GOPROXY、打包代理；原 `D:\PROJECT\NETWORK.md` 已删）
 
 ## 红线（违反 = 事故）
 

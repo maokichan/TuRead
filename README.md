@@ -51,7 +51,7 @@
 cd client
 npm install
 npm run dev            # 开发模式（Electron + 热更新）
-npm run dist           # 打包免安装便携版 → client/release/（需代理，见 NETWORK.md）
+npm run dist           # 打包免安装便携版 → client/release/（需代理，见 docs/STATUS.md §5）
 ```
 
 - 数据都在本地：一个 SQLite 库 + 一个极小的 JSON 引导文件；封面是跟内容走的缩略图。

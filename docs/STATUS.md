@@ -25,7 +25,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
   另一个 agent 做——**「滚了版本号」不等于「该打包」**，绝不因为版本滚动就顺手出 release。
 - **发版节奏**：**功能确定后即滚版本号**（不长期堆改动）。滚版本时 agent 同步 `package.json` /
   `package-lock.json` / 本文 §4 / `README.md` + 打 tag。产物（便携版 exe）不在此列。
-- 网络配方（git 代理 + OpenSSL、Go `GOPROXY=goproxy.cn`、npm 直连、打包代理）见 `D:\PROJECT\NETWORK.md`
+- **网络配方**（原 `D:\PROJECT\NETWORK.md` 已删，事实收编于此）：GitHub 走本地代理 `127.0.0.1:7897`（Clash Verge rev，**没开会连不上**，报 "Failed to connect … 127.0.0.1" 即此因）；git 代理已写入本仓库 `http.proxy`；Go `GOPROXY=https://goproxy.cn,direct`；npm registry 直连；OpenSSL 走代理；打包（electron-builder 下载二进制）走代理
 
 ## 3. 已定决策（**索引**：一行一条 + 权威位置；细节不在这里重复）
 
@@ -176,7 +176,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
     `Error occurred in handler for 'net:send'` —— **那是预期的**。
   - `TUREAD_DEV_PROBE=paged-interact` / `pdfWidth` = 单页交互 / PDF 纸宽量化（无产品断言，看事实行）
   - `TUREAD_DEV_SQLITE=1` = 原生模块 spike；`TUREAD_DEV_BOOK` **打包产物**跑自检不自退（已知问题，见 TODO）
-- 换 Electron 版本后 `npm run rebuild:sqlite`；打包走代理（`NETWORK.md`）。
+- 换 Electron 版本后 `npm run rebuild:sqlite`；打包走代理（配方见上 §2 与本节首条）。
 - **发行版冒烟**（**打包之后**才做）：独立 userData 起 `release/win-unpacked/TuRead.exe` →
   应落盘 `config.json` + `store.db` + `covers/<editionId>.jpg`。
 
