@@ -9,8 +9,8 @@
  * 笔记与阅读状态**挂 edition**（跨库共享、不随"移除收录"消失）。
  *
  * 文件布局（userData/）：
- *   turead.db            一切数据（schema 见 DATA_MODEL §2 v3；WAL 模式）
- *   turead.db-wal/-shm   WAL 副产物（正常存在）
+ *   store.db            一切数据（schema 见 DATA_MODEL §2 v3；WAL 模式）
+ *   store.db-wal/-shm   WAL 副产物（正常存在）
  *   covers/<editionId>.<ext>  封面缩略图（字节不进库；封面是 **edition 级**）
  *   config.json          引导文件（**极小**）：{ version, dbPath, 窗口状态 }
  *   *.migrated           旧版留档（原文件改名，不删除 —— 用户可回退旧版客户端）
@@ -49,7 +49,7 @@ import { anchorToColumns, columnsToAnchor, compareNoteOrder } from '@core/domain
 import { runMigrations } from './migrate'
 
 export interface SqliteStoreOptions {
-  /** **全局**库文件绝对路径（`<userData>/turead.db`） */
+  /** **全局**库文件绝对路径（`<userData>/store.db`） */
   dbPath: string
   /** **全局**封面目录（`<userData>/covers`） */
   coversDir: string
@@ -213,7 +213,7 @@ export class SqliteStore {
     }
     // ⚠ **形状守卫（2026-09-15 用户实测事故后补）**：`CREATE TABLE IF NOT EXISTS` 对**已存在但形状
     // 不同**的表是**静默跳过**的 —— 于是后面针对新列的索引会以 `no such column: xxx` 炸掉，
-    // 报错点离真因很远（用户实测：全局库误用旧 `turead.db` → `no such column: library_id`）。
+    // 报错点离真因很远（用户实测：全局库误用旧 `store.db` → `no such column: library_id`）。
     // 这里先判"这文件是不是旧版书库"，把密码般的 SQL 错误换成一句能直接照做的话。
     if (existsSync(this.opts.dbPath) && looksLikeLegacyStore(db)) {
       db.close()
@@ -221,7 +221,7 @@ export class SqliteStore {
         `全局库路径上是一个**旧版书库文件**（旧 schema：books/containers/notes），不能当作全局库打开：\n` +
           `  ${this.opts.dbPath}\n` +
           `旧版"一库一 .db"的文件应当交给迁移器**只读合并**，而不是直接在这里建表。\n` +
-          `请确认 LibraryManager 给出的全局库路径不是旧默认库的 turead.db（全局库文件名 = store.db）。`
+          `请确认 LibraryManager 给出的全局库路径不是旧默认库的 store.db（全局库文件名 = store.db）。`
       )
     }
     db.exec(SCHEMA_SQL)

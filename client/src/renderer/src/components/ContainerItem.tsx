@@ -164,7 +164,7 @@ export function ContainerItem({
       }`}
     >
       <div className="book-row-cover absolute inset-y-0 left-0 w-2/5 overflow-hidden bg-[var(--panel-2)]">
-        <FittedTitle text={name} maxSize={34} minSize={9} paddingRatio={0.03} />
+        <FittedTitle text={name} maxSize={34} minSize={10} paddingRatio={0.03} />
       </div>
       <div className="relative flex h-full items-center pr-3 pl-[30%]">
         {renaming ? (

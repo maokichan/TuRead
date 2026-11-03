@@ -1,13 +1,12 @@
 # 客户端数据建模（DATA MODEL）
 
 > **性质**：活文档。数据持久化的建模与库设计；讨论增量直接补节；结论回写 `CONTRACTS.md`。
-> 阅读顺序：§1 总构 → §2 schema → §3 实体与锚点 → §4 已批复 → §5 开放问题 → §6「书的身份」讨论存档。
-> §1/§2 已按 §6 的定案重写为 v3（全局单库 + 书库降为组织模式），D1–D12 收编进 §4.2；
-> §6 只留理由与"防反复"记录。**权威以 §1/§2/§4 为准**。
+> 阅读顺序：§1 总构 → §2 schema → §3 实体与锚点 → §4 已批复 → §5 开放问题 → §6「书的身份」定案要点。
+> §1/§2 按 §6 的定案实现为 v3（全局单库 + 书库降为组织模式），D1–D12 收编进 §4.2。**权威以 §1/§2/§4 为准**。
 
 ## 1. 存储总构（v3：全局单库 + 书库降为组织模式）
 
-> 本条取代 v2（「单一 SQLite 库文件 = 一份书库；多书库 = 多 .db」）。定案与理由见 §6；本节只写结论。
+> 定案与理由见 §6；本节只写结论。
 
 **全应用一个 SQLite 库 = 一份用户数据**：作品 / 电子版 / 收录 / 书库 / 书箱 / 笔记 / 阅读状态 / 设置
 **全在一个 `.db`**。JSON 只作**引导文件**——"开哪个库"是鸡生蛋问题，必须留在库外。
@@ -15,9 +14,7 @@
 ```
 <userData>/
   store.db               ← 一切数据（下 §2）；路径由引导文件指向，可配置
-                         ⚠ **不能叫 `turead.db`** —— 那是**旧版默认库**的文件名（旧 schema），
-                           同名会让 `CREATE TABLE IF NOT EXISTS` 静默跳过旧表、
-                           随后新列索引以 `no such column` 炸掉（2026-09-15 实测事故）
+                         ⚠ **不能叫 `turead.db`**（旧版默认库的文件名）——同名会静默跳过建表，见 §2
   covers/<editionId>.jpg ← 封面缩略图（随库目录；携带 = 拷目录）
   plugins/<id>/          ← 官方插件（运行时文件夹；种子 = 应用首发资源，FEATURES §13 / CONTRACTS §9）
   config.json            ← 引导文件（极小，app 级）：{ version, dbPath, 窗口状态 }
@@ -26,18 +23,19 @@
 - **书库（Library）= 组织模式，不是物理分区**（D2）：物理上"一库一文件"的划分**取消**；
   书库只回答"**哪些书以什么分类出现**"，其成员关系 = **收录**（holdings，§2）。
 - **多书库仍在**（用户定"多书库是正确的"）：但同处一个 `.db`，与"每库一个文件"无关。
-- **书库两种组织模式并存**（术语已改，见 §6.2）：**映射库**（`mode='mapped'`，跟踪唯一真实文件夹）
+- **书库两种组织模式并存**（§6.2）：**映射库**（`mode='mapped'`，跟踪唯一真实文件夹）
   ＋ **自建库**（`mode='curated'`，空库起步、用户自建书箱树）。
 - **同一内容可被多个书库收录**（holdings 多行）→ **跨库共享天然成立**：同一文件 = 同一指纹
   = 同一 edition 行（**不需要 work 也成立**；work 只管"不同文件但同一本书"，§6.1）。
 - **笔记与阅读状态跨书库**（D3）：挂 **edition**，不挂书库。
 - **封面是 edition 级**：canvas 400px / JPEG q0.82（实测 20-40KB）→ `covers/<editionId>.jpg`。
-- **设置一律全局**（D9）：**没有库级设置**。插件的启用状态与私有键值同样走全局 settings 表
-  （键 `plugins` / `plugin:<id>`）；插件本体在 `plugins/<id>/`（**非数据库数据**，同 covers/）。
+- **设置一律全局**（D9）：**没有库级设置**。插件私有键值走全局 settings 表（键 `plugin:<id>`），
+  密钥保险库走 `plugin-secret:<id>:<name>`（密文落库，明文不出主进程）；插件本体在
+  `plugins/<id>/`（**非数据库数据**，同 covers/）。
 - **插件（官方，v1）**：运行时 = `<userData>/plugins/<id>/`，开发 = `client/plugins/<id>/`；
   契约 = `CONTRACTS.md` §9，功能 = `FEATURES.md` §13。
-- **`config.json` 进一步瘦身**（D1+D9 的推论）：库注册表进库、"当前库是哪个"降为库内设置
-  （`settings.currentLibraryId`）→ 引导文件只剩 `{ version, dbPath, 窗口状态 }`。
+- **引导文件极小**（D1+D9 的推论）：库注册表进库、"当前库"是库内设置（`settings.currentLibraryId`）
+  → `config.json` 只剩 `{ version, dbPath, 窗口状态 }`。
 
 **打包（已验证）**：better-sqlite3@**12**（v13 无 electron prebuild），
 `prebuild-install -r electron -t <electron 版本>` 取 Electron ABI 二进制 + `asarUnpack` 解出 .node ——
@@ -58,7 +56,7 @@ spike 脚本 `src/main/dev/sqliteSpike.ts`，触发 `TUREAD_DEV_SQLITE=1`）。�
 > "单库失败不阻断其余库、`failed` 可重试"的迁移纪律。夹具用真实的 `turead.db` 命名 +
 > 变异测试（把 `DEFAULT_DB_NAME` 改回去 → 夹具立刻 FAIL）钉住这个坑。
 
-> **相对 v2 的结构性变化**（定案见 §2）：
+> **相对 v2 的结构性变化**（定案见 §4.2/§6）：
 > ① `books` 一表拆成 **`editions`**（= 原书行，全局唯一键 = 指纹）+ **身份分层的 `works`**；
 > ② 新增 **`holdings`（收录）** 取代"每库一套 books"，书箱归属进 **`libraries`**；
 > ③ `notes.book_id` → **`notes.edition_id`**（笔记跨库、不随条目消失）；
@@ -159,10 +157,10 @@ CREATE TABLE reading_state (
     edition_id TEXT PRIMARY KEY REFERENCES editions(id) ON DELETE CASCADE,
     last_read_at INTEGER,
     last_location TEXT,                     -- BookLocation JSON（读回先过 normalizeLocation）
-    total_read_ms INTEGER NOT NULL DEFAULT 0
+    total_read_ms INTEGER NOT NULL DEFAULT 0   -- 唯一写入口 = appendReadingSession（事务内累加）
 );
 
--- ── 阅读会话（③ 阅读时间模型的落点：逐 edition 记原始会话）──
+-- ── 阅读会话（③ 阅读时间模型的落点：逐 edition 记原始会话；写入口径见下方注）──
 CREATE TABLE reading_sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     edition_id TEXT NOT NULL REFERENCES editions(id) ON DELETE CASCADE,
@@ -184,9 +182,18 @@ CREATE TABLE edition_toc (
 
 -- ── 全局设置（D9：一律全局，没有库级设置）──
 CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
--- 迁移/簿记标记（key-value）：migrated_v1 / migrated_v2 等，防"迁移后删光书 → 从留档复活"
+-- 迁移标记（key-value）：migrated_v3 = fresh | from-v2 | from-json | failed（failed 可重试），
+-- 防"迁移后删光书 → 从留档复活"
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 ```
+
+> **阅读时间口径（批1.24，用户定）**：写入路径 = 渲染层 `readSessionRecorder` → `appendReadingSession`
+> （`total_read_ms` 的唯一写入口，同事务累加）。累计范围 = 阅读态（阅读器激活且开着书）；
+> **失焦暂停**（blur 结段 / focus 开新段）、**边界落笔**（换书 / 关标签退阅读器 / 退 app：
+> pagehide + beforeunload + visibilitychange 兜底；单段超 1h 强制结段）、**<10s 丢弃**（误开不算）；
+> append-only、幂等。查询口径：`readMinutesByDay`（贡献图：本地时区归日、稀疏只含有会话的日子）/
+> `topReadEditions`（Top 榜：`reading_state` 投影倒序、含迁移旧账、limit 夹在 1–50）。
+> ⚠ 两口径不同：接入记录器前的旧账只在 `reading_state` 投影里，画不进按日格子。
 
 ## 3. 实体与锚点（收束版）
 
@@ -197,29 +204,27 @@ fromSelection / resolveToView / **compare**（同步合并与跳转）/ **remeas
 新位置）/ display。编码是不透明字符串，适配器生成/解释；**同步不需要统一编码**（指纹标定保证
 对端同一 edition → 同一解释器）。
 
-> ⚠ **实现事实更正（逆向核实）**：本文原写「编码：EPUB=CFI …；kookit 有 CFI 实现
-> （`libs/cfi.ts`），第一批只做 EPUB-CFI + PDF 页锚」，**与 kookit 实际实现不符**。
-> kookit 笔记链路用的是 **rangy 字符范围**，不是 CFI：
+> ⚠ **kookit 笔记链路的载荷 = rangy 字符范围，不是 CFI**（逆向核实；勿写成"EPUB=CFI"）：
 > `getHightlightCoords()` = `rangy.getSelection(iframe).saveCharacterRanges(doc.body)[0]`，
-> 且 `createOneNote` / `renderHighlighters` 两条路径都做 `JSON.parse(item.range)`。
-> `libs/cfi.ts` 存在但**笔记链路完全没用到它**。故文字类载荷按实现记为
-> `engine='kookit-rangy'`（chapter-relative 的 body 字符偏移）。
+> `createOneNote` / `renderHighlighters` 两条路径都做 `JSON.parse(item.range)`；
+> vendored kookit 的 `libs/cfi` 存在但**笔记链路完全没用到**。故文字类载荷
+> `engine='kookit-rangy'`（rangy 序列化的字符范围 JSON，doc.body 字符偏移）。
 > 影响：字符偏移是**同 edition 同解析器内**的精确键（跨解析器版本可能漂移），
 > 跨引擎/跨解析器一律靠 Norm 层重建（`remeasure`）——这正是两层结构的价值所在，不是缺陷。
 > 首批范围（用户定）：**文字类优先，PDF 第二批**（PDF 是页+坐标的另一套载荷）。
 
-**3.1.1 定位转换机制（用户提出并批复；原拟名"定位 IR"弃用——太编译器背景）**
+**3.1.1 定位转换机制（已批复）**
 
-动机：用户提出参考 Readium 的设计做中间表示，把各格式定位信息抽象掉，降低笔记层复杂度。
-**采纳**，术语与分层（已批复）：
+参考 Readium 的中间表示思路：把各格式定位信息抽象掉，降低笔记层复杂度。
+机制名 = **定位转换机制**；领域实体沿既定命名：进度级 = `BookLocation`，
+选区级 = `TextAnchor`（统一锚点）。
 
-- **机制名：定位转换机制**。领域实体沿既定命名：进度级 = `BookLocation`（已立），
-  选区级 = `TextAnchor`（统一锚点）。
 - **两层结构**（关键决策：**统一信封 + 引擎原生载荷**，不做"通用定位语言"让引擎来回翻译——
   翻译有损会破坏选区 round-trip；Readium 同款取舍）：
   - **归一化层（Norm）**——跨格式可比的语义字段：`chapterIndex` / `progression`(0~1) /
     `quote{exact, prefix, suffix}`。**笔记层/存储/同步只看这层**；
-  - **引擎载荷层（Fragment）**——`engine` 标识 + 不透明编码串（EPUB=CFI、PDF=页+坐标、TXT=章+偏移）。
+  - **引擎载荷层（Fragment）**——`engine` 标识 + 不透明编码串（文字类 = kookit-rangy 串、
+    PDF = 页+坐标一类；kookit 实际载荷见 §3.1 ⚠）。
     **只有适配器解释**；`anchor_key` 落库即本层串。
 - **原语**（接口即机制，实现在适配器）：`fromSelection` / `resolveToView` / `compare` /
   `remeasure` / `display`。
@@ -237,11 +242,11 @@ fromSelection / resolveToView / **compare**（同步合并与跳转）/ **remeas
    先精确后模糊，避免文本比较的歧义成本污染精确路径。
 ③ 分层命名沿用 Norm / Fragment。
 
-**3.2 Note 实体 v2（趁未落库定稿）**
-`kind`('highlight'|'note'|'bookmark'|'ink') / `anchor{chapterIndex,key,hint}`（取代原
-location+range——"读到哪"是进度语义、"标在哪"是选区语义，不同物）/ `color` 语义名
-（UI 按主题 token 渲染，库内无 hex）/ `excerpt`（划线原文，重锚兜底）/ `body` / `ink` /
-`owner`（可空预留）。`key→id` 改名、`notes?:string→body?`：破坏性变更零成本（无数据）。
+**3.2 Note 实体**
+`kind`('highlight'|'note'|'bookmark'|'ink') / `anchor{chapterIndex,key,hint}`（"读到哪"是进度
+语义、"标在哪"是选区语义，不同物）/ `color` 语义名（UI 按主题 token 渲染，库内无 hex）/
+`body`（批注正文，只有这里住批注内容）/ `ink` / `owner`（可空预留）。
+⚠ 领域类型**无 `excerpt` 字段**——notes 表 `excerpt` 列是 `anchor.norm.quote.exact` 的投影（§3.1.1 ①）。
 
 **3.2.1 已定决策：「笔记/批注」= 「划线」（用户定，记档防反复）**
 
@@ -262,26 +267,20 @@ location+range——"读到哪"是进度语义、"标在哪"是选区语义，�
 **3.3 墨迹（kind='ink'）**
 矢量笔画（归一化点列 + 语义色 + 相对笔宽）。**与划线的本质差异**：划线锚在内容流（重排安全、
 渲染由布局引擎做）；墨迹锚在几何画布（脱离版面坐标无意义）→ 只进版式固定载体。
-开销：存储一笔 3-6KB（抽稀后 -60%），整书 10-20MB 封面级体积，**SQLite 无压力**；
-真开销在渲染（连续滚动/缩放全量重绘）→ 按页懒取 + **覆盖层位图缓存** + 写入抽稀，<5ms/页可达。
+真开销在渲染（连续滚动/缩放全量重绘）→ 按页懒取 + **覆盖层位图缓存** + 写入抽稀。
 
-> ⚠ **"覆盖层"一词的唯一出处就是上面这句**（用户询问后复核）：它指的是**墨迹**的
-> 渲染优化手段（把矢量笔画渲染成位图缓存层），**不是**"要对 kookit 高度封装之后自己做一层
-> 覆盖渲染层来替换/接管正文渲染"。当前架构分工见 `RENDER_INTERFACE.md` §1 与 §5：
-> **正文排版与高亮的绘制都是 kookit 的**（它把高亮做成**行内 span**，随重排自然对齐），
-> 我们只提供宿主容器 + 注入样式 + 调用引擎原语。**只有墨迹将来需要我们自己画**（几何锚点，
-> 布局引擎管不了）—— 那时才轮到覆盖层。
+> ⚠ **"覆盖层" = 墨迹的渲染优化手段**（把矢量笔画渲染成位图缓存层），**不是**自建一层覆盖渲染
+> 来替换/接管正文渲染。架构分工见 `RENDER_INTERFACE.md` §1/§5：**正文排版与高亮的绘制都是
+> kookit 的**（高亮 = **行内 span**，随重排自然对齐），我们只提供宿主容器 + 注入样式 + 调用
+> 引擎原语。**只有墨迹将来需要我们自己画**（几何锚点，布局引擎管不了）——那时才轮到覆盖层。
 
-**3.4 书箱领域建模（原"容器"）**
-
-> ⚠ **v0.4.0 更新**：本节术语已过时 —— 箱**不再有 `kind`**（库级 `mode` 已表达"映射/自建"）、
-> 箱**归属到库**（`containers.library_id`）、成员关系从 `container_books` 变为 **`holdings.container_id`**
-> （书箱归属长在**收录**上）。**权威见 §2 v3 与 `CONTRACTS.md` §2.2**；下面的 Source/Virtual 二分保留作设计沿革。
-
-`SourceContainer{paths[]}`（按路径前缀动态派生，永不悬挂）｜`VirtualContainer{parentId 单亲树,
-bookRefs[] 引用（数组序=用户排序）}`。不变量：无环 / 悬挂引用静默清理 / 路径缺失标记。
-原语（纯函数）：`resolveCollectionBooks`（source 前缀匹配；virtual 递归子树并集）、`validateTree`。
-现有列表/网格 = 全库视图恒存，书箱是其上的过滤器；房间选书流程不变。
+**3.4 书箱（Container）**
+树在库内：`containers.parent_id` 单亲（NULL = 库根层）；成员关系长在**收录**上
+（`holdings.container_id`，单亲归属；NULL = 库根层）。不变量（`SqliteStore` 强制）：
+移动目标是自己或自己的后代时拒绝（防成环）；有子书箱时拒删（先清空子级，防误删整棵子树）；
+删箱后成员收录 `SET NULL` 归回库根层；删库级联箱与收录（edition / notes / reading_state 不动）。
+⚠ `addHolding` 的 `container_id = null` = **未指定归属**（保持原值，不覆盖）——"移回根层"的
+唯一入口是显式的 `moveHolding(..., null)`。
 
 ## 4. 已批复决定
 
@@ -290,8 +289,8 @@ bookRefs[] 引用（数组序=用户排序）}`。不变量：无环 / 悬挂引
 | # | 决定 | 状态 |
 |---|---|---|
 | 1 | 统一 SQLite 单库文件；JSON 退役为引导文件（库注册表/当前库路径/窗口状态） | ✅ 仍有效（v3 起**更进一步**：库注册表也进库，见 §4.2 D1/D9） |
-| 2 | 容器标准名 = **书箱**（代码标识 Collection 暂留，UI 文案用"书箱"） | ✅ 仍有效 |
-| 3 | 多书库：多 .db 文件 + 库管理（新建/切换/移除引用）；库路径可配置（引导文件指向即读） | ❌ **已废止（2026-09-15）**：物理分库取消，多书库同处一库 —— 见 §4.2 D1 |
+| 2 | 容器标准名 = **书箱**（代码标识 = `containers` / `BookContainer`，UI 文案用"书箱"） | ✅ 仍有效 |
+| 3 | 多书库：多 .db 文件 + 库管理（新建/切换/移除引用）；库路径可配置（引导文件指向即读） | ❌ **已废止**：物理分库取消，多书库同处一库 —— 见 §4.2 D1 |
 | 4 | 每库两种组织并存：真实路径虚拟映射 + 纯书箱 | ✅ 语义不变，**术语改名**（映射库 `mapped` / 自建库 `curated`，§6.2） |
 | 5 | 笔记带 `owner` 字段（建模预留，功能随同步上线；本地 NULL） | ✅ 仍有效（本地 NULL = **本机默认档案**，D10） |
 | 6 | 书签进 note 表（kind='bookmark'） | ✅ 仍有效 |
@@ -299,7 +298,7 @@ bookRefs[] 引用（数组序=用户排序）}`。不变量：无环 / 悬挂引
 
 ### 4.2 「书的身份」批复（完整理由与讨论见 §6）
 
-> 本表是「书的身份」的**权威批复表**；§6 只留结论要点与沿革（过程与提案已删，避免与 §1/§2 重复）。
+> 本表是「书的身份」的**权威批复表**；§6 只留结论要点与待议项。
 
 | # | 决定 |
 |---|---|
@@ -321,51 +320,22 @@ F10 Pro 功能边界（详见 §6.4）。
 
 ## 5. 开放问题（待批复）
 
-> 第 6 条的前置阻塞已解（「笔记身份」已在 §4.2 D8 定案：笔记挂 edition、各版一份），
-> v3 schema 已备好 `idx_notes_updated` / `idx_notes_owner`（§2）。
 > 第 6 条**已批复**（用户定）：v1 检索用 `LIKE` 子串、不引入 FTS5，范围 = 只搜笔记；
-> 形态与契约 = `FEATURES.md` §12 + `CONTRACTS.md` §4.4。详见该条末尾。
+> 契约 = `CONTRACTS.md` §4.4 + 形态 = `FEATURES.md` §12。详见该条末尾。
 
 1. ~~better-sqlite3 vs sql.js~~ **已解（spike 全绿，见 §1）**：走 better-sqlite3@12 原生 +
-   prebuild（electron-v130）+ asarUnpack。待办收敛为一件小事：新机器 `npm install` 后须手动
-   `npm run rebuild:sqlite`（脚手架已备），不做 postinstall（失败会挂安装，且需代理）。
-2. ~~迁移~~ **已落地**：init 内 one-shot 迁移器（`sqliteStore.ts`）——
-   books 全量（事务）+ settings（config.json；旧格式 library.json 内嵌 settings 也收）→
-   meta 表写标记（防删光书后从留档复活）→ 旧文件改名 `*.migrated` 留档（回退旧版客户端即可还原）。
+   prebuild（electron-v130 = Electron 33）+ asarUnpack。待办收敛为一件小事：新机器 `npm install`
+   后须手动 `npm run rebuild:sqlite`（脚手架已备），不做 postinstall（失败会挂安装，且需代理）。
+2. ~~迁移~~ **已落地**：`migrate.ts` 的 `runMigrations`（T1 旧 JSON / T2 多 `.db` 合并，§6.3）——
+   **尽力而为**：坏文件跳过、单个旧库失败不阻断其余库；标记写 `meta.migrated_v3`
+   （`failed` 可重试，成功前不覆盖旧引导文件）；旧文件改名 `*.migrated` 留档
+   （回退旧版客户端即可还原）。
 3. **高亮色的语义集合**是否就这四色（红黄绿蓝）？
 4. **墨迹同步体积**：存储即抽稀（~0.5px）是否可接受，还是保留原始笔迹。
 5. **书箱排序交互**：拖拽排序何时做（先数组序存储、UI 后补）。
-6. **(用户提问) 库级「笔记索引与管理」要不要引入倒查表？会影响实体层吗？**
-   —— 分析结论（**不影响实体层**，但会暴露两个既有实体层问题）：
-
-   **先看要回答哪些查询**（近千条笔记的索引页，见 `TODO.md` 库级笔记页面条目）：
-   ① 跨书按时间/按书列出与分页；② 每本书的笔记计数；③ 按颜色/有无正文筛选；
-   ④ **正文检索**（摘录 + 批注文字）；⑤ 点击 → 打开他书并落到锚点。
-
-   **哪些需要"倒查/倒排"结构**：
-   - ①–③ 用**普通 B-tree 索引**即可，不需要新结构。现有 `idx_notes_book(book_id, chapter_index)`
-     已覆盖"按书取笔记"；要跨书按时间排就再加 `notes(updated_at)`、需要颜色筛选再加
-     `notes(book_id, color)` —— **都是加索引，不是加表**。
-   - ④ **才是真正的倒排索引**，而 SQLite 自带现成方案：**FTS5 虚表 + 同步触发器**。
-     ✅ **已核实可用**：`better-sqlite3` 打包的原生模块里含 FTS5 符号 → **不需要引入任何新依赖**，
-     也不需要 wasm 方案。
-
-   **对实体层的影响**：
-   - **`Note` 实体不变**（仍是"书 + 锚点 + 可选正文 + 颜色"）。倒查表/FTS5 是**派生结构**，
-     属于存储实现，**藏在 ILibraryStore 后面**，领域层与 usecase 完全看不见。
-   - 变的是两处**实现面**：① `ILibraryStore` 长出几个**读模型方法**（如
-     `listAllNotes(filter)` / `searchNotes(q)` / `countNotesByBook()`）；② `SqliteStore` 内部
-     加索引 + （若上全文检索）FTS5 虚表 + 触发器 + 一次性迁移。
-   - ⚠ **但它会暴露两个既有实体层问题**（这才是"会不会影响实体层"的诚实答案）：
-     ① **跨库笔记身份**（`TODO.md` 已登记）：`notes.book_id → books.id`，同一本书登记进两个库
-     就是**两份笔记**。索引页一旦跨书聚合，用户第一个问题必然是"我在 A 库给这本书写的笔记，
-     为什么 B 库看不到"—— 这个问题在单书阅读时是隐形的，在库级索引页上是**显性的**。
-     所以**做索引页之前或同时，得先定"笔记挂在书还是挂在书的内容（指纹）上"**。
-     ② **章标题缺失**：`notes` 只存 `chapter_index`，不存章标题 → 索引页现在只能显示"節 N"
-     （阅读器内的 `NotesPanel` 就是这么做的）。要显示"第 3 章 · 标题"就得**冗余存章标题**
-     （或查询时回查 `books.metadata`/目录）—— 那才是真正的表结构决定。
-   **结论**：倒查表本身**不动实体层**；动实体层的是它**照出来的**那两件事（笔记身份、章标题冗余）。
-   建议顺序：先定笔记身份 → 再落索引页（含 FTS5）。
+6. **库级「笔记索引与管理」要不要引入倒查表？会影响实体层吗？**
+   —— **不影响实体层**：`Note` 实体不变；倒查表/FTS5 属于**派生结构**（存储实现，
+   藏在 `ILibraryStore` 后面，领域层与 usecase 看不见）。
 
    ---
 
@@ -376,6 +346,10 @@ F10 Pro 功能边界（详见 §6.4）。
      "跨书库全文搜索"是另一个专题（要抽全书文本；**扫描版 PDF 没有文本层**，注定有一块搜不到）。
    - **机制 = v1 `LIKE '%q%'` 子串匹配**（`NoteQuery.text`），**不引入 FTS5**；
      检索是 `NoteQuery` 的一个筛选维度，**不另立 `searchNotes`** —— 将来换实现**签名与语义都不变**。
+   - **读模型（已实现）**：`listAllNotes(NoteQuery)` / `countAllNotes(NoteQuery)`（同口径筛选与
+     计数）。库作用域 = 该库**收录**范围内的 edition（`holdings` 的 EXISTS——笔记挂 edition、
+     不挂库，同一 edition 被多库收录不重复出行）；「划线 / 批注」筛选判据 = `body` 是否为空，
+     **不是 `kind`**（二者在实现里可矛盾，`NoteQuery.hasBody` / `NoteFilter`）。
    - **实测（Electron 的 better-sqlite3，SQLite 3.53.2，2000 条中文笔记）**：
 
      | 方案 | 中文子串命中 | 单次耗时 | 额外体积 | 落地成本 |
@@ -388,25 +362,24 @@ F10 Pro 功能边界（详见 §6.4）。
      → 一整串汉字被当成**一个 token**（`高级运动营养学第三章` 是一个词），查词中间的子串永不命中；
      连原样查也要写前缀 `高级运动营养学*` 才可能中。`trigram`（每 3 字符一项）恢复正确，
      但**查询串须 ≥3 字符** —— 中文双字词（营养/睡眠/训练）太常见，故**上了 FTS5 仍要保留 LIKE 兜底**。
-   - **FTS5 换装条件**（满足其一再上，且**换装不动契约**）：
-     ① 笔记达到**万条量级**；② 需要**相关度排序**（`bm25`）或**片段高亮**（`snippet`）；
-     ③ 检索成为**主路径**而非附属筛选。换装时**必须**：用 `trigram` 分词器（默认分词器对中文失效）、
-     对 <3 字查询**回落 LIKE**、给 `notes` 补增删改**同步触发器**（漏了 = 静默陈旧）。
-   - ⚠ **两个会静默通过的坑（本次探针实测踩到，先记下免得将来重踩）**：
+   - **FTS5 换装条件**（满足其一再上，且**换装不动契约**；better-sqlite3 原生模块已含 FTS5 符号，
+     换装不需新依赖）：① 笔记达到**万条量级**；② 需要**相关度排序**（`bm25`）或**片段高亮**
+     （`snippet`）；③ 检索成为**主路径**而非附属筛选。换装时**必须**：用 `trigram` 分词器
+     （默认分词器对中文失效）、对 <3 字查询**回落 LIKE**、给 `notes` 补增删改**同步触发器**
+     （漏了 = 静默陈旧）。
+   - ⚠ **两个会静默通过的坑（探针实测踩到，防重踩）**：
      ① `'rebuild'` 特殊命令**只对外部内容表（`content=`）生效** —— 对普通 FTS5 表执行**不报错、留下一张空表**，
      表现为"命中恒 0 + 耗时极低"，看着像"语法不支持"；
      ② 建 FTS 表之后**必须自检行数**（与 `notes` 行数相等）—— 否则上述空表**无人发现**。
    - **章标题**：**v1 不冗余存** —— 列表显示「**書名 · 節 N**」（跨书列表里书名才是有用的标签）；
      要显示章名时再定列（`notes.chapter_title`）与写入时机（打开书时从目录快照取），**存量行为空**。
-     这一条把上文「② 章标题缺失」显式**推迟**，不是遗忘。
 
 ---
 
 ## 6. 「书的身份」定案与沿革（要点）
 
 > 三问（可见性与追踪 / 笔记身份 / 阅读时间模型）**本质同一问**：「虚拟映射下什么算同一本书」。
-> **结论已全部落进 §1/§2/§4.2**，本节只留**结论要点 + 为什么这么定 + 已登记的待议项** ——
-> 不再保留讨论过程与提案表（那些已被上文取代，留着只会重复）。
+> **结论已全部落进 §1/§2/§4.2**，本节只留**结论要点 + 为什么这么定 + 已登记的待议项**。
 
 ### 6.1 定案要点（权威在 §4.2）
 
@@ -435,24 +408,19 @@ F10 Pro 功能边界（详见 §6.4）。
 | 术语 | 含义 | 代码标识 |
 |---|---|---|
 | **收录**（Holding） | 「哪个书库里有这本书」这条关系 | `holdings` |
-| **映射库** | 跟踪**唯一真实文件夹**，层级 = 文件系统 | `mode: 'mapped'`（原 `'source'`） |
-| **自建库** | 空库起步，用户自建书箱树 | `mode: 'curated'`（原 `'virtual'`） |
+| **映射库** | 跟踪**唯一真实文件夹**，层级 = 文件系统 | `mode: 'mapped'`（旧库 `'source'` 由迁移器映射为它） |
+| **自建库** | 空库起步，用户自建书箱树 | `mode: 'curated'`（旧库 `'virtual'` 同） |
 | **来源缺失** | 真实路径上找不到该文件 | `holdings.missing` |
-
-> 旧的 `'source' | 'virtual'` **一读就错**（"虚拟映射"是 `source`、"自建"是 `virtual`），已改名。
 
 ### 6.3 状态转移（实现时最容易出事的地方）
 
 | # | 转移 | 触发 | 口径 |
 |---|---|---|---|
 | T1 | 旧 JSON → 全局单库 | 老版本升级 | `migrate.ts` 的 `migrateFromJson` |
-| T2 | **多 `.db` → 全局单库** | 本次架构变更 | `migrateFromV2`：**同指纹归并到第一条 edition**、笔记重挂、旧文件留档可回退 |
+| T2 | **多 `.db` → 全局单库** | v2 → v3 升级 | `migrateFromV2`：**同指纹归并到第一条 edition**、笔记重挂、旧文件留档可回退 |
 | T3 | `fp:…` → `work:…` | 补 ISBN / 远期 OCR | **只改 `editions.work_id` 一列，笔记零重写** |
 | T4 | 匿名本地 → 已登录 | 用户主动登录 | 认领（回填 `owner`）；退出登录**不删**本地数据 |
 | T5 | 跨设备同步 | 登录 + server | v1 明确排除笔记同步 |
-
-⚠ **全局库文件名不能是 `turead.db`**（旧默认库的文件名，旧 schema）—— 同名会让
-`CREATE TABLE IF NOT EXISTS` 静默跳过旧表、随后新列索引崩在启动路径上。现用 `store.db`。
 
 ### 6.4 已登记、尚未拍板的项
 

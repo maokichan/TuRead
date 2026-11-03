@@ -111,7 +111,7 @@ export function BookRow({
             style={{ backgroundImage: `url(${coverUrl})` }}
           />
         ) : (
-          <FittedTitle text={title} maxSize={34} minSize={9} paddingRatio={0.03} />
+          <FittedTitle text={title} maxSize={34} minSize={10} paddingRatio={0.03} />
         )}
       </div>
 
