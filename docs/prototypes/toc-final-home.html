@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>內嵌目錄 · 掛載線退役剩餘批次（樣張）</title>
+<!--
+  方向（用戶已定，2026-11-03 會話）：
+  ① 掛載線退役 = 只去掉「線」這個語法（線本體/掛載點/垂掛揭幕）；目錄保留在閱讀器（閱讀卡）內部——已決策。
+  ② 目錄新形態 = **內嵌式**：住閱讀卡內部的**左緣**、掛靠閱讀器邊緣、低注意力；
+     視覺 = 「透明字符 + 邊緣陰影」的擬物（壓印/letterpress）質感——不只是現有的 hover 高亮語義。
+  ③ 新設計課題 = 閱讀器內部的**權重模型**（過去未顯式設計）：右卡片頁寬度目前固定，但存在調整的必要；
+     當它向左擠壓時，要有顯式的讓位優先級——內容界面（紙）在不必要的時候絕不能動（寬度變 = 排版變）；
+     有的要被捨去，有的要被保留。
+  本樣張可感受：壓印字目錄（靜息幾乎隱沒、接近顯影、hover 高亮）、右卡寬度拉伸時的讓位階段。
+  顏色/時長/曲線 = TuRead token 鏡像（值鏡像自 client/src/renderer/src/styles.css；探索原型，
+  產品實現時回到真 token，不得從這裡複製值）。本地靜態服務器打開。
+-->
+<style>
+/* ======== TuRead token 鏡像（值 = styles.css；僅原型用） ======== */
+:root {
+  --bg: #f7f5f0;            /* 底板（羊皮紙·亮 取向） */
+  --desk-bg: #efece4;       /* 卡面（桌） */
+  --page-bg: #faf8f2;       /* 紙 */
+  --page-edge: #d8d3c6;
+  --panel-2: #e7e3d8;
+  --border: #c9c2b2;
+  --border-soft: #dcd6c8;
+  --text: #2b2822;
+  --muted: #7a745f;
+  --page-text: #3a362c;
+  --accent: #8a6d3b;
+  --accent-soft: rgba(138, 109, 59, 0.14);
+  --radius-panel: 12px;
+  --radius-control: 4px;
+  --shadow-panel: 0 2px 10px rgba(60, 52, 30, 0.12);
+  --rail-gap: 16px;
+  --inset-x: 20px;
+  --sidebar-w: 56px;
+  --dur-hover: 160ms;
+  --dur-panel: 220ms;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --font-ui: 'Times New Roman', 'GenRyuMin TW', 'GenRyuMin', 'Source Han Serif SC', 'Songti SC', serif;
+  /* 權重模型（樣張內可調） */
+  --card-page-w: 280px;     /* 右卡片頁寬度（滑桿可調 220~520） */
+  --toc-embed-w: 280px;     /* 內嵌目錄區寬度（讓位時收縮） */
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font-ui);
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ======== 頂部控制檯（原型專用） ======== */
+#console {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 20px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 13px;
+}
+#console b { font-weight: normal; color: var(--muted); }
+#console input[type="range"] { width: 160px; accent-color: var(--accent); }
+#console label { display: flex; align-items: center; gap: 6px; color: var(--text); cursor: pointer; }
+#console .val { color: var(--muted); font-size: 12px; min-width: 5em; }
+
+/* ======== 閱讀狀態構圖 ======== */
+#desk {
+  position: fixed; inset: 52px var(--inset-x) var(--inset-x) calc(var(--sidebar-w) + var(--inset-x));
+  display: flex;
+  gap: var(--rail-gap);
+}
+.card {
+  background: var(--desk-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+/* 閱讀卡：內嵌目錄住在它的左緣（卡片內部，非兄弟卡） */
+#readerCard { flex: 1; min-width: 0; position: relative; }
+
+/* ======== 內嵌目錄（左緣 · 掛靠閱讀卡邊緣 · 低注意力） ========
+   容器全透明（§5.8 語彙不變），擬物感全部在**字符**上：
+   靜息 = 字色近乎透明 + 雙向邊緣陰影（壓進桌面的 letterpress 質感）；
+   接近 = 字色按距離顯影（遮罩按距離的語義換裝到字色上）；
+   hover = 現有高亮語義保留（accent + soft 底）。 */
+#tocEmbed {
+  position: absolute; top: 0; bottom: 0; left: 0;
+  width: var(--toc-embed-w);
+  padding: 14px 8px 14px 18px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  z-index: 3;
+}
+#tocEmbed::-webkit-scrollbar { width: 0; }
+.toc-row {
+  font-size: 14px; line-height: 2.1; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+  /* 壓印字：透明字符 + 邊緣陰影（值在 JS 里按距離插值，這里是靜息態） */
+  color: rgba(43, 40, 34, 0.12);
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.65),   /* 壓痕下緣的反光 */
+    0 -1px 1px rgba(43, 40, 34, 0.22);   /* 壓痕上緣的陰影 */
+  transition: color var(--dur-hover) ease;
+}
+.toc-row.l2 { padding-left: 1.5em; font-size: 13px; }
+.toc-row.l3 { padding-left: 3em; font-size: 13px; }
+.toc-row[data-on="true"] {   /* hover/接近滿值：現有高亮語義 */
+  color: var(--accent);
+  background: var(--accent-soft);
+  text-shadow: none;
+}
+/* 擬物開關關閉時 = 現狀語彙（靜息淡字、無陰影） */
+body[data-emboss="off"] .toc-row {
+  color: rgba(43, 40, 34, 0.38);
+  text-shadow: none;
+}
+
+/* ======== 紙（內容界面 · 權重最高） ========
+   寬度 = 排版 = 最後才讓的東西；讓位階段里它只**移位**（排版不變）、不變寬。 */
+#paper {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: var(--page-bg);
+  border: 1px solid var(--page-edge);
+  overflow-y: auto;
+  padding: 44px 48px 120px;
+  z-index: 5;   /* 疊在閱讀卡面上；內嵌目錄讓到位後紙才允許靠近它 */
+  transition: left var(--dur-panel) var(--ease-out), width var(--dur-panel) var(--ease-out);
+}
+#paper p {
+  font-size: 17px; line-height: 1.9; color: var(--page-text);
+  text-indent: 2em; margin: 0 0 0.9em;
+  -webkit-user-select: text; user-select: text;
+}
+#paper h1 {
+  font-size: 20px; font-weight: normal; text-align: center;
+  margin: 0 0 1.4em; letter-spacing: 0.08em; color: var(--page-text);
+}
+
+/* ======== 右卡片頁 ======== */
+#cardPage { width: var(--card-page-w); flex: none; transition: width var(--dur-panel) var(--ease-out); }
+.rail-tabs { display: flex; flex: none; padding-top: 2px; border-bottom: 1px solid var(--border-soft); }
+.rail-tabs__tab {
+  flex: 1; border: 0; background: none; font-family: inherit;
+  font-size: 13px; color: var(--muted); padding: 8px 0 7px; cursor: pointer;
+}
+.rail-tabs__tab[aria-selected="true"] { color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+.cardpage-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 14px; }
+.fold-line { border-top: 1px solid var(--border-soft); margin: 10px 0 6px; }
+.fold-btn {
+  display: block; margin: 0 auto; border: 0; background: none; font-family: inherit;
+  font-size: 13px; color: var(--muted); cursor: pointer; padding: 4px 10px;
+}
+.fold-btn:hover { color: var(--text); }
+
+/* ======== m1：正文右鍵菜單（§5.2 例外⑥ 語彙） ======== */
+#ctxmenu {
+  position: fixed; z-index: 40; display: none;
+  background: var(--panel-2); border: 1px solid var(--border);
+  min-width: 132px; padding: 2px 0;
+}
+#ctxmenu .mi {
+  font-family: inherit; font-size: 14px; color: var(--text);
+  background: none; border: 0; display: block; width: 100%; text-align: left;
+  padding: 5px 14px; cursor: pointer;
+}
+#ctxmenu .mi:hover { background: var(--accent-soft); color: var(--accent); }
+
+/* ======== m2：右緣懸停召喚（開關在右下角） ======== */
+#edgeZone {
+  position: fixed; top: 30%; bottom: 30%; right: 0; width: 6px; z-index: 30;
+  display: none; cursor: pointer;
+}
+#m2hint {
+  position: fixed; right: 12px; bottom: 12px; z-index: 50;
+  font-size: 12px; color: var(--muted);
+  display: flex; gap: 8px; align-items: center;
+}
+#m2hint button {
+  font-family: inherit; font-size: 12px; border: 1px solid var(--border);
+  background: var(--desk-bg); color: var(--text); padding: 2px 10px; cursor: pointer;
+  border-radius: var(--radius-control);
+}
+
+/* ======== 讓位階段說明條 ======== */
+#annotation {
+  position: fixed; left: calc(var(--sidebar-w) + var(--inset-x)); right: var(--inset-x); bottom: 0;
+  z-index: 45; padding: 8px 14px;
+  font-size: 12.5px; color: var(--muted); line-height: 1.7;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  border-top: 1px solid var(--border-soft);
+}
+#annotation b { color: var(--text); font-weight: normal; }
+</style>
+</head>
+<body data-emboss="on">
+
+<div id="console">
+  <b>右卡寬度</b>
+  <input type="range" id="cardWRange" min="220" max="640" step="20" value="280" />
+  <span class="val" id="cardWVal">280px</span>
+  <label><input type="checkbox" id="embossToggle" checked /> 壓印字（擬物）</label>
+  <span class="note" style="color: var(--muted); font-size: 12px;">把右卡拉寬，感受讓位階段；鼠標移進左緣目錄感受壓印顯影</span>
+</div>
+
+<div id="desk">
+  <!-- 閱讀卡：內嵌目錄 + 紙都算它的內部世界；紙疊在卡面上 -->
+  <div class="card" id="readerCard">
+    <div id="tocEmbed"></div>
+  </div>
+
+  <!-- 紙（內容界面）：位置由權重模型算（JS），寬度最後才讓 -->
+  <div id="paper">
+    <h1>第十二章　　星表與航路</h1>
+    <p>航海者靠星辰定位，讀書人靠目錄定位。目錄不是書的裝飾，是書的星表——它在哪裡出現，
+    決定了讀者回頭找路時要抬幾次頭。掛載線退役之後，星表沉進了桌面的木紋裡：平時幾乎看不見，
+    燈光靠近時一個字一個字地浮出來。</p>
+    <p>這就是內嵌：不是一塊面板，不是一條線，而是桌面本身的一部分。字符壓進木紋，
+    邊緣留著陰影和反光；你的目光掃過去，它們才顯影成完整的字。</p>
+    <p>在紙上按右鍵可以呼出 m1 菜單；把頂部的「右卡寬度」拉桿向右拉，體會讓位的順序——
+    紙先讓位置（排版不變），再讓目錄區，最後才允許動紙的寬度，而且那是被標紅的最後手段。</p>
+  </div>
+
+  <!-- 右卡片頁（權重模型里它是寬度可調的一方） -->
+  <div class="card" id="cardPage">
+    <div class="rail-tabs" id="cardTabs"></div>
+    <div class="cardpage-body" id="cardBody"></div>
+    <div style="flex:none">
+      <div class="fold-line"></div>
+      <button class="fold-btn" id="foldCard">折疊</button>
+    </div>
+  </div>
+</div>
+
+<!-- m1：右鍵菜單 -->
+<div id="ctxmenu"></div>
+<!-- m2：右緣懸停召喚 -->
+<div id="edgeZone" title="懸停召喚卡片頁"></div>
+<div id="m2hint"><span>m2 右緣懸停召喚</span><button id="m2Toggle">關</button></div>
+
+<div id="annotation"></div>
+
+<script>
+/* ===================== 目錄數據（示意） ===================== */
+const TOC = [
+  ['l1', '第一章　　序'],
+  ['l1', '第二章　　帆與龍骨'],
+  ['l2', '2.1　選木'],
+  ['l2', '2.2　龍骨的形制'],
+  ['l1', '第三章　　星表'],
+  ['l2', '3.1　黃道座標'],
+  ['l3', '3.1.1　歲差'],
+  ['l1', '第四章　　航路'],
+  ['l1', '第五章　　港'],
+  ['l1', '第六章　　風'],
+  ['l1', '第七章　　羅盤'],
+  ['l1', '第八章　　潮汐表'],
+  ['l1', '第九章　　夜航'],
+  ['l1', '第十章　　霧'],
+  ['l1', '第十一章　燈塔'],
+  ['l1', '第十二章　星表與航路'],
+  ['l1', '第十三章　歸航'],
+  ['l1', '第十四章　附錄：術語表'],
+]
+
+const tocEmbed = document.getElementById('tocEmbed')
+const paper = document.getElementById('paper')
+const cardPage = document.getElementById('cardPage')
+const tabsEl = document.getElementById('cardTabs')
+const cardBody = document.getElementById('cardBody')
+const ctxmenu = document.getElementById('ctxmenu')
+const annotation = document.getElementById('annotation')
+const desk = document.getElementById('desk')
+
+for (const [lv, label] of TOC) {
+  const el = document.createElement('div')
+  el.className = 'toc-row ' + lv
+  el.textContent = label
+  el.onclick = () => {}
+  tocEmbed.appendChild(el)
+}
+const rows = [...tocEmbed.querySelectorAll('.toc-row')]
+
+/* 參數/筆記面示意行 */
+function fillBody(which) {
+  cardBody.textContent = ''
+  const data = which === 'notes'
+    ? ['「航海者靠星辰定位」　註', '「目錄不是書的裝飾」', '「抬幾次頭」　註']
+    : [['字號', '17'], ['行距', '1.75'], ['段距', '8'], ['紙寬', '760'], ['佈局', '滾動']]
+  for (const t of data) {
+    const el = document.createElement('div')
+    el.className = 'toc-row'
+    el.textContent = Array.isArray(t) ? t[0] + '　' + t[1] : t
+    cardBody.appendChild(el)
+  }
+}
+let tab = 'params'
+function renderTabs() {
+  tabsEl.textContent = ''
+  for (const [key, label] of [['params', '參數'], ['notes', '筆記']]) {
+    const b = document.createElement('button')
+    b.className = 'rail-tabs__tab'
+    b.textContent = label
+    b.setAttribute('aria-selected', String(tab === key))
+    b.onclick = () => { tab = key; renderTabs(); fillBody(tab) }
+    tabsEl.appendChild(b)
+  }
+}
+renderTabs()
+fillBody('params')
+
+/* ===================== 權重模型（樣張演示） =====================
+   幾何鏡像真機默認態：紙左緣 = 目錄區右緣 + 一道溝（280+16=296），紙右緣與閱讀卡右緣齊平
+   （752 = 1048−296，與現狀逐像素一致）。
+   讓位順序（用戶定方向）：內嵌目錄區先收縮 → 目錄捨去（紙貼卡左緣、寬度不變）→
+   紙寬收縮 = 紅線最後手段（排版改變，真機須在更上游攔住）。
+   與批1.18 的分工：開合卡片頁（瞬態）不動紙；權重變更（配置性、持續的）按序讓位，
+   紙的寬度（= 排版）永遠是最後一項。 */
+const PAPER_W0 = 752         // 紙的檔位寬（樣張值）
+const TOC_W0 = 280           // 目錄區的原生寬
+let cardW = 280
+
+function layout() {
+  cardW = Number(document.getElementById('cardWRange').value)
+  cardPage.style.width = cardW + 'px'
+  document.getElementById('cardWVal').textContent = cardW + 'px'
+  const W = desk.clientWidth
+  const slotW = cardPage.style.display === 'none' ? 0 : cardW + 16
+  const readerW = W - slotW                     // 閱讀卡寬
+
+  // ①② 目錄區收縮：紙寬保持 752 所允許的最大目錄區
+  let tocW = Math.max(0, Math.min(TOC_W0, readerW - 16 - PAPER_W0))
+  // ③ 目錄捨去後紙貼卡左緣；仍不夠 → 紙寬收縮（紅線）
+  const px = tocW > 0 ? tocW + 16 : 16
+  const pw = Math.min(PAPER_W0, readerW - px)
+
+  tocEmbed.style.display = tocW <= 0 ? 'none' : 'block'
+  if (tocW > 0) tocEmbed.style.width = tocW + 'px'
+  paper.style.width = pw + 'px'
+  paper.style.left = px + 'px'
+
+  // 階段判讀（說明條）
+  let stage
+  if (tocW === TOC_W0) stage = '<b>階段①</b>：現狀幾何——紙與目錄區互不擠壓（真機默認態逐像素一致）'
+  else if (tocW > 0) stage = '<b>階段②</b>：內嵌目錄區收縮至 ' + Math.round(tocW) + 'px——紙寬與排版不變，目錄行隨寬度截斷'
+  else if (pw >= PAPER_W0) stage = '<b>階段③</b>：目錄捨去，紙貼卡左緣——寬度與排版仍然不變'
+  else stage = '<b>紅線</b>：紙寬收縮至 ' + Math.round(pw) + 'px——排版改變，讓位序列耗盡後的最後手段（真機須在更上游攔住：擋住過寬的卡、或徵得用戶確認）'
+  annotation.innerHTML =
+    '權重（用戶定方向）：紙（內容界面）最保 → 內嵌目錄 → 桌面留白最先讓；紙寬 = 排版 = 最後手段。' +
+    '批1.18 管「開合不動紙」（瞬態）；本模型管「配置變更時誰讓位」（持續）。當前：' + stage
+}
+
+/* 滑桿 */
+document.getElementById('cardWRange').addEventListener('input', layout)
+window.addEventListener('resize', layout)
+/* 樣式收斂後再算（首次 layout 可能讀到未定型的 clientWidth） */
+requestAnimationFrame(() => requestAnimationFrame(layout))
+
+/* ===================== 壓印字顯影（遮罩按距離 → 字色按距離） =====================
+   真機 = veil.ts 按距離寫因子；樣張同口徑：距離 < 110px 線性顯影，hover = 高亮語義。 */
+const RADIUS = 110
+tocEmbed.addEventListener('mousemove', (e) => {
+  const emboss = document.body.dataset.emboss === 'on'
+  for (const row of rows) {
+    const r = row.getBoundingClientRect()
+    const dx = Math.max(r.left - e.clientX, 0, e.clientX - r.right)
+    const dy = Math.max(r.top - e.clientY, 0, e.clientY - r.bottom)
+    const d = Math.hypot(dx, dy)
+    const near = 1 - Math.min(d / RADIUS, 1)
+    if (near >= 1) {
+      row.dataset.on = 'true'
+      row.style.color = ''
+    } else {
+      delete row.dataset.on
+      const a = 0.12 + 0.88 * near
+      row.style.color = emboss ? 'rgba(43, 40, 34, ' + a.toFixed(2) + ')' : 'rgba(43, 40, 34, ' + (0.38 + 0.62 * near).toFixed(2) + ')'
+    }
+  }
+})
+tocEmbed.addEventListener('mouseleave', () => {
+  for (const row of rows) {
+    delete row.dataset.on
+    row.style.color = ''
+  }
+})
+
+/* 擬物開關 */
+document.getElementById('embossToggle').addEventListener('change', (e) => {
+  document.body.dataset.emboss = e.target.checked ? 'on' : 'off'
+})
+
+/* ===================== m1：正文右鍵菜單 ===================== */
+paper.addEventListener('contextmenu', (e) => {
+  e.preventDefault()
+  ctxmenu.textContent = ''
+  const items = [
+    ['目錄（內嵌左緣）', () => { tocEmbed.style.display = 'block'; layout() }],
+    ['參數', () => { tab = 'params'; cardPage.style.display = 'flex'; renderTabs(); fillBody('params'); layout() }],
+    ['筆記', () => { tab = 'notes'; cardPage.style.display = 'flex'; renderTabs(); fillBody('notes'); layout() }],
+  ]
+  for (const [label, fn] of items) {
+    const b = document.createElement('button')
+    b.className = 'mi'
+    b.textContent = label
+    b.onclick = () => { ctxmenu.style.display = 'none'; fn() }
+    ctxmenu.appendChild(b)
+  }
+  ctxmenu.style.display = 'block'
+  ctxmenu.style.left = Math.min(e.clientX, window.innerWidth - 150) + 'px'
+  ctxmenu.style.top = Math.min(e.clientY, window.innerHeight - 130) + 'px'
+})
+window.addEventListener('click', () => { ctxmenu.style.display = 'none' })
+
+/* ===================== m2：右緣懸停召喚（默認關） ===================== */
+const edgeZone = document.getElementById('edgeZone')
+const m2Toggle = document.getElementById('m2Toggle')
+m2Toggle.onclick = () => {
+  const on = edgeZone.style.display !== 'block'
+  edgeZone.style.display = on ? 'block' : 'none'
+  m2Toggle.textContent = on ? '開（右緣 hover）' : '關'
+}
+edgeZone.addEventListener('mouseenter', () => {
+  if (cardPage.style.display === 'none') { cardPage.style.display = 'flex'; layout() }
+})
+
+document.getElementById('foldCard').onclick = () => {
+  cardPage.style.display = 'none'
+  annotation.innerHTML = '（右卡片頁已折疊）折疊 = 瞬態開合——批1.18 的管轄：紙紋絲不動。刷新頁面回到預設。'
+  layout()
+}
+
+layout()
+</script>
+</body>
+</html>
