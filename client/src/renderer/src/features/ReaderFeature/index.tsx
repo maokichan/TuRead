@@ -30,6 +30,7 @@ import type {
 import type { RenderContextMenuRequest, RenderSelection } from '@core/ports/render'
 import type { PluginReaderContext } from '@shared/plugin'
 import type { FeatureProps } from '../types'
+import { useReadSessionRecorder } from './readSessionRecorder'
 import type { TocRow } from '../../components/TocPanel'
 import { ReaderRail, type CardPageKind } from '../../components/ReaderRail'
 import {
@@ -717,6 +718,10 @@ export function ReaderFeature({
         autoFullscreenRef.current = cfg.readerFullscreen === true
       })
   }, [container])
+
+  // 阅读会话记录器（批1.24，口径 = 失焦暂停/边界落笔/<10s 丢弃，见 readSessionRecorder.ts）：
+  // enabled = 阅读态（阅读器激活且开着书）；换书/关标签由 editionId/enabled 变化经卸载路径 flush。
+  useReadSessionRecorder(container, activeFeature === 'reader' && readerBookId !== null, readerBookId)
 
   // 进入阅读器 = 进入全屏（只在"进入"这一跳触发）。⚠ 依赖里没有 `fullscreen`：
   // 若把它放进来，Esc 退全屏的广播会让本 effect 重跑、把用户刚退出的全屏又顶回去。

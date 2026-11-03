@@ -30,3 +30,6 @@ tools/swarm/roombot.cjs
 .shot-*.png
 .winrect.ps1
 .probe-shot/
+.spike-*
+.style-server.log
+.probe-run*.log

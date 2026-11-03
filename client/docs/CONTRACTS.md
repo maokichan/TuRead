@@ -446,6 +446,10 @@ interface ILibraryStore {
   updateReadingLocation(editionId: string, location: BookLocation, lastReadAt: number): Promise<void>;
   appendReadingSession(session: Omit<ReadingSession, 'id'>): Promise<void>;
   totalReadMsByWork(work: WorkIdentity): Promise<number>;
+  /** 逐日阅读分钟数（批1.24，贡献图）：本地时区归日、稀疏（只含有会话的日子）、分钟可为小数 */
+  readMinutesByDay(days: number): Promise<ReadDayMinutes[]>;
+  /** 阅读时长 Top N（批1.24，Top 榜）：reading_state 投影倒序（含迁移旧账），书名随行 */
+  topReadEditions(limit: number): Promise<TopReadEdition[]>;
   getLastReadEdition(): Promise<EditionRecord | null>;
   // —— 封面（edition 级：封面由内容决定）——
   setCover(editionId: string, bytes: ArrayBuffer, ext: string): Promise<string>;

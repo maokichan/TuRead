@@ -33,7 +33,9 @@ import type {
   Note,
   ReadingSession,
   ReadingState,
-  WorkIdentity
+  WorkIdentity,
+  ReadDayMinutes,
+  TopReadEdition
 } from '@core/domain/types'
 import type {
   LibraryLevelQuery,
@@ -714,6 +716,38 @@ export class SqliteStore {
       )
       .get(work.protocol, work.code) as { total: number } | undefined
     return row?.total ?? 0
+  }
+
+  /** 逐日阅读分钟数（批1.24，贡献图）：本地时区归日、只含有会话的日子（稀疏），最近 `days` 天 */
+  async readMinutesByDay(days: number): Promise<ReadDayMinutes[]> {
+    const rows = this.db
+      .prepare(
+        `SELECT date(started_at / 1000, 'unixepoch', 'localtime') AS day,
+                SUM(duration_ms) / 60000.0 AS minutes
+         FROM reading_sessions
+         WHERE started_at >= ?
+         GROUP BY day
+         ORDER BY day`
+      )
+      .all(Date.now() - days * 86_400_000) as Array<{ day: string; minutes: number }>
+    return rows
+      .filter((r) => typeof r.day === 'string' && r.minutes > 0)
+      .map((r) => ({ day: r.day, minutes: r.minutes }))
+  }
+
+  /** 阅读时长 Top N（批1.24，Top 榜）：reading_state 投影倒序（含迁移旧账），书名随行 */
+  async topReadEditions(limit: number): Promise<TopReadEdition[]> {
+    const rows = this.db
+      .prepare(
+        `SELECT rs.edition_id AS editionId, rs.total_read_ms AS totalMs, e.title AS title
+         FROM reading_state rs
+         JOIN editions e ON e.id = rs.edition_id
+         WHERE rs.total_read_ms > 0
+         ORDER BY rs.total_read_ms DESC
+         LIMIT ?`
+      )
+      .all(Math.max(1, Math.min(50, limit))) as Array<{ editionId: string; totalMs: number; title: string }>
+    return rows
   }
 
   /** 最近阅读的 edition（无阅读记录 → 回退最近入库） */

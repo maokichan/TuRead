@@ -135,6 +135,8 @@ export function registerIpc(
   ipcMain.handle(IPC.storeTotalReadMsByWork, (_e, work: WorkIdentity) =>
     store().totalReadMsByWork(work)
   )
+  ipcMain.handle(IPC.storeReadMinutesByDay, (_e, days: number) => store().readMinutesByDay(days))
+  ipcMain.handle(IPC.storeTopReadEditions, (_e, limit: number) => store().topReadEditions(limit))
   ipcMain.handle(IPC.storeGetLastReadEdition, () => store().getLastReadEdition())
 
   // ————— 书库（组织模式）—————

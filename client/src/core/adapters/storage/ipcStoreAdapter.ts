@@ -24,7 +24,9 @@ import type {
   Note,
   ReadingSession,
   ReadingState,
-  WorkIdentity
+  WorkIdentity,
+  ReadDayMinutes,
+  TopReadEdition
 } from '@core/domain/types'
 import { IPC, type TureadBridge } from '@shared/ipc'
 
@@ -145,6 +147,14 @@ export class IpcStoreAdapter implements ILibraryStore {
 
   async totalReadMsByWork(work: WorkIdentity): Promise<number> {
     return (await this.bridge.invoke(IPC.storeTotalReadMsByWork, work)) as number
+  }
+
+  async readMinutesByDay(days: number): Promise<ReadDayMinutes[]> {
+    return (await this.bridge.invoke(IPC.storeReadMinutesByDay, days)) as ReadDayMinutes[]
+  }
+
+  async topReadEditions(limit: number): Promise<TopReadEdition[]> {
+    return (await this.bridge.invoke(IPC.storeTopReadEditions, limit)) as TopReadEdition[]
   }
 
   async getLastReadEdition(): Promise<EditionRecord | null> {

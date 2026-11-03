@@ -20,7 +20,9 @@ import type {
   NoteColor,
   ReadingSession,
   ReadingState,
-  WorkIdentity
+  WorkIdentity,
+  ReadDayMinutes,
+  TopReadEdition
 } from '@core/domain/types'
 
 export interface LibraryListResult {
@@ -188,6 +190,17 @@ export interface ILibraryStore {
    * "我在这本书上花了多少时间"。无 work 时退化为单 edition。
    */
   totalReadMsByWork(work: WorkIdentity): Promise<number>
+  /**
+   * 逐日阅读分钟数（批1.24，贡献图数据源）：最近 `days` 天内**有会话的日子**（稀疏，空日由
+   * 渲染层补齐），按**本地时区**归日。数据源 = `reading_sessions`（逐日分布只有接入记录器后
+   * 才存在；迁移旧账只住在 `reading_state` 投影，画不进格子——FEATURES §12 的口径注记）。
+   */
+  readMinutesByDay(days: number): Promise<ReadDayMinutes[]>
+  /**
+   * 阅读时长 Top N（批1.24，Top 榜数据源）：按 `reading_state.total_read_ms` 投影倒序，
+   * **含迁移旧账**（接入记录器前也有数据）；书名随行（JOIN），渲染层不补 N+1。
+   */
+  topReadEditions(limit: number): Promise<TopReadEdition[]>
   /** 最近阅读的 edition（无阅读记录 → 回退最近入库）—— "进入阅读器恢复上次内容" */
   getLastReadEdition(): Promise<EditionRecord | null>
 

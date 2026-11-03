@@ -165,6 +165,20 @@ export interface ReadingSession {
   durationMs: number
 }
 
+/** 逐日阅读分钟数（批1.24）：`day` = 本地时区 `YYYY-MM-DD`；只含有会话的日子（稀疏）；
+ *  `minutes` 为小数（短会话不整除到 0——10s 的真实阅读也该在图上有一格的份） */
+export interface ReadDayMinutes {
+  day: string
+  minutes: number
+}
+
+/** 阅读时长 Top 条目（批1.24）：按 `reading_state.total_read_ms` 投影倒序，书名随行 */
+export interface TopReadEdition {
+  editionId: string
+  title: string
+  totalMs: number
+}
+
 /**
  * ⚠ **过渡别名（v0.4.0）**：`BookRecord` 现等同 `EditionRecord`（只承载**内容身份**）。
  * 保留是为了**把渲染层的爆炸半径压住**（`IRenderService.open` 只需内容身份：id/指纹/格式/路径/元数据）。

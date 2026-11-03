@@ -42,6 +42,8 @@ export const IPC = {
   storeUpdateReadingLocation: 'store:update-reading-location',
   storeAppendReadingSession: 'store:append-reading-session',
   storeTotalReadMsByWork: 'store:total-read-ms-by-work',
+  storeReadMinutesByDay: 'store:read-minutes-by-day',
+  storeTopReadEditions: 'store:top-read-editions',
   storeGetLastReadEdition: 'store:get-last-read-edition',
   // 书库（组织模式，v0.4.0：库是库内实体；main 在切换/新建成功后广播 library-changed）
   storeListLibraries: 'store:list-libraries',
