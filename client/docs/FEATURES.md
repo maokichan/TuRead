@@ -365,7 +365,7 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
   = **进入**全屏（幂等，**不切换** —— 退出走 `Esc` 分流）或设置开关「進入閱讀器時進入全屏」
   （默认关，`appearance.readerFullscreen`）= OS 级全屏（无标题栏可退场；底面全局件保持可见）；
   **离开阅读器时若仍全屏 → 退出全屏并保持最大化**。
-  `Esc` 分流（**用户纠正**：参数面板是常伴工具，Esc 顺手收面板是错误设计，面板开合只归挂载线）
+  `Esc` 分流（**用户纠正**：参数面板是常伴工具，Esc 顺手收面板是错误设计——面板开合只归「卡」按钮/键盘，批1.21 起）
   = 全屏先退全屏 → 否则退出阅读器；**离开阅读器自动还原窗口**（全屏只属于阅读态）。
   状态由 main 在 `enter/leave-full-screen` 广播，渲染层只订阅跟随（`win:*` IPC 与 ChromeControls 同为 Shell 镶边级例外）。
 - **iframe 事件桥（`components/iframeBridge.ts`）**：kookit 正文渲染在 iframe 里，
@@ -523,7 +523,7 @@ kookit 走 `StyleHelper.getDefaultCss(ConfigService)` 由**宿主注入 CSS**（
 
 ### 12.6 动作（右键菜单 / 複製 / 刪除）
 
-- **卡片右键 = 挂载线菜单**（复用 `ContextMenu` 形态；**语义按域** —— 右键在不同功能组件里语义不同）。项：
+- **卡片右键菜单**（复用 `ContextMenu` 直角形态——原挂载线语汇，`STYLE.md` §5.2 例外⑥；**语义按域**——右键在不同功能组件里语义不同）。项：
   - `跳轉` —— 等同双击；
   - `複製批註` —— **仅 `body` 非空时出现**；**只複製批註正文**，
     走新增端口 `IClipboard.writeText`（`CONTRACTS.md` §4.6）；

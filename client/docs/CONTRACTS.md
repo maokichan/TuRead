@@ -1,6 +1,6 @@
 # 客户端契约（Client Contracts）
 
-> 状态：v0.4.8（当前），版本速览见 §8；分层 = 能力服务（ports）与应用服务（用例）两层。
+> 状态：v0.4.10（当前），版本速览见 §8；分层 = 能力服务（ports）与应用服务（用例）两层。
 > 术语：六边形架构（端口-适配器）为骨架，DDD 命名为层内词汇（对照表见 `ARCHITECTURE.md` §1）。
 > 范围：仅 client 的层与接口契约；同步协议由 server 定义（`../../server/docs/API.md`）；类型 1:1 落到 `client/src/core/{domain,ports,usecases}/`。
 
@@ -693,6 +693,8 @@ interface ServiceContainer {
 
 | 版本 | 主题 |
 |---|---|
+| **v0.4.10** | 阅读时间（批1.24）：`store` 端口增 `readMinutesByDay(days)`（本地时区归日、稀疏、分钟小数）+ `topReadEditions(limit)`（投影倒序含旧账，书名随行）+ 领域类型 `ReadDayMinutes` / `TopReadEdition` |
+| **v0.4.9** | 跟随模式 v1（cowork 批）：`RailChatProps` 增 `following` / `onToggleFollow` 通道（开关在聊天格，FEATURES §15.3） |
 | **v0.4.8** | presence 载荷形状钉死 `{members:[...]}`（server v0.2.2 前发裸数组 → 真客户端成员快照恒空，蜂群首跑抓出）+ `normalizePresenceMembers` 双形状归一 + `WsNetAdapter.getMemberId` 对齐端口 Promise 签名（蜂群直连适配器时暴露） |
 | **v0.4.7** | 房间同步正确性批：`IRenderService.getOpenBook()`（位置上报前校验"事件属于房间的书"，审计 B-2）+ `JoinFailureReason` 补 `superseded`（并发 join 落败方，审计 C-2）+ `ConnectionState` 补 `failed`（重连耗尽可预期复位，审计 B-4）+ 聊天消息守卫补 `createdAt`（审计 C-5） |
 | **v0.4.6** | 插件契约 v1.1：通用能力 `net.fetch`（https 代理）与 `secrets`（safeStorage 保险库）+ 面板 `hideWhenInRoom`（AI 問格与聊天互斥用）+ `ctx.reader` 阅读上下文句柄（快照 + 溯源跳回） |
