@@ -12,8 +12,6 @@
 import { useEffect, useRef } from 'react'
 import type { Note } from '@core/domain/types'
 import { centerInScrollBox, activeNoteIndex } from './readerFollow'
-import type { ServiceContainer } from '@core/container'
-import { ReadingStatsSection } from './ReadingStats'
 
 export interface NotesPanelProps {
   /** 当前书的笔记（**必须是阅读序**：章 → 章内进度 → 创建时间，见 `domain/anchor.ts` 的 `compareNoteOrder`） */
@@ -31,8 +29,6 @@ export interface NotesPanelProps {
    * 有它时**优先**定位到这一条（只读，不改内容）；`tick` 变化即视为一次新请求。
    */
   focusNote?: { id: string; tick: number } | null
-  /** 容器（批1.24）：给了就在列表尾部挂「閱讀」统计段（贡献图 + Top5） */
-  container?: ServiceContainer
 }
 
 /** 摘录截断长度：够认出是哪一段即可（完整原文在笔记本体里） */
@@ -45,8 +41,7 @@ export function NotesPanel({
   onRemove,
   onEdit,
   activeChapter = 0,
-  focusNote = null,
-  container
+  focusNote = null
 }: NotesPanelProps): React.JSX.Element {
   const rowsRef = useRef<HTMLDivElement | null>(null)
   /** 根层引用：「折疊」灯光的绘制范围（笔记行少，不加热遮罩 —— 只有折疊按钮随光标点亮） */
@@ -123,7 +118,6 @@ export function NotesPanel({
           )
         })}
       </div>
-      {container && <ReadingStatsSection container={container} />}
     </div>
   )
 }

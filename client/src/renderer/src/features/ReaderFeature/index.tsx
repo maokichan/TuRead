@@ -1032,7 +1032,6 @@ export function ReaderFeature({
           pluginPanels={pluginPanels}
           readerContext={readerContext}
           cardSlot={cardSlot}
-                container={container}
         />
       )}
 

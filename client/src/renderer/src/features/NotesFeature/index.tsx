@@ -20,6 +20,7 @@ import type { FeatureProps } from '../types'
 import { NoteFlow, type NoteFlowItem } from '../../components/NoteFlow'
 import { chromeSearchBus } from '../chromeSearchBus'
 import { NotesToolbar } from '../../components/NotesToolbar'
+import { ReadingStatsSection } from '../../components/ReadingStats'
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 
@@ -225,6 +226,10 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
           这里改成"内容区自己滚"，避免两层滚动条。
           ⚠ 筛选/检索变化**不重建**本容器（刷新粒度纪律④）。 */}
       <div ref={scrollRef} className="cjk-ui min-h-0 flex-1 overflow-y-auto pr-1">
+        {/* 「閱讀」统计段（批1.24b 修订，用户定"放在左侧边栏的这个，统计全局"）：
+            寄生筆列表顶部，**全局口径**（跨书全库；逐日聚合与 Top 榜本就不带书过滤）。
+            放滚动容器内 = 随内容滚，不占常驻注意力；全宽 page 档两栏。 */}
+        <ReadingStatsSection container={container} variant="page" />
         {items.length > 0 ? (
           <NoteFlow
             view={settings.view}

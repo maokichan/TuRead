@@ -1577,6 +1577,28 @@ textarea {
   color: var(--muted);
 }
 
+/* page 档（批1.24b 修订：侧栏「筆」全宽页）：图 + 摘要在左、Top 榜在右的两栏；
+   窄卡不经过。段落自身在页里 = 内容流第一项，不再贴底。 */
+.reading-stats--page {
+  display: grid;
+  grid-template-columns: minmax(300px, max-content) 1fr;
+  gap: 4px 36px;
+  align-items: start;
+  padding-bottom: 4px;
+}
+
+.reading-stats--page .reading-stats__main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reading-stats--page .reading-stats__top {
+  margin-top: 0;
+  border-left: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
+  padding-left: 24px;
+}
+
 /* 悬停滚动层（批1.21 用户定"长目录别只省略"）：静息不存在；hover 换装成 Marquee
    无缝滚动读完全题（侧栏标签胶囊同款语汇），字色全强度，桌色垫底盖住下层；静态显影层让位 */
 .toc-row__roll {

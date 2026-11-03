@@ -10,8 +10,12 @@
  *   长题走 Marquee 悬停滚动（与目录条目同款语汇）；时长右对齐 muted。
  * - **无假交互**：格子不点（无按日下钻口径）、榜行不跳书（v1 只读）。
  *
+ * **落位（批1.24b 修订，用户定"放在左侧边栏的那个，统计全局"）**：住**侧栏「筆」功能**
+ * （笔记管理）列表顶部——统计 = **用户全局口径**（跨书、全库：逐日聚合与 Top 榜本就不带
+ * 书过滤）；先前误挂阅读器卡片页筆記页尾（当书语境），已撤。
+ * 布局两档：`card`（纵排，280px 卡）/ `page`（两栏：图 + 摘要在左、Top 榜在右，全宽页）。
  * 两件分离：`ReadingStatsView` = 纯视图（props 进数据，样张可挂 mock）；
- * `ReadingStatsSection` = 取数段（挂载时一次拉取，不订阅——"打开卡片页看一眼"的场景）。
+ * `ReadingStatsSection` = 取数段（挂载时一次拉取，不订阅——"进页看一眼"的场景）。
  */
 import { useEffect, useState } from 'react'
 import type { ReadDayMinutes, TopReadEdition } from '@core/domain/types'
@@ -44,7 +48,16 @@ function cellColor(minutes: number, max: number): string {
   return `color-mix(in srgb, var(--accent) ${pct}%, var(--panel-2))`
 }
 
-export function ReadingStatsView({ days, top }: { days: ReadDayMinutes[]; top: TopReadEdition[] }): React.JSX.Element {
+export function ReadingStatsView({
+  days,
+  top,
+  variant = 'card'
+}: {
+  days: ReadDayMinutes[]
+  top: TopReadEdition[]
+  /** card = 纵排（280px 卡片页）；page = 两栏（筆功能全宽页：图+摘要在左、榜在右） */
+  variant?: 'card' | 'page'
+}): React.JSX.Element {
   const byDay = new Map(days.map((d) => [d.day, d.minutes]))
   const cells: Array<{ key: string; minutes: number }> = []
   const today = new Date()
@@ -61,12 +74,13 @@ export function ReadingStatsView({ days, top }: { days: ReadDayMinutes[]; top: T
   const hasData = days.length > 0 || top.length > 0
 
   return (
-    <div className="reading-stats">
+    <div className={`reading-stats${variant === 'page' ? ' reading-stats--page' : ''}`}>
       <h4 className="reading-stats__title">閱讀</h4>
       {!hasData ? (
         <p className="reading-stats__empty">還沒有閱讀記錄</p>
       ) : (
         <>
+          <div className="reading-stats__main">
           <div className="reading-stats__graph" role="img" aria-label="最近 26 周每日閱讀時長貢獻圖">
             {cells.map((c) => (
               <span
@@ -82,6 +96,7 @@ export function ReadingStatsView({ days, top }: { days: ReadDayMinutes[]; top: T
             今日 {Math.round(todayMinutes)} 分鐘 · 本週 {Math.round(weekMinutes)} 分鐘
             <span className="reading-stats__note">（逐日記錄自批1.24 起）</span>
           </p>
+          </div>
           {top.length > 0 && (
             <div className="reading-stats__top">
               {top.map((t, i) => (
@@ -103,8 +118,14 @@ export function ReadingStatsView({ days, top }: { days: ReadDayMinutes[]; top: T
   )
 }
 
-/** 取数段（NotesPanel 尾部用）：挂载时一次拉取，不订阅（"打开卡片页看一眼"的场景） */
-export function ReadingStatsSection({ container }: { container: ServiceContainer }): React.JSX.Element {
+/** 取数段（侧栏「筆」列表顶部用）：挂载时一次拉取，不订阅（"进页看一眼"的场景） */
+export function ReadingStatsSection({
+  container,
+  variant = 'card'
+}: {
+  container: ServiceContainer
+  variant?: 'card' | 'page'
+}): React.JSX.Element {
   const [days, setDays] = useState<ReadDayMinutes[]>([])
   const [top, setTop] = useState<TopReadEdition[]>([])
   useEffect(() => {
@@ -119,5 +140,5 @@ export function ReadingStatsSection({ container }: { container: ServiceContainer
       cancelled = true
     }
   }, [container])
-  return <ReadingStatsView days={days} top={top} />
+  return <ReadingStatsView days={days} top={top} variant={variant} />
 }
