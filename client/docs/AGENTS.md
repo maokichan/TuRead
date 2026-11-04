@@ -14,7 +14,6 @@
 | `KOOKIT.md` / `RENDER_INTERFACE.md` | 渲染引擎逆向事实与适配器接口 | 阅读交互语义（归 FEATURES） |
 | `FEATURES.md` | 功能组件的交互语义权威（用户定案都在这） | 接口形状（归 CONTRACTS） |
 | `STYLE.md` | **渲染层视觉基线·主文件**：风格定性、空间语法词表（§1）、五条原则（§2）、子页索引、禁区（§6）、激进档（§7）+ [`style/`](style) 六子页（tokens / typography / components-shell / components-reader / components-notes / acceptance——原 § 编号在子页内不变，token 现值唯一来源 = `styles.css`） | 功能行为；令牌现值复读 |
-| `PLUGINS.md` | 插件的能力边界、开发标准、生命周期 | 接口形状（归 contracts/plugin-contract） |
 | `features/*.md` | **功能域参照页**（一页一域，feature-docs 机制）：架构锚点表、实现细节、验证路径 | 交互裁决（归 FEATURES）；接口形状（归 CONTRACTS）；视觉（归 STYLE） |
 | `BUILD.md` | **职能文档**：打包/滚版本/发版口径（不到打包环节不加载） | 测试与冒烟（归 docs/TESTING.md）；打包红线一行（常驻根 AGENTS） |
 

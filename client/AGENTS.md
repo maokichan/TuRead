@@ -10,7 +10,7 @@
 - `src/renderer/src` —— 渲染层：`components/`（含 `focusStageEngine` 等框架无关引擎）、
   `features/`（功能组件 + ServiceContainer）、`dev/`（探针）。依赖方向权威 = `docs/ARCHITECTURE.md` §2。
 - `docs/` —— client 域文档（下表）。`scripts/` —— 样式样张（style-gallery）、蜂群（swarm）、
-  ui-shot 与业务工具（清单见其 README）。`plugins/` —— 官方插件（规范 = `docs/PLUGINS.md`）。
+  ui-shot 与业务工具（清单见其 README）。`plugins/` —— 官方插件（**子树自持**：入口 `plugins/AGENTS.md`，规范 `plugins/PLUGINS.md`）。
 
 ## client/docs 导航（读序按需）
 

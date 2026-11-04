@@ -2,7 +2,7 @@
 
 > 本页 = 设置域的**架构锚点与实现细节**；设置页格局裁决（无标题/无提示/去线、布尔 =「關｜開」
 > 文字选项等，批1.22/1.23 用户定）的权威在 `STYLE.md` §5.7 与 `FEATURES.md` §8；插件注册表
-> （一行一生死）语义 = `FEATURES.md` §13.3 + `PLUGINS.md` §3。
+> （一行一生死）语义 = `FEATURES.md` §13.3 + `client/plugins/PLUGINS.md` §3。
 
 ## 1. 架构锚点
 
@@ -12,7 +12,7 @@
 | usecases | 无——`store` settings 键读写（`patchSetting` 原子合并）+ 主题应用 |
 | ports | `store`（appearance / librarySettings / plugins / deleteNotice / readerSettings 等键） |
 | domain | `core/domain/theme.ts`（103 行：2 tone × 2 mode + system resolve，与 reader 共享）；`input.ts` 的 DEFAULT_BINDINGS（快捷键只读清单的数据面） |
-| 缝合件 | `data-theme` 应用到 `<html>`（全局生效面）；插件启停 = 重载渲染层插件运行时（`PLUGINS.md` §3）；`system` 跟随 = `matchMedia` 解析并监听，只在暗/亮间切换 |
+| 缝合件 | `data-theme` 应用到 `<html>`（全局生效面）；插件启停 = 重载渲染层插件运行时（`client/plugins/PLUGINS.md` §3）；`system` 跟随 = `matchMedia` 解析并监听，只在暗/亮间切换 |
 
 ## 2. 实现细节
 
@@ -31,4 +31,4 @@
 ## 3. 验证路径
 
 `src/tests/styleGrammar.test.ts`（视觉 token 纪律，含主题面）· 样张：theme/token 面板段落 ·
-插件注册表链路 = `pluginManager.test.ts` / `pluginManifest.test.ts`（PLUGINS.md §3 验证面）。
+插件注册表链路 = `pluginManager.test.ts` / `pluginManifest.test.ts`（`client/plugins/PLUGINS.md` §3 验证面）。

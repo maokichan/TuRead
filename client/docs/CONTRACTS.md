@@ -11,9 +11,9 @@
 | [contracts/domain-types.md](contracts/domain-types.md) | 领域类型语义与裁决：书的身份四层拆分与不变量、笔记判据（body 非 kind）、设置全局纪律、wire 镜像注意点 | `src/core/domain/types.ts` |
 | [contracts/ports.md](contracts/ports.md) | 能力服务端口：端口↔适配器↔职责一览、行为契约（不级联/不静默/信任边界/节流责任/协议词汇收拢） | `src/core/ports/` |
 | [contracts/services-container.md](contracts/services-container.md) | 用例层编排语义：房间会话、两层导入、封面队列、映射库对账 + ServiceContainer 装配纪律 | `src/core/usecases/`、`src/core/container.ts` |
-| [contracts/plugin-contract.md](contracts/plugin-contract.md) | 插件契约：manifest / activate / 宿主义务 / IPC / 信任模型 | `src/shared/plugin.ts` 等 |
+| 插件契约（manifest / activate / 宿主义务 / IPC / 信任模型） | **归属 `client/plugins/PLUGINS.md`**（插件侧子树自持，形状权威 `src/shared/plugin.ts`） | `client/plugins/` |
 
-旁系权威：数据表结构与 schema = `DATA_MODEL.md`；渲染引擎逆向事实 = `KOOKIT.md`；功能交互语义 = `FEATURES.md`；视觉 = `STYLE.md`；插件能力边界与生命周期 = `PLUGINS.md`；client 分层细化 = `ARCHITECTURE.md`。
+旁系权威：数据表结构与 schema = `DATA_MODEL.md`；渲染引擎逆向事实 = `KOOKIT.md`；功能交互语义 = `FEATURES.md`；视觉 = `STYLE.md`；插件能力边界与生命周期 = `client/plugins/PLUGINS.md`；client 分层细化 = `ARCHITECTURE.md`。
 
 ## 1. 分层模型（应然）
 

@@ -3,7 +3,7 @@
 > **本文职责（feature-docs 机制，2026-11-05）**：承载**用户定案的交互语义**（裁决权威）与
 > 功能容器契约；各功能域的**架构锚点、实现细节、验证路径**在 [`features/`](features) 一页一域
 > （library / reader / notes / room / settings）。冲突序：CONTRACTS > 本文 > features/ 页 > 其余。
-> 视觉语汇一律以 **`STYLE.md`** 为准；六边形/端口见 `ARCHITECTURE.md`；插件 = `PLUGINS.md`。
+> 视觉语汇一律以 **`STYLE.md`** 为准；六边形/端口见 `ARCHITECTURE.md`；插件 = `client/plugins/PLUGINS.md`（插件侧子树自持）。
 > 状态：v0.1.6 落地实施（五 Feature 标准容器 + Tailwind v4 迁移完成）。
 
 ---
@@ -65,7 +65,7 @@ src/renderer/src/
 - **v1 只装官方插件**：随应用首发种进运行时文件夹，加载不做沙箱；第三方开放远期（需沙箱与
   审核）。侧边栏 descriptor 口 v1 不开放给插件。
 - 插件**不进** `ServiceContainer`（六边形内核不变）；运行时是渲染层外壳的模块（同
-  `roomSession`/`logStore` 先例）。**能力边界 / 开发标准 / 生命周期（含卸载）= `PLUGINS.md`**
+  `roomSession`/`logStore` 先例）。**能力边界 / 开发标准 / 生命周期（含卸载）= `client/plugins/PLUGINS.md`**
  ——本节只留裁决，不复读。
 - 插件格与聊天**互斥**（`hideWhenInRoom`：进房让位——AI 的「問」用）。
 

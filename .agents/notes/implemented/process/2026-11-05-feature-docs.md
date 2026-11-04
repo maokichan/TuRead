@@ -20,7 +20,7 @@ Status: implemented
   feature 页；§2 动机等自标历史退役进 git。
 - **跨域缝合件归 ARCHITECTURE.md**（AppShell/ServiceContainer/总线/共享投影/ILibraryStore
   等约 20 处，新节承载），不造第 7 页；feature 页链接缝合件归属。plugins 已有独立页
-  （PLUGINS.md），不重复建页。
+  （`client/plugins/PLUGINS.md`——2026-11-05 起插件文档归属插件子树），不重复建页。
 - **预算哲学换轨 dsh 口径**：上限 = guardrail 非削减目标；达标留 5% 余量，超标冻结待下沉，
   加层需理由登记。features 页 300，其余文档维持 800 待分层红利兑现后再议；入口类 80/100
   硬上限不变。

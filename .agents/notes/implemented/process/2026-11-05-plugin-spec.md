@@ -12,14 +12,14 @@ Status: implemented
 
 ## Decision
 
-- 新建 `client/docs/PLUGINS.md`（预登记上限 300）：§1 能力边界（拿到/拿不到/强制强度表，
+- 新建 `client/plugins/PLUGINS.md`（2026-11-05 起插件侧子树自持，并入 contracts/plugin-contract 形状页）：§1 能力边界（拿到/拿不到/强制强度表，
   弱项如实标注 + 「第三方开放的两项前置」硬前提）；§2 开发标准（收编 client/plugins/README
   的布局与打包规则，消除双落点）；§3 生命周期——装载/启停记**现实现**，卸载记**方案
   （待实施）**：`plugins:uninstall({id})` → 拒删官方种子件 → 删运行时目录 → 删
   `plugin:<id>` 与 `plugin-secret:<id>:*` → 全量重载；§4 数据落点表（卸载清理清单依据）。
 - CONTRACTS §9 只留接口形状，头部加分工指针；`api.log` 的陈旧描述（「进设置页日志块」）
   修正为统一日志管道现状。
-- client/plugins/README 收敛为工作区事实（现有插件清单），规范内容全部让渡 PLUGINS.md。
+- client/plugins/README 收敛为工作区事实（现有插件清单），规范内容全部让渡 PLUGINS.md（后随归属迁移驻 client/plugins/，并吸收 plugin-contract 形状页）。
 
 ## Alternatives considered
 
