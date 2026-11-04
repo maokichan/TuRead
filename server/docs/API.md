@@ -1,8 +1,8 @@
 # server API 契约（REST + WebSocket，v0.2.1）
 
-> **本文自含全部 JSON 形状**（见「数据形状参考」），客户端实现只需本文件，**无需读 Go 源码**；Go 实现（`internal/transport/*`）仅为参考。
+> **形状权威 = Go struct 的 json tag**：`server/internal/domain/types.go`（BookLocation / Fingerprint / Edition / Member / PresencePayload / ChatMessage / MessageEnvelope / JoinAck）、`server/internal/transport/rest.go` 与 `server/internal/transport/ws.go`（请求/响应与 WS 载荷）、`server/internal/room/manager.go`（join-ack reason 串与房间语义）。本文只留代码不能自证的：协议语义、应然与 why。
 > 客户端侧适配入口：`client/docs/CONTRACTS.md` 的 `INetService`（信封搬运，不理解语义）与 `IRoomSession`（业务语义）。
-> 配置与运维：见 `OPS.md`。**同步协议与转发规范**（转发语义权威）见下文「同步协议与转发规范」。
+> 配置与运维：见 `OPS.md`。**同步协议与转发规范**（转发语义权威）见下文。
 
 ## 基础约定
 
@@ -13,70 +13,18 @@
 - **edition.local_copy（本机副本状态）**：`0` = 本机（server 内容寻址存储）无副本，`1` = 已存副本（`POST /books/{editionID}/file` 上传成功后 server 自动置 1）。与 `url` **正交**：外部源 + 本机有副本可同时成立，也可只有其一。
 - **配置**：TOML 配置文件（`turead.toml`，`TUREAD_CONFIG` 指定路径）+ 环境变量覆盖（`TUREAD_*`），见 `OPS.md`；策略类字段（access_token / admin_tokens / room_ttl / max_upload_mb）支持**热重载**。
 
-## 数据形状参考（Wire Shapes —— 客户端类型的唯一依据）
+## 数据形状参考（Wire Shapes —— 语义钉子）
 
-> 以下即 server 实际发送/接收的精确 JSON 字段；客户端类型定义以此为准。两处 `createdAt` 语义不同，特别注意：**Edition.createdAt = RFC3339 字符串；RoomInfo / ChatMessage.createdAt = unix 秒**。
+> 字段与取值由文件头所列 Go struct 的 json tag 逐一自证，此处只钉**代码看不出的语义**：
 
-**统一错误响应**（所有非 2xx）：
-
-```json
-{ "error": "人类可读的错误信息" }
-```
-
-**消息信封**（WS：type + payload）：
-
-```json
-{ "type": "room.join | room.join-ack | room.location | room.presence | room.chat | room.message | room.system | room.book-mismatch", "payload": { } }
-```
-
-**BookLocation**（位置载荷；`chapterDocIndex` 可为 number 或 string）：
-
-```json
-{ "chapterDocIndex": 0, "chapterHref": "chapter1.xhtml", "count": 0, "page": 3, "percentage": 0.42, "text": "所在段落文本", "chapterTitle": "第一章" }
-```
-
-**Fingerprint**（电子版指纹）：
-
-```json
-{ "algorithm": "md5-sample3-v1", "hash": "hex64", "size": 12345 }
-```
-
-**Edition**（电子版完整字段；`source`/`url` 可选）：
-
-```json
-{ "id": 1, "workId": 1, "ext": "epub", "hashAlgo": "md5-sample3-v1", "hash": "hex64", "size": 12345, "source": "自购", "url": "https://example.com/book.epub", "localCopy": true, "filePath": "books/hex64.epub", "createdAt": "2026-08-31T00:00:00+08:00" }
-```
-
-**Member**（房间成员，presence / join-ack 内；`location` 缺省 = 尚无位置）：
-
-```json
-{ "id": "Ab3xY9q", "nickName": "alice", "location": { ...BookLocation } }
-```
-
-**presence 载荷**（v0.2.2 钉死；此前 server 误发裸数组，client 按 {members} 解析 → 成员快照恒空，
-蜂群首跑抓出，见「已知不一致」）：
-
-```json
-{ "members": [ { ...Member } ] }
-```
-
-**ChatMessage**：
-
-```json
-{ "id": 1, "roomId": "8位hex", "member": "Ab3xY9q", "nick": "alice", "text": "大家好", "createdAt": 1756300000 }
-```
-
-**RoomInfo**（GET /rooms 列表项）：
-
-```json
-{ "roomId": "8位hex", "editionId": 1, "title": "书名", "ext": "epub", "ownerNick": "alice", "memberCount": 0, "createdAt": 1756300000 }
-```
-
-**JoinAck**（room.join-ack 的 payload；`reason` 仅失败时有；`edition`/`members` 成功时有）：
-
-```json
-{ "ok": true, "roomId": "8位hex", "edition": { ...Edition }, "members": [ { ...Member } ] }
-```
+- **统一错误响应**（所有非 2xx）：`{ "error": "人类可读的错误信息" }`
+- **消息信封**（WS：type + payload）：`{ "type": "<room.*>", "payload": { } }`——payload 先按 `type` 再解析（transport 只搬运，不理解语义）
+- **createdAt 双语义**：`Edition.createdAt` = RFC3339 字符串（`time.Time` 直出）；`RoomInfo` / `ChatMessage.createdAt` = unix 秒
+- **BookLocation**：`chapterDocIndex` 可为 number 或 string（`any`）；`chapterTitle` omitempty
+- **RoomInfo**（GET /rooms 列表项）：`title` / `ext` / `ownerNick` 可能缺（omitempty——work.title / users.nick 未建档时）
+- **Member**（presence / join-ack 内）：`location` 缺省 = 尚无位置
+- **room.presence 载荷** = `{ "members": [ { ...Member } ] }`（`domain.PresencePayload` 包裹，三处发送点一致；v0.2.2 前曾误发裸数组——蜂群首跑抓出，见文末「已知不一致」）
+- **JoinAck**（room.join-ack 的 payload）：`ok` 恒有；`reason` 仅失败时；`edition` / `members` 成功时有
 
 ## 副本存储与分发流程
 
@@ -192,7 +140,7 @@
 - 查询参数：`after=<id>`（增量拉取：只取 id 更大的消息，0/缺省 = 从头）、`limit=<n>`（条数，默认 50，上限 500）
 - `200`：`{ "messages": [ { "id": 1, "roomId": "...", "member": "...", "nick": "...", "text": "...", "createdAt": 1756300000 } ] }`（按 id 升序）
 - `400`：`after` / `limit` 非法
-- 聊天消息随房间删除（TTL 过期 / admin 删除）级联清理，历史生命周期与房间一致
+- 聊天消息随房间删除（TTL 过期 / 删除房间）级联清理，历史生命周期与房间一致
 
 ### GET /books/{editionID} —— 电子版信息（无书成员标定用）
 
@@ -232,7 +180,7 @@
 { "type": "<消息类型>", "payload": { } }
 ```
 
-**消息集与转发规则**：
+**消息集与转发规则**（type 枚举即客户端适配依据，常量定义 `server/internal/domain/types.go`）：
 
 | type | 方向 | 触发 | 转发规则 |
 |---|---|---|---|
@@ -277,8 +225,8 @@
   "ok": true,
   "reason": "book-mismatch | room-not-found | room-full | bad payload（仅失败时）",
   "roomId": "...",
-  "edition": { ...Edition 字段（形状见「数据形状参考」） },
-  "members": [ { "id": "...", "nickName": "...", "location": { ...BookLocation（形状见「数据形状参考」） } } ]
+  "edition": { ...Edition 字段（形状见「数据形状参考」与 domain/types.go） },
+  "members": [ { "id": "...", "nickName": "...", "location": { ...BookLocation } } ]
 }
 ```
 
@@ -307,29 +255,8 @@ server 落库成功后广播 `room.message`：
 
 空文本（全空白）不落库不广播。
 
-### 消息类型清单（type 枚举，客户端适配依据）
-
-| type | 方向 | 状态 |
-|---|---|---|
-| `room.join` | client → server | v0.1.0 使用中 |
-| `room.join-ack` | server → client | v0.1.0 使用中 |
-| `room.location` | client → server | v0.1.0 使用中 |
-| `room.presence` | server → 房间 | v0.1.0 使用中（v0.1.5 补离开广播） |
-| `room.chat` | client → server | v0.1.5 使用中 |
-| `room.message` | server → 房间 | v0.1.5 使用中 |
-| `room.system` | server → client | 已定义，未发送 |
-| `room.book-mismatch` | server → client | 已定义，未发送（标定失败当前走 join-ack 的 reason） |
-
 ## 已知不一致（已解决）
 
-- ~~`domain.Member` 无 json tag~~ —— **v0.1.5 已对齐**：成员字段 `id` / `nickName` / `location`（omitempty），与 client 契约 `RoomMember` 一致
-- ~~`domain.Edition` 无 json tag~~ —— **v0.1.6 已对齐**：camelCase（`id`/`workId`/...；`createdAt` 为 RFC3339）
-- ~~join-ack 的失败 reason 串与文档不一致~~ —— **v0.2.1 已对齐（服务器向文档看齐）**：`internal/room/manager.go`
-  的错误串改为连字符形式（`"room-not-found"` / `"book-mismatch"` / `"room-full"`），`ws.go` 硬编码的
-  `"room not found"` 一并改引 `room.ErrNotFound`。客户端 `normalizeJoinReason` 两种形式都认（容错保留），
-  不受影响。
-- ~~presence 载荷形状与 client 契约不符~~ —— **v0.2.2 已对齐**：`room.presence` 的 payload 此前是**裸数组**
-  （`Payload: r.Members()`），而 client 契约是 `{ "members": [...] }` —— 两侧各自自洽、真客户端成员快照
-  在 join-ack 后恒空（位置派生 / 离房清理 / 跟随全部失效）。**蜂群首跑抓出**（`client/scripts/swarm`）。
-  修法：server 三处发送点包 `domain.PresencePayload`；client `normalizePresenceMembers` 双形状兼容
-  （同 reason 归一的容错哲学）。e2e `readPresence` 助手同步解包。
+- ~~`domain.Member` / `domain.Edition` 无 json tag~~ —— v0.1.5 / v0.1.6 已对齐 camelCase（`server/internal/domain/types.go`）
+- ~~join-ack 的失败 reason 串与文档不一致~~ —— v0.2.1 服务器向文档看齐：错误串改连字符（`room.ErrNotFound` / `ErrMismatch` / `ErrFull`，`server/internal/room/manager.go`；`ws.go` 硬编码一并改引 `room.ErrNotFound`）；客户端 `normalizeJoinReason` 两种都认（容错保留）
+- ~~presence 载荷形状与 client 契约不符~~ —— v0.2.2 三处发送点包 `domain.PresencePayload`（此前裸数组，真客户端成员快照恒空——蜂群首跑抓出）；client `normalizePresenceMembers` 双形状兼容。过程明细随 git 历史
