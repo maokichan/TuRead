@@ -34,9 +34,11 @@ const DOC_LIMITS = {
   // ── 入口/索引类（硬上限：渐进式披露命脉，短是结构性的；"其他文档统一 800"不含此级）──
   'AGENTS.md': 100, // agent 全局入口
   'docs/AGENTS.md': 80, // docs 子树入口
+  'docs/TESTING.md': 300, // 测试与验证口径（职能文档）
   'client/AGENTS.md': 80, // client 子树入口
   'client/docs/AGENTS.md': 80, // client/docs 文档群入口
   'client/docs/PLUGINS.md': 300, // 插件规范（预登记目标档；全表口径待文档治理轮定）
+  'client/docs/BUILD.md': 300, // 打包与发版（职能文档）
   'client/docs/features/library.md': 300, // 功能域参照页（feature-docs 机制，2026-11-05）
   'client/docs/features/reader.md': 300,
   'client/docs/features/notes.md': 300,

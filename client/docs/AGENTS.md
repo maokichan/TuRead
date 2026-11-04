@@ -16,6 +16,7 @@
 | `STYLE.md` | 渲染层视觉基线：token、字号白名单、交互状态语言 | 功能行为 |
 | `PLUGINS.md` | 插件的能力边界、开发标准、生命周期（装载/启停/卸载方案） | 接口形状（归 CONTRACTS §9） |
 | `features/*.md` | **功能域参照页**（一页一域，feature-docs 机制）：架构锚点表、实现细节、验证路径——细节自 FEATURES §10–15 下沉 | 交互裁决（归 FEATURES）；接口形状（归 CONTRACTS）；视觉（归 STYLE） |
+| `BUILD.md` | **职能文档**：打包/滚版本/发版口径（不到打包环节不加载） | 测试与冒烟（归 docs/TESTING.md）；打包红线一行（常驻根 AGENTS） |
 
 冲突裁决：**CONTRACTS > FEATURES / STYLE > 其余**——接口形状与交互语义打架时，先对 CONTRACTS；
 改契约必须连动实现与测试，改语义必须连动 FEATURES 对应节。
@@ -31,4 +32,4 @@
   `.agents/notes/`（notes 机制见其 README）；过程与讨论在 git 与 STATUS。
 - 新文档先来 `ops/scripts/docGuard.mjs` 上限表登记；删除的文档移入 `trash/`。
 
-跟踪：[ARCHITECTURE](ARCHITECTURE.md) · [CONTRACTS](CONTRACTS.md) · [DATA_MODEL](DATA_MODEL.md) · [FEATURES](FEATURES.md) · [KOOKIT](KOOKIT.md) · [PLUGINS](PLUGINS.md) · [RENDER_INTERFACE](RENDER_INTERFACE.md) · [STYLE](STYLE.md) · [features/](features)
+跟踪：[ARCHITECTURE](ARCHITECTURE.md) · [BUILD](BUILD.md) · [CONTRACTS](CONTRACTS.md) · [DATA_MODEL](DATA_MODEL.md) · [FEATURES](FEATURES.md) · [KOOKIT](KOOKIT.md) · [PLUGINS](PLUGINS.md) · [RENDER_INTERFACE](RENDER_INTERFACE.md) · [STYLE](STYLE.md) · [features/](features)

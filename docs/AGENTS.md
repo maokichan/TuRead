@@ -7,7 +7,9 @@
 ## 本目录文档（读序）
 
 1. [`STATUS.md`](STATUS.md) —— **状态与交接快照，全项目先读它**（§2 版本分工 / §3 决策索引 /
-   §4 版本历史 / §5-6 探针与环境事实）。
+   §4 版本历史 / §5 环境事实 / §6 交接快照）。
+2. [`TESTING.md`](TESTING.md) —— **测试与验证口径（职能文档）**：单测/typecheck/探针/样张/蜂群/
+   server 测试；不到验证环节不加载。
 2. [`DIRECTION.md`](DIRECTION.md) —— 产品方向（批次的先验）。**条款改动须用户明示**。
 3. [`ARCHITECTURE.md`](ARCHITECTURE.md) —— 顶层架构（三端关系、数据流；刻意保持轻）。
 4. `LANDSCAPE.md` —— 本地文档，**有意不入库**（.gitignore），不进门控与交接。
