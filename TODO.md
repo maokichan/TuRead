@@ -164,6 +164,10 @@
 
 ### 工程与测试设施
 
+- [ ] **client/tools 脚本逐个收编**：现全部标记「不信任·待收编」（清单与信任级口径见
+  `client/tools/README.md`）——按 kookit-harness → style-gallery → swarm → ui-shot 逐个审查，
+  登记用途/依赖/已知坑后升级「已收编」；顺序由开发者定。
+
 - [ ] **e2e 洪泛测试在本机不稳（登记在案，非回归）**：`TestE2EFloodNoDrop`（A 连发 500 位置、
   B 端到端全收）在本机稳定失败（~311/500，B 疑似被队列满踢出）；**未改动的基线同样失败**（连跑三次一致），
   确定性单测 `TestSendQueueOverflowKicks` 通过。疑与本机调度/回环缓冲时序有关。处置方向：读端放慢步调、
