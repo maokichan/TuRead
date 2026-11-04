@@ -1,6 +1,6 @@
 /**
  * ui-shot/dom.mjs —— CDP DOM 真相查询（PrintWindow 抓到陈旧帧时的兜底手段）。
- * 用法：TUREAD_DEV_CDP=9223 起 dev 后，`node tools/ui-shot/dom.mjs 9223 '<js 表达式>'`
+ * 用法：TUREAD_DEV_CDP=9223 起 dev 后，`node scripts/ui-shot/dom.mjs 9223 '<js 表达式>'`
  * 表达式在主窗口页面里 eval，结果 JSON 打到 stdout（Electron stdout 抓不到 → 走 Node）。
  */
 import { createRequire } from 'node:module'

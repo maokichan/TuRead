@@ -528,7 +528,7 @@
 **计时环境自检**（空闲 rAF 间隔 > 60 ms 直接判 FAIL）。判定：**探针的假数字/假阴性比 FAIL 更危险**
 —— 它把真回归盖住（另见 §8.0 的假绿坑）。
 
-**有效 A/B**（`tools/style-gallery/smoke.cjs --scale=1000 [--no-window]`，真实组件 + 真 Electron，
+**有效 A/B**（`scripts/style-gallery/smoke.cjs --scale=1000 [--no-window]`，真实组件 + 真 Electron，
 1000 条，计时环境自检 `rafGap ≈ 9 ms`）：
 
 | 指标 | **窗口化（现行）** | 全量（对照） |
@@ -603,7 +603,7 @@
 
 ### 8.0 效果确认（第一手段）
 
-`cd client && npm run style` —— **样式样张**（`tools/style-gallery/`）：浏览器里看 token / 字号 /
+`cd client && npm run style` —— **样式样张**（`scripts/style-gallery/`）：浏览器里看 token / 字号 /
 中文排版 / 各组件状态，**不启动 Electron**。样张只导入真实组件与真实 `styles.css`，
 因此"样张所见 = 组件实现"，不会漂移。改 token → HMR 秒级刷新。
 （Electron 内的最终复核仍走 `dev/selfCheck.ts`；样张不覆盖 IPC/窗口/kookit 渲染。）
@@ -615,7 +615,7 @@
 > 漂移当场列出；
 > ② `node_modules\electron\dist\electron.exe tools\style-gallery\smoke.cjs`（需先 `npm run style`）
 > —— 真载入页面、量 DOM 事实、抓控制台，判据 = 有面板 + 有文字 + **无页面错误**
-> （类型过了不等于能渲染）。细节见 `tools/style-gallery/README.md`。
+> （类型过了不等于能渲染）。细节见 `scripts/style-gallery/README.md`。
 
 **几何/对比度类判据一律机检，不靠肉眼**（`smoke.cjs` 里逐条独立、失败时一眼看出是哪条）：
 

@@ -5,7 +5,7 @@
  * `ops/scripts/<域><动作>.mjs`：域 = 治理对象（小写单词），动作 = 对它做什么（驼峰，首字母大写）。
  * 动作词分两族：**Guard = 门控**（不合规 → 非零退出、挡提交）；**Probe = 探针**（只观测不挡）。
  * 本目录（ops/scripts/）只放**仓库治理**脚本（守卫链见 ops/AGENTS.md）；业务与验证探针在
- * client/tools/（信任分级见其 README），二者分治。本脚本 = 域 `doc`（文档治理）+ 动作 `Guard`。
+ * client/scripts/（信任分级见其 README），二者分治。本脚本 = 域 `doc`（文档治理）+ 动作 `Guard`。
  *
  * ── 用途 ──
  * 扫描 git 追踪的全部 Markdown（trash/ 留档除外），逐文件比对行数与上限表，超限即挡。
@@ -37,7 +37,7 @@ const DOC_LIMITS = {
   'client/AGENTS.md': 80, // client 子树入口
   'client/docs/AGENTS.md': 80, // client/docs 文档群入口
   'ops/AGENTS.md': 80, // ops 子树入口（治理域）
-  'client/tools/README.md': 80, // 业务脚本清单（信任分级）
+  'client/scripts/README.md': 80, // 业务脚本清单（信任分级）
   '.agents/notes/README.md': 80, // 决策日志机制
   '.agents/notes/AGENTS.md': 80 // 决策日志 agent 规则
 }

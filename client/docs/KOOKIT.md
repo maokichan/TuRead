@@ -8,7 +8,7 @@
 > 归属：**client 专属**。基于 `kookit/` 子模块源码逆向整理：kookit 在做什么、该怎么用、违反什么会翻车。
 > 版本基线：kookit HEAD `6e18465`；产物 `client/src/vendor/kookit.esm.js`（单文件 ESM，
 > 构建配置 `kookit/rollup.turead.config.mjs`，不受 kookit 版本控制）。
-> 验证工具：`client/tools/kookit-harness/`（§8）。历史定位过程见 git log，本文只记**当前事实**。
+> 验证工具：`client/scripts/kookit-harness/`（§8）。历史定位过程见 git log，本文只记**当前事实**。
 
 ## 1. 一句话模型
 
@@ -216,7 +216,7 @@ GeneralRender (GeneralRender.ts，事件基类)
   同步回跳与笔记回显只在同引擎族内有效。
 
 ## 8. 独立测试工具（kookit-harness）
-`client/tools/kookit-harness/`，隔离 App 环境验证单体：
+`client/scripts/kookit-harness/`，隔离 App 环境验证单体：
 
 - `serve.mjs`：零依赖静态服务器（root=client/），映射 `/lib/pdfjs/` → `src/renderer/public/lib/pdfjs/`。
 - `index.html`：无 CSP 测试页。先动态 import pdfjs 再 import vendor（顺序不可反）；

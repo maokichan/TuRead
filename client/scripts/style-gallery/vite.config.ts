@@ -27,6 +27,6 @@ export default defineConfig({
   },
   server: {
     port: 5199,
-    open: '/tools/style-gallery/index.html'
+    open: '/scripts/style-gallery/index.html'
   }
 })

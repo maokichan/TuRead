@@ -199,7 +199,7 @@ type JoinFailure = 'book-mismatch' | 'room-not-found' | 'room-full' | 'server-er
   + **插件注册表**（一行一生死：名稱 + 啟｜停 + 版本；配置住卡片页面板，§13.3））。
 - **颜色标准化（设计 token）**：所有颜色一律走 `styles.css` 的语义 token，组件内**禁止写死 hex/rgba**；
   字体、负片、阴影等规则见 `STYLE.md` §3。
-- **样式效果确认**：`cd client && npm run style` 起**浏览器样式样张**（`tools/style-gallery/`，
+- **样式效果确认**：`cd client && npm run style` 起**浏览器样式样张**（`scripts/style-gallery/`，
   只导入真实组件与真实 token）；改 token 秒级可见。排版类最终判定仍在 Electron 内复核。
 - **展示组件**：`components/{BookRow,BookTile,ContainerItem,LibraryToolbar,FittedTitle,ConfirmDialog,`
   `TocPanel,ChatLog,ChatPanel,RoomRow,MemberList,StatePill,FocusStage,TagRail,ReaderRail,ReaderControls,`

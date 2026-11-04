@@ -85,7 +85,7 @@ TUREAD_USER_DATA=./.probe TUREAD_DEV_PROBE=room TUREAD_DEV_BOOK="<任意书>" \
   TUREAD_DEV_SERVER="http://127.0.0.1:8080" TUREAD_DEV_ACCESS="<二级令牌，可空>" npm run dev  # 房间链路（唯一要真 server）
 
 # 样式样张的几何机检（另开终端先跑 npm run style）
-node_modules/electron/dist/electron.exe tools/style-gallery/smoke.cjs
+node_modules/electron/dist/electron.exe scripts/style-gallery/smoke.cjs
 ```
 
 更多探针（pdfWidth / paged-interact / room-peer / ui-shot）与环境事实（沙箱、Electron stdout、

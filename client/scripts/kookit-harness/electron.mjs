@@ -2,7 +2,7 @@
  * kookit 单体测试 —— 无头自检（默认）或可见查看（--show）。
  * 用法：
  *   # 无头自检（捕获 TUREAD-TEST-* 标记退出；退出码 0=OK/SKIP，1=FAIL，2=超时）
- *   npx electron electron.mjs --url "http://127.0.0.1:4173/tools/kookit-harness/?auto=test_docs/xxx.epub"
+ *   npx electron electron.mjs --url "http://127.0.0.1:4173/scripts/kookit-harness/?auto=test_docs/xxx.epub"
  *   # 可见查看（显示窗口、自动打开指定书、可手动翻页，不自动退出）
  *   npx electron electron.mjs --show --url "…&auto=test_docs/xxx.epub"
  */
@@ -13,7 +13,7 @@ const url =
   process.env.TUREAD_HARNESS_URL ||
   process.argv.find((a) => a.startsWith('--url='))?.slice('--url='.length) ||
   (argIndex >= 0 ? process.argv[argIndex + 1] : undefined) ||
-  'http://127.0.0.1:4173/tools/kookit-harness/'
+  'http://127.0.0.1:4173/scripts/kookit-harness/'
 if (process.argv.includes('--print-argv')) console.log('[debug] argv=' + JSON.stringify(process.argv.slice(1)))
 const SHOW = process.argv.includes('--show')
 const VERBOSE = process.argv.includes('--verbose')

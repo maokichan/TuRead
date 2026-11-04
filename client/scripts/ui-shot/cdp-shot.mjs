@@ -1,6 +1,6 @@
 /**
  * ui-shot/cdp-shot.mjs —— CDP 直接截图（主真相通道；PrintWindow 对后台节流窗口会给出
- * 陈旧/空洞帧，已弃用为兜底）。用法：`node tools/ui-shot/cdp-shot.mjs 9223 out.png [js]`
+ * 陈旧/空洞帧，已弃用为兜底）。用法：`node scripts/ui-shot/cdp-shot.mjs 9223 out.png [js]`
  * 第 3 参可选：截图前在页面里 eval 的表达式（例如用 CDP 派发点击后再截）。
  */
 import { createRequire } from 'node:module'

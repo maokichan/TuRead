@@ -1,7 +1,7 @@
 ﻿/**
  * kookit 单体测试 —— 零依赖静态服务器。
  * 根目录 = client/（这样 src/vendor/kookit.esm.js 与 test_docs/ 都能被访问）。
- * 用法：node serve.mjs   → 打开 http://127.0.0.1:4173/tools/kookit-harness/
+ * 用法：node serve.mjs   → 打开 http://127.0.0.1:4173/scripts/kookit-harness/
  */
 import http from 'node:http'
 import { createReadStream, existsSync, statSync } from 'node:fs'
@@ -41,7 +41,7 @@ const server = http.createServer((req, res) => {
     res.end('bad request')
     return
   }
-  if (urlPath === '/') urlPath = '/tools/kookit-harness/'
+  if (urlPath === '/') urlPath = '/scripts/kookit-harness/'
   // kookit 的 PDF 渲染固定从 /lib/pdfjs/ 取静态资源（libs/pdf.js: pdfjsPath），
   // harness 下映射到 App 的 public 静态资源目录
   if (urlPath.startsWith('/lib/pdfjs/')) {
@@ -63,6 +63,6 @@ const server = http.createServer((req, res) => {
 })
 
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`[harness] http://127.0.0.1:${PORT}/tools/kookit-harness/`)
+  console.log(`[harness] http://127.0.0.1:${PORT}/scripts/kookit-harness/`)
   console.log('[harness] 浏览器打开上面地址即可（本页无 CSP，隔离测试 kookit 单体）')
 })

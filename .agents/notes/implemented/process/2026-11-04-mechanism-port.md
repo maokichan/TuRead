@@ -5,7 +5,7 @@ Status: implemented
 ## Problem
 
 文档健康靠一次性人工大洗维持，机制不在持续供货；门控脚本（根 `scripts/docGuard`）与业务/
-验证脚本（`client/tools/`）边界含混；决策记录只有 STATUS §3 一行索引，被放弃的方案与理由
+验证脚本（`client/scripts/`）边界含混；决策记录只有 STATUS §3 一行索引，被放弃的方案与理由
 无处落——换届 agent 无从防翻案。参照 Cross-Patch 项目的成套机制（其行数门控本就移植自
 本项目 docGuard），反向移植补齐。
 
@@ -17,7 +17,7 @@ Status: implemented
 - `.githooks/pre-commit` 三连：docIndex hook → repoGuard → docGuard（set -e，任一失败即中止）。
 - 新建 `.agents/notes/` 决策日志：三态生命周期、路径即元数据、Alternatives considered 强制；
   类别闭集 = process / arch / product。STATUS §3 保持索引地位，有笔记的行在权威列附链接。
-- `client/tools/` 现有业务与验证脚本标记「不信任·待收编」，收编通道见其 README；逐个处理
+- `client/scripts/` 现有业务与验证脚本标记「不信任·待收编」，收编通道见其 README；逐个处理
   另行进行，不在本决策内。
 
 ## Alternatives considered

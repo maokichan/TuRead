@@ -8,7 +8,7 @@
 ### 同步（房间）
 
 - [ ] **多人场景补验**：双开已实测通过（同一本大 PDF：presence 广播 / 位置上报 / 双向聊天）。
-  **①②已由蜂群机制化覆盖**（`npm run swarm`，client/tools/swarm：离房不残留 A4、"除发送者外"三人以上 A2，
+  **①②已由蜂群机制化覆盖**（`npm run swarm`，client/scripts/swarm：离房不残留 A4、"除发送者外"三人以上 A2，
   8 只规模验证通过）—— 仍缺**真人侧**复核：真窗口下成员列表的呈现、多人同时在线的观感。
 - [ ] **正式的多端身份方案**：服务器按 IP 签发 token + 同 token 踢旧连接 = 同机多开必互相踢（`API.md`「NAT 限制」）。候选：客户端 nonce 区分连接（服务器侧改动）。联调期用 dev-only `TUREAD_DEV_MEMBER_TOKEN` 绕开（不进产品 UI）。
 - [ ] **聊天消息无长度/频率约束**：服务器与客户端都只挡空文本。需要时再定（服务器限长 + 客户端提示）。
@@ -164,8 +164,8 @@
 
 ### 工程与测试设施
 
-- [ ] **client/tools 脚本逐个收编**：现全部标记「不信任·待收编」（清单与信任级口径见
-  `client/tools/README.md`）——按 kookit-harness → style-gallery → swarm → ui-shot 逐个审查，
+- [ ] **client/scripts 脚本逐个收编**：现全部标记「不信任·待收编」（清单与信任级口径见
+  `client/scripts/README.md`）——按 kookit-harness → style-gallery → swarm → ui-shot 逐个审查，
   登记用途/依赖/已知坑后升级「已收编」；顺序由开发者定。
 
 - [ ] **e2e 洪泛测试在本机不稳（登记在案，非回归）**：`TestE2EFloodNoDrop`（A 连发 500 位置、

@@ -7,7 +7,7 @@
 
 ```bash
 cd client
-npm run style          # → http://localhost:5199/tools/style-gallery/index.html
+npm run style          # → http://localhost:5199/scripts/style-gallery/index.html
 npm run typecheck:preview
 ```
 
