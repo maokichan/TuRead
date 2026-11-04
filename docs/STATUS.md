@@ -21,10 +21,9 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 - **职责划分**：通用「提交 / 版本分工」见 `generate-swe` skill（commit + tag 由 agent、不 push；
   版本号滚动与 push 由用户）。本项目专属：**一次交付 = 一次提交 + 一个 annotated tag**，消息沿用
   `client vX — 摘要`；未获指示的改动并入当前版本（「已提交但版本未滚」合法，此时不打 tag）。
-  ⚠ **打包（`npm run dist` / `dist:dir` / `pack:portable`）只在用户明确要求时做**，且打包可能由用户交给
-  另一个 agent 做——**「滚了版本号」不等于「该打包」**，绝不因为版本滚动就顺手出 release。
-- **发版节奏**：**功能确定后即滚版本号**（不长期堆改动）。滚版本时 agent 同步 `package.json` /
-  `package-lock.json` / 本文 §4 / `README.md` + 打 tag。产物（便携版 exe）不在此列。
+  ⚠ **打包红线与配方、滚版本同步清单** = `client/docs/BUILD.md`（根 AGENTS 常驻一行：只在用户明确
+  要求时做、「滚了版本号」≠「该打包」）。
+- **发版节奏**：**功能确定后即滚版本号**（不长期堆改动）。产物（便携版 exe）不在此列。
 - **网络配方**（原仓库外 NETWORK.md 已删，事实收编于此）：GitHub 走本地代理 `127.0.0.1:7897`（Clash Verge rev，**没开会连不上**，报 "Failed to connect … 127.0.0.1" 即此因）；git 代理已写入本仓库 `http.proxy`；Go `GOPROXY=https://goproxy.cn,direct`；npm registry 直连；OpenSSL 走代理；打包（electron-builder 下载二进制）走代理
 
 ## 3. 已定决策（**索引**：一行一条 + 权威位置；细节不在这里重复）
@@ -127,16 +126,9 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 
 - 本地代理 `127.0.0.1:7897`（Clash Verge rev）；npm registry 直连；GitHub 直连被墙（走代理 + OpenSSL）；`curl.exe` 不可用
 - go 沙箱下 telemetry 报错是噪音；`GOPROXY=https://goproxy.cn,direct`；`go build` 把 GOCACHE 指到工作区
-- 测试：`go test ./...`（白盒在源码旁）+ `server/test/e2e/`（黑盒走 HTTP/WS）
-- **跑碰 better-sqlite3 的临时探针**：原生模块是 **electron-v130 ABI**，系统 Node `require` 会
-  `ERR_DLOPEN_FAILED` → 用 `client/node_modules/electron/dist/electron.exe <脚本.cjs>` 跑；
-  **Windows 下 Electron 的 stdout 抓不到** → **结果写文件再读**；脚本末尾 `app.quit()` 会打一条
-  `platform_channel.cc Check failed` 的 FATAL 噪音（**文件已写完，不影响结论**）。
-- ⚠ **受限文件沙箱下**：`npm test` / `npm run dev` / 任何探针都经 esbuild 管道 stdio 或 Electron Mojo
-  命名管道 → **必然 `EPERM` / FATAL**，需在放宽模式下跑；`TUREAD_USER_DATA` 要落在工作区内。
-- **蜂群（`npm run swarm`）是纯 Node**：无 Electron 噪音、stdout 直接可读、退出码干净 —— 与探针的
-  "写文件再读"纪律互补；GOCACHE/GOPROXY 有默认兜底（可用环境覆盖）；server 每房上限 20，蜂群别超
-- kookit 子模块的 `CLAUDE.md` 规则：**禁止在其仓库内 git commit / push**
+- **测试与验证口径**（单测/typecheck/探针/样张/蜂群/server 测试/发行版冒烟；含沙箱 EPERM、
+  Electron ABI 与 stdout、GPU 路径事实）= [`TESTING.md`](TESTING.md)
+- kookit 子模块的 `CLAUDE.md` 规则：**禁止在其仓库内 git commit / push**（常驻红线在根 `AGENTS.md`）
 
 ## 6. 交接快照
 
@@ -160,37 +152,9 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 4. **聚焦舞台收尾**（WebGL 运行时丢失硬化 + 手感细修，见 TODO）。
 5. **共读真机复核 / 多人补验**（等用户有空并行）；**server 侧**按既定节奏挂起。
 
-**验证工具链（回归全靠它们；口径：单测验判据、探针验链路）**
-- **`npm test`** = 纯逻辑单测（anchor/location 语义 + `compareNoteOrder` + `readerFollow` + `noteLayout`
-  + `protocol` + 分层守卫 + 迁移/双队列 + RoomSession 首批）。秒级、无需书。
-- **`npm run typecheck:all`** = 四个 tsconfig（node / web / test / **preview**）。
-  ⚠ **preview 覆盖样式样张 —— 改数据层或组件 props 后必跑**（「样张整页黑屏」就是漏跑它）。
-  ⚠ `tsconfig.test.json` 不设 `jsx` → 纯 `.ts` 不能 import `.tsx` 的类型（数据形状要住纯模块里）。
-- **样式样张**：`npm run style` 起样张；另开终端
-  `node_modules\electron\dist\electron.exe scripts\style-gallery\smoke.cjs [url] [--scale=N] [--no-window]`
-  → 判据 = 有面板 + 有文字 + 无页面错误 + **八条几何机检**（`cardOk` / `widthIndependentOk` /
-  `paperClearOk` / `tabsSymOk` / `followedOk` / `chatDrawerOk` / `noRoomTabsOk` / `composerOk`；
-  逐条条件见 `STYLE.md` §8.0）。⚠ **探针的假数字/假绿比 FAIL 更危险**：`--scale` 会自检计时环境；
-  样张里受控组件必须自己持有 state；模板字符串里不能写反引号（改完先 `node --check`）。
-- **真机探针**（都需要 `TUREAD_USER_DATA=<独立目录>`，**别碰真实书库**）：
-  - `TUREAD_DEV_BOOK=<书>` 单跑 = 渲染自检（四格式；输出 `[TUREAD-TEST-OK]`）
-  - `TUREAD_DEV_PROBE=library` = 多库/書箱/笔记读模型探针
-  - `TUREAD_DEV_PROBE=note` = 笔记/划线全链路（选区→锚点→回显→导航→重锚→删除）。
-    样书首章是纯图片扉页，探针会自动逐章找有正文的章；超时可用 `TUREAD_DEV_TIMEOUT_MS` 放宽。
-  - **`TUREAD_DEV_PROBE=room`（唯一要真 server 的探针）**：会话→建房→按房间握手→标定→聊天回执→
-    历史→离房→再进房→共享态（16 条断言）。需要 `TUREAD_DEV_SERVER` 与 `TUREAD_DEV_ACCESS`；
-    服务器侧建议用一次性 data 目录（`TUREAD_ADDR=:8099` + `TUREAD_DATA_DIR=$TEMP\...`），
-    别拿入库的 `server/data/turead.db` 做探针。⚠ 负向断言会在 Electron 日志留一行
-    `Error occurred in handler for 'net:send'` —— **那是预期的**。
-  - `TUREAD_DEV_PROBE=paged-interact` / `pdfWidth` = 单页交互 / PDF 纸宽量化（无产品断言，看事实行）
-  - `TUREAD_DEV_SQLITE=1` = 原生模块 spike；`TUREAD_DEV_BOOK` **打包产物**跑自检不自退（已知问题，见 TODO）
-- 换 Electron 版本后 `npm run rebuild:sqlite`；打包走代理（配方见上 §2 与本节首条）。
-- **发行版冒烟**（**打包之后**才做）：独立 userData 起 `release/win-unpacked/TuRead.exe` →
-  应落盘 `config.json` + `store.db` + `covers/<editionId>.jpg`。
-
-- **`npm run swarm`** = 单机 蜂群-同步 回归（client/scripts/swarm）：起一次性 server + N 只 roombot，
-  语义断言 A1-A5（全员到齐 / 除发送者外 / 聊天回执 / 离房不残留 / 无错误），退出码即结论。
-  覆盖边界 = 同步逻辑/协议/传输；渲染/UI/IPC 桥归真窗口探针与手感（立项时与用户对齐）。
+**验证工具链**：全部口径（单测 / typecheck 四 tsconfig / 样张与 smoke / 六探针 / 蜂群 / server 测试 /
+  发行版冒烟；含沙箱 EPERM、Electron ABI 与 stdout、GPU 路径事实）= [`TESTING.md`](TESTING.md)。
+  ⚠ **探针的假数字/假绿比 FAIL 更危险**——口径与防假绿纪律在 TESTING。
 **待真机复看（探针证不了手感/窗口状态；批1.24 维护时已清退役项）**：
 ① **v0.2.7 新三样**：内嵌目录压印观感（四主题/显影半径 110px/静息浓度）、「卡」按钮静息浓度、
 「筆」页閱讀统计段（贡献图/Top 榜/两栏布局）；② 暗场浮现幅度与节奏、退场下沉；③ 标签侧栏

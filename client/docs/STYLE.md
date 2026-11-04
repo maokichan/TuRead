@@ -613,7 +613,7 @@
 > **两道防线（改数据层 / 组件 props 后必跑）**：
 > ① `npm run typecheck:preview`（= `typecheck:all` 的后半）—— `tsconfig.preview.json` 覆盖样张，
 > 漂移当场列出；
-> ② `node_modules\electron\dist\electron.exe tools\style-gallery\smoke.cjs`（需先 `npm run style`）
+> ② `node_modules\electron\dist\electron.exe scripts/style-gallery/smoke.cjs`（需先 `npm run style`）
 > —— 真载入页面、量 DOM 事实、抓控制台，判据 = 有面板 + 有文字 + **无页面错误**
 > （类型过了不等于能渲染）。细节见 `scripts/style-gallery/README.md`。
 

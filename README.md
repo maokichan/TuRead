@@ -76,7 +76,7 @@ npm run dist           # 打包免安装便携版 → client/release/（需代�
 
 ```bash
 npm run dev            # 跑起来（Electron + HMR）
-npm run dist           # 打包便携版（Windows x64；需代理）—— ⚠ 打包由仓库负责人决定何时做
+npm run dist           # 打包便携版（Windows x64；需代理）—— 口径见 client/docs/BUILD.md（打包由仓库负责人决定何时做）
 ```
 
 服务端：

@@ -28,6 +28,8 @@
 9. [`client/docs/STYLE.md`](client/docs/STYLE.md) —— **渲染层风格基线（渲染层开发先读）**
 10. `server/docs/{ARCHITECTURE,API,OPS}.md` —— server 架构 / 协议 / 运维
 11. **网络配方**收编在 `docs/STATUS.md` §5（git 代理、GOPROXY、打包代理；原仓库外 NETWORK.md 已删）
+12. [`docs/TESTING.md`](docs/TESTING.md) —— **测试与验证口径（职能文档）**：单测 / typecheck / 探针全集 / 沙箱事实
+13. [`client/docs/BUILD.md`](client/docs/BUILD.md) —— **打包与发版（职能文档）**：滚版本清单 / 配方 / 发行物缺件
 
 ## 红线（违反 = 事故）
 
@@ -54,14 +56,11 @@ npm install
 npm run dev            # 开发模式（Electron + 热更新）
 ```
 
-### 验证工具链（回归全靠它们；判据口径详见 `docs/STATUS.md` §6）
+### 验证工具链（口径与判据 = [`docs/TESTING.md`](docs/TESTING.md)）
 
 ```bash
-npm test               # 纯逻辑单测（vitest，秒级，不需要书）
-npm run typecheck:all  # 四个 tsconfig（node/web/test/preview）—— ⚠ 改数据层或组件 props 后必跑
-npm run style          # 样式样张（浏览器里看 token 与组件，不起 Electron）
-npm run swarm          # 蜂群同步回归（一次性 server + N 只 roombot，语义断言 A1-A5）
-npm run rebuild:sqlite # 换 Electron 大版本后重建原生模块
+npm test && npm run typecheck:all  # 单测 + 四 tsconfig（preview 覆盖样张——改数据层/组件 props 后必跑）
+npm run style / npm run swarm      # 样式样张（token 基线） / 蜂群同步回归（A1-A5）
 ```
 
 ### 仓库门控（pre-commit 自动跑；链与口径见 `ops/AGENTS.md`）
@@ -73,28 +72,14 @@ node ops/scripts/repoGuard.mjs --report   # 卫生体检：绝对路径 / 密钥
 node ops/scripts/docIndex.mjs check       # 跟踪声明与链接方向全量校验
 ```
 
-### 无头验证（真实渲染链路，需要一本真实的书）
+### 无头验证（真实渲染链路）
 
-```bash
-# ⚠ 都要 TUREAD_USER_DATA=<工作区内独立目录的绝对路径>（相对路径主进程拒载），别碰真实书库；
-# ⚠ 受限文件沙箱下这些都会 EPERM（esbuild 管道 stdio / Electron 命名管道），需放宽沙箱
-TUREAD_USER_DATA=./.probe TUREAD_DEV_BOOK="<书的绝对路径>" npm run dev                     # 渲染自检
-TUREAD_USER_DATA=./.probe TUREAD_DEV_PROBE=library TUREAD_DEV_BOOK="<任意书>" npm run dev  # 多库/書箱读模型（探针需要书做标定）
-TUREAD_USER_DATA=./.probe TUREAD_DEV_PROBE=note TUREAD_DEV_BOOK="<文字类书>" npm run dev   # 笔记/划线全链路
-TUREAD_USER_DATA=./.probe TUREAD_DEV_PROBE=room TUREAD_DEV_BOOK="<任意书>" \
-  TUREAD_DEV_SERVER="http://127.0.0.1:8080" TUREAD_DEV_ACCESS="<二级令牌，可空>" npm run dev  # 房间链路（唯一要真 server）
-
-# 样式样张的几何机检（另开终端先跑 npm run style）
-node_modules/electron/dist/electron.exe scripts/style-gallery/smoke.cjs
-```
-
-更多探针（pdfWidth / paged-interact / room-peer / ui-shot）与环境事实（沙箱、Electron stdout、
-假数字教训）见 `docs/STATUS.md` §5/§6。
+探针全集（渲染自检 / library / note / room / paged-interact / pdfWidth / room-peer）的触发方式、
+判据与沙箱事实（⚠ `TUREAD_USER_DATA` 绝对路径隔离、受限沙箱必 EPERM 需放宽、dev 启动须脱沙箱
+否则损坏 GPU 路径）= [`docs/TESTING.md`](docs/TESTING.md)。样张机检 = `smoke.cjs`（判据见其 README）。
 
 ## 版本与提交
 
 - 两端版本独立滚动，tag 带端名前缀：`client-v0.2.x` / `server-v0.2.x`
-- **一次交付 = 一次提交**；版本滚动（改版本号 + 打 annotated tag）与 push 由用户定节奏；
-  滚版本时同步 `package.json` / `package-lock.json` / `docs/STATUS.md` §4 / `README.md`
+- **一次交付 = 一次提交**；版本滚动与 push 由用户定节奏；滚版本同步清单与配方 = [`client/docs/BUILD.md`](client/docs/BUILD.md)
 - ⚠ 未获指示的改动并入当前版本（"已提交但版本未滚"合法，此时不打 tag）
-- 详细分工与发版节奏：`docs/STATUS.md` §2
