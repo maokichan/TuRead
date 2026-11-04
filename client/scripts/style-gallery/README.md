@@ -41,8 +41,8 @@ npm run typecheck:all          #    与上面等价，但连带 node/web/test �
 
 ```bash
 npm run style                  # 终端 A：起 dev server（5199；被占则顺延，见打印的地址）
-node_modules\electron\dist\electron.exe tools\style-gallery\smoke.cjs [url]   # 终端 B
-# → 判定与全部控制台输出落盘 %TEMP%\turead-gallery-smoke.json；退出码 0 = OK
+node_modules\electron\dist\electron.exe scripts\style-gallery\smoke.cjs [url]  # 终端 B
+# → 判定与全部控制台输出落盘 logs/gallery-smoke.json（仓库根）；退出码 0 = OK
 ```
 
 `smoke.cjs` 用 Electron 真载入页面，量 DOM 事实（面板数 / 文字长度 / 挂载线实例数 / 打包字体可用）
