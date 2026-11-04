@@ -37,6 +37,11 @@ const DOC_LIMITS = {
   'client/AGENTS.md': 80, // client 子树入口
   'client/docs/AGENTS.md': 80, // client/docs 文档群入口
   'client/docs/PLUGINS.md': 300, // 插件规范（预登记目标档；全表口径待文档治理轮定）
+  'client/docs/features/library.md': 300, // 功能域参照页（feature-docs 机制，2026-11-05）
+  'client/docs/features/reader.md': 300,
+  'client/docs/features/notes.md': 300,
+  'client/docs/features/room.md': 300,
+  'client/docs/features/settings.md': 300,
   'ops/AGENTS.md': 80, // ops 子树入口（治理域）
   'client/scripts/README.md': 80, // 业务脚本清单（信任分级）
   '.agents/notes/README.md': 80, // 决策日志机制
