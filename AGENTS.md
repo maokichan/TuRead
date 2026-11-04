@@ -76,10 +76,10 @@ node ops/scripts/docIndex.mjs check       # 跟踪声明与链接方向全量校
 ### 无头验证（真实渲染链路，需要一本真实的书）
 
 ```bash
-# ⚠ 都要 TUREAD_USER_DATA=<工作区内独立目录>，别碰真实书库；
+# ⚠ 都要 TUREAD_USER_DATA=<工作区内独立目录的绝对路径>（相对路径主进程拒载），别碰真实书库；
 # ⚠ 受限文件沙箱下这些都会 EPERM（esbuild 管道 stdio / Electron 命名管道），需放宽沙箱
 TUREAD_USER_DATA=./.probe TUREAD_DEV_BOOK="<书的绝对路径>" npm run dev                     # 渲染自检
-TUREAD_USER_DATA=./.probe TUREAD_DEV_PROBE=library npm run dev                            # 多库/書箱读模型
+TUREAD_USER_DATA=./.probe TUREAD_DEV_PROBE=library TUREAD_DEV_BOOK="<任意书>" npm run dev  # 多库/書箱读模型（探针需要书做标定）
 TUREAD_USER_DATA=./.probe TUREAD_DEV_PROBE=note TUREAD_DEV_BOOK="<文字类书>" npm run dev   # 笔记/划线全链路
 TUREAD_USER_DATA=./.probe TUREAD_DEV_PROBE=room TUREAD_DEV_BOOK="<任意书>" \
   TUREAD_DEV_SERVER="http://127.0.0.1:8080" TUREAD_DEV_ACCESS="<二级令牌，可空>" npm run dev  # 房间链路（唯一要真 server）

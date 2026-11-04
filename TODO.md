@@ -176,6 +176,10 @@
   （40 行与 STATUS §3 重复）。
 - [ ] **卸载插件 IPC 实现**（方案已定 PLUGINS.md §3，待实施）：`plugins:uninstall` +
   设置页「卸載」动作 + seeder opt-out 评估；连同官方插件升级路径（版本兼容策略）一并定。
+- [ ] **(P2) `createLibrary` 的 name 契约三方不一致**：端口声明 `name?` 可选（store.ts:149）、
+  core 自动命名（sqliteStore.ts:543 `書庫 ${count+1}`）、IPC handler 却必填（ipc.ts:149
+  「創建書庫缺少名稱」，2026-10-03 删宽容 shim）——library 探针因此必败（已按现状显式传名
+  绕开）。定谁权威：要么 handler 放行走 core 自动命名，要么端口改必填全链对齐。
 
 - [ ] **client/scripts 脚本逐个收编**：现全部标记「不信任·待收编」（清单与信任级口径见
   `client/scripts/README.md`）——按 kookit-harness → style-gallery → swarm → ui-shot 逐个审查，

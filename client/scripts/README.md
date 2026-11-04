@@ -18,7 +18,8 @@
 | [style-gallery](style-gallery) | 样式样张（`npm run style`，token 与组件基线，STYLE.md §8.0 第一确认手段）；`smoke.cjs` = 无头机检，DOM 事实落盘 | 不信任·待收编 | smoke 只观测不挡提交；排版最终仍需 Electron 内复核 |
 | [swarm](swarm) | 蜂群同步回归：一次性 server + N 只 roombot + 语义断言 A1–A5（`npm run swarm`，退出码 = 结论） | 不信任·待收编 | e2e 洪泛不稳已登记 TODO |
 | [ui-shot](ui-shot) | 真窗口截屏/点击探针（PowerShell + user32，无新依赖；界面改动「必须看过再交付」的工具） | 不信任·待收编 | userData 必须绝对路径（主进程拒载相对路径）；窗口抓取首选 printwin.ps1 |
+| logsClean.mjs | 工作区日志清扫：扫 `logs/` 与历史散落模式，默认列单、`--yes` 删（白名单收口在本脚本内）；统一日志的配套件（决策笔记 unified-logging） | 不信任·待收编 | 白名单外的散落物不命中（宁可漏列不误删） |
 
-另有 `client/plugins/`（官方插件工作区，运行时种子）不在本目录，契约见 `client/docs/CONTRACTS.md` §9。
+另有 `client/plugins/`（官方插件工作区，运行时种子）不在本目录，规范见 `client/docs/PLUGINS.md`。
 
-跟踪：[kookit-harness](kookit-harness) · [style-gallery](style-gallery) · [swarm](swarm) · [ui-shot](ui-shot)
+跟踪：[kookit-harness](kookit-harness) · [style-gallery](style-gallery) · [swarm](swarm) · [ui-shot](ui-shot) · [logsClean.mjs](logsClean.mjs)

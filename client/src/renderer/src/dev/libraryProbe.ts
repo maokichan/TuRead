@@ -58,7 +58,9 @@ export function runLibraryProbe(container: ServiceContainer, host: FeatureHost):
       assert(before > 0, `默认库收录非空（实际 ${before}，迁移链路验证）`)
 
       // ② 新建库（端口契约：创建即切换；v0.4.0 单对象入参、mode 必选）→ 收录应为空
-      const created = await container.store.createLibrary({ mode: 'curated' })
+      // name：端口声明可选、core 自动命名，但 IPC handler 必填（三方不一致，TODO 登记）——
+      // 探针按现状显式传名，不依赖宽容层
+      const created = await container.store.createLibrary({ mode: 'curated', name: '探针库' })
       await wait(300)
       const afterCreate = await container.store.listLibraries()
       assert(afterCreate.currentId === created.id, `新建后当前库 = 新库（${created.name}）`)
