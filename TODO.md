@@ -173,6 +173,13 @@
   ② DATA_MODEL §6（50 行与 §4.2 重复的第二副本）与 FEATURES-历史残余的进一步下沉；
   ③ dsh 式 doc-typecheck / type-equiv（文档内 ts 块可编译、类型粘贴与源码等价）——
   远期工程项。
+- [ ] **洗源码（下个 session，用户 2026-11-05 立项）**：给源码与注释瘦身——一方代码
+  21,293 行中注释 3,134 行（≈15%），重灾区 `kookitRenderAdapter`（949 行）/
+  `LibraryFeature`（1102 行）/`ReaderFeature`（1056 行）。判据（dsh 口径）：
+  **契约留注释**（行为/失败/时序/所有权/非显然取向），叙事/历史/教训/推理过程
+  转移 `client/docs/features/` 对应页或直接退役（git 历史）；「文档与代码不一致」
+  按纪律主动报告。按域分批（library → reader → notes → room → settings/main），
+  顺序与节奏由开发者定；**与文档治理余项分阶段进行，不同 session 混做**。
 - [ ] **卸载插件 IPC 实现**（方案已定 PLUGINS.md §3，待实施）：`plugins:uninstall` +
   设置页「卸載」动作 + seeder opt-out 评估；连同官方插件升级路径（版本兼容策略）一并定。
 - [ ] **(P2) `createLibrary` 的 name 契约三方不一致**：端口声明 `name?` 可选（store.ts:149）、
