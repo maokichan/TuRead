@@ -10,7 +10,7 @@
  *
  * 覆盖：主题取向 / 动作文字档 / 三声部与字号阶梯 / 中文排版 / 真实组件全量。
  * 不覆盖：Electron 专属行为（IPC、窗口、kookit 渲染）—— 那些仍以 App 内自测为准。
- * 用法：`cd client && npm run style` → http://localhost:5199/tools/style-gallery/index.html
+ * 用法：`cd client && npm run style` → http://localhost:5199/scripts/style-gallery/index.html
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -1002,7 +1002,7 @@ function NotesDemo(): React.JSX.Element {
  * - `commitMs`：首屏从挂载到第一帧（N 张卡片的 React 提交 + 布局）；
  * - `settleMs`：瀑布流**跨行数收敛**用时（首帧是文本长度估算值，`ResizeObserver` 实测纠正后才稳）；
  * - `refreshMs`：**整片重渲染**用时（切换文字主次档 = 全部卡片重新渲染，等价于筛选/重读后的刷新）。
- * 结果挂到 `window.__notesScale`，由 `tools/style-gallery/smoke.cjs --scale=N` 读走。
+ * 结果挂到 `window.__notesScale`，由 `scripts/style-gallery/smoke.cjs --scale=N` 读走。
  */
 function ScaleProbe({ n, windowing = true }: { n: number; windowing?: boolean }): React.JSX.Element {
   const [items] = useState<NoteFlowItem[]>(() => makeScaleItems(n))
