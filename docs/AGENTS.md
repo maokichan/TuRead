@@ -28,13 +28,15 @@
 
 - 入口文档只放指针、红线与命令速查；子树入口（`docs/`、`client/`、`client/docs/` 各一份
   AGENTS.md）只放该域的地图与增量规则，全局内容不重复——读什么、读多少按需加载。
-- 新文档**必须**先到 `scripts/docGuard.mjs` 上限表登记级别，再动笔。
+- 新文档**必须**先到 `ops/scripts/docGuard.mjs` 上限表登记级别，再动笔。
 
 **门控（可执行化）**
 
-- 全部入库 Markdown 挂 `scripts/docGuard.mjs`（pre-commit 自动跑，clone 后
-  `git config core.hooksPath .githooks` 一次性激活）：入口/索引类硬上限（AGENTS 族 80~100 行），
-  **其余文档统一 800 行**；未登记按默认 800。体检 = `node scripts/docGuard.mjs --report`。
+- 提交门控链挂 pre-commit（clone 后 `git config core.hooksPath .githooks` 一次性激活）：
+  doc-index（声明路径缺失 = 拦、漂移 = 提醒）→ repoGuard（绝对路径/密钥 = 拦）→ docGuard（超限 = 拦）；
+  链的口径与激活细则归 `ops/AGENTS.md`，本文件不复读。行数口径：入口/索引类硬上限
+  （AGENTS 族 80~100 行），**其余文档统一 800 行**；未登记按默认 800。
+  体检 = `node ops/scripts/docGuard.mjs --report`。
 
 **洗（超限或定期）**
 
@@ -45,7 +47,6 @@
   不堆"旧版注记"）。代码可证伪「是否已实现」，不可证伪「是否应然」——用户定案的
   交互语义是文档权威，代码只能更新其实现状态。
 - 粒度：单文档在 800 内时**一个代理吃一个文档即可，不拆片**；并发洗多文档时**文档
-  粒度天然无写冲突**——各自成稿、互不合并。大文档拆片 / fork 复用上下文的经验见
-  `D:\PROJECT\AGENT-CONCURRENCY.md`。
+  粒度天然无写冲突**——各自成稿、互不合并。
 - 修代码必对表：接口形状变了改 CONTRACTS，交互变了改 FEATURES，视觉变了改 STYLE；
   文档与代码不一致要主动报给用户。

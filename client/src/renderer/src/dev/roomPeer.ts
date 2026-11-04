@@ -18,8 +18,8 @@
  * $env:TUREAD_DEV_NICK="bob"
  * $env:TUREAD_DEV_SERVER="http://127.0.0.1:8080"; $env:TUREAD_DEV_ACCESS=""
  * $env:TUREAD_DEV_ROOM="80979f6a"              # 可留空 = 自动取大厅里最新的一间
- * $env:TUREAD_DEV_BOOK="D:\...\同一本.pdf"      # 标定用（不匹配时会退化为"无书成员"）
- * $env:TUREAD_USER_DATA="D:\PROJECT\TuRead\client\.probe-user-data-peer"
+ * $env:TUREAD_DEV_BOOK="<书路径>\同一本.pdf"     # 标定用（不匹配时会退化为"无书成员"）
+ * $env:TUREAD_USER_DATA="<仓库根>\client\.probe-user-data-peer"
  * node_modules\electron\dist\electron.exe .
  * ```
  * 归属：开发工具，不是产品代码（同 dev/selfCheck.ts 纪律）。

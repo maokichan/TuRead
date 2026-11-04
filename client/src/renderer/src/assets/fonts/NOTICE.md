@@ -20,7 +20,7 @@
 
 ```powershell
 # 1) 从系统 TTC 抽取「源流明體月 B」切面（face 0）
-python -c "from fontTools.ttLib import TTCollection; TTCollection(r'C:\Users\1\AppData\Local\Microsoft\Windows\Fonts\GenRyuMin2-B.ttc')[0].save('GenRyuMinTW-B.otf')"
+python -c "from fontTools.ttLib import TTCollection; TTCollection(r'<Windows 字体缓存目录>\GenRyuMin2-B.ttc')[0].save('GenRyuMinTW-B.otf')"
 # 2) 子集化（保留 BMP CJK + 拉丁 + 标点，去提示指令与布局表）
 pyftsubset GenRyuMinTW-B.otf `
   --unicodes=U+0020-007E,U+00A0-00FF,U+2000-206F,U+3000-303F,U+4E00-9FFF,U+FF00-FFEF `

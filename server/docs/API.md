@@ -109,7 +109,7 @@
 > 规则：**同一 IP 7 天内申请过 → 复用既有 token 并续期（活跃身份不因窗口过期）；超过 7 天未申请 → 换发新 token**。
 
 - 请求：仅带 `X-Turead-Access`（无成员 token；本接口豁免第 3 层）
-- `200`：`{ "token": "7位大小写字母数字", "issued": true|false }`（issued=true 为新签发，false 为复用）
+- `200`：`{ "token": "<7位大小写字母数字>", "issued": true|false }`（issued=true 为新签发，false 为复用）
 - `401`：二级令牌缺失/不匹配
 - 签发即建档（users 表：ip / token_issued_at；nick 空，首次进房补齐）；token 生成碰撞自动重试
 - 管理员 token 由配置 `admin_tokens` 直接预置（无需经本接口）

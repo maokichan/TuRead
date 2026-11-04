@@ -16,7 +16,7 @@
 
 ```bash
 # 1. 起一个独立 userData 的 dev 实例（⚠ 必须绝对路径，相对路径主进程会 "Path must be absolute" 拒载）
-TUREAD_USER_DATA="D:\\PROJECT\\TuRead\\client\\.probe-shot" npm run dev &
+TUREAD_USER_DATA="<仓库根>/client/.probe-shot" npm run dev &
 
 # 2. 找窗口 PID（标题 = TuRead）
 powershell -c 'Get-Process electron | ? {$_.MainWindowHandle -ne 0} | % { "{0} {1}" -f $_.Id, $_.MainWindowTitle }'

@@ -14,8 +14,8 @@
 
 ## 阅读顺序（按需加载，不要一次全读）
 
-> **子树入口**：进入 `docs/` 或 `client/` 工作前，先读该子树自己的 `AGENTS.md`
-> （只放该域的地图与增量红线，全局内容不重复）。文档行数门控见「常用命令」区。
+> **子树入口**：进入 `docs/`、`client/` 或 [`ops/`](ops/AGENTS.md)（仓库门控：守卫链 / 路径红线 /
+> 跟踪声明）工作前，先读该子树自己的 `AGENTS.md`（只放该域的地图与增量红线，全局内容不重复）。
 
 1. [`docs/STATUS.md`](docs/STATUS.md) —— **状态与交接快照，先读这个**（§3 = 决策索引，一行一条）
 2. [`TODO.md`](TODO.md) —— 唯一待办清单
@@ -27,7 +27,7 @@
 8. [`client/docs/FEATURES.md`](client/docs/FEATURES.md) —— UI 功能组件设计（功能划分 + 交互语义）
 9. [`client/docs/STYLE.md`](client/docs/STYLE.md) —— **渲染层风格基线（渲染层开发先读）**
 10. `server/docs/{ARCHITECTURE,API,OPS}.md` —— server 架构 / 协议 / 运维
-11. **网络配方**收编在 `docs/STATUS.md` §5（git 代理、GOPROXY、打包代理；原 `D:\PROJECT\NETWORK.md` 已删）
+11. **网络配方**收编在 `docs/STATUS.md` §5（git 代理、GOPROXY、打包代理；原仓库外 NETWORK.md 已删）
 
 ## 红线（违反 = 事故）
 
@@ -39,6 +39,10 @@
 - **打包（`npm run dist`）只在用户明确要求时做** —— "滚了版本号"不等于"该打包"，
   打包也可能由用户交给另一个 agent 做
 - 通用开发纪律（提交/版本分工、文档维护、删除即移入 `trash/`）见 `generate-swe` skill
+- **提交过门控链**：pre-commit 三守卫（doc-index → repoGuard → docGuard）自动跑，报错自带修法，按修法改；`--no-verify` 是人类的绕行特权，agent 不用
+- **路径一律仓库相对**：命令示例从仓库根运行；指代仓库根写 `<仓库根>` 占位；引用仓库外文件属越权（repoGuard 拦）
+- **影响项目的决定写决策笔记**：`.agents/notes/` 三态生命周期（机制见其 README）；写新笔记前先查旧笔记（supersession）
+- **装依赖先问人**：加依赖先提 proposed 决策笔记（写清用途与替代方案）征得同意，再按声明落地
 
 ## 常用命令
 
@@ -60,11 +64,13 @@ npm run swarm          # 蜂群同步回归（一次性 server + N 只 roombot�
 npm run rebuild:sqlite # 换 Electron 大版本后重建原生模块
 ```
 
-### 文档门控（pre-commit 自动跑；口径与上限表见脚本头注）
+### 仓库门控（pre-commit 自动跑；链与口径见 `ops/AGENTS.md`）
 
 ```bash
-git config core.hooksPath .githooks  # clone 后一次性激活（hooks 配置不随仓库传播）
-node scripts/docGuard.mjs --report   # 手动体检：全量文档 行数/上限/占用率
+git config core.hooksPath .githooks       # clone 后一次性激活（hooks 配置不随仓库传播）
+node ops/scripts/docGuard.mjs --report    # 文档体检：行数 / 上限 / 占用率
+node ops/scripts/repoGuard.mjs --report   # 卫生体检：绝对路径 / 密钥
+node ops/scripts/docIndex.mjs check       # 跟踪声明与链接方向全量校验
 ```
 
 ### 无头验证（真实渲染链路，需要一本真实的书）

@@ -17,10 +17,10 @@
  * 触发（**必须独立 userData**）：
  * ```
  * $env:TUREAD_DEV_PROBE="room"
- * $env:TUREAD_DEV_BOOK="D:\...\test_docs\任意.epub"
+ * $env:TUREAD_DEV_BOOK="<书路径>\test_docs\任意.epub"
  * $env:TUREAD_DEV_SERVER="http://127.0.0.1:8080"   # 可选，默认同值
  * $env:TUREAD_DEV_ACCESS="<服务器 access_token>"    # 可选，服务器未配门禁则留空
- * $env:TUREAD_USER_DATA="D:\PROJECT\TuRead\client\.probe-user-data"
+ * $env:TUREAD_USER_DATA="<仓库根>\client\.probe-user-data"
  * npm run dev
  * ```
  * 服务器侧建议用**一次性的 data 目录**（本仓库的 `server/data/turead.db` 是入库文件，别拿它做探针）：
