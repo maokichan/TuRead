@@ -1,7 +1,7 @@
 # client/docs/ —— 文档群维护规则（agent 子树入口）
 
-> 本目录六个文档的**分工与维护规则**。读序（何时读哪个）在 `client/AGENTS.md`；
-> 全局红线在仓库根 `AGENTS.md`。全部文档挂 `scripts/docGuard.mjs` 行数门控
+> 本目录文档群的**分工与维护规则**。读序（何时读哪个）在 `client/AGENTS.md`；
+> 全局红线在仓库根 `AGENTS.md`。全部文档挂 `ops/scripts/docGuard.mjs` 行数门控
 > （入口类 80 硬上限，其余统一 800）。
 
 ## 分工与裁决顺序
@@ -26,4 +26,6 @@
   不必要的推演过程，只留判定、事实、接口形状；被取代的口径直接退役（git 历史为准，
   不留"旧版注记"堆叠）。
 - **决策记录的归属**：用户定案的**结论**进对应文档正文；定案过程与讨论在 git 与 STATUS。
-- 新文档先来 `scripts/docGuard.mjs` 上限表登记；删除的文档移入 `trash/`。
+- 新文档先来 `ops/scripts/docGuard.mjs` 上限表登记；删除的文档移入 `trash/`。
+
+跟踪：[ARCHITECTURE](ARCHITECTURE.md) · [CONTRACTS](CONTRACTS.md) · [DATA_MODEL](DATA_MODEL.md) · [FEATURES](FEATURES.md) · [KOOKIT](KOOKIT.md) · [RENDER_INTERFACE](RENDER_INTERFACE.md) · [STYLE](STYLE.md)
