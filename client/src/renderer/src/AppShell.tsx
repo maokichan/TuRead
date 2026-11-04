@@ -6,7 +6,7 @@
  * - 提供 FeatureHost（navigate / openReader / closeReader / selectBook / pushLog）——
  *   跨功能导航与状态继承的唯一通道（FEATURES.md §5 / features/types.ts）。
  * - 功能组件常驻挂载、非激活 display:none → 状态天然继承（房间会话/阅读位置不因切换丢失）。
- * - 无顶栏 / 无日志栏：连接状态在 RoomFeature，诊断日志在 SettingsFeature。
+ * - 无顶栏 / 无日志栏：连接状态在 RoomFeature；诊断日志节已移除（STYLE §5.7），落盘走统一日志（main/logFile）。
  * - dev 无头自检已移出（见 dev/selfCheck.ts）—— shell 只做组合与共享态。
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'

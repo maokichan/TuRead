@@ -8,6 +8,8 @@ import { registerIpc } from './ipc'
 import { WsNetAdapter } from './net/wsNetAdapter'
 import { LibraryManager } from './store/libraryManager'
 import { PluginManager } from './plugins'
+import { initFileLog, fileLog } from './logFile'
+import { consoleLevelToLogLevel } from '@shared/log'
 import { IPC } from '@shared/ipc'
 
 // dev-only：独立 userData（TUREAD_USER_DATA=<目录>）—— 无头自检/迁移验证不污染真实书库。
@@ -92,6 +94,9 @@ function registerMetadataRelay(): void {
 function createWindow(): void {
   const devBook = process.env['TUREAD_DEV_BOOK']
   const devProbe = process.env['TUREAD_DEV_PROBE']
+  // 探针态的自检退出逻辑（timeout/keepAlive）由下方常驻 console-message 监听读写
+  let keepAlive = false
+  let timeout: NodeJS.Timeout | null = null
   /** 房间探针（v0.4.3）：要连的真实服务器地址与二级令牌（可选；留空 = 探针用默认地址） */
   const devServer = process.env['TUREAD_DEV_SERVER']
   const devAccess = process.env['TUREAD_DEV_ACCESS']
@@ -150,6 +155,18 @@ function createWindow(): void {
   // 双保险：应用菜单置空 + 移除本窗口菜单（Windows 下 autoHideMenuBar 按 Alt 仍可能弹出）
   win.removeMenu()
 
+  // 渲染进程崩溃留痕（自动销毁重建是 TODO 工程项；此处先保证「崩了有据可查」——
+  // 之前主窗口没有 render-process-gone 处理，崩溃只在打包产物里无声消失）
+  win.webContents.on('render-process-gone', (_e, details) => {
+    fileLog({
+      t: Date.now(),
+      lvl: 'error',
+      scope: 'main',
+      msg: `渲染进程退出：${details.reason}`,
+      err: details.exitCode ? `exitCode=${details.exitCode}` : undefined
+    })
+  })
+
   if (devBook || devProbe) {
     // dev-only 无头验证：渲染进程打印 TUREAD-TEST-* 标记后自动退出
     // 上限 180s：文字类书（尤其 MOBI/AZW3）找不到正文时会逐章向前扫描，单次可耗 60~120s，
@@ -160,27 +177,42 @@ function createWindow(): void {
     // ⚠ 2026-09-17：**双开联调**（`TUREAD_DEV_PROBE=room-peer` + `TUREAD_DEV_KEEPALIVE=1`）时
     //   第二个实例要**一直活着**当"另一个 client"用（要的就是一个真实窗口，不是跑完即退的探针）：
     //   此时不设自动退出计时器；失败标记仍会退出（否则失败会静默变成一个"看着正常"的窗口）。
-    const keepAlive = process.env['TUREAD_DEV_KEEPALIVE'] === '1'
+    keepAlive = process.env['TUREAD_DEV_KEEPALIVE'] === '1'
     const timeoutMs = Number(process.env['TUREAD_DEV_TIMEOUT_MS'] ?? '') || 180000
-    const timeout = keepAlive
+    timeout = keepAlive
       ? null
       : setTimeout(() => {
           console.error('[TUREAD-TEST-FAIL] 超时未完成')
           app.exit(2)
         }, timeoutMs)
-    win.webContents.on('console-message', (_e, level, message) => {
-      if (message.startsWith('[TUREAD-TEST-')) {
-        console.log(message)
-        if (timeout) clearTimeout(timeout)
-        if (!keepAlive || message.startsWith('[TUREAD-TEST-FAIL')) {
-          app.exit(message.startsWith('[TUREAD-TEST-OK') ? 0 : 1)
-        }
-      } else if (level >= 2 && !message.startsWith('[dev]')) {
-        // dev-only 诊断：转发渲染进程的 error/warning（CSP 拦截、JS 异常等）
-        console.log(`[renderer:${level === 3 ? 'error' : 'warn'}] ${message}`)
-      }
-    })
   }
+
+  // 常驻：渲染进程 console → 统一日志文件。生产记 warn/error（kookit vendor 的
+  // info 噪音不进文件）；探针态全量记（自检标记、插件日志、探针输出都要落盘——
+  // 打包产物自检的输出从此可拿，见 TODO「打包产物跑自检不自退」）。
+  const probeMode = Boolean(devBook || devProbe)
+  win.webContents.on('console-message', (_e, level, message) => {
+    if (probeMode && message.startsWith('[TUREAD-TEST-')) {
+      console.log(message)
+      if (timeout) clearTimeout(timeout)
+      if (!keepAlive || message.startsWith('[TUREAD-TEST-FAIL')) {
+        app.exit(message.startsWith('[TUREAD-TEST-OK') ? 0 : 1)
+      }
+      return
+    }
+    if (level >= 2 || probeMode) {
+      fileLog({
+        t: Date.now(),
+        lvl: consoleLevelToLogLevel(level),
+        scope: 'renderer',
+        msg: message
+      })
+    }
+    if (probeMode && level >= 2 && !message.startsWith('[dev]')) {
+      // dev 诊断照旧进 stdout：转发渲染进程的 error/warning（CSP 拦截、JS 异常等）
+      console.log(`[renderer:${level === 3 ? 'error' : 'warn'}] ${message}`)
+    }
+  })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url)
@@ -195,6 +227,17 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(async () => {
+  // 统一日志（决策笔记 2026-11-05-unified-logging）：先于一切业务装配。
+  // Windows 下 Electron 的 stdout 抓不到（STATUS §5），文件是生产可诊断的唯一通道。
+  initFileLog()
+  process.on('unhandledRejection', (reason) => {
+    fileLog({ t: Date.now(), lvl: 'error', scope: 'main', msg: '未处理的 Promise 拒绝', err: String(reason) })
+  })
+  process.on('uncaughtException', (err) => {
+    fileLog({ t: Date.now(), lvl: 'error', scope: 'main', msg: '主进程未捕获异常', err: err.stack ?? String(err) })
+    app.exit(1)
+  })
+
   // dev-only spike（DATA_MODEL 开放问题 1）：TUREAD_DEV_SQLITE=1 时验证 better-sqlite3
   // 在 Electron 主进程的连通性，跑完即退，不创建窗口、不进应用（结论回写 DATA_MODEL.md）
   if (process.env['TUREAD_DEV_SQLITE'] === '1') {

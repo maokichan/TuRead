@@ -35,6 +35,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | 决策 | 一句话 | 权威 |
 |---|---|---|
 | **仓库治理机制** | ops/ 三门控（doc-index → repoGuard → docGuard）挂 pre-commit；决策笔记三态生命周期；治理/业务脚本分治（ops/ 管仓库，client/scripts/ 管业务与验证，后者信任分级待收编） | `ops/AGENTS.md`；笔记：[机制移植](../.agents/notes/implemented/process/2026-11-04-mechanism-port.md) |
+| **统一日志（2026-11-05）** | 单行 JSONL 契约（`@shared/log`）；生产/探针同格式落 `<userData>/logs/app.jsonl`（启动轮转 5MB/7 份/14 天）；renderer console-message 常驻转发（生产 warn/error、探针全量）；工作区收拢点 = 仓库根 `logs/`；清理 = `node client/scripts/logsClean.mjs`（默认列单，`--yes` 删） | 笔记：[统一日志](../.agents/notes/implemented/process/2026-11-05-unified-logging.md)；契约 `client/src/shared/log.ts` |
 | 架构选型 | client = 六边形（端口-适配器）+ DDD 命名；server = 简单分层（非六边形） | `client/docs/ARCHITECTURE.md` §1；`server/docs/ARCHITECTURE.md` §5 |
 | 定位系统 | `BookLocation` 三级角色（key/hint/display），原语收拢进 `core/domain/location.ts`，任何组件不得自行解释位置字段 | `CONTRACTS.md` §2.1 |
 | 书籍标定 | Work/Edition 两层；Work 不设 author/publisher；`content-hash-v1` + `md5-sample3-v1` | `docs/ARCHITECTURE.md` §1 |

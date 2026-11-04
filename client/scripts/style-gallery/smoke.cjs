@@ -28,12 +28,13 @@ const os = require('os')
 const path = require('path')
 const { app, BrowserWindow } = require('electron')
 
-const URL = process.argv[2] || 'http://localhost:5199/tools/style-gallery/index.html'
+const URL = process.argv[2] || 'http://localhost:5199/scripts/style-gallery/index.html'
 /** `--scale=N`：附加跑压力场景（笔记管理瀑布流的规模数字，见 STYLE §5.10 的窗口化决策） */
 const SCALE = Number((process.argv.find((a) => a.startsWith('--scale=')) ?? '').split('=')[1] ?? 0)
 /** `--no-window`：压力场景关掉窗口化（A/B 对照） */
 const NO_WINDOW = process.argv.includes('--no-window')
-const OUT = path.join(os.tmpdir(), 'turead-gallery-smoke.json')
+// 报告落统一日志收拢点（仓库根 logs/，gitignored；原 %TEMP% 落点随统一日志机制退役）
+const OUT = path.join(__dirname, '..', '..', '..', 'logs', 'gallery-smoke.json')
 const logs = []
 
 // 必须在 ready 之前：userData 落在工作区外会被沙箱拒绝（实测默认 %APPDATA%\Electron 直接 FATAL）
@@ -620,6 +621,7 @@ app.whenReady().then(async () => {
     rafGapMs,
     pageErrors
   }
+  fs.mkdirSync(path.dirname(OUT), { recursive: true })
   fs.writeFileSync(OUT, JSON.stringify({ verdict, logs }, null, 2))
   console.log(
     `[style-gallery smoke] ${verdict.ok ? 'OK' : 'FAIL'}` +

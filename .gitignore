@@ -36,6 +36,9 @@ Thumbs.db
 # 一次性留档（临时审查/排查文档；文件自己写明"勿入库"）
 *.tmp.md
 
+# 统一日志的工作区收拢点（决策笔记 2026-11-05-unified-logging；生产日志在 <userData>/logs/）
+logs/
+
 # trash/（删除物本地留档，见 trash/README.md；被移走的入库文件仍可从 git 历史找回）
 trash/
 
