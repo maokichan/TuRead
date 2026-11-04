@@ -22,12 +22,13 @@
 
 ## 维护纪律
 
-- **改代码必对表**：接口形状变了改 CONTRACTS，交互变了改 FEATURES，视觉变了改 STYLE——
-  文档与代码不一致要主动报给用户（generate-swe 纪律）。
-- **洗文档**（超限或定期）：按纪律结合程序事实——对照代码现状，删没必要的形容词与
-  不必要的推演过程，只留判定、事实、接口形状；被取代的口径直接退役（git 历史为准，
-  不留"旧版注记"堆叠）。
-- **决策记录的归属**：用户定案的**结论**进对应文档正文；定案过程与讨论在 git 与 STATUS。
+> 洗文方法、引用方向、单一落点、改代码必对表——**全项目文档维护准则的权威在
+> `docs/AGENTS.md`**（本文件不复读）；本节只放本目录增量。
+
+- **改代码必对表**：接口形状 → `CONTRACTS`；交互裁决 → `FEATURES`；域实现细节 →
+  `features/` 对应页；视觉 → `STYLE`。
+- **决策记录的归属**：用户定案的**结论**进对应文档正文；定案过程与被放弃项 =
+  `.agents/notes/`（notes 机制见其 README）；过程与讨论在 git 与 STATUS。
 - 新文档先来 `ops/scripts/docGuard.mjs` 上限表登记；删除的文档移入 `trash/`。
 
 跟踪：[ARCHITECTURE](ARCHITECTURE.md) · [CONTRACTS](CONTRACTS.md) · [DATA_MODEL](DATA_MODEL.md) · [FEATURES](FEATURES.md) · [KOOKIT](KOOKIT.md) · [PLUGINS](PLUGINS.md) · [RENDER_INTERFACE](RENDER_INTERFACE.md) · [STYLE](STYLE.md) · [features/](features)
