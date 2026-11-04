@@ -3,7 +3,7 @@
 > **本文件的职能（三件）**：① **交接快照**（现在在哪 / 下一步 / 怎么验）；② **决策索引**
 > （一行一条，指向权威文档）；③ **版本历史**。**不承载**具体的视觉/契约/数据规则 ——
 > 那些的归属是 `client/docs/{STYLE,FEATURES,CONTRACTS,DATA_MODEL,KOOKIT,RENDER_INTERFACE}.md`。
-> 阅读顺序：本文件 → 仓库根 [`AGENTS.md`](../AGENTS.md)（agent 入口，自动注入）→ [`TODO.md`](../TODO.md) → 各端架构文档。
+> 阅读顺序：本文件 → 仓库根 `AGENTS.md`（agent 入口，自动注入）→ 根目录 `TODO.md` → 各端架构文档。
 > 逐版过程明细随 git 历史（annotated tag + 提交消息）留存，本文件只留定位用的要点。
 
 ## 1. 一句话
@@ -13,7 +13,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 同步服务器用 Go，**v0.2.0 已实现**（`server/`）；**client v0.2.7**（插件系统与 AI 共读「問」随 v0.2.1；界面空间语法 v2 随 v0.2.4；交互打磨批 1.9~1.18 随 v0.2.5；聚焦舞台随 v0.2.6；**挂载线退役完成 + 阅读时间上线随 v0.2.7**）。
 **本地阅读侧端到端可用；房间同步已与真实 server 打通**（v0.2.0，含阅读器内聊天室；多人场景仍在补验）。
 
-## 2. 仓库与提交（`D:\PROJECT\TuRead`）
+## 2. 仓库与提交
 
 - git 仓库：本地 `main`，`origin = https://github.com/maokichan/TuRead.git`（独立仓库，非 fork）
 - 结构：`client/`（Electron）｜`server/`（独立 Go module）｜`kookit/`（submodule，HEAD `6e18465`）｜`docs/`｜`TODO.md`
@@ -25,12 +25,16 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
   另一个 agent 做——**「滚了版本号」不等于「该打包」**，绝不因为版本滚动就顺手出 release。
 - **发版节奏**：**功能确定后即滚版本号**（不长期堆改动）。滚版本时 agent 同步 `package.json` /
   `package-lock.json` / 本文 §4 / `README.md` + 打 tag。产物（便携版 exe）不在此列。
-- **网络配方**（原 `D:\PROJECT\NETWORK.md` 已删，事实收编于此）：GitHub 走本地代理 `127.0.0.1:7897`（Clash Verge rev，**没开会连不上**，报 "Failed to connect … 127.0.0.1" 即此因）；git 代理已写入本仓库 `http.proxy`；Go `GOPROXY=https://goproxy.cn,direct`；npm registry 直连；OpenSSL 走代理；打包（electron-builder 下载二进制）走代理
+- **网络配方**（原仓库外 NETWORK.md 已删，事实收编于此）：GitHub 走本地代理 `127.0.0.1:7897`（Clash Verge rev，**没开会连不上**，报 "Failed to connect … 127.0.0.1" 即此因）；git 代理已写入本仓库 `http.proxy`；Go `GOPROXY=https://goproxy.cn,direct`；npm registry 直连；OpenSSL 走代理；打包（electron-builder 下载二进制）走代理
 
 ## 3. 已定决策（**索引**：一行一条 + 权威位置；细节不在这里重复）
 
+> 决策笔记（含放弃项与备选的完整记录）在 `.agents/notes/`；有笔记的决定，「权威」列末尾附
+> `笔记：[标题](路径)`，无笔记的行以权威文档为准。笔记生命周期与格式见 `.agents/notes/README.md`。
+
 | 决策 | 一句话 | 权威 |
 |---|---|---|
+| **仓库治理机制** | ops/ 三门控（doc-index → repoGuard → docGuard）挂 pre-commit；决策笔记三态生命周期；治理/业务脚本分治（ops/ 管仓库，client/tools/ 管业务与验证，后者信任分级待收编） | `ops/AGENTS.md`；笔记：[机制移植](../.agents/notes/implemented/process/2026-11-04-mechanism-port.md) |
 | 架构选型 | client = 六边形（端口-适配器）+ DDD 命名；server = 简单分层（非六边形） | `client/docs/ARCHITECTURE.md` §1；`server/docs/ARCHITECTURE.md` §5 |
 | 定位系统 | `BookLocation` 三级角色（key/hint/display），原语收拢进 `core/domain/location.ts`，任何组件不得自行解释位置字段 | `CONTRACTS.md` §2.1 |
 | 书籍标定 | Work/Edition 两层；Work 不设 author/publisher；`content-hash-v1` + `md5-sample3-v1` | `docs/ARCHITECTURE.md` §1 |
