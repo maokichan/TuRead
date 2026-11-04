@@ -6,8 +6,9 @@
  * check 之类门（全量校验，错 = 非零退出）；hook 之链位（拦截性错误 + 漂移提醒不拦截）。
  *
  * ── 机制 ──
- * 文档用**文末最后一行**声明自己跟踪哪些事实源：`跟踪：[标签](路径) · [标签2](路径2)`。
- * 声明把「该看一眼」固定在 commit 时刻——被跟踪路径在提交里变了而声明文档没动，提醒漂移。
+ * **引用即跟踪**（CP 原则的完整落法）：文档对仓库内文件的每个 markdown 链接都是一条跟踪边
+ * ——被引用文件进了暂存区而引用它的文档没动，commit 时提醒漂移（目录边按前缀命中）。
+ * 文末 `跟踪：[标签](路径)` 声明是**加严层**：声明的路径额外受存在性 / 不入库 / 方向校验。
  * 机制不保证同步、不校验语义（文字是否过时不可判定）；它只让"该看一眼"无处遁形。
  *
  * ── 口径 ──
@@ -89,12 +90,15 @@ const gitIgnored = (rel) => {
 
 /**
  * 校验。errorsOnly=true 时跳过「声明路径不入库」检查（hook 模式用，check 全量）。
- * 返回 { errors: [], notices: [], declarations: Map<声明文档, [被跟踪路径]> }
+ * 返回 { errors, notices, declarations: Map<声明文档, [路径]>, linkEdges: Map<文档, Set<路径>> }。
+ * linkEdges = **引用即跟踪**的边集：全文档范围的每个仓库内链接（目标须实际存在——
+ * 行文示例里解析不到实体的路径不入边），漂移检查的职责面。
  */
 const inspect = (errorsOnly) => {
   const errors = []
   const notices = []
   const declarations = new Map()
+  const linkEdges = new Map()
   const docs = trackedMd()
   const declarers = new Map() // 被跟踪路径 → 声明文档列表
 
@@ -120,14 +124,18 @@ const inspect = (errorsOnly) => {
         declarers.get(rel).push(doc)
       }
     }
-    // 链接方向（全文档范围）：只许平级或子一级，不许向上、不许出仓
+    // 链接方向（全文档范围）：只许平级或子一级，不许向上、不许出仓；边集同时在此收集
     for (const m of text.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) {
       const target = m[1]
       if (/^(https?:|mailto:|#)/.test(target)) continue
       const rel = toRepoRel(doc, target.split('#')[0])
       if (rel === null) errors.push(`${doc}：引用越出仓库 —— ${target}`)
-      else if (isAncestorDir(effectiveTargetDir(rel), doc))
-        errors.push(`${doc}：引用方向向上（祖先）—— ${target}（只允许平级或子一级）`)
+      else {
+        if (isAncestorDir(effectiveTargetDir(rel), doc))
+          errors.push(`${doc}：引用方向向上（祖先）—— ${target}（只允许平级或子一级）`)
+        if (!linkEdges.has(doc)) linkEdges.set(doc, new Set())
+        if (existsSync(join(ROOT, rel))) linkEdges.get(doc).add(rel) // 不存在的目标（行文示例）不入边
+      }
     }
   }
 
@@ -146,7 +154,7 @@ const inspect = (errorsOnly) => {
   for (const [rel, docs2] of declarers) {
     if (docs2.length > 1) notices.push(`${rel} 有两个声明者（${docs2.join('、')}）——尽量单声明`)
   }
-  return { errors, notices, declarations, trackedSet: new Set(docs) }
+  return { errors, notices, declarations, linkEdges, trackedSet: new Set(docs) }
 }
 
 const cmd = process.argv[2]
@@ -164,7 +172,7 @@ if (cmd === 'check') {
 }
 
 if (cmd === 'hook') {
-  const { errors, declarations, trackedSet } = inspect(true)
+  const { errors, linkEdges } = inspect(true)
   if (errors.length > 0) {
     console.error(red('doc-index 拦截\n'))
     for (const e of errors) console.error(`  ${e}`)
@@ -178,16 +186,18 @@ if (cmd === 'hook') {
       .filter((p) => p !== '')
   )
   const drifts = []
-  for (const [doc, paths] of declarations) {
-    if (staged.has(doc)) continue // 声明文档自己在动，视为知情
-    for (const rel of paths) {
-      if (staged.has(rel)) drifts.push(`${rel} 在本批提交里变了，声明跟踪它的 ${doc} 没动`)
+  // 引用即跟踪：全部链接边都是漂移检查面（含目录边——staged 文件落在被链接目录内即触发）
+  for (const [doc, targets] of linkEdges) {
+    if (staged.has(doc)) continue // 文档自己在动，视为知情
+    for (const rel of targets) {
+      const hit = staged.has(rel) || [...staged].some((s) => s.startsWith(rel + '/'))
+      if (hit) drifts.push(`${rel} 在本批提交里变了，引用它的 ${doc} 没动`)
     }
   }
   if (drifts.length > 0) {
     for (const d of drifts) console.log(yellow(`⚠ doc-index 漂移提醒（不拦截）—— ${d}`))
   } else {
-    console.log('doc-index：声明与变更无漂移。')
+    console.log('doc-index：引用与变更无漂移。')
   }
   process.exit(0)
 }
