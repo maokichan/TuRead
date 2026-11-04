@@ -2,13 +2,14 @@
  * docGuard —— 文档门控（全项目 Markdown 行数上限；挂在 git pre-commit，见 .githooks/）
  *
  * ── 命名规范 ──
- * `scripts/<域><动作>.mjs`：域 = 治理对象（小写单词），动作 = 对它做什么（驼峰，首字母大写）。
- * 动作词分两族：**Guard = 门控**（不合规 → 非零退出、挡提交）；**Probe = 探针**（只观测不挡，
- * 供无头验证用，见 client/src/renderer/src/dev/）。本脚本 = 域 `doc`（文档治理）+ 动作 `Guard`。
+ * `ops/scripts/<域><动作>.mjs`：域 = 治理对象（小写单词），动作 = 对它做什么（驼峰，首字母大写）。
+ * 动作词分两族：**Guard = 门控**（不合规 → 非零退出、挡提交）；**Probe = 探针**（只观测不挡）。
+ * 本目录（ops/scripts/）只放**仓库治理**脚本（守卫链见 ops/AGENTS.md）；业务与验证探针在
+ * client/tools/（信任分级见其 README），二者分治。本脚本 = 域 `doc`（文档治理）+ 动作 `Guard`。
  *
  * ── 用途 ──
  * 扫描 git 追踪的全部 Markdown（trash/ 留档除外），逐文件比对行数与上限表，超限即挡。
- * `node scripts/docGuard.mjs` = 门控（hook 调的就是它）；`--report` = 体检报告，只打印不挡。
+ * `node ops/scripts/docGuard.mjs` = 门控（hook 调的就是它）；`--report` = 体检报告，只打印不挡。
  *
  * ── 目的 ──
  * 本项目的文档体系是 agent 的**按需加载结构**（渐进式披露，见 AGENTS.md）：入口文档必须
@@ -34,7 +35,11 @@ const DOC_LIMITS = {
   'AGENTS.md': 100, // agent 全局入口
   'docs/AGENTS.md': 80, // docs 子树入口
   'client/AGENTS.md': 80, // client 子树入口
-  'client/docs/AGENTS.md': 80 // client/docs 文档群入口
+  'client/docs/AGENTS.md': 80, // client/docs 文档群入口
+  'ops/AGENTS.md': 80, // ops 子树入口（治理域）
+  'client/tools/README.md': 80, // 业务脚本清单（信任分级）
+  '.agents/notes/README.md': 80, // 决策日志机制
+  '.agents/notes/AGENTS.md': 80 // 决策日志 agent 规则
 }
 // 其余文档（契约/设计/状态/待办/README）统一默认 800（用户 2026-11-03 定）：
 // 超限 = 按纪律结合程序事实洗一遍——去没必要的形容词、去不必要的推演过程，只留判定与事实。
@@ -93,7 +98,7 @@ if (over.length > 0) {
   }
   console.error(
     `\n修法（渐进式披露口径）：细节下沉到该在的小节或权威文档；过时段落退役进 git 历史；` +
-      `STATUS 超限 = 折叠最早的版本行。上限表与口径见 scripts/docGuard.mjs 头注。`
+      `STATUS 超限 = 折叠最早的版本行。上限表与口径见 ops/scripts/docGuard.mjs 头注。`
   )
   process.exit(1)
 }

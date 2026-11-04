@@ -1,4 +1,9 @@
 #!/bin/sh
-# 文档门控：全项目 Markdown 行数上限（scripts/docGuard.mjs，口径与上限表见其头注）。
+# pre-commit 门控链：任一守卫失败即中止提交（set -e——链的洞就是这么漏的）。
 # 激活方式（clone 后一次性）：git config core.hooksPath .githooks
-exec node scripts/docGuard.mjs
+set -e
+node "$(git rev-parse --show-toplevel)/ops/scripts/docIndex.mjs" hook
+# 仓库卫生门控：绝对路径与 API key 检出=拦截。
+node "$(git rev-parse --show-toplevel)/ops/scripts/repoGuard.mjs"
+# 文档行数门控：超限=拦截。
+node "$(git rev-parse --show-toplevel)/ops/scripts/docGuard.mjs"
