@@ -91,5 +91,3 @@ seed（官方件「缺则种」进 `<userData>/plugins/`）→ 主进程扫描 +
 | 私有键值 | settings 表 `plugin:<id>` 键 | 写 null 清值（无删键原语，键壳残留） |
 | 密钥 | settings 表 `plugin-secret:<id>:<name>`（safeStorage 密文） | v1 不清（键名不可枚举，密文残留） |
 | 对话历史等业务数据 | 插件自管，物理上在上述键内 | 随 `plugin:<id>` 清值；落在密钥里的残留同上 |
-
-跟踪：[CONTRACTS §9](CONTRACTS.md) · [client/plugins/](../plugins/)

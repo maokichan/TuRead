@@ -13,5 +13,3 @@
 | `ai/` | 問——AI 共读助手 v0.1.0：右段「問」格（`hideWhenInRoom`，进房让位聊天）。带着当前位置与目录对话，引用原文『…』可点跳回；OpenAI 兼容接口、key 走 safeStorage 保险库；非流式 + 打字机呈现 |
 
 新插件 = 本目录加一个文件夹（布局与标准见 PLUGINS.md §2）；启停/卸载语义见 PLUGINS.md §3。
-
-跟踪：[clock](clock) · [ai](ai)

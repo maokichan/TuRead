@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-文档健康靠一次性人工大洗维持，机制不在持续供货；门控脚本（根 `scripts/docGuard`）与业务/
+文档健康靠一次性人工大洗维持，机制不在持续供货；门控脚本（初版在根 `scripts/`，现 `ops/scripts/docGuard.mjs`）与业务/
 验证脚本（`client/scripts/`）边界含混；决策记录只有 STATUS §3 一行索引，被放弃的方案与理由
 无处落——换届 agent 无从防翻案。参照 Cross-Patch 项目的成套机制（其行数门控本就移植自
 本项目 docGuard），反向移植补齐。

@@ -32,5 +32,3 @@
 
 `src/tests/styleGrammar.test.ts`（视觉 token 纪律，含主题面）· 样张：theme/token 面板段落 ·
 插件注册表链路 = `pluginManager.test.ts` / `pluginManifest.test.ts`（PLUGINS.md §3 验证面）。
-
-跟踪：[SettingsFeature](../../src/renderer/src/features/SettingsFeature) · [theme 域模型](../../src/core/domain/theme.ts)

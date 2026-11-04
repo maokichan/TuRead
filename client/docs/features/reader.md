@@ -57,5 +57,3 @@ ReaderFeature。召唤登记：`features/readerCardBus.ts` 登记页族清单，
 `dev/selfCheck.ts`（TUREAD_DEV_BOOK 无头渲染自检：导入→打开→渲染→位置，退出码经 main）·
 `dev/pagedInteractProbe.ts`（分页交互）/ `dev/pdfWidthProbe.ts`（PDF 纸宽）——事实行探针 ·
 `dev/noteProbe.ts` 渲染半链 · 单测 `readerFollow.test.ts` · 样张：ReaderRail/批注输入栏段落。
-
-跟踪：[ReaderFeature](../../src/renderer/src/features/ReaderFeature) · [render 适配器](../../src/core/adapters/render)

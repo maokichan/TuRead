@@ -58,5 +58,3 @@ Blob → objectURL（CSP 放行 `blob:`），模块级缓存。提取时机 = �
 `dev/libraryProbe.ts`（TUREAD_DEV_PROBE=library，多库/收录/edition 复用断言）·
 `scripts/style-gallery/`（BookRow/BookTile/LibraryToolbar/FittedTitle 样张 + smoke）·
 单测 `CoverQueue.test.ts` / `ImportQueue.test.ts` · 渲染自检 `dev/selfCheck.ts` 的导入步。
-
-跟踪：[LibraryFeature](../../src/renderer/src/features/LibraryFeature) · [usecases](../../src/core/usecases)

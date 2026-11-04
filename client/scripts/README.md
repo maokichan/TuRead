@@ -21,5 +21,3 @@
 | logsClean.mjs | 工作区日志清扫：扫 `logs/` 与历史散落模式，默认列单、`--yes` 删（白名单收口在本脚本内）；统一日志的配套件（决策笔记 unified-logging） | 不信任·待收编 | 白名单外的散落物不命中（宁可漏列不误删） |
 
 另有 `client/plugins/`（官方插件工作区，运行时种子）不在本目录，规范见 `client/docs/PLUGINS.md`。
-
-跟踪：[kookit-harness](kookit-harness) · [style-gallery](style-gallery) · [swarm](swarm) · [ui-shot](ui-shot) · [logsClean.mjs](logsClean.mjs)

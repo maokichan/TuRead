@@ -46,5 +46,3 @@ join 代次守卫（并发 join 落败方 `superseded`，UI 静默）。
 `dev/roomPeer.ts`（双开联调驻留型，独立 member token）· `scripts/swarm/`（A1 全员到齐 / A2 位置
 广播不含发送者 / A3 聊天回执含发送者 / A4 离房不残留 / A5 无意外错误）· 单测 `RoomSession.test.ts`
 （454 行）/ `protocol.test.ts`。
-
-跟踪：[RoomFeature](../../src/renderer/src/features/RoomFeature) · [RoomSession 用例](../../src/core/usecases/RoomSession.ts)

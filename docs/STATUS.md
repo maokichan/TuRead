@@ -59,7 +59,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | **沉浸全屏（v1.11）** | `F11` = **进入**全屏（幂等，不是切换）；退出全屏走 `Esc` 分流；**离开阅读器时若仍全屏 → 退出全屏并保持最大化**（`win:set-maximized`） | `STYLE.md` §5.8；`shared/ipc.ts` |
 | 键鼠意图层 | 键盘 = **意图**：`core/domain/input.ts` 纯函数绑定表（一键一意）+ `useKeyIntents`（ref 装载 + 常驻组件必须带 enabled 守卫） | `domain/input.ts`；`useKeyIntents.ts` |
 | **无边框窗口 + chrome 底面** | `frame:false` + 底面整面拖拽区 + 底面全局件 `ChromeControls`（窗控右上、后退/前进与搜索左上）；自绘标题栏已退役 | `ChromeControls.tsx`；`FEATURES.md` §7 |
-| **阅读标签页模型（批1.10，用户定）** | **打开一本书 = 开一个标签**（一本书一标签，重复打开=激活既有标签）；标签条 = 底面全局件（顶栏，`ReaderTabStrip`）= 阅读会话的在场；**切换 = 重开链路**（B1，代次守卫护换书；B2 真并行留作性能升级）；Esc = 关当前标签（邻位激活/最后回书库，书库=新标签页）；切库清空标签 | `docs/DIRECTION.md` §2；`FEATURES.md` §7.10/§11；`AppShell.tsx`；`ReaderTabStrip.tsx` |
+| **阅读标签页模型（批1.10，用户定）** | **打开一本书 = 开一个标签**（一本书一标签，重复打开 = 激活既有标签）；**切换 = 重开链路**（B1 代次守卫；B2 真并行留作性能升级）；Esc = 关当前标签（邻位激活/最后回书库）；标签区 = 侧栏 `TagRail`（2026-11-03 重设计：窄格首字 + 悬停揭示全题；原顶栏 `ReaderTabStrip` 退役） | `FEATURES.md` §6.10；`TagRail.tsx` |
 | **阅读卡进出场 = 暗场浮现（批1.9，用户定）** | scrim 压深一档（只往深里走）+ 卡片原比例自下浮起，退场下沉显隐；文字不参与形变；`openReader` 契约去 origin | `FEATURES.md` §6.7；`styles.css` `.reader-dip` |
 | **数据存储 v3（全局单库）** | 全应用一个 SQLite 库 = 一份用户数据（作品/电子版/收录/书库/书箱/笔记/阅读状态/设置）；JSON 只剩**引导文件**；**书库 = 组织模式**，成员关系 = **收录（holdings）**；笔记挂 edition、阅读时间逐 edition 记按 work 汇总；设置一律全局 | `DATA_MODEL.md` §1/§2/§4.2 |
 | 「书的身份」三问定案 | 书库降为组织模式 + 全局单库；**映射库**（移除 = 移除可见性，靠**扫描**对账）vs **自建库**；笔记不自动跨版迁移；Work 只留接口；**Pro = 功能分层非订阅** | `DATA_MODEL.md` §4.2 D1–D12 + §6；`TODO.md` |

@@ -43,5 +43,3 @@
 
 `dev/noteProbe.ts`（TUREAD_DEV_PROBE=note，选择→锚点→高亮→resolveAnchor→reveal 全链 ①–⑥）·
 单测 `noteLayout.test.ts` / `anchor.test.ts`（301 行）· 样张：NoteComposer/NoteFlow/ReadingStatsView 段。
-
-跟踪：[NotesFeature](../../src/renderer/src/features/NotesFeature) · [anchor 域模型](../../src/core/domain/anchor.ts)

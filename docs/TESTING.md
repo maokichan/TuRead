@@ -61,5 +61,3 @@
 
 独立 userData 起 `release/win-unpacked/TuRead.exe` → 应落盘 `config.json` + `store.db` +
 `covers/<editionId>.jpg`。打包配方与红线 = `client/docs/BUILD.md`。
-
-跟踪：[swarm README](../client/scripts/swarm/README.md) · [style-gallery README](../client/scripts/style-gallery/README.md)

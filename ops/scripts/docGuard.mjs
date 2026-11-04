@@ -20,7 +20,7 @@
  *
  * ── 上限表口径 ──
  * 只登记入口/索引类（AGENTS 族）的硬上限——渐进式披露的命脉，短是结构性的，没有商量；
- * 其余文档（契约/设计/状态/待办/README）统一默认 800（用户 2026-11-03 定）：
+ * 其余文档（契约/设计/状态/待办/README）统一默认 300（用户 2026-11-05 定，guardrail 非削减目标）：
  * 超限 = 洗——按纪律结合程序事实（对照代码现状），去没必要的形容词与不必要的推演过程，
  * 只留判定、事实与接口形状。
  * 运行环境：零依赖 Node ESM（node >= 20）；路径一律 / 分隔（git ls-files 口径）。
@@ -29,31 +29,23 @@
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
-/** 上限表：路径（/ 分隔）→ 行数上限。只登记入口/索引类硬上限——其余文档一律默认 800。 */
+/** 上限表：路径（/ 分隔）→ 行数上限。只登记入口/索引类硬上限——其余文档一律默认 300。 */
 const DOC_LIMITS = {
-  // ── 入口/索引类（硬上限：渐进式披露命脉，短是结构性的；"其他文档统一 800"不含此级）──
+  // ── 入口/索引类（硬上限：渐进式披露命脉，短是结构性的；"其余文档统一 300"不含此级）──
   'AGENTS.md': 100, // agent 全局入口
   'docs/AGENTS.md': 80, // docs 子树入口
-  'docs/TESTING.md': 300, // 测试与验证口径（职能文档）
   'client/AGENTS.md': 80, // client 子树入口
   'client/docs/AGENTS.md': 80, // client/docs 文档群入口
-  'client/docs/PLUGINS.md': 300, // 插件规范（预登记目标档；全表口径待文档治理轮定）
-  'client/docs/BUILD.md': 300, // 打包与发版（职能文档）
-  'client/docs/features/library.md': 300, // 功能域参照页（feature-docs 机制，2026-11-05）
-  'client/docs/features/reader.md': 300,
-  'client/docs/features/notes.md': 300,
-  'client/docs/features/room.md': 300,
-  'client/docs/features/settings.md': 300,
   'ops/AGENTS.md': 80, // ops 子树入口（治理域）
   'client/scripts/README.md': 80, // 业务脚本清单（信任分级）
   '.agents/notes/README.md': 80, // 决策日志机制
   '.agents/notes/AGENTS.md': 80 // 决策日志 agent 规则
 }
-// 其余文档（契约/设计/状态/待办/README）统一默认 800（用户 2026-11-03 定）：
+// 其余文档（契约/设计/状态/待办/README）统一默认 300（用户 2026-11-05 定，guardrail 非削减目标）：
 // 超限 = 按纪律结合程序事实洗一遍——去没必要的形容词、去不必要的推演过程，只留判定与事实。
 
 /** 未登记文档的默认上限 */
-const DEFAULT_LIMIT = 800
+const DEFAULT_LIMIT = 300
 
 /** git 追踪的全部 .md（含暂存区新文件；submodule/trash 之外不会混进别的） */
 const tracked = execSync('git ls-files -- "*.md"', { encoding: 'utf8' })
