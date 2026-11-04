@@ -80,7 +80,7 @@
 | `getPosition` | `() => BookLocation`（同步） | 当前定位 | **主定位源**（同步/持久化用它）；未 open 返回零位置 |
 | `getProgress` | `() => { totalPage; currentPage }`（同步） | 页码进度 | PDF：页码/总页数；EPUB scroll：滚动估算；未 open 返回 0/0 |
 | `getChapter` | `() => Chapter[]`（同步） | 目录（TOC） | 含 `label/href/chapterDocIndex/subitems`；`chapterDocIndex` 为目录项起始渲染节号、可缺省（无直达渲染节）；未 open 返回 `[]` |
-| `applyTheme` | `(theme: ResolvedTheme) => Promise<void>` | 向正文注入主题色 | 深色注入深色 CSS、浅色不注入（保留书自有外观）；与 `applyTypography` 共用 `setStyle` 通道；PDF 无操作；未 open 只记录，renderTo 时生效 |
+| `applyTheme` | `(theme: ResolvedTheme) => Promise<void>` | 向正文注入主题色 | 每次都经 `setStyle` 重建整份 reader CSS（纸内边距/`::selection` 恒注入），**深色才追加深色配色块**（浅色不注入颜色，保留书自有外观）；与 `applyTypography` 共用 `setStyle` 通道；PDF 无操作；未 open 只记录，renderTo 时生效 |
 | `applyTypography` | `(typography: ReaderTypography) => Promise<void>` | 向正文注入排版参数（字号/行距/段距） | 字段缺省 = 该项不注入；每次调用重建整份 reader style；PDF 无操作 |
 | `getMetadata` | `(buffer: ArrayBuffer, format: BookFormat) => Promise<BookMetadata>` | 解析元数据 | **无状态**：内部构造临时 rendition，不碰当前阅读会话；cover 为 data URL；失败抛错，兜底在调用方 |
 | `search` | `(keyword: string) => Promise<unknown>` | 引擎内搜索 | 返回形状待定（CONTRACTS §7） |
@@ -105,7 +105,7 @@
 | `location-changed` | `BookLocation` | 翻页/滚动/定位后（`page-changed`/`scroll-text` 归一）；宿主容器滚动停稳 400ms 后适配器补一次 `record()` 再上报（坑 §5.10）；未打开不上报 | RoomSession 节流广播；UI 进度；store 存 lastLocation |
 | `selection-changed` | `RenderSelection \| null` = `{ anchor: TextAnchor; rect: { x, y, width, height } } \| null` | 正文选区变化；适配器在书文档上监听 mouseup/keyup（选区事件跨不过 iframe 文档边界，宿主无法自行观测）；`rect` 为适配器换算好的**宿主视口**矩形；清空/取不到 → null | UI 摆放 / 收起色板 |
 | `context-menu` | `RenderContextMenuRequest` = `{ x, y, anchor: TextAnchor \| null, noteId? }`（宿主视口坐标） | 阅读区右键（书文档 `contextmenu`，由适配器换算坐标并判定命中）；`noteId` = 右键落在已有笔记高亮上时给出其 id | UI 弹右键菜单；新建高亮/批注与编辑既有笔记的**主入口** |
-| `note-clicked` | `{ noteId: string; x?: number; y?: number }`（x/y = 高亮元素在宿主视口的下沿中点；量不到 = 缺省，调用方退安全位） | 点击某条已渲染高亮（kookit `handleNoteClick` 回调，从 `event.target.dataset.key` 取笔记 id，KOOKIT.md §5 #14） | 批注面板就近弹出 |
+| `note-clicked` | `{ noteId: string; x?: number; y?: number }`（x/y = 高亮元素在宿主视口的**下沿左端**：`r.left` / `r.bottom`；量不到 = 缺省，调用方退安全位） | 点击某条已渲染高亮（kookit `handleNoteClick` 回调，从 `event.target.dataset.key` 取笔记 id，KOOKIT.md §5 #14） | 批注面板就近弹出 |
 
 > 语义：`location-changed` 是同步的数据源。上层不得自行猜测位置，一律读事件/`getPosition()`；
 > 上报前用 `getOpenBook()` 校验事件属于哪本书。
@@ -168,7 +168,7 @@ UI 选段（iframe 内用户选中，适配器在书文档上听 mouseup/keyup�
 （`fragment = null`，`progression` 记 0）；多条命中按 `quoteSimilarity` 取最相似，找不到 → null。
 弱锚点仍可回跳，用户在该处重新划线即升级为强锚点。
 
-**多端一致性（PDF 场景）**：见 `KOOKIT.md` §8.2 —— OCR 文本化的 range/text 跨引擎不一致，
+**多端一致性（PDF 场景）**：见 `KOOKIT.md` §7「OCR 多端一致性」—— OCR 文本化的 range/text 跨引擎不一致，
 PDF 笔记优先走坐标（页码+归一化坐标），text 兜底仅在同 OCR 引擎族内有效。
 
 ---
@@ -194,7 +194,8 @@ config.externalWorker = {
 ```
 - 每页一章（chapterDocIndex = 页码）；`text.load()` 返回 OCR 文本 → 渲染为正文
 - **不文本化也能页码定位**（PdfRender 每页一 section，`getProgress` = 页码/总页数）—— OCR 是增强层
-- 缓存：内存 `cache[index]` + IndexedDB（`OCRCacheUtil`，按 URL）；持久化方案与笔记同构（按 BookFingerprint）
+- 缓存：页级 OCR 文本只进**内存** `cache[index]`（**不持久化**，重开书即重 OCR）；IndexedDB
+  （`OCRCacheUtil`，按 URL）缓存的是 **OCR 引擎资源文件**（fetch 拦截器），不是 OCR 结果
 
 **TuRead 定位**：OCR 引擎实现（如 PP-OCRv5 纯本地）**单独立项**，本模块只认 `externalWorker` 接口。
 
@@ -209,9 +210,9 @@ config.externalWorker = {
 | **PDF（文本）** | ✅（已实装 pdfjs 注入） | ✅ 页码为主 | ✅ 页码+坐标 | 需 `/lib/pdfjs/` 静态资源 |
 | **PDF（扫描版）** | ✅（需 external-engine） | ✅ 页码 | ✅ 坐标 | OCR 引擎单独立项 |
 | CBZ / CBT | ⚠️ | ⚠️ | ⚠️ | 走 kookit `ComicRender`；CBZ 依赖内联 zip；未验证 |
-| CBR / CB7 | ❌ | ❌ | ❌ | 需外部注入 SevenZip wasm（`window.SevenZip`），未支持 |
+| CBR / CB7 | ❌ | ❌ | ❌ | 需外部注入：CBR = `window.RPC`（libunrar worker）、CB7 = `window.SevenZip`；未支持 |
 
-**已排除**（v1 不承诺）：CBR/CB7（需外部 SevenZip wasm）、PDF 文本化内置引擎（Tesseract/paddle 本地 worker 过重，走 external-engine）。
+**已排除**（v1 不承诺）：CBR/CB7（需外部注入，见上表）、PDF 文本化内置引擎（Tesseract/paddle 本地 worker 过重，走 external-engine）。
 
 ---
 

@@ -169,10 +169,11 @@
   五页 + FEATURES 退裁决权威（662→202）+ ARCHITECTURE 缝合件表 + 去重（D-AGENTS 自相矛盾、
   CD-AGENTS 四对副本、门控链复读）+ STATUS 臃肿行退役（被否变体平移 cardpage 笔记）+
   slop 清单入洗文工序。
-- [ ] **文档治理余项（后续批次）**：① CONTRACTS 773 行洗（贴 800 线，下次契约修订触发）；
-  ② DATA_MODEL §6（50 行与 §4.2 重复的第二副本）与 FEATURES-历史残余的进一步下沉；
-  ③ dsh 式 doc-typecheck / type-equiv（文档内 ts 块可编译、类型粘贴与源码等价）——
-  远期工程项。
+- [ ] **文档治理余项（后续批次）**：① DATA_MODEL 洗后余项评估（datamodel 审计提案 P1–P5：
+  SCHEMA_SQL 作 docGuard 指纹锚、KOOKIT §9 检查单补 noteUtil 委托块与 recognize 两种调用形状、
+  「宿主容器」定义锚定 RENDER_INTERFACE、跨文档节号引用纪律——docIndex 只查路径边不查节号、
+  §6.1 存根随代码注释重构后可删）；② dsh 式 doc-typecheck / type-equiv（文档内 ts 块可编译、
+  类型粘贴与源码等价）——远期工程项。
 - [ ] **洗源码（下个 session，用户 2026-11-05 立项）**：给源码与注释瘦身——一方代码
   21,293 行中注释 3,134 行（≈15%），重灾区 `kookitRenderAdapter`（949 行）/
   `LibraryFeature`（1102 行）/`ReaderFeature`（1056 行）。判据（dsh 口径）：

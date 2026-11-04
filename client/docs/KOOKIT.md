@@ -70,7 +70,7 @@ GeneralRender (GeneralRender.ts，事件基类)
 | **pdf.js（pdfjsLib）** | ❌ **外部** | `window.pdfjsLib` + `/lib/pdfjs/` 静态资源 |
 | fabric | ❌ 外部 | PDF 标注（`window.fabric`） |
 | PDFLib / Tesseract / onnxruntime | ❌ 外部 | `PdfTextRender` 各 OCR 引擎的运行时依赖（按 `ocrEngine` 取用） |
-| RPC / 7z-wasm | ❌ 外部 | 漫画 CBR/CB7：`window.RPC` + `./lib/` 静态资源（v1 不支持） |
+| RPC / 7z-wasm | ❌ 外部 | 漫画：CBR = `window.RPC`（libunrar worker）、CB7 = `window.SevenZip` + `./lib/` 静态资源（v1 不支持） |
 
 ## 5. 关键硬编码契约 / 坑（违反就翻车）
 
