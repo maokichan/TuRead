@@ -90,7 +90,31 @@
 - 结论：扩展能力一律以"编译期内置适配器"承载；契约（`CONTRACTS.md`）保持稳定。
 - 候选扩展服务：`IOcrService`（图片识别 → ISBN/封面文字；适配器可复用 OCR-buddy 的 PP-OCRv5 技术路线，MIT）——是否进 v1 见 `TODO.md`。
 
-## 5. 术语修正记录
+## 5. 跨域缝合件（不属于任何单一 feature 域的构件）
+
+> feature 页（`features/*.md`）只锚本域构件；以下是**跨域**构件的归属索引——它们不在任何
+> feature 页内复读，改到这里对表。功能域 → 架构锚点的完整映射见各 feature 页。
+
+| 缝合件 | 位置 | 跨什么 |
+|---|---|---|
+| `AppShell` | `src/renderer/src/AppShell.tsx` | 唯一模式决策点；activeFeature/readerTabs/readerTarget/selectedBookId；装配全部 dev 探针 |
+| `ServiceContainer` | `src/core/container.ts` | 装配全部 ports+usecases；UI 只依赖它 |
+| Feature 契约/注册表 | `features/types.ts` / `registry.ts` | 五 Feature 共享的 FeatureId/FeatureHost/Descriptor |
+| `ILibraryStore` + 存储适配器 | `core/ports/store.ts`（245 行）/ `adapters/storage/ipcStoreAdapter`（253 行） | 全域读写通道（library/reader/notes/settings） |
+| `identity`（指纹） | `core/ports/identity.ts` + `adapters/identity/fingerprint` | library 导入去重 + room 进房标定 |
+| `logStore` | `features/logStore.ts` | 全域 pushLog 入口；自检读尾部 |
+| `chromeSearchBus` | `features/chromeSearchBus.ts` | library/notes 注册绑定，ChromeControls 消费 |
+| `libraryNavBus` | `features/libraryNavBus.ts` | LibraryFeature 历史 ↔ ChromeControls 后退/前进 |
+| `readerCardBus` | `features/readerCardBus.ts` | ReaderFeature 卡片页族 ↔ AppShell 命令面板 |
+| `roomSession` 共享投影 | `features/roomSession.ts` | RoomFeature 会话视图 + ReaderFeature 聊天页同一份 |
+| 插件运行时 | `src/renderer/src/plugins/runtime.ts`（模块单例）+ `src/main/plugins.ts` | settings 启停 + reader 卡片页插槽 + main 种子/扫描（规范 = `PLUGINS.md`） |
+| 离屏解析窗 | `src/renderer/src/parse/index.ts` | library 域元数据/封面提取的独立进程；与 reader 共享 kookitLoader |
+| `veil` / `Marquee` / `ContextMenu` / `ConfirmDialog` | `components/` | 多域共用的展示原语（距离遮罩/滚动题/右键/确认） |
+| `useKeyIntents` + `core/domain/input.ts` | `components/` / `core/domain/` | 全域键意图层（绑定表 = 唯一键义源） |
+| 事件基座 | `core/ports/{events,emitter}.ts` | render/net/room/covers/imports 的事件基类 |
+| `ChromeControls` / `TagRail` | `components/` | 域无关底面镶边（窗控/后退前进/搜索）；reader 标签栏但挂在 shell 侧栏 |
+
+## 6. 术语修正记录
 
 v0.1 的 `ISyncService` 曾把"端口"与"应用服务"混为一谈，v0.2 已拆分为 `INetService`（端口）+ `IRoomSession`（应用服务）。
 统一术语以本文 §1 为准，此后不再混用。
