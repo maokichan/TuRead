@@ -19,7 +19,7 @@
  */
 
 import { execSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -61,12 +61,21 @@ const dirOf = (rel) => {
   return d === '.' ? '' : d
 }
 
-const isAncestorDir = (targetRel, docRel) => {
-  const t = dirOf(targetRel)
+/** 目标位置（文件取其所在目录；目录目标取目录本身——声明兄弟目录合法，比较基准是它自己） */
+const effectiveTargetDir = (rel) => {
+  try {
+    if (statSync(join(ROOT, rel)).isDirectory()) return rel
+  } catch {
+    // 不存在的路径按文件处理（存在性检查另有其责）
+  }
+  return dirOf(rel)
+}
+
+const isAncestorDir = (effDir, docRel) => {
   const d = dirOf(docRel)
-  if (t === d) return false // 平级
-  if (t === '') return d !== '' // 仓库根是所有非根目录的祖先
-  return d.startsWith(t + '/')
+  if (effDir === d) return false // 平级
+  if (effDir === '') return d !== '' // 仓库根是所有非根目录的祖先
+  return d.startsWith(effDir + '/')
 }
 
 const gitIgnored = (rel) => {
@@ -117,7 +126,8 @@ const inspect = (errorsOnly) => {
       if (/^(https?:|mailto:|#)/.test(target)) continue
       const rel = toRepoRel(doc, target.split('#')[0])
       if (rel === null) errors.push(`${doc}：引用越出仓库 —— ${target}`)
-      else if (isAncestorDir(rel, doc)) errors.push(`${doc}：引用方向向上（祖先）—— ${target}（只允许平级或子一级）`)
+      else if (isAncestorDir(effectiveTargetDir(rel), doc))
+        errors.push(`${doc}：引用方向向上（祖先）—— ${target}（只允许平级或子一级）`)
     }
   }
 

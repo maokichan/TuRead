@@ -712,6 +712,7 @@ interface ServiceContainer {
 
 ## 9. 插件契约（v1：官方插件专用；功能划分 = FEATURES §13，视觉 = STYLE §5.8）
 
+> 本节只承载**接口形状**；能力边界、开发标准与生命周期（装载/启停/卸载方案）= [`PLUGINS.md`](PLUGINS.md)。
 > 插件**不是**六边形端口——它运行在**渲染层外壳**（同 `roomSession`/`logStore` 一族），经宿主 API 注册 UI 位面；内核（domain/ports/usecases/adapters）零改动，`ServiceContainer` 不收插件。**信任模型 v1 = 只装官方插件**（随应用首发种进运行时插件文件夹，加载不做沙箱；第三方开放远期）。
 
 ### 9.1 manifest（`plugin.json`，插件文件夹根）
@@ -759,7 +760,8 @@ interface PluginHostApi {
     get<T>(key: string, fallback: T): Promise<T>
     set(key: string, value: unknown): Promise<void>
   }
-  /** 诊断日志（进设置页日志块） */
+  /** 诊断日志——走统一日志管道（探针态落 <userData>/logs/app.jsonl；内存 logStore 留给自检）。
+   * 设置页的诊断日志节已移除（STYLE §5.7）。 */
   log(line: string): void
 }
 ```
