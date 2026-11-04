@@ -103,6 +103,9 @@ export const IPC = {
   // （信任边界收在主进程，实现 = src/main/plugins.ts）
   pluginsList: 'plugins:list',
   pluginsReadEntry: 'plugins:read-entry',
+  // 卸载（生命周期，PLUGINS.md §3）：main 只删文件（官方种子件拒删 + 目录围栏）；settings
+  // 数据清理由渲染层接手（store 无删键原语，写 null 清值——偏差如实记录在 PLUGINS.md §3）
+  pluginsUninstall: 'plugins:uninstall',
   // 插件通用能力（契约 v1.1；非 AI 专属——联网插件都走这两件）：
   // net-fetch = https 代理（主进程校验 + 超时 + 体积上限，CSP 不动）；
   // secret* = safeStorage 保险库（落库是密文；明文只在取用瞬间存在）

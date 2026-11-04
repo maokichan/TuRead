@@ -34,6 +34,8 @@ export interface InstalledPluginInfo {
   version: string
   description?: string
   enabled: boolean
+  /** 官方种子件（首发资源里存在同名文件夹）：卸载被拒，设置页不显示「卸載」 */
+  seeded?: boolean
   /** 该插件激活失败的原因（可见不静默） */
   error?: string
 }
@@ -124,7 +126,11 @@ function makeApi(manifest: PluginManifest, container: ServiceContainer, panels: 
     },
     storage: {
       async get<T>(key: string, fallback: T): Promise<T> {
-        const cfg = await container.store.getSetting<Record<string, unknown>>(`plugin:${manifest.id}`, {})
+        // 卸载清数据 = 写 null（store 无删键原语）——重装同名件时按空对象读，别让 null 击穿
+        const cfg = (await container.store.getSetting<Record<string, unknown>>(
+          `plugin:${manifest.id}`,
+          {}
+        )) ?? {}
         return (cfg[key] as T) ?? fallback
       },
       async set(key: string, value: unknown): Promise<void> {
@@ -140,9 +146,9 @@ function makeApi(manifest: PluginManifest, container: ServiceContainer, panels: 
 /** 加载（或禁用切换后重载）全部插件。AppShell 挂载时调一次；设置页切换时再调 */
 export async function loadPlugins(container: ServiceContainer): Promise<void> {
   setState({ status: 'loading', panels: [], installed: [] })
-  let list: Array<PluginManifest & { dir: string }>
+  let list: Array<PluginManifest & { dir: string; seeded: boolean }>
   try {
-    list = (await window.turead.invoke(IPC.pluginsList)) as Array<PluginManifest & { dir: string }>
+    list = (await window.turead.invoke(IPC.pluginsList)) as Array<PluginManifest & { dir: string; seeded: boolean }>
   } catch (err) {
     const message = (err as Error).message
     pushLog(`插件清单读取失败：${message}`)
@@ -159,7 +165,8 @@ export async function loadPlugins(container: ServiceContainer): Promise<void> {
       name: manifest.name,
       version: manifest.version,
       description: manifest.description,
-      enabled
+      enabled,
+      seeded: manifest.seeded
     })
     if (!enabled) continue
     try {
@@ -194,5 +201,26 @@ export async function setPluginEnabled(
 ): Promise<void> {
   const cfg = await container.store.getSetting<{ enabled?: Record<string, boolean> }>('plugins', {})
   await container.store.patchSetting('plugins', { enabled: { ...cfg.enabled, [id]: enabled } })
+  await loadPlugins(container)
+}
+
+/**
+ * 设置页卸载（PLUGINS.md §3）：文件删除在主进程（官方种子件拒删、目录围栏）；数据清理在这
+ * ——启用清单摘除该件（卸载隐含禁用）、`plugin:<id>` 写 null 清值（store 无删键原语，键壳
+ * 残留——如实偏差，与主进程 secretDelete 同一惯用法）；`plugin-secret:<id>:*` 清不掉（键名
+ * 不可枚举，store 无按前缀列举原语），密文残留同见 PLUGINS.md §3。卸载即全量重载（同启停）。
+ */
+export async function uninstallPlugin(container: ServiceContainer, id: string): Promise<void> {
+  try {
+    await window.turead.invoke(IPC.pluginsUninstall, { id })
+  } catch (err) {
+    pushLog(`插件卸载失败：${(err as Error).message}`) // 可见不静默（种子件拒删等），不重载
+    return
+  }
+  const cfg = await container.store.getSetting<{ enabled?: Record<string, boolean> }>('plugins', {})
+  const enabled = { ...cfg.enabled }
+  delete enabled[id]
+  await container.store.patchSetting('plugins', { enabled })
+  await container.store.setSetting(`plugin:${id}`, null)
   await loadPlugins(container)
 }

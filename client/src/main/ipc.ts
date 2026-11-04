@@ -112,6 +112,8 @@ export function registerIpc(
   // 渲染层只发 id：入口路径按主进程自己的扫描结果解析（信任边界收在 main/plugins.ts）
   ipcMain.handle(IPC.pluginsList, () => plugins.list())
   ipcMain.handle(IPC.pluginsReadEntry, (_e, p: { id?: string }) => plugins.readEntry(p?.id ?? ''))
+  // 卸载：main 只删文件（种子件拒删、目录围栏）；settings 数据清理由渲染层做（PLUGINS.md §3）
+  ipcMain.handle(IPC.pluginsUninstall, (_e, p: { id?: string }) => plugins.uninstall(p?.id ?? ''))
   // 插件通用能力（契约 v1.1）：https 代理 + 密钥保险库（safeStorage，落库是密文）
   ipcMain.handle(IPC.pluginsNetFetch, (_e, p: Parameters<PluginManager['netFetch']>[0]) => plugins.netFetch(p))
   ipcMain.handle(IPC.pluginsSecretSet, (_e, p: Parameters<PluginManager['secretSet']>[0]) => plugins.secretSet(p))

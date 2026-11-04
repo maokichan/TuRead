@@ -33,7 +33,7 @@ import {
 } from '@core/domain/theme'
 import type { FeatureProps } from '../types'
 import { applyDataThemeResolved } from '../../components/themeTransition'
-import { getPluginState, setPluginEnabled, subscribePlugins } from '../../plugins/runtime'
+import { getPluginState, setPluginEnabled, subscribePlugins, uninstallPlugin } from '../../plugins/runtime'
 
 const TONES: { value: ThemeTone; label: string }[] = [
   { value: 'solid', label: '純色' },
@@ -244,8 +244,16 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
                   value={p.enabled}
                   onPick={() => void setPluginEnabled(container, p.id, !p.enabled)}
                 />
+                {/* 卸載（PLUGINS.md §3）：无图标、无二次确认——官方件不可卸 + 启停可逆兜底风险；
+                    官方种子件删了会被「缺则种」复活，只给事实提示不给动作 */}
+                {p.seeded ? null : (
+                  <button className="text-action text-action--danger" onClick={() => void uninstallPlugin(container, p.id)}>
+                    卸載
+                  </button>
+                )}
                 <span className="text-[12.5px] text-[var(--muted)]">
                   v{p.version}
+                  {p.seeded ? '（官方隨附，不可卸載）' : ''}
                   {p.error ? `（加載失敗：${p.error}）` : ''}
                 </span>
               </div>

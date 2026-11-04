@@ -1,6 +1,6 @@
 /**
  * 插件管理器（主进程）单测：种子（缺则种、已装不动）/ 扫描（坏 manifest 跳过不中断）/
- * 入口读取（只认扫描结果、越界在 manifest 校验阶段就被拒）。
+ * 入口读取（只认扫描结果、越界在 manifest 校验阶段就被拒）/ 卸载（种子件拒删、目录围栏）。
  * 契约 = client/docs/CONTRACTS.md §9；PluginManager 只依赖 node:fs + shared/plugin（纯逻辑可无书跑）。
  */
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
@@ -74,5 +74,55 @@ describe('PluginManager', () => {
     // list 之前（无扫描结果）一律拒绝——渲染层传什么都不被采信
     const fresh = new PluginManager(root, [], fakeStore)
     await expect(fresh.readEntry('clock')).rejects.toThrow('未知插件')
+  })
+
+  it('uninstall：官方种子件拒删（删了会在下次启动被「缺则种」复活），目录原样保留', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'turead-plugins-'))
+    const bundled = join(root, 'bundled')
+    makePlugin(join(bundled, 'clock'), 'clock')
+    const runtime = join(root, 'runtime')
+    const mgr = new PluginManager(runtime, [bundled], fakeStore)
+    await mgr.seed()
+    const list = await mgr.list()
+    expect(list[0]?.seeded).toBe(true) // 清单带种子标记（设置页据此只给事实提示）
+    await expect(mgr.uninstall('clock')).rejects.toThrow('官方种子件')
+    expect(existsSync(join(runtime, 'clock', 'plugin.json'))).toBe(true)
+  })
+
+  it('uninstall：非种子件连目录一起移除，随后的 list 不再出现', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'turead-plugins-'))
+    const bundled = join(root, 'bundled')
+    makePlugin(join(bundled, 'clock'), 'clock')
+    const runtime = join(root, 'runtime')
+    const mgr = new PluginManager(runtime, [bundled], fakeStore)
+    await mgr.seed() // 种入官方件
+    makePlugin(join(runtime, 'mine'), 'mine') // 用户后装的非种子件
+    const list = await mgr.list()
+    expect(list.map((p) => `${p.id}:${p.seeded}`)).toEqual(['clock:true', 'mine:false'])
+    await mgr.uninstall('mine')
+    expect(existsSync(join(runtime, 'mine'))).toBe(false)
+    expect((await mgr.list()).map((p) => p.id)).toEqual(['clock'])
+  })
+
+  it('uninstall：非法 / 越界 id 一律拒绝（格式围栏 + 目录包含校验）', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'turead-plugins-'))
+    makePlugin(join(root, 'clock'), 'clock')
+    const mgr = new PluginManager(root, [], fakeStore)
+    await mgr.list()
+    await expect(mgr.uninstall('../clock')).rejects.toThrow('非法')
+    await expect(mgr.uninstall('Clock')).rejects.toThrow('非法')
+    await expect(mgr.uninstall('')).rejects.toThrow('非法')
+    await expect(mgr.uninstall(undefined)).rejects.toThrow('非法')
+    expect(existsSync(join(root, 'clock', 'plugin.json'))).toBe(true)
+  })
+
+  it('uninstall：未知 id 拒绝（只认最近一次 list 的扫描结果，同 readEntry 口径）', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'turead-plugins-'))
+    makePlugin(join(root, 'clock'), 'clock')
+    const mgr = new PluginManager(root, [], fakeStore)
+    await expect(mgr.uninstall('clock')).rejects.toThrow('未知插件') // 未扫描不采信
+    await mgr.list()
+    await expect(mgr.uninstall('nope')).rejects.toThrow('未知插件')
+    expect(existsSync(join(root, 'clock', 'plugin.json'))).toBe(true)
   })
 })

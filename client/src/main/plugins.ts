@@ -1,9 +1,10 @@
 /**
- * 插件管理（主进程）：官方插件的**种子 / 扫描 / 入口读取**——契约 = `client/docs/CONTRACTS.md` §9。
+ * 插件管理（主进程）：官方插件的**种子 / 扫描 / 入口读取 / 卸载**——契约 = `client/docs/CONTRACTS.md` §9。
  *
  * 信任边界收在这里：渲染层只发 id，入口路径由本管理器**按自己的扫描结果**解析，
  * 渲染层传什么都不被采信（见 readEntry）。manifest 校验走 `shared/plugin.ts`（与渲染层同判据）；
- * 坏 manifest / 坏文件夹进主进程日志并跳过，**不中断其余插件**。
+ * 坏 manifest / 坏文件夹进主进程日志并跳过，**不中断其余插件**。卸载同口径：只认扫描结果、
+ * 目录围栏防越界、官方种子件拒删（删了会被「缺则种」复活——见 uninstall）。
  */
 import { promises as fs } from 'node:fs'
 import type { Dirent } from 'node:fs'
@@ -14,6 +15,8 @@ import { assertFetchableUrl, assertSecretName, validatePluginManifest, type Plug
 export interface InstalledPlugin extends PluginManifest {
   /** 运行时插件目录的绝对路径（只在本进程内使用，不回传渲染层） */
   dir: string
+  /** 官方种子件（首发资源里存在同名文件夹——卸载被拒，删了会在下次启动被「缺则种」复活） */
+  seeded: boolean
 }
 
 export class PluginManager {
@@ -69,6 +72,7 @@ export class PluginManager {
     } catch {
       return []
     }
+    const seeds = await this.seededIds()
     const out: InstalledPlugin[] = []
     for (const d of dirs) {
       if (!d.isDirectory()) continue
@@ -83,7 +87,11 @@ export class PluginManager {
           console.warn(`[plugins] ${d.name} 的 manifest.id=${res.manifest.id} 与文件夹名不一致，跳过`)
           continue
         }
-        const installed: InstalledPlugin = { ...res.manifest, dir: join(this.runtimeRoot, d.name) }
+        const installed: InstalledPlugin = {
+          ...res.manifest,
+          dir: join(this.runtimeRoot, d.name),
+          seeded: seeds.has(res.manifest.id)
+        }
         this.byId.set(installed.id, installed)
         out.push(installed)
       } catch (err) {
@@ -103,6 +111,47 @@ export class PluginManager {
       throw new Error(`插件 ${id} 的入口越界：${plugin.entry}`)
     }
     return fs.readFile(entryPath, 'utf8')
+  }
+
+  /**
+   * 卸载（PLUGINS.md §3）：删 `<userData>/plugins/<id>/`。围栏与拒删判据——
+   * ① id 过 manifest 同款格式（不含路径分隔符与点）；② 目录包含校验（纵深防御）；
+   * ③ 只认最近一次 list() 的扫描结果（同 readEntry 信任边界）；④ **官方种子件拒删**——
+   * 「缺则种」会在下次启动把它重新种入，删了白删（将来如需可卸种子件，先给 seeder 加 opt-out）。
+   * settings 数据（`plugin:<id>` / 密钥）清理由渲染层接手——见 renderer runtime 的 uninstallPlugin。
+   */
+  async uninstall(id: unknown): Promise<void> {
+    if (typeof id !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(id)) {
+      throw new Error('插件 id 非法（要求 /^[a-z0-9][a-z0-9-]*$/）')
+    }
+    const dir = resolve(this.runtimeRoot, id)
+    if (!dir.startsWith(resolve(this.runtimeRoot) + sep)) {
+      throw new Error(`插件 ${id} 的目录越界`)
+    }
+    if (!this.byId.has(id)) throw new Error(`未知插件：${id}`)
+    if ((await this.seededIds()).has(id)) {
+      throw new Error(`插件 ${id} 是官方种子件，不可卸载（删了会在下次启动被重新种入）`)
+    }
+    await fs.rm(dir, { recursive: true, force: true })
+    this.byId.delete(id)
+    console.log(`[plugins] 已卸载插件：${id}`)
+  }
+
+  /** 官方种子件 id 集：首发资源里存在的文件夹名——这些件删了会被「缺则种」复活 */
+  private async seededIds(): Promise<Set<string>> {
+    const out = new Set<string>()
+    for (const bundled of this.bundledDirs) {
+      let entries: Dirent[]
+      try {
+        entries = await fs.readdir(bundled, { withFileTypes: true })
+      } catch {
+        continue // 没有首发插件目录（如 dev 还没建 client/plugins）= 正常态
+      }
+      for (const d of entries) {
+        if (d.isDirectory()) out.add(d.name)
+      }
+    }
+    return out
   }
 
   // ————— 插件通用能力（契约 v1.1；非 AI 专属——联网插件都走这两件）—————
