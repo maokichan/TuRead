@@ -164,16 +164,15 @@
 
 ### 工程与测试设施
 
-- [ ] **feature 文档机制设计**（用户 2026-11-05 立项）：文档自身不膨胀但数量可增加——
-  用小文档跟踪特定功能；先设计机制（命名/归属/上限/生命周期/退役路径），**设计定稿后才
-  启动文档治理轮**（上限/去重/洗）。
-- [ ] **文档治理轮**（排在 feature 机制后）：① CP 文档维护准则移植 `docs/AGENTS.md`
-  （缺三条：单一落点/词语纪律/本机事务不入库）；② 上限下调 800→300 + 大文档过渡档
-  （CONTRACTS 773/STYLE 697/FEATURES 662/DATA_MODEL 429）；③ 去重——同一事实最多 6 处复读
-  （门控链 5 处/依赖方向 6 处/洗文 3 处…），D-AGENTS↔CD-AGENTS 四对近逐字、D-AGENTS 自相
-  矛盾（称"不复读"却复读链）；④ STATUS 洗——§4 v0.2.5 一行 ≈49 行当量违反自声明口径，
-  §3 八个最臃肿行含被否方案叙事（平移 note 后退役进 git）；⑤ FEATURES §7 是第二决策记录
-  （40 行与 STATUS §3 重复）。
+- [x] **feature 文档机制 + 文档治理轮**（2026-11-05 执行完毕）：机制 = 决策笔记
+  `feature-docs`（一页一域/架构锚点先行/guardrail 预算）；产物 = `client/docs/features/`
+  五页 + FEATURES 退裁决权威（662→202）+ ARCHITECTURE 缝合件表 + 去重（D-AGENTS 自相矛盾、
+  CD-AGENTS 四对副本、门控链复读）+ STATUS 臃肿行退役（被否变体平移 cardpage 笔记）+
+  slop 清单入洗文工序。
+- [ ] **文档治理余项（后续批次）**：① CONTRACTS 773 行洗（贴 800 线，下次契约修订触发）；
+  ② DATA_MODEL §6（50 行与 §4.2 重复的第二副本）与 FEATURES-历史残余的进一步下沉；
+  ③ dsh 式 doc-typecheck / type-equiv（文档内 ts 块可编译、类型粘贴与源码等价）——
+  远期工程项。
 - [ ] **卸载插件 IPC 实现**（方案已定 PLUGINS.md §3，待实施）：`plugins:uninstall` +
   设置页「卸載」动作 + seeder opt-out 评估；连同官方插件升级路径（版本兼容策略）一并定。
 - [ ] **(P2) `createLibrary` 的 name 契约三方不一致**：端口声明 `name?` 可选（store.ts:149）、
