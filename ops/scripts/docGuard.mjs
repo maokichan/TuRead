@@ -38,6 +38,8 @@ const DOC_LIMITS = {
   'client/docs/AGENTS.md': 80, // client/docs 文档群入口
   'ops/AGENTS.md': 80, // ops 子树入口（治理域）
   'client/scripts/README.md': 80, // 业务脚本清单（信任分级）
+  'client/plugins/AGENTS.md': 80, // 插件子树入口
+  'client/plugins/README.md': 80, // 插件工作区清单
   '.agents/notes/README.md': 80, // 决策日志机制
   '.agents/notes/AGENTS.md': 80 // 决策日志 agent 规则
 }
