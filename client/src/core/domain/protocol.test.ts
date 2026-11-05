@@ -1,6 +1,7 @@
 /**
  * 房间协议词汇的判据（单测）—— 覆盖三处"曾经自行解释、出过偏差"的地方：
- * ① 服务器下发的失败 reason 归一（实测服务器发的是空格分词的错误串）；
+ * ① 服务器下发的失败 reason 判定（**精确匹配**契约串；服务器与客户端同仓同版本走，
+ *   串偏离 = 服务器回归，蜂群/room 探针当场红——不做分词/大小写容错）；
  * ② 房间 WS 握手地址（按房间建连 + URL 编码）；
  * ③ 聊天合并去重排序（广播与 REST 历史会交错同一 id）。
  */
@@ -40,19 +41,19 @@ describe('protocol · 昵称约束（服务器 maxNickLen = 12）', () => {
   })
 })
 
-describe('protocol · join-ack reason 归一（容错服务器的空格分词）', () => {
-  it('文档形式（连字符）原样通过', () => {
+describe('protocol · join-ack reason 判定（精确匹配契约串）', () => {
+  it('契约串（= server/internal/room/manager.go 常量，连字符）原样通过', () => {
     expect(normalizeJoinReason('book-mismatch')).toBe('book-mismatch')
     expect(normalizeJoinReason('room-not-found')).toBe('room-not-found')
     expect(normalizeJoinReason('room-full')).toBe('room-full')
   })
 
-  it('⚠ 服务器实际形式（空格分词、大小写不一）也必须认出来', () => {
-    // server/internal/room/manager.go: ErrMismatch = "book mismatch" / ErrFull = "room full" / ErrNotFound = "room not found"
-    expect(normalizeJoinReason('book mismatch')).toBe('book-mismatch')
-    expect(normalizeJoinReason('room full')).toBe('room-full')
-    expect(normalizeJoinReason('room not found')).toBe('room-not-found')
-    expect(normalizeJoinReason(' BOOK  MISMATCH ')).toBe('book-mismatch')
+  it('⚠ 不做分词/大小写容错：偏离契约的串一律 server-error（响亮的失败优于容错的静默）', () => {
+    // 历史教训：容错曾把"书不匹配"静默降级成 server-error 的事故形状固化下来。
+    // 服务器与客户端同仓同版本走，串偏离契约 = 服务器侧回归，蜂群/room 探针当场红。
+    expect(normalizeJoinReason('book mismatch')).toBe('server-error')
+    expect(normalizeJoinReason(' BOOK  MISMATCH ')).toBe('server-error')
+    expect(normalizeJoinReason('room_not_found')).toBe('server-error')
   })
 
   it('未知 / 缺失 / "bad payload" 一律归 server-error（不猜）', () => {
@@ -136,16 +137,16 @@ describe('protocol · 聊天合并（广播 + 历史交错）', () => {
   })
 })
 
-describe('protocol · presence 载荷归一（v0.4.8：{members} 契约形 + 裸数组兼容）', () => {
+describe('protocol · presence 载荷判定（只认 {members} 契约形状）', () => {
   const alice = { id: 'Aaa1111', nickName: 'alice' }
   const bob = { id: 'Bbb2222', nickName: 'bob', location: { chapterDocIndex: 1 } }
 
-  it('契约形状 {members:[...]} 原样取成员', () => {
+  it('契约形状 {members:[...]} 取成员', () => {
     expect(normalizePresenceMembers({ members: [alice, bob] })).toEqual([alice, bob])
   })
 
-  it('裸数组兼容（server v0.2.1 前的实际形状 —— 蜂群首跑抓出的偏差）', () => {
-    expect(normalizePresenceMembers([alice, bob])).toEqual([alice, bob])
+  it('⚠ 裸数组（server v0.2.1 前的偏差形状）不再兼容 → 空数组（蜂群 A1/A2 会当场红）', () => {
+    expect(normalizePresenceMembers([alice, bob])).toEqual([])
   })
 
   it('非数组 / 缺字段 / 脏条目 → 空数组或过滤掉', () => {
@@ -153,7 +154,9 @@ describe('protocol · presence 载荷归一（v0.4.8：{members} 契约形 + 裸
     expect(normalizePresenceMembers({ nope: 1 })).toEqual([])
     expect(normalizePresenceMembers({ members: 'x' })).toEqual([])
     expect(
-      normalizePresenceMembers([alice, { id: 3, nickName: 'bad-id' }, null, 'junk'] as unknown as RoomMember[])
+      normalizePresenceMembers({
+        members: [alice, { id: 3, nickName: 'bad-id' }, null, 'junk']
+      } as unknown as { members: RoomMember[] })
     ).toEqual([alice])
   })
 })

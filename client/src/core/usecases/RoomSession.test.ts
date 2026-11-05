@@ -193,7 +193,8 @@ describe('RoomSession.joinRoom（审计 A-1：无书成员不再是死代码）'
 
   it('join 失败：closeRoom + reset，不残留 joined 状态', async () => {
     const { net, session } = makeSession()
-    net.ackOnJoin = { ok: false, reason: 'room not found' }
+    // reason = 契约串（server/internal/room/manager.go 常量；客户端精确匹配，不做分词容错）
+    net.ackOnJoin = { ok: false, reason: 'room-not-found' }
     const res = await session.joinRoom('ab12cd34', null)
     expect(res).toEqual({ ok: false, reason: 'room-not-found' })
     expect(session.getRoomState()).toBeNull()

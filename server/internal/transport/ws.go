@@ -207,7 +207,7 @@ func (c *wsClient) handleJoin(payload json.RawMessage) {
 	}
 	ed, err := c.server.store.GetEdition(editionID)
 	if err != nil || ed == nil {
-		// reason 串与 `docs/API.md` 逐字一致（连字符）；客户端 normalizeJoinReason 两种都认
+		// reason 串与 `docs/API.md` 逐字一致（连字符）；客户端精确匹配契约串（同仓同版本走，偏离即蜂群/探针红）
 		c.send(domain.MessageEnvelope{Type: domain.MsgJoinAck, Payload: domain.JoinAck{OK: false, Reason: room.ErrNotFound.Error()}})
 		return
 	}

@@ -43,7 +43,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | **房间同步正确性（契约 v0.4.7，cowork 批）** | 位置上报/跟随跳转都过**指纹校验**（`getOpenBook` ≡ 房间 edition，与服务器标定同口径）；**join 代次守卫**（并发 join 落败方 `superseded`，UI 静默）；**重连耗尽 = `failed` 态** → 自动复位回大厅（可预期出口）；**同位不跳**防跟随回声 | `CONTRACTS.md` §4.1/§4.2/§5.1；`RoomSession.ts`；`FEATURES.md` §15.3 |
 | **副本分发闭环（契约 v0.4.8）** | **建房即传副本**（server 即分发源）；**无书进入自动补书**：大厅行点击 = 无书 join → 按指纹找本地书 → 没有则下载落盘（`userData/downloads`）→ 导入 → 打开；两端皆无留在房间 | `FEATURES.md` §15；`CONTRACTS.md` §4.5（`saveBookCopy`）/§5.1（`RoomState.edition`/`downloadBookCopy`） |
 | **跟随模式 v1（用户定形态，cowork 批）** | 开关 = 聊天格「跟隨」文字动作；跟**任一**成员的位置事件（"一起读"，不是监控某人）；生命周期 = 本次房间会话，不持久化 | `FEATURES.md` §15.3；`ChatPanel.tsx`；`ReaderFeature` |
-| **join-ack reason 对齐裁定** | **服务器向文档看齐**（error 串改连字符）；客户端 `normalizeJoinReason` 两种都认（容错保留） | `server/docs/API.md`「已知不一致」；`domain/protocol.ts` |
+| **join-ack reason 对齐裁定** | **服务器向文档看齐**（error 串改连字符）；客户端 `normalizeJoinReason` **精确匹配契约串**（容错退役：同仓同版本走，偏离由蜂群/探针拦截，2026-11-06 技术腐化清理批） | `server/docs/API.md`「已知不一致」；`domain/protocol.ts` |
 | **阅读器聊天室（用户定）** | 聊天只在经房间进入的那本书上存在；消息由渲染层共享态（`features/roomSession.ts`）统一持有；生命周期归属于房间 | `FEATURES.md` §9；`features/room.md` |
 | 副本分发 / 配置 | server 保存并分发副本（内容寻址），edition 信息由客户端随副本上传；TOML + 环境变量 + 热重载 | `server/docs/API.md`；`OPS.md` |
 | 客户端样式 | **Tailwind v4**；`styles.css` 只留主题语义 token / 全局 base / kookit 契约 | `FEATURES.md`；`styles.css` |

@@ -258,5 +258,5 @@ server 落库成功后广播 `room.message`：
 ## 已知不一致（已解决）
 
 - ~~`domain.Member` / `domain.Edition` 无 json tag~~ —— v0.1.5 / v0.1.6 已对齐 camelCase（`server/internal/domain/types.go`）
-- ~~join-ack 的失败 reason 串与文档不一致~~ —— v0.2.1 服务器向文档看齐：错误串改连字符（`room.ErrNotFound` / `ErrMismatch` / `ErrFull`，`server/internal/room/manager.go`；`ws.go` 硬编码一并改引 `room.ErrNotFound`）；客户端 `normalizeJoinReason` 两种都认（容错保留）
-- ~~presence 载荷形状与 client 契约不符~~ —— v0.2.2 三处发送点包 `domain.PresencePayload`（此前裸数组，真客户端成员快照恒空——蜂群首跑抓出）；client `normalizePresenceMembers` 双形状兼容。过程明细随 git 历史
+- ~~join-ack 的失败 reason 串与文档不一致~~ —— v0.2.1 服务器向文档看齐：错误串改连字符（`room.ErrNotFound` / `ErrMismatch` / `ErrFull`，`server/internal/room/manager.go`；`ws.go` 硬编码一并改引 `room.ErrNotFound`）；客户端 `normalizeJoinReason` **精确匹配契约串**（容错已随技术腐化清理批退役——同仓同版本走，串偏离由蜂群/room 探针拦截）
+- ~~presence 载荷形状与 client 契约不符~~ —— v0.2.2 三处发送点包 `domain.PresencePayload`（此前裸数组，真客户端成员快照恒空——蜂群首跑抓出）；client `normalizePresenceMembers` 的双形状兼容已随技术腐化清理批退役（只认 `{members}` 契约形状）。过程明细随 git 历史

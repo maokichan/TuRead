@@ -9,11 +9,15 @@
  * —— 项目的分工口径是「单测验判据、探针验链路」。
  */
 import { describe, expect, it } from 'vitest'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   legacyRowToEditionParams,
   legacyRowToReadingState,
   mapLibraryMode,
-  normalizeDir
+  normalizeDir,
+  sweepLegacySidecars
 } from './migrate'
 
 describe('mapLibraryMode（库模式术语改名，DATA_MODEL §6.2）', () => {
@@ -148,5 +152,49 @@ describe('legacyRowToReadingState（v2 内嵌列 → v3 拆表）', () => {
       lastReadAt: null,
       lastLocation: '{"page":1}'
     })
+  })
+})
+
+describe('sweepLegacySidecars（旧库空副作用文件清场，技术腐化清理批）', () => {
+  function makeDir(): string {
+    return mkdtempSync(join(tmpdir(), 'turead-sweep-'))
+  }
+
+  it('删：0 字节 -wal（turead/lib 两种旧版形状）与任意大小的 -shm；留档本体不碰', () => {
+    const dir = makeDir()
+    writeFileSync(join(dir, 'turead.db'), 'old db archive')
+    writeFileSync(join(dir, 'turead.db-wal'), '')
+    writeFileSync(join(dir, 'turead.db-shm'), 'rebuildable cache')
+    writeFileSync(join(dir, 'lib-04cae8b4.db-wal'), '')
+    writeFileSync(join(dir, 'lib-3cfc5052.db-shm'), 'cache')
+    sweepLegacySidecars(dir)
+    expect(readFileSync(join(dir, 'turead.db'), 'utf8')).toBe('old db archive')
+    expect(existsSync(join(dir, 'turead.db-wal'))).toBe(false)
+    expect(existsSync(join(dir, 'turead.db-shm'))).toBe(false)
+    expect(existsSync(join(dir, 'lib-04cae8b4.db-wal'))).toBe(false)
+    expect(existsSync(join(dir, 'lib-3cfc5052.db-shm'))).toBe(false)
+  })
+
+  it('留：非零 -wal（可能含未归并数据）——清场绝不丢数据', () => {
+    const dir = makeDir()
+    writeFileSync(join(dir, 'lib-abc.db-wal'), 'not-empty frames')
+    sweepLegacySidecars(dir)
+    expect(readFileSync(join(dir, 'lib-abc.db-wal'), 'utf8')).toBe('not-empty frames')
+  })
+
+  it('留：全局 store.db 的副作用（现役数据库）与非旧版命名的文件', () => {
+    const dir = makeDir()
+    writeFileSync(join(dir, 'store.db-wal'), 'active frames')
+    writeFileSync(join(dir, 'store.db-shm'), 'active')
+    writeFileSync(join(dir, 'unrelated.db-wal'), '')
+    sweepLegacySidecars(dir)
+    expect(readFileSync(join(dir, 'store.db-wal'), 'utf8')).toBe('active frames')
+    expect(readFileSync(join(dir, 'store.db-shm'), 'utf8')).toBe('active')
+    expect(readFileSync(join(dir, 'unrelated.db-wal'), 'utf8')).toBe('')
+  })
+
+  it('幂等：目录为空/不存在时再跑一遍不抛错', () => {
+    expect(() => sweepLegacySidecars(makeDir())).not.toThrow()
+    expect(() => sweepLegacySidecars(join(makeDir(), 'no-such-dir'))).not.toThrow()
   })
 })

@@ -14,7 +14,7 @@
  *   只有"同指纹在两库各有一份"时才需要归并（见下）。
  * - 失败不抛：迁移是**尽力而为**，坏文件跳过并记日志（启动不能因为一份旧文件而挂掉）。
  */
-import { copyFileSync, existsSync, mkdirSync, promises as fs } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, promises as fs, readdirSync, statSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { BookLocation, LibraryEntry } from '@core/domain/types'
@@ -80,6 +80,14 @@ export interface MigrationInput {
 
 export async function runMigrations(input: MigrationInput): Promise<void> {
   const { db } = input
+  // 残渣清场（每次启动顺带跑一遍：幂等、廉价、只碰旧版形状的空副作用文件）。
+  // userData 目录从 bootstrap/legacy 路径推导（MigrationInput 不单独带目录）。
+  const userDataDir = input.bootstrapPath
+    ? dirname(input.bootstrapPath)
+    : input.legacyLibraryPath
+      ? dirname(input.legacyLibraryPath)
+      : null
+  if (userDataDir) sweepLegacySidecars(userDataDir)
   const done = db
     .prepare('SELECT value FROM meta WHERE key = ?')
     .get(META_MIGRATED_V3) as { value: string } | undefined
@@ -118,8 +126,40 @@ export async function runMigrations(input: MigrationInput): Promise<void> {
   console.log(`[store] v3 迁移完成（${how}）`)
 }
 
-// ————————————————— T2：多 .db → 全局单库 —————————————————
+/**
+ * 清理旧版库的**空副作用文件**（技术腐化清理批）。
+ *
+ * 迁移纪律是"旧 `.db` / 旧 JSON 原样留档（可回退）"——本函数**不碰它们**；只清不承载数据的
+ * 副作用残留：`-shm`（可重建的共享内存缓存，任意大小可删）与 **0 字节** 的 `-wal`
+ * （SQLite 的 -wal 非零即有未归并帧 = 数据；0 字节 = 已完全归并，无内容可丢）。
+ * 只匹配旧版形状：`turead.db-*` 与 `lib-*.db-*`；**全局 `store.db` 的副作用文件绝不入模式**；
+ * 非零 `-wal` 视为可能含数据 → 保留并记日志。幂等：每次启动跑一遍，无残留即无操作。
+ */
+export function sweepLegacySidecars(userDataDir: string): void {
+  let entries: string[]
+  try {
+    entries = readdirSync(userDataDir)
+  } catch {
+    return // 目录不可读（理论不该发生）：清场是尽力而为，不阻塞启动
+  }
+  const legacySidecar = /^((turead)|(lib-.+))\.db(-shm|-wal)$/
+  for (const name of entries) {
+    if (!legacySidecar.test(name)) continue
+    const full = join(userDataDir, name)
+    try {
+      if (name.endsWith('-wal') && statSync(full).size !== 0) {
+        console.log(`[store] 旧库 sidecar ${name} 非零（${statSync(full).size}B）——可能含未归并数据，保留`)
+        continue
+      }
+      unlinkSync(full)
+      console.log(`[store] 已清理旧库空 sidecar：${name}`)
+    } catch (err) {
+      console.error(`[store] sidecar ${name} 清理失败（忽略，不阻塞启动）：${(err as Error).message}`)
+    }
+  }
+}
 
+// ————————————————— T2：多 .db → 全局单库 —————————————————
 async function migrateFromV2(input: MigrationInput, bootstrap: V2Bootstrap): Promise<void> {
   const { db } = input
   const Database = await loadBetterSqlite()

@@ -62,16 +62,16 @@ export function isValidNick(nick: string): boolean {
 }
 
 /**
- * 归一服务端下发的 `join-ack.reason`。
+ * 判定服务端下发的 `join-ack.reason`（**精确匹配**契约串，未知一律 `server-error`）。
  *
- * ⚠ **偏差已对齐，容错保留**：服务器曾实际发空格分词串（`room.ErrNotFound = "room not found"`，
- * `internal/room/manager.go`）而文档写连字符 —— 精确匹配曾把"书不匹配"静默降级成 server-error。
- * **server 侧已改为连字符（向文档看齐）**；本函数的空格/下划线/大小写容错**保留**
- * （对旧服务器部署 / 传输层噪声都有韧性），未知串归 `server-error`。
+ * 契约串 = `server/internal/room/manager.go` 的错误常量（与 `API.md` 逐字一致，连字符形式）。
+ * 服务器与客户端**同仓同版本走**，不存在"旧部署"——不做任何大小写/分词容错：
+ * reason 串若偏离契约，蜂群与 room 探针会当场红（响亮的失败优于容错的静默）。
+ * ⚠ 历史教训：这里曾有"空格/下划线/大小写都认"的容错，它本身就是当年"空格串 vs 连字符
+ * 契约"偏差事故的伴生品——两侧对齐后容错失去受益方，随技术腐化清理批退役。
  */
 export function normalizeJoinReason(reason: string | undefined | null): JoinFailureReason {
-  const r = (reason ?? '').trim().toLowerCase().replace(/[\s_]+/g, '-')
-  switch (r) {
+  switch (reason) {
     case 'book-mismatch':
       return 'book-mismatch'
     case 'room-not-found':
@@ -154,13 +154,13 @@ export function isChatMessage(value: unknown): value is ChatMessage {
 }
 
 /**
- * room.presence 载荷归一：`{ members: [...] }`（契约形状）或**裸数组**（v0.2.1 前
- * server 实际发的形状 —— 两侧"各自自洽"导致真客户端成员快照恒空，蜂群首跑抓出）。
- * 契约已定为包装形状；这里对两种都认（同 normalizeJoinReason 的容错哲学），脏条目用
- * `isChatMessage` 同族的形状纪律拦在领域层。 */
+ * room.presence 载荷判定（**只认契约形状** `{ members: [...] }`）。
+ * 裸数组是 server v0.2.1 前的实际形状（蜂群首跑抓出的偏差），server v0.2.2 起已修——
+ * 客户端的兼容分支随技术腐化清理批退役：形状再偏，成员快照直接为空、蜂群 A1/A2 当场红。
+ * 脏条目仍用形状纪律拦在领域层（传输层只保证是 JSON，不保证条目形状）。
+ */
 export function normalizePresenceMembers(payload: unknown): RoomMember[] {
-  const raw: unknown =
-    Array.isArray(payload) ? payload : (payload as { members?: unknown } | null)?.members
+  const raw = (payload as { members?: unknown } | null)?.members
   if (!Array.isArray(raw)) return []
   return raw.filter(
     (m): m is RoomMember =>
