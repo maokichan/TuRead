@@ -2,7 +2,7 @@
  * 房间协议词汇（领域层，纯函数，零依赖）—— **唯一解释处**。
  * 依据：`server/docs/API.md`「同步协议与转发规范」「WebSocket」「认证」与 `client/docs/CONTRACTS.md` §4.2/§5.1。
  *
- * 为什么要专门一个文件（Rule of Three，2026-09-17 房间聊天室落地时立）：
+ * 为什么要专门一个文件（Rule of Three）：
  * 信封 type 字符串、失败 reason 的判定、昵称长度约束、房间 WS 的握手地址、聊天历史的路径与合并
  * 此前散落在 `RoomSession` 的 switch-case、`wsNetAdapter` 与 UI 里，**各处自行解释**。
  * 后果已经出现过一次：服务器实际下发的是 `"room not found"`（空格分词），而客户端按
@@ -36,7 +36,7 @@ export const ROOM_MSG = {
 
 /**
  * 客户端**归一后**的加入失败原因（UI 只认这五个）。
- * `superseded` 不是服务器的失败：是**并发 join 的落败方**（审计 C-2）—— 用户快速连点两个房间时，
+ * `superseded` 不是服务器的失败：是**并发 join 的落败方**—— 用户快速连点两个房间时，
  * 旧的那次 join 在 await 恢复后发现已有更新的 join 在进行，立即作废自己。UI 应**静默**处理
  * （不显示错误 —— 用户要的是新房间，旧房间失败与否无关紧要）。
  */
@@ -64,10 +64,10 @@ export function isValidNick(nick: string): boolean {
 /**
  * 归一服务端下发的 `join-ack.reason`。
  *
- * ⚠ **历史偏差与现状（2026-10-24 server v0.2.1 对齐）**：服务器此前实际发的是
- * `room.ErrNotFound = "room not found"` 等空格分词串（`internal/room/manager.go`），而文档写连字符
- * —— 精确匹配曾把"书不匹配"静默降级成 server-error。**server 侧已改为连字符（向文档看齐）**；
- * 本函数的空格/下划线/大小写容错**保留**（对旧服务器部署 / 传输层噪声都有韧性），未知串归 `server-error`。
+ * ⚠ **偏差已对齐，容错保留**：服务器曾实际发空格分词串（`room.ErrNotFound = "room not found"`，
+ * `internal/room/manager.go`）而文档写连字符 —— 精确匹配曾把"书不匹配"静默降级成 server-error。
+ * **server 侧已改为连字符（向文档看齐）**；本函数的空格/下划线/大小写容错**保留**
+ * （对旧服务器部署 / 传输层噪声都有韧性），未知串归 `server-error`。
  */
 export function normalizeJoinReason(reason: string | undefined | null): JoinFailureReason {
   const r = (reason ?? '').trim().toLowerCase().replace(/[\s_]+/g, '-')
@@ -139,7 +139,7 @@ export function mergeChatMessages(
 }
 
 /** 形状守卫：聊天消息的最小可信字段（server 的 payload 只保证是 JSON）。
- *  `createdAt` 一并要求（审计 C-5）：展示层（ChatPanel.formatTime）直接拿它算 HH:MM，
+ *  `createdAt` 一并要求：展示层（ChatPanel.formatTime）直接拿它算 HH:MM，
  *  缺了会渲染成 `NaN:NaN` —— 在守卫里拦掉，脏数据不进 UI。 */
 export function isChatMessage(value: unknown): value is ChatMessage {
   if (!value || typeof value !== 'object') return false
@@ -154,7 +154,7 @@ export function isChatMessage(value: unknown): value is ChatMessage {
 }
 
 /**
- * room.presence 载荷归一（v0.4.8）：`{ members: [...] }`（契约形状）或**裸数组**（v0.2.1 前
+ * room.presence 载荷归一：`{ members: [...] }`（契约形状）或**裸数组**（v0.2.1 前
  * server 实际发的形状 —— 两侧"各自自洽"导致真客户端成员快照恒空，蜂群首跑抓出）。
  * 契约已定为包装形状；这里对两种都认（同 normalizeJoinReason 的容错哲学），脏条目用
  * `isChatMessage` 同族的形状纪律拦在领域层。 */

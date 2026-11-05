@@ -1,8 +1,8 @@
 /**
- * 房间会话共享态（渲染层模块级 store，2026-09-17 随「阅读器聊天室」立）。
+ * 房间会话共享态（渲染层模块级 store）。
  *
  * 为什么要有它：**聊天室的生命周期归属于房间**，但它的两个入口分处两个功能组件 ——
- * ① 「房间」功能组件的会话视图（大厅进房后的常态视图）；② 阅读器右抽屉的「聊天」页签。
+ * ① 「房间」功能组件的会话视图（大厅进房后的常态视图）；② 阅读器右欄卡片页的「聊天」页。
  * 状态若各持一份必然分叉（同一 id 出现两条、历史只进一边、离开房间后一边还留着消息）。
  * 故按 `logStore` / `libraryNavBus` 同族做法：**模块级单例 + 订阅通知**，容器只在 AppShell 挂载时绑一次。
  *
@@ -20,7 +20,7 @@ export interface RoomView {
   roomId: string | null
   /**
    * 这次房间会话绑定的**本地 edition id**（= 经房间打开的那本书）。
-   * 聊天室只在**它的**阅读页出现 —— "没有通过房间进入一本书就不会有这个项"（用户 2026-09-17 定）。
+   * 聊天室只在**它的**阅读页出现 —— 没有通过房间进入一本书就不会有这个项。
    * 空串 = 在房间里但还没拿到书（无书成员补书流程进行中/不可得）。
    */
   editionId: string | null
@@ -30,7 +30,7 @@ export interface RoomView {
   messages: ChatMessage[]
   connection: ConnectionState
   /**
-   * 跟随模式（v0.4.9）：开启后，房间内其他成员的位置变化会把阅读器带到同一位置。
+   * 跟随模式：开启后，房间内其他成员的位置变化会把阅读器带到同一位置。
    * 生命周期 = 本次房间会话（离开房间复位，不持久化 —— "跟着读"是当场意图，不是偏好）。
    */
   following: boolean
@@ -89,7 +89,7 @@ export function beginRoomSession(p: { roomId: string; editionId: string; bookTit
   set({ roomId: p.roomId, editionId: p.editionId, bookTitle: p.bookTitle, messages: [], following: false, error: null })
 }
 
-/** 跟随模式开关（v0.4.9；开关在阅读器的聊天格里，跨组件共享同一份） */
+/** 跟随模式开关（开关在阅读器的聊天格里，跨组件共享同一份） */
 export function setRoomFollow(on: boolean): void {
   set({ following: on })
 }

@@ -6,9 +6,10 @@
  * - 状态转发而非操作转发：只同步 BookLocation 与聊天；翻页/滚动操作不转发。
  * - presence 全量快照广播、发送者除外；chat 广播含发送者（server 权威回执）。
  * - 位置上报节流是 client 职责。
+ * REST 请求组（建房/副本/发现/历史）住 `roomRest.ts`，本类只做委托。
  *
- * ⚠ **v0.4.3：连接模型改成"按房间建连"**（原来是一条通用连接 + room.join）—— 服务器 WS 握手就要求
- * `?room=&nick=`（`transport/ws.go`：缺任一或昵称超长 → 直接关连接）。因此：
+ * ⚠ **连接模型 = "按房间建连"**——服务器 WS 握手就要求 `?room=&nick=`
+ * （`transport/ws.go`：缺任一或昵称超长 → 直接关连接）。因此：
  * - `joinRoom` = `net.openRoom(roomId)`（握手）→ 发 `room.join`（指纹标定）→ 等 join-ack；
  * - `leaveRoom` = `net.closeRoom()`（**聊天的生命周期归属于房间**：离开即断开、历史留在服务器）；
  * - 断线重连后服务器侧是**全新连接**（成员/订阅都是瞬态的）→ 必须**重发 room.join**，
@@ -22,7 +23,6 @@ import { extToFormat } from '@core/domain/format'
 import { normalizeLocation, sameLocation } from '@core/domain/location'
 import {
   ROOM_MSG,
-  buildChatHistoryPath,
   isChatMessage,
   normalizeJoinReason,
   normalizePresenceMembers,
@@ -43,6 +43,13 @@ import type {
   RoomState,
   SystemMessage
 } from '@core/domain/types'
+import {
+  createRoom as restCreateRoom,
+  downloadBookCopy as restDownloadBookCopy,
+  listChatMessages,
+  listRooms as restListRooms,
+  uploadBookCopy as restUploadBookCopy
+} from './roomRest'
 
 export type { JoinFailureReason, JoinResult }
 
@@ -52,13 +59,13 @@ export interface RoomSessionEvents {
   /** 聊天广播（含自己发的 = server 回执）。消费者按 id 合并（见 `protocol.mergeChatMessages`） */
   'chat-message': (msg: ChatMessage) => void
   /**
-   * v0.4.3：聊天历史（加入房间时的全量 / 重连后的增量）—— 与广播分开是因为**来源不同**：
+   * 聊天历史（加入房间时的全量 / 重连后的增量）—— 与广播分开是因为**来源不同**：
    * 历史来自 `GET /rooms/{roomID}/messages`（追加日志），广播来自 `room.message`。
    * 两者会给同一 id（重连补拉与广播交错）→ 消费者一律走 `mergeChatMessages` 去重排序。
    */
   'chat-history': (messages: ChatMessage[]) => void
   'system-message': (msg: SystemMessage) => void
-  /** `failed`（v0.4.8）= 断线重连耗尽：会话即将自动复位（自动 leaveRoom + system-message 告知） */
+  /** `failed` = 断线重连耗尽：会话即将自动复位（自动 leaveRoom + system-message 告知） */
   'connection-changed': (state: ConnectionState) => void
   'book-mismatch': (detail: { local: BookRecord['fingerprint']; room: BookRecord['fingerprint'] }) => void
 }
@@ -80,35 +87,30 @@ export interface IRoomSession {
   on(event: 'book-mismatch', listener: RoomSessionEvents['book-mismatch']): () => void
 
   /** 加入房间并完成标定：按房间建连（握手带 room+nick）→ 上报本地指纹 → 通过则订阅房间状态。
-   *  v0.4.3：`book` 允许 `null` = **无书成员**（服务器明确支持：`fingerprint: null` 可加入并拿回 edition
-   *  供下载，见 `API.md`「room.join」）—— 用例层补齐这个能力；UI 入口待定。
-   *  v0.4.0：`lastLocation` 由调用方给（原来从 `book.lastLocation` 读 —— 阅读状态已拆到 `ReadingState`）。 */
+   *  `book` 允许 `null` = **无书成员**（服务器明确支持：`fingerprint: null` 可加入并拿回 edition
+   *  供下载，见 `API.md`「room.join」）——UI 入口待定。
+   *  `lastLocation` 由调用方给（阅读状态住 `ReadingState`）。 */
   joinRoom(roomId: string, book: BookRecord | null, lastLocation?: BookLocation | null): Promise<JoinResult>
   leaveRoom(): Promise<void>
   /** 手动广播当前位置（通常不需要：翻页由内部监听 render 自动广播） */
   emitLocation(location?: BookLocation): Promise<void>
   /** 发送聊天消息：server 落库后广播 room.message 回执（含发送者）；历史经 REST 拉取 */
   sendChat(text: string): Promise<void>
-  /** v0.4.3：拉取聊天历史（`GET /rooms/{roomID}/messages?after=&limit=`，追加日志）
-   *  —— 加入房间自动拉最近一页；`after` 用于重连后增量补拉 */
+  /** 拉取聊天历史（追加日志）—— 加入房间自动拉最近一页；`after` 用于重连后增量补拉 */
   listMessages(roomId: string, opts?: { after?: number; limit?: number }): Promise<ChatMessage[]>
   getRoomState(): RoomState | null
   getMyMemberId(): string | null
 
-  /**
-   * v0.2.1 扩展：创建房间并注册 work/edition（POST /rooms）。
-   * 协议固定 content-hash-v1（edition 内容指纹）——server 只登记不重算。
-   */
+  /** 创建房间并注册 work/edition（POST /rooms）—— 委托 `roomRest.createRoom` */
   createRoom(book: BookRecord, owner: string): Promise<{ roomId: string; editionId: number }>
-  /** v0.2.1 扩展：上传电子版副本（POST /books/{editionID}/file，幂等去重，分发源） */
+  /** 上传电子版副本（POST /books/{editionID}/file，幂等去重，分发源） */
   uploadBookCopy(editionId: number, buffer: ArrayBuffer): Promise<void>
   /**
-   * v0.4.8：下载电子版副本（GET /books/{editionID}/file → ArrayBuffer）。
-   * 无书成员的获取路径（服务器 `localCopy = 1` 时可用；404 = 副本未上传，调用方提示）。
-   * 字节回来后由调用方落盘（`picker.saveBookCopy`）→ 导入（`books.importBook`）→ 打开。
+   * 下载电子版副本（GET /books/{editionID}/file → ArrayBuffer）。
+   * 无书成员的获取路径；字节回来后由调用方落盘 → 导入 → 打开。
    */
   downloadBookCopy(editionId: number): Promise<ArrayBuffer>
-  /** v0.2.1 扩展：房间发现（GET /rooms，可按 edition 找房） */
+  /** 房间发现（GET /rooms，可按 edition 找房） */
   listRooms(editionId?: number): Promise<RoomInfo[]>
 }
 
@@ -126,7 +128,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
   private joinedBook: BookRecord | null = null
   private joinedFormat: BookFormat | null = null
   /**
-   * 房间标定指纹（审计 B-2）：带书加入 = 本书指纹；无书加入 = join-ack 的 edition 指纹。
+   * 房间标定指纹：带书加入 = 本书指纹；无书加入 = join-ack 的 edition 指纹。
    * `location-changed` 是渲染端口的全局事件 —— 上报前必须校验"当前打开的书 ≡ 房间的书"，
    * 判据与服务器标定同口径（`identity.verify`：algorithm+hash+size 全等）。
    */
@@ -142,13 +144,13 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
   private netUnsubs: Array<() => void> = []
   private joinUnsubs: Array<() => void> = []
   /**
-   * join 等待槽（v0.4.3 修 TODO P2「单槽覆盖式赋值」）：**单槽 + 代次** ——
-   * 并发 join 时旧的那次立即以 `server-error` 结束（而不是被覆盖后永久挂起），只有最新一次等 ack。
+   * join 等待槽：**单槽 + 代次** ——
+   * 并发 join 时旧的那次立即结束（而不是被覆盖后永久挂起），只有最新一次等 ack。
    */
   private pendingJoin: { gen: number; resolve: (ack: JoinAck | null) => void } | null = null
   private joinGen = 0
   private joinTimer: ReturnType<typeof setTimeout> | null = null
-  /** joinRoom 调用代次（审计 C-2）：大厅快速连点两个房间 = 并发 join —— 旧的那次在每个
+  /** joinRoom 调用代次：大厅快速连点两个房间 = 并发 join —— 旧的那次在每个
    *  await 恢复点作废自己（返回 `superseded`），不得再碰共享状态或触发失败清理路径。 */
   private joinCallGen = 0
   private lastSentAt = 0
@@ -165,11 +167,11 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
       net.on('connection-changed', (s) => {
         this.emit('connection-changed', s)
         // 断线重连：服务器侧已是全新连接 → 重发 join（否则是"在房间里却不是成员"的幽灵）。
-        // 无书成员（joinedBook = null）同样要重入 —— 审计 A-1 摘除守卫时一并对齐
+        // 无书成员（joinedBook = null）同样要重入
         if (s === 'connected' && this.joined && this.roomId) {
           void this.rejoin()
         } else if (s === 'failed' && this.joined) {
-          // 审计 B-4：重连耗尽 = 会话没有出口了（服务器不再可达）—— 自动复位回大厅并告知，
+          // 重连耗尽 = 会话没有出口了（服务器不再可达）—— 自动复位回大厅并告知，
           // 而不是留着"UI 显示未连接、会话仍 joined"的半死态。可预期优于沉默。
           void this.leaveRoom().then(() => {
             this.emit('system-message', {
@@ -187,7 +189,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     book: BookRecord | null,
     lastLocation?: BookLocation | null
   ): Promise<JoinResult> {
-    // 审计 C-2：并发 join 的代次守卫 —— 旧调用在每个 await 恢复点自检，落败方立即作废。
+    // 并发 join 的代次守卫 —— 旧调用在每个 await 恢复点自检，落败方立即作废。
     // 若不做，落败方的失败清理（closeRoom/resetJoinState）会砸掉胜方的会话。
     const gen = ++this.joinCallGen
     const superseded = (): JoinResult => ({ ok: false, reason: 'superseded' })
@@ -243,7 +245,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     // 无书成员：位置比较的格式键从房间绑定的 edition 扩展名推（否则 presence diff 整条不工作，
     // 见 deriveRemoteLocations 的 `!this.joinedFormat` 早退）
     if (!this.joinedFormat && ack.edition?.ext) this.joinedFormat = extToFormat(`x.${ack.edition.ext}`)
-    // 审计 B-2：标定指纹 —— 带书 = 本书指纹；无书 = 服务器告知的 edition 指纹
+    // 标定指纹 —— 带书 = 本书指纹；无书 = 服务器告知的 edition 指纹
     //（无书成员下载副本导入后打开的就是同内容文件，指纹比对天然成立）
     this.roomFingerprint = book
       ? book.fingerprint
@@ -278,7 +280,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     this.joinUnsubs = []
     if (this.emitTimer) clearTimeout(this.emitTimer)
     this.emitTimer = null
-    // 审计 C-5：节流窗口内未发出的位置一并作废 —— 不清的话重进房间会把上一会话的旧位置带出去
+    // 节流窗口内未发出的位置一并作废 —— 不清的话重进房间会把上一会话的旧位置带出去
     this.pendingEmit = null
     this.clearPendingJoin()
     this.resetJoinState()
@@ -287,7 +289,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
   }
 
   async emitLocation(location?: BookLocation): Promise<void> {
-    // 手动路径与自动路径同一出口、同一校验（审计 B-2 / TODO「emitLocation 绕过节流」）
+    // 手动路径与自动路径同一出口、同一校验
     if (!this.isOpenBookTheRoomsBook()) return
     const loc = location ?? this.render.getPosition()
     this.throttleSend(loc)
@@ -300,15 +302,9 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     await this.net.send({ type: ROOM_MSG.chat, payload: { text: trimmed } })
   }
 
+  /** 委托 `roomRest.listChatMessages`（保持 IRoomSession 接口面不变） */
   async listMessages(roomId: string, opts?: { after?: number; limit?: number }): Promise<ChatMessage[]> {
-    const res = await this.net.request<{ messages?: ChatMessage[] }>({
-      method: 'GET',
-      path: buildChatHistoryPath(roomId, opts)
-    })
-    if (!res.ok) throw new Error(`拉取聊天歷史失敗：${JSON.stringify(res.data)}`)
-    const list = res.data?.messages
-    if (!Array.isArray(list)) return []
-    return list.filter(isChatMessage).sort((a, b) => a.id - b.id)
+    return listChatMessages(this.net, roomId, opts)
   }
 
   getRoomState(): RoomState | null {
@@ -320,58 +316,19 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
   }
 
   async createRoom(book: BookRecord, owner: string): Promise<{ roomId: string; editionId: number }> {
-    const res = await this.net.request<{ roomId: string; editionId: number }>({
-      method: 'POST',
-      path: '/rooms',
-      body: {
-        owner,
-        book: {
-          protocol: 'content-hash-v1',
-          code: book.fingerprint.hash,
-          title: book.metadata.title,
-          ext: book.format.toLowerCase(),
-          hashAlgo: book.fingerprint.algorithm,
-          hash: book.fingerprint.hash,
-          size: book.fingerprint.size
-        }
-      }
-    })
-    if (!res.ok) throw new Error(`创建房间失败: ${JSON.stringify(res.data)}`)
-    return res.data
+    return restCreateRoom(this.net, book, owner)
   }
 
   async uploadBookCopy(editionId: number, buffer: ArrayBuffer): Promise<void> {
-    const res = await this.net.request<unknown>({
-      method: 'POST',
-      path: `/books/${editionId}/file`,
-      body: buffer,
-      rawBody: true,
-      responseType: 'text'
-    })
-    if (!res.ok) throw new Error(`上传副本失败: ${JSON.stringify(res.data)}`)
+    await restUploadBookCopy(this.net, editionId, buffer)
   }
 
   async downloadBookCopy(editionId: number): Promise<ArrayBuffer> {
-    const res = await this.net.request<ArrayBuffer>({
-      method: 'GET',
-      path: `/books/${editionId}/file`,
-      responseType: 'arraybuffer'
-    })
-    if (!res.ok) {
-      const detail = typeof res.data === 'string' || res.data == null ? String(res.data ?? '') : JSON.stringify(res.data)
-      throw new Error(`下载副本失败（HTTP ${res.status}）${detail ? `：${detail.slice(0, 120)}` : ''}`)
-    }
-    return res.data
+    return restDownloadBookCopy(this.net, editionId)
   }
 
   async listRooms(editionId?: number): Promise<RoomInfo[]> {
-    const q = editionId != null ? `?edition=${editionId}` : ''
-    const res = await this.net.request<{ rooms: RoomInfo[] }>({
-      method: 'GET',
-      path: `/rooms${q}`
-    })
-    if (!res.ok) throw new Error(`拉取房间列表失败: ${JSON.stringify(res.data)}`)
-    return res.data.rooms
+    return restListRooms(this.net, editionId)
   }
 
   /** 发 room.join 并等 join-ack（带超时 + 单槽代次，见 pendingJoin 注释） */
@@ -392,8 +349,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
       await this.net.send({
         type: ROOM_MSG.join,
         // 无书成员（joinedBook = null）= fingerprint: null —— 服务器允许加入并返回 edition
-        // 供下载（API.md「room.join」；CONTRACTS v0.4.4）。⚠ 审计 A-1：此前的 `!joinedBook`
-        // 守卫让"带 null 指纹的 room.join"永远发不出去，与契约背离的死代码，2026-10-03 摘除。
+        // 供下载（API.md「room.join」）。
         payload: { fingerprint: this.joinedBook?.fingerprint ?? null }
       })
     } catch (err) {
@@ -408,7 +364,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     if (this.joinTimer) clearTimeout(this.joinTimer)
     this.joinTimer = null
     if (this.pendingJoin) {
-      // 旧的那次等不到 ack 了：立即结束（不让调用方永久挂起 —— 修 TODO P2「单槽覆盖式赋值」）
+      // 旧的那次等不到 ack 了：立即结束（不让调用方永久挂起）
       this.pendingJoin.resolve(null)
       this.pendingJoin = null
     }
@@ -425,7 +381,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
     this.memberLocs.clear()
   }
 
-  /** 断线重连后重发 join（服务器侧成员表已随旧连接消失）；无书成员同样要重入（审计 A-1） */
+  /** 断线重连后重发 join（服务器侧成员表已随旧连接消失）；无书成员同样要重入 */
   private async rejoin(): Promise<void> {
     if (!this.roomId) return
     const ack = await this.sendJoin()
@@ -447,7 +403,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
   }
 
   /** 拉聊天历史：after=0 = 加入时的最近一页；after=lastChatId = 重连增量。
-   *  isCurrent（审计 C-2）：并发 join 落败方的在途请求回来时不入账（lastChatId 是新会话的补拉锚，
+   *  isCurrent：并发 join 落败方的在途请求回来时不入账（lastChatId 是新会话的补拉锚，
    *  旧会话的历史也不能 emit 进新会话的共享态）。 */
   private async loadHistory(after = 0, isCurrent?: () => boolean): Promise<void> {
     if (!this.roomId) return
@@ -478,7 +434,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
   }
 
   /**
-   * 远端位置派生（v0.2.4 修复"location-updated 死端口"）：
+   * 远端位置派生：
    * server 不单独下发 room.location 信封，而是广播 room.presence 全量快照（含每人位置）。
    * 本侧以 join-ack 为基线、逐次 presence 快照 diff：某成员位置变化才 emit location-updated。
    * 位置一律先归一、比较走 sameLocation（定位系统纪律：不自行解释字段）。
@@ -516,8 +472,8 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
         break
       }
       case ROOM_MSG.presence: {
-        // 载荷形状归一（v0.4.8）：契约 = {members:[...]}；兼容 server v0.2.1 前的裸数组
-        // （两侧"各自自洽"导致真客户端成员快照恒空 —— 蜂群首跑抓出，见 protocol.ts）
+        // 载荷形状归一：契约 = {members:[...]}（兼容旧 server 的裸数组——
+        // 形状不符曾致真客户端成员快照恒空，归一细节见 protocol.ts）
         const members = normalizePresenceMembers(env.payload).map((m) => this.decorateMe(m))
         if (this.state) this.state = { ...this.state, members }
         this.emit('presence-updated', members)
@@ -546,7 +502,7 @@ export class RoomSession extends TypedEmitter<RoomSessionEvents> implements IRoo
   }
 
   /**
-   * 审计 B-2：`location-changed` 是渲染端口的全局事件，在 A 书的房间里打开 B 书会把
+   * `location-changed` 是渲染端口的全局事件，在 A 书的房间里打开 B 书会把
    * B 的位置广播进 A 房。上报前校验"当前打开的书 ≡ 房间标定的那本"（指纹口径与服务器一致）。
    * 渲染未打开任何书（书还没开/已关）时同样不上报 —— 没有可验证的归属。
    */

@@ -2,10 +2,10 @@
  * 功能组件：房间（RoomFeature）—— 服务器会话 + 大厅/会话（连接是房间组件的一部分）。
  *
  * 状态继承：进入房间成功后 host.openReader(bookId) —— 自动切到阅读器并打开对应书；
- * 房间会话（成员/聊天）在**跨功能共享态** `features/roomSession.ts` 里（v0.4.3 起）——
+ * 房间会话（成员/聊天）在**跨功能共享态** `features/roomSession.ts` 里——
  * 阅读器右抽屉的「聊天」页签读的是同一份，两处不会分叉。
  *
- * ⚠ **v0.4.3：连接模型按服务器文本改了**（`server/docs/API.md`）：
+ * ⚠ **连接模型按服务器文本走**（`server/docs/API.md`）：
  * - 「連接」= 建立**会话**（`POST /auth/token` 取成员 token），大厅（REST）随之可用；
  * - **房间 WebSocket 在进入房间时才建立**（服务器握手就要 `?room=&nick=`，缺任一直接关连接）；
  * - 「離開房間」= 断开这条房间连接（聊天的生命周期归属于房间）。
@@ -109,7 +109,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
   }, [container, url, token, nick, refreshRooms])
 
   const disconnect = useCallback(async () => {
-    // 审计 B-3：先走 leaveRoom（幂等）清掉房间会话再断开 —— 直接 net.disconnect 会把
+    // 先走 leaveRoom（幂等）清掉房间会话再断开 —— 直接 net.disconnect 会把
     // RoomSession 的 joined/joinUnsubs 留成幽灵会话（位置监听还活着，重进后互相污染）
     await container.room.leaveRoom()
     endRoomSession()
@@ -119,7 +119,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
     setRooms([])
   }, [container])
 
-  /** join 失败的统一呈现（superseded = 并发 join 落败方，静默 —— 审计 C-2） */
+  /** join 失败的统一呈现（superseded = 并发 join 落败方，静默） */
   const reportJoinFailure = useCallback(
     (rid: string, res: { ok: true } | { ok: false; reason: string }): boolean => {
       if (res.ok) return true
@@ -147,7 +147,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
   )
 
   /**
-   * 无书进入（v0.4.8）：不带指纹 join（服务器必收）→ 拿到房间绑定的 edition 后补书：
+   * 无书进入：不带指纹 join（服务器必收）→ 拿到房间绑定的 edition 后补书：
    * ① 本地已有同内容书（指纹相等）→ 直接打开它；
    * ② 没有但服务器有副本（localCopy）→ 下载 → 落盘（userData/downloads）→ 导入当前库 → 打开；
    * ③ 都没有 → 留在房间（聊天/看位置不受影响），日志说明怎么补书。
@@ -225,7 +225,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
       try {
         const target = opts?.book !== undefined ? opts.book : await getSelectedBook()
         if (target) {
-          // v0.4.0：房间的初始位置取该书的**阅读状态**（已从书行拆到 `ReadingState`）——
+          // 房间的初始位置取该书的**阅读状态**——
           // 原来 `joinRoom` 自己读 `book.lastLocation`，现在由调用方显式给。
           const state = await container.books.getReadingState(target.id)
           const res = await container.room.joinRoom(rid, target, state?.lastLocation ?? null)
@@ -257,7 +257,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
       const owner = nick.trim() || '读者'
       const { roomId, editionId } = await container.room.createRoom(book, owner)
       host.pushLog(`已创建房间：${roomId}`)
-      // v0.4.8：建房即传副本 —— server 本身即分发源，别的成员没有这本书时可直接下载。
+      // 建房即传副本 —— server 本身即分发源，别的成员没有这本书时可直接下载。
       // 失败不挡进房（房间已建好；上传可稍后重做），但要在日志里说清后果。
       try {
         host.pushLog('正在上传副本到服务器…')
@@ -334,7 +334,7 @@ export function RoomFeature({ container, host, selectedBookId }: FeatureProps): 
               className={`${inputCls} flex-1`}
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              // IME 组合守卫（审计 B-5）：组合中的 Enter = 确认候选词，不是发送
+              // IME 组合守卫：组合中的 Enter = 确认候选词，不是发送
               onKeyDown={(e) => !e.nativeEvent.isComposing && e.key === 'Enter' && void sendChat()}
               placeholder="发消息，回车发送…"
             />
