@@ -102,6 +102,10 @@
 
 ### 书库 UI 与交互
 
+- [ ] **自建库「来源缺失」语义 / 文件跟踪（用户 2026-11-06 立项，真机实锤的业务缺口）**：
+  实锤 = 文件被挪走后打开 = 裸 ENOENT（数据无损，终端 GBK 显示成乱码）。语义对齐映射库现成口径
+  （DATA_MODEL §6.1）：① 打开失败 → 标该收录 `missing` + 界面可见 + 人话引导（重导入自动认回
+  edition，笔记/进度保留）② `fsReadFile` 错误翻译成可读口径。⚠ 是**缺失状态一等化**，不是吞错。
 - [ ] **聚焦舞台收尾（主体已上线 v0.2.6，形态/移植史/教训见 features/library.md 与 git）**：
   ① **WebGL 上下文运行时丢失硬化**（`webglcontextlost` 监听 → 降级处理，现只覆盖启动期探测）；
   ② **手感细修随用户反馈滚动**（四主题观感 / reduced-motion 实测未做）。
@@ -169,21 +173,19 @@
 
 ### 工程与测试设施
 
+- [ ] **技术债观察清单（洗源码副产物，用户 2026-11-06 裁定登记暂不动）**：① styles.css 纯批次落款
+  未逐条剥；② veil 双机制合并评估（三个活消费者）；③ render 端口投机面：`goToPage/goToPercentage/
+  search/getProgress` 零调用方、`emitLocation` 手动旁路、`fsShowInFolder` 忽略 `libraryId` 残参；
+  ④ 跨语言双写常量无机检（`VIEW_SWITCH_MS`/`HANG_EXIT_MS`/兜底色 ↔ CSS token，修法 = 机检或运行时读）；
+  ⑤ kookit 升级纪律入 BUILD（逆向耦合点：+300px/rendered 无参/rangy 载荷/`page-area`——升级必跑全探针）。
 - [ ] **文档治理余项（后续批次）**：① DATA_MODEL 洗后余项评估（datamodel 审计提案 P1–P5：
   SCHEMA_SQL 作 docGuard 指纹锚、KOOKIT §9 检查单补 noteUtil 委托块与 recognize 两种调用形状、
   「宿主容器」定义锚定 RENDER_INTERFACE、跨文档节号引用纪律——docIndex 只查路径边不查节号、
   §6.1 存根随代码注释重构后可删）；② dsh 式 doc-typecheck / type-equiv（文档内 ts 块可编译、
   类型粘贴与源码等价）——远期工程项。
-- [x] **洗源码（用户 2026-11-05 立项；11-06 全五域完成，去向 = git 历史「洗源码」提交组）**：判据（dsh 口径）：
-  **契约留注释**（行为/失败/时序/所有权/非显然取向），叙事/历史/教训/推理过程转移
-  `client/docs/features/` 对应页或直接退役（git 历史）；「文档与代码不一致」按纪律主动报告。
-  **复杂度维度**：巨型文件按 features/ 锚点对照拆分——LibraryFeature 1102→725+四钩子、
-  ReaderFeature 1056→554+五钩子、kookitRenderAdapter 949→699+三纯模块、RoomSession 591→546+roomRest；
-  **sqliteStore（1228）评估后判不拆**：wide-flat 均匀薄 SQL（40 方法清晰分节），非纠缠型复杂度，
-  拆分纯机械、收益低于触碰持久层全表的风险。残留拔除：removeCover 死管道、死 header prop ×4、
-  死 rootRef、死状态 rootPath。验证 = typecheck 四套 + 单测 175 + library/note 探针 + 蜂群 A1-A5 + 样张 9/9。
-  **未了余项**：① styles.css 纯批次/日期落款未逐条剥（机制性内容已全修）；② veil 双机制
-  （paintVeil/paintGlow）合并评估未动（三个活消费者）。
+- [x] **洗源码（用户 2026-11-05 立项；11-06 全五域完成）**：判据 = 契约留注释（行为/失败/时序/所有权/
+  非显然取向），叙事转移 features/ 页或退役（git）；不一致主动报告。拆分与清理明细 = git「洗源码」
+  提交组 + STATUS §6 未滚增量；sqliteStore 判不拆（wide-flat，定论在案）。余项见「技术债观察清单」。
 - [ ] **插件卸载余项**：卸载本体已落（`plugins:uninstall` 通道 + 数据清理 + 设置页「卸載」，
   实现见 `main/plugins.ts` / `SettingsFeature`）。剩余：seeder opt-out 评估；官方插件升级路径
   （版本兼容策略）；`plugin-secret:<id>:*` 密文清不掉（待 store 补「按前缀删键」原语，

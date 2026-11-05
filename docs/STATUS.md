@@ -132,10 +132,16 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 
 ## 6. 交接快照
 
-**当前位置**：`main`（client **v0.2.7** / server v0.2.2；**未 push，等用户**；未打包，发行物仍是 v0.1.15 便携版）。
+**当前位置**：`main`（client **v0.2.7** / server v0.2.2；**已 push**（2026-11-06 收尾批，用户授权）；未打包，发行物仍是 v0.1.15 便携版）。
 **未滚版本的增量**（并入下个版本，§4 不加行）：插件卸载落地（`plugins:uninstall`——种子件拒删 +
 目录围栏 + 渲染层清 `plugin:<id>` 键；已知残留 = `plugin-secret:<id>:*` 密文清不掉，待 store 补
-「按前缀删键」原语，见 `client/plugins/PLUGINS.md` §3）；统一日志机制；治理机制与文档分层（feature-docs 笔记）。
+「按前缀删键」原语，见 `client/plugins/PLUGINS.md` §3）；统一日志机制；治理机制与文档分层（feature-docs 笔记）；
+**洗源码五域全清 + 技术腐化清理**（注释三向分流：契约内核留/叙事退役或转移 features 页/日期批次壳剥除；
+巨型文件拆分 = LibraryFeature→四钩子 · ReaderFeature→五钩子 · kookitRenderAdapter→三纯模块 ·
+RoomSession→roomRest；removeCover 死管道与死 prop 拔除；join reason/presence 容错退役 = 精确匹配契约串；
+旧库空 sidecar 启动清场。sqliteStore 评估后判不拆——wide-flat 均匀薄 SQL，定论在 TODO 销案条）。
+**2026-11-06 真机实锤的业务缺口（已立项）**：自建库没有"来源缺失"语义——文件被挪动后打开 = 裸 ENOENT
+（终端还可能以 GBK 显示成乱码，数据链路无损）。口径与修法见 TODO「文件跟踪」条。
 **当前重心（用户定）= 阅读界面的交互打磨**（Emil Kowalski 式设计工程：交互手感 / 层次感 / 质量感；
 **整个 UI 在此前提下允许改**，纪律 = emil-design-eng skill + `STYLE.md` 红线，先概览现状再动工）。
 **v0.2.7 已上线真机待复看**：内嵌目录（压印字/显影）、「卡」按钮、设置页新格局、「筆」页閱讀统计段——
@@ -151,6 +157,9 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 3. **PDF 烘焙推广**（调研结论与逐主题 profile 已写进 TODO；挂载线已完，无前置）。
 4. **聚焦舞台收尾**（WebGL 运行时丢失硬化 + 手感细修，见 TODO）。
 5. **共读真机复核 / 多人补验**（等用户有空并行）；**server 侧**按既定节奏挂起。
+6. **产品新立项待排期**：笔记原生 Markdown 兼容（目标 = 看齐 Obsidian 双向流通；动工前先定
+   渲染口径与 OFM 语法取舍清单，见 TODO）与自建库「文件跟踪/来源缺失」语义（见上）；
+   洗源码余项与技术债观察清单见 TODO（用户裁定暂不动）。
 
 **验证工具链**：全部口径（单测 / typecheck 四 tsconfig / 样张与 smoke / 六探针 / 蜂群 / server 测试 /
   发行版冒烟；含沙箱 EPERM、Electron ABI 与 stdout、GPU 路径事实）= [`TESTING.md`](TESTING.md)。
