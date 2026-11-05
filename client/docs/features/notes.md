@@ -1,8 +1,8 @@
 # 笔记管理（notes）—— feature 参照
 
 > 本页 = 笔记域的**架构锚点与实现细节**；交互裁决（入口形态、不引入 kind、视图两态、
-> 用词纪律「移除/刪除」等）的权威在 `FEATURES.md` §12；接口形状 = `CONTRACTS.md` §4.4 读模型 +
-> §4.6 clipboard；数据建模 = `DATA_MODEL.md` §3/§5 问题 6；视觉 = `STYLE.md` §5.10。
+> 用词纪律「移除/刪除」等）的权威在 `FEATURES.md` 笔记节；接口形状 = `contracts/ports.md`
+> 读模型 + clipboard；数据建模 = `DATA_MODEL.md` §3/§5 问题 6；视觉 = `style/components-notes.md`。
 
 ## 1. 架构锚点
 

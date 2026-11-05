@@ -1,7 +1,7 @@
 /**
  * ILibraryStore 适配器（主进程侧，真实实现）—— better-sqlite3 **全局单库** + 封面目录。
  *
- * 数据建模依据：`client/docs/DATA_MODEL.md` **§1/§2 v3（2026-09-15 批复，「书的身份」定案）**。
+ * 数据建模依据：`client/docs/DATA_MODEL.md` §1/§2（v3，「书的身份」）。
  *
  * ⚠ **相对 v2 的根本变化**：v2 是"一个 .db = 一份书库"；v3 是
  * **全应用一个 .db = 一份用户数据**（书库降为**组织模式**，成员关系 = **收录 holdings**）。
@@ -211,9 +211,9 @@ export class SqliteStore {
           `若是原生模块 ABI 不匹配，请在 client/ 下执行 npm run rebuild:sqlite`
       )
     }
-    // ⚠ **形状守卫（2026-09-15 用户实测事故后补）**：`CREATE TABLE IF NOT EXISTS` 对**已存在但形状
+    // ⚠ **形状守卫**：`CREATE TABLE IF NOT EXISTS` 对**已存在但形状
     // 不同**的表是**静默跳过**的 —— 于是后面针对新列的索引会以 `no such column: xxx` 炸掉，
-    // 报错点离真因很远（用户实测：全局库误用旧 `store.db` → `no such column: library_id`）。
+    // 报错点离真因很远（全局库误用旧 `store.db` 即此症状）。
     // 这里先判"这文件是不是旧版书库"，把密码般的 SQL 错误换成一句能直接照做的话。
     if (existsSync(this.opts.dbPath) && looksLikeLegacyStore(db)) {
       db.close()
@@ -363,7 +363,7 @@ export class SqliteStore {
   /**
    * 新增/更新一条收录。
    *
-   * ⚠ **`container_id` 用 `COALESCE` 而不是直接覆盖**（2026-09-15 自查发现）：
+   * ⚠ **`container_id` 用 `COALESCE` 而不是直接覆盖**：
    * 扫描（`ScanService`）与导入都会用 `containerId = null` 调本方法（"落在库根层"），
    * 而 null 的真实语义是"**未指定归属**"，不是"移到根层"。若直接 `= excluded.container_id`，
    * 用户把书拖进書箱之后**再扫一次就会被悄悄搬回根层** —— 用户的组织成了扫描的牺牲品。
@@ -432,7 +432,7 @@ export class SqliteStore {
    */
   async listItemsAtLevel(query: LibraryLevelQuery): Promise<LibraryItem[]> {
     /**
-     * ⚠ **缺省不含"来源缺失"的收录**（2026-09-15 定）：用户对映射库的模型是
+     * ⚠ **缺省不含"来源缺失"的收录**：用户对映射库的模型是
      * "**书不在真实路径上，从这个视角就看不到它**"（DATA_MODEL §6.1 / D5）——
      * 而收录与笔记/阅读状态**都留着**，文件回来时 `ScanService` 清掉 `missing`，书自动重现。
      * `includeMissing: true` 是给将来的"可见/标记/清理"界面留的开关（F3，见 §6.4）。
@@ -470,7 +470,7 @@ export class SqliteStore {
   }
 
   /**
-   * 全库检索（批1.12）：跨层级 LIKE 匹配 标题/来源路径/收录路径，SQL 侧完成（无 N+1）。
+   * 全库检索：跨层级 LIKE 匹配 标题/来源路径/收录路径，SQL 侧完成（无 N+1）。
    * 口径与 listItemsAtLevel 对齐：不含 `missing`；空串 = 不检索（返回空，调用方自行分流）。
    */
   async searchHoldings(libraryId: string, text: string): Promise<LibraryItem[]> {
@@ -718,7 +718,7 @@ export class SqliteStore {
     return row?.total ?? 0
   }
 
-  /** 逐日阅读分钟数（批1.24，贡献图）：本地时区归日、只含有会话的日子（稀疏），最近 `days` 天 */
+  /** 逐日阅读分钟数（贡献图）：本地时区归日、只含有会话的日子（稀疏），最近 `days` 天 */
   async readMinutesByDay(days: number): Promise<ReadDayMinutes[]> {
     const rows = this.db
       .prepare(
@@ -735,7 +735,7 @@ export class SqliteStore {
       .map((r) => ({ day: r.day, minutes: r.minutes }))
   }
 
-  /** 阅读时长 Top N（批1.24，Top 榜）：reading_state 投影倒序（含迁移旧账），书名随行 */
+  /** 阅读时长 Top N（Top 榜）：reading_state 投影倒序（含迁移旧账），书名随行 */
   async topReadEditions(limit: number): Promise<TopReadEdition[]> {
     const rows = this.db
       .prepare(
@@ -887,7 +887,7 @@ export class SqliteStore {
     this.db.prepare('DELETE FROM notes WHERE id = ?').run(id)
   }
 
-  // ————— 笔记读模型（跨书管理，v0.4.2）—————
+  // ————— 笔记读模型（跨书管理）—————
 
   /**
    * 跨书列笔记（笔记管理工具的数据口）。

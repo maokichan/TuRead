@@ -4,20 +4,20 @@
  * 设置经 ILibraryStore 持久化（key: appearance / librarySettings）；
  * 主题以 `data-theme` 应用到 <html>，CSS 语义 token 见 styles.css。
  * ⚠ 阅读器参数已全部收编：高频显示参数与布局模式都在**卡片页參數面**（ReaderFeature 拥有
- * readerSettings 的唯一写者；2026-09-13 布局模式也移出本页）。
+ * readerSettings 的唯一写者；布局模式同样住参数面板）。
  *
- * 批1.22 重构（用户定"不过多引导/去折叠语法/去线"的延伸）：
+ * 版面纪律（不过多引导/去折叠语法/去线）：
  * - **无标题**（侧栏「設」已说明这是哪）；**无提示段落**——优秀的交互不需要引导文案；
  *   分组**去线**（纯留白，与卡片页页签去线同方向）。
  * - **布尔语汇 = 關｜開 文字选项**（app 自己 on/off 语汇的第一次定义；原生 checkbox 全灭）。
- * - **快捷键 = 只读清单**（批1.22）：直接渲染意图绑定表（`core/domain/input.ts` 的纯数据），
+ * - **快捷键 = 只读清单**：直接渲染意图绑定表（`core/domain/input.ts` 的纯数据），
  *   空键位标「未設」——改键/捕获/冲突检测随配键体系批（先做交互模式目标形态对齐，见 TODO）。
- * - **插件 = 注册表**（批1.22 用户定）：每插件一行（名称 + 啟｜停 + 版本），**配置住使用处**
+ * - **插件 = 注册表**：每插件一行（名称 + 啟｜停 + 版本），**配置住使用处**
  *   （卡片页面板），设置页不收配置项——信息过载被"一行一生死"的渲染策略挡住；
  *   "插件声明 config schema、宿主两处渲染"（問 的 key 这类读书前配置）= 贡献点 v2，远期。
- * - 診斷日誌整节移除（用户定"用户不会看"；logStore 管道保留给探针）。
+ * - 診斷日誌整节移除（logStore 管道保留给探针）。
  *
- * 主题模型（2026-09-11 规正，权威 core/domain/theme.ts）：**2 主题 × 2 模式**。
+ * 主题模型（权威 core/domain/theme.ts）：**2 主题 × 2 模式**。
  * 主题（取向）= 純色（黑灰白）｜羊皮紙（暖棕）；模式 = 深｜淺｜跟隨系統（在所选主题内解析）。
  * 持久化形状 = ThemePreference{tone, mode}；旧单一字符串自动迁移（normalizeThemeSetting）。
  */
@@ -199,12 +199,12 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
       </Group>
 
       <Group title="快捷鍵">
-        {/* 只读清单（批1.22）：直接渲染意图绑定表；改键随配键体系批（TODO） */}
+        {/* 只读清单：直接渲染意图绑定表；改键随配键体系批（TODO） */}
         {SCOPES.map(({ scope, label }) => {
           const entries = Object.entries(DEFAULT_BINDINGS).filter(([intent]) => intent.startsWith(`${scope}.`))
           if (entries.length === 0) return null
           return (
-            // 键值对的数据特征 = 键与值**相邻**（批1.23 用户纠偏："明显应该靠近一点"）——
+            // 键值对的数据特征 = 键与值**相邻**——
             // 层级缩进承担结构（域 → 条目），行内 = 意图名（注脚）+ 键位（值），一道小缝。
             <div key={scope} className="flex flex-col gap-1.5">
               <span className="pl-5 text-[13px] text-[var(--muted)]">{label}</span>
@@ -265,7 +265,7 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
   )
 }
 
-/** 分组：副标题 + 留白（批1.22 去线；取代原 border-t 分割线，§5.7 同步） */
+/** 分组：副标题 + 留白（去线，取代原 border-t 分割线） */
 function Group({ title, children }: { title: string; children: React.ReactNode }): React.JSX.Element {
   return (
     <section className="flex flex-col gap-2.5">

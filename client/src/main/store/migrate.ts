@@ -33,7 +33,7 @@ async function readJsonFile<T>(path: string): Promise<T | null> {
 /** 迁移完成标记（meta 表） */
 const META_MIGRATED_V3 = 'migrated_v3'
 
-/** 旧版 v2 引导文件形状（2026-09-13 落地：一库一 .db） */
+/** 旧版 v2 引导文件形状（一库一 .db 时代的遗留） */
 interface V2Bootstrap {
   version?: number
   currentId?: string
@@ -84,9 +84,9 @@ export async function runMigrations(input: MigrationInput): Promise<void> {
     .prepare('SELECT value FROM meta WHERE key = ?')
     .get(META_MIGRATED_V3) as { value: string } | undefined
   /**
-   * ⚠ **`'failed'` 视为"可重试"**（2026-09-15 修口径不一）：此前 `if (done) return` 会让
+   * ⚠ **`'failed'` 视为"可重试"**（两边口径必须一致）：此前 `if (done) return` 会让
    * 标记一写就**再也不会重试**，而 `LibraryManager` 又特意保留旧引导文件"等下次重试"
-   * （它只在 `migrationState() === 'failed'` 时不覆盖 config.json）—— 两边口径必须一致，
+   * （它只在 `migrationState() === 'failed'` 时不覆盖 config.json）——
    * 否则用户看到的是"保留着旧文件，但永远不重试 = 书库永远空的"。
    */
   if (done && done.value !== 'failed') return
@@ -149,9 +149,8 @@ async function migrateFromV2(input: MigrationInput, bootstrap: V2Bootstrap): Pro
           }
         } catch (err) {
           /**
-           * 只读打不开时**退一步用读写句柄重试一次**（2026-09-15 用户事故的余波）：
-           * 那次失败运行曾把旧的 `turead.db` 切成 **WAL 模式**；只读打开一个带 `-wal`
-           * 但缺 `-shm` 的库在部分环境下会失败（SQLite 需要 `-shm` 才能读 WAL）。
+           * 只读打不开时**退一步用读写句柄重试一次**：
+           * 带('-wal')但缺('-shm')的库在部分环境下只读会失败（SQLite 需要 `-shm` 才能读 WAL）。
            * 读写打开会让 SQLite 顺带**把 WAL 归并回主库**（一次 checkpoint）——
            * 旧文件的数据内容不变，只是完成收尾。第一次的写入按 id 幂等（INSERT OR IGNORE），
            * 所以"半途失败再重试"是安全的。
