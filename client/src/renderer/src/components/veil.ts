@@ -1,7 +1,7 @@
 /**
- * 遮罩按距离 —— 目录 / 阅读参数 / 聊天室三个挂件共用的同一机制（此前三处逐行复制，收敛到此）。
+ * 遮罩按距离 —— 目录 / 阅读参数 / 聊天室三处共用的同一机制。
  *
- * 语义（用户 2026-09-11 定）：**靠近只会"揭开"，远端保持静息** ——
+ * 语义：**靠近只会"揭开"，远端保持静息** ——
  * 遮罩不透明度在 `[0, 静息值]` 之间取值：正中 → 0（完全揭开）；够远 → 静息值（**不再更暗**）。
  * 静息值从 CSS 读（样式的单一来源在 styles.css，不在这里写死数字）。
  * `clientY === null` = 鼠标离开列表 → 清掉内联值，全部回到静息。
@@ -10,7 +10,7 @@
 /** 遮罩衰减半径（px）：鼠标距离条目中心超过它 → 完全盖上 */
 export const VEIL_FALLOFF = 110
 
-/** 静息值兜底：CSS 变量缺失时回落（与历史实现一致的 0.74） */
+/** 静息值兜底：CSS 变量缺失时回落 */
 const VEIL_REST_FALLBACK = 0.74
 
 export interface VeilOptions {
@@ -52,11 +52,11 @@ export function paintVeil(
 }
 
 /**
- * 灯的法则（2026-10-24，STYLE.md §5.8）—— 遮罩按距离的姊妹机制：写的是**接近度因子** `[0,1]`
+ * 灯的法则（style/components-reader.md）—— 遮罩按距离的姊妹机制：写的是**接近度因子** `[0,1]`
  * （1 = 光标就在旁边），静息值/满值与不透明度的换算归 CSS `calc()`（样式的单一来源在 styles.css，
  * 这里不写死数字）。与 paintVeil 的差别：遮罩是"越近越揭开"（写深色层的不透明度），
  * 灯光是"越近越点亮"（写元素自身的不透明度因子），且距离是**到元素矩形的欧氏距离**
- * （横向挂载线要用到水平分量；列表折叠钮也顺手受益）。
+ * （条目上任意方向的接近都算，不限于垂直）。
  * `clientX/Y === null` = 鼠标离开 → 清掉内联值，全部回到静息。
  */
 export function paintGlow(
@@ -73,7 +73,7 @@ export function paintGlow(
   }
   const rects = items.map((item) => ({ item, rect: item.getBoundingClientRect() }))
   for (const { item, rect } of rects) {
-    // 光标到矩形的距离（在矩形内 = 0）：横向挂载线的"光标沿段落水平移动"也由此成立
+    // 光标到矩形的距离（在矩形内 = 0）
     const dx = Math.max(rect.left - clientX, 0, clientX - rect.right)
     const dy = Math.max(rect.top - clientY, 0, clientY - rect.bottom)
     const near = Math.max(0, 1 - Math.hypot(dx, dy) / falloff)

@@ -2,18 +2,16 @@ import { useRef } from 'react'
 import { paintVeil as paintVeilImpl } from './veil'
 
 /**
- * 阅读参数面板内容（挂载线实体的底部挂件，线本体与开合把手在 `ReaderRail`）——
- * `STYLE.md` §5.8 / §5.9。2026-09-12 用户定：右侧独立召唤条与面板内「收起」按钮废除，
- * 参数与目录同处一条挂载线，**把手开合、面板向上展开**。
+ * 阅读参数面板内容（右欄卡片页的「參數」页；宿主与开合在 `ReaderRail`）——
+ * 阅读参数分工 = STYLE.md §5.9，视觉 = style/components-reader.md。
  *
  * 设计口径：
- * - **纯文字选项**（P1：文字即界面）：无边框无底色，选中态靠 `--accent` 色温；每一行 = 小标签 + 若干文字按钮。
- * - **低透明度 = 遮罩按距离**（2026-09-12 用户定：与目录同款）——文字全强度，
+ * - **纯文字选项**（文字即界面）：无边框无底色，选中态靠 `--accent` 色温；每一行 = 小标签 + 若干文字按钮。
+ * - **低透明度 = 遮罩按距离**（与目录同款）——文字全强度，
  *   每行盖一层桌色遮罩，不透明度按**行到鼠标的距离**调整（近 → 揭开，远 → 静息），
- *   不用静态灰字（原 label 用 --muted 的做法废除）。
- * - **内容统一中间对齐**（用户 2026-09-12 定）：标签与选项都居中。
- * - **容器全透明**（与目录同一语言），行间用发丝分割线；底部「折疊」按钮**与目录同款**
- *   （居中 + 引导分割线，2026-09-12 用户定）；开合也可点挂载线右段 / `p`。
+ *   不用静态灰字。
+ * - **内容统一中间对齐**：标签与选项都居中。
+ * - **容器全透明**（与目录同一语言），行间用发丝分割线。
  * - 档位只是**呈现**：回调交出的是**数值**（字号 px / 行距倍数 / 段距 px / 纸宽 px / 内边距 px），
  *   缺省档 = 该参数**不注入**（尊重书自带排版）。
  * - 组件是**纯 props**（值 + 回调），状态与持久化归 ReaderFeature —— 也方便样式样张直接复用。
@@ -131,17 +129,11 @@ interface ReaderControlsProps {
   onChange: (patch: Partial<ReaderParams>) => void
   /** 当前书是否 PDF：PDF 时「紙寬」行显示专属档位（readerWidthPdf） */
   isPdf?: boolean
-  /**
-   * 顶部插槽（挂载线右挂件的「參數 / 聊天」两格开关，由 ReaderRail 生成并与 ChatPanel 共用）。
-   * 非房间阅读时没有第二格 → 不传（不出现页签行，与 v1.10 之前的形态一致）。
-   */
-  header?: React.ReactNode
 }
 
 export function ReaderControls({
   params,
   onChange,
-  header,
   isPdf
 }: ReaderControlsProps): React.JSX.Element {
   const boxRef = useRef<HTMLDivElement | null>(null)
@@ -169,9 +161,6 @@ export function ReaderControls({
       onMouseMove={(e) => paint(e.clientX, e.clientY)}
       onMouseLeave={() => paint(null, null)}
     >
-      {/* 页签（有聊天室时才有）留在面板顶部不随档位滚动 —— 与左抽屉的 header/rows 分层同构；
-          折叠态由外层的 max-height 兜住 */}
-      {header}
       <div className="reader-controls__body">
         <Row
           label="字號"

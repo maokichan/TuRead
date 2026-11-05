@@ -4,12 +4,12 @@
  * + store（lastLocation 恢复/保存）+ 主题跟随（2 主题 × 2 模式，夜间模式·非 PDF 深色注入）。
  * 打开/关闭受 readerBookId 驱动（状态继承：Library「打开阅读」或 RoomFeature 加入后 host.openReader 触发）。
  *
- * 沉浸态（STYLE.md §5.8 / FEATURES.md §11；2026-09-11 二次修订 v0.4）：
+ * 沉浸态（style/components-reader.md / FEATURES.md 阅读器节）：
  * - **全屏的是"纸"不是"正文"**：外层全屏纸（--page-bg）+ 内层**居中定宽正文列**（--read-width，
  *   由「设置」写入 documentElement）；列宽 = kookit 排版宽度依据（宿主 clientWidth）→ 决定"一行多长"。
  * - **阅读页上没有任何栏**：书名/页码/翻页/目录/关闭都不常驻、也不做"浮现栏"（浮动出来的栏同样是状态栏）。
  *   退出 = Esc（鼠标路径：底面图标栏「書」——卡片模型下图标栏恒可见、阅读态常亮）；翻页 = 键盘 + 分页模式点击区。
- * - 目录 = **挂载线 + 垂挂列表**（TocPanel；容器全透明）。
+ * - 目录 = 阅读卡左缘的**内嵌件**（TocPanel；容器全透明）。
  * - 滚轮在两侧留白上也要能滚 → 纸容器把 wheel 转发给正文列。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -73,12 +73,11 @@ export function ReaderFeature({
   const [readerMode, setReaderMode] = useState<ReaderMode>('scroll')
   const [toc, setToc] = useState<TocRow[]>([])
   const [opening, setOpening] = useState(false)
-  /** 目录垂挂列表开关（TocPanel）。**默认展示**（用户 2026-09-11 定）：只有当用户主动
-   *  「折疊」/`t` 时才临时隐藏；点条目跳转**不**改变它，且不持久化（重开书回到展示态）。 */
+  /** 目录内嵌件开关（TocPanel）。**默认展示**：只有当用户 `t` 强隐藏时才临时收起；
+   *  点条目跳转**不**改变它，且不持久化（重开书回到展示态）。 */
   const [tocOpen, setTocOpen] = useState(true)
-  /** 右欄卡片页开合。**默认收起**（批1.15 用户定"卡片页需要是呼出"——2026-09-13"默认展开"
-   *  的常伴工具决定随卡片页模型作废：默认视野 = 纯正文 + 目录，工具卡召之即来挥之即去）；
-   *  呼出 = 线右段 / `` ` ``（总开关）/ `p` / `c` / 命令面板，重开书保持收起。 */
+  /** 右欄卡片页开合。**默认收起**（卡片页是呼出工具：默认视野 = 纯正文 + 目录，
+   *  工具卡召之即来挥之即去）；呼出 = 「卡」按钮 / `` ` ``（总开关）/ `p` / `c` / 命令面板，重开书保持收起。 */
   const [controlsOpen, setControlsOpen] = useState(false)
   const [params, setParams] = useState<ReaderParams>(DEFAULT_READER_PARAMS)
   /** 布局模式改动 = 重开书（kookit config 只在 open 时消费）；tick 触发打开 effect 重跑 */
@@ -98,10 +97,9 @@ export function ReaderFeature({
   const [notes, setNotes] = useState<Note[]>([])
   const notesRef = useRef<Note[]>([])
   /**
-   * 右欄卡片页当前内容（批1.13 单槽位：參數 / 筆記 / 聊天 / 插件格，页签切换）。
+   * 右欄卡片页当前内容（单槽位：參數 / 筆記 / 聊天 / 插件格，页签切换）。
    * 默认「參數」（阅读参数是常伴工具，不该被聊天挤掉默认位）；聊天室**只在经房间进入的这本书**上
    * 存在（判据见下面的 `railChat`）。
-   * 左栏只剩目录垂挂（批1.13 用户定"目录仍然有保留在阅读器内的必要"；筆記迁入卡片页族）。
    */
   const [rightPanel, setRightPanel] = useState<CardPageKind>('params')
   /** 聊天草稿（受控：内容归本组件持有，便于将来键盘意图直接提交；发送成功才清空） */
@@ -109,7 +107,7 @@ export function ReaderFeature({
   /** 当前正文选区（适配器在**书文档**上观测后广播；null = 无选区） */
   const [selection, setSelection] = useState<RenderSelection | null>(null)
   /**
-   * 阅读区右键菜单（挂载线形态；2026-09-14 用户定为主入口）。
+   * 阅读区右键菜单（新建/编辑/移除的主入口）。
    * `anchor` = 右键时的选区锚点（决定「新建」是否可用）；`noteId` = 点在了哪条笔记上。
    */
   const [menu, setMenu] = useState<RenderContextMenuRequest | null>(null)
@@ -117,9 +115,9 @@ export function ReaderFeature({
    * 批注输入面板。`noteId` 有值 = 编辑既有笔记；无值 = 用 `anchor` 新建。
    * 正文内容（`body`）**由这里持有**（受控），这样 `reader.composerCommit` 等键盘意图
    * 能够提交"当前输入内容"—— 状态若关在组件里，意图层就够不着（用户要的键盘链条会断）。
-   * ⚠ 2026-09-16：面板形态改为**屏幕底部居中**（用户定），故不再持有右键坐标 `x/y`。
+   * 面板形态 = **屏幕底部居中**，故不持有右键坐标 `x/y`。
    *
-   * **生命周期：输入框绑在它的对象上**（2026-09-16 用户两次点名，规则只有这一条）：
+   * **生命周期：输入框绑在它的对象上**（规则只有这一条）：
    * - 对象 = **选区**（`fromSelection`：右键「加批註」/键盘 `annotateSelection`）或**笔记**（`noteId`）；
    * - `selection-changed(null)`（显式 `clearSelection`，或书文档手势后已无选区）→ 关掉选区型；
    * - **它的笔记从库里消失（含在左侧笔记栏删掉那一条）→ 关掉**（见下面的 noteId 效果）；
@@ -134,23 +132,22 @@ export function ReaderFeature({
     fromSelection?: boolean
   } | null>(null)
   /**
-   * 「看这条笔记」请求（2026-09-16 用户纠正单击语义时引入）：点正文高亮 = **看内容**，不是改内容
-   * → 左侧切到「筆記」并把这一条**定位到正中**（只读呈现）。`tick` 让"同一条再点一次"也重新定位
+   * 「看这条笔记」请求：点正文高亮 = **看内容**，不是改内容
+   * → 右欄切到「筆記」并把这一条**定位到正中**（只读呈现）。`tick` 让"同一条再点一次"也重新定位
    * （与 `readerTarget` 同一手法）。
    */
   const [focusNote, setFocusNote] = useState<{ id: string; tick: number } | null>(null)
   const focusNoteTick = useRef(0)
   /**
    * 当前阅读位置（章号，= `BookLocation.chapterDocIndex`）—— 目录/笔记列表据此把"当前条目"
-   * 滚到容器正中（2026-09-16 用户定）。只在**换了章**时 setState，滚动过程中的重复事件不重渲染。
+   * 滚到容器正中。只在**换了章**时 setState，滚动过程中的重复事件不重渲染。
    */
   const [currentChapter, setCurrentChapter] = useState(0)
 
   /**
-   * 房间会话共享态（2026-09-17）—— 聊天室的**生命周期归属于房间**：
+   * 房间会话共享态 —— 聊天室的**生命周期归属于房间**：
    * - `roomId` 有值 = 正在某个房间里；`editionId` = 这次会话绑定的本地 edition；
-   * - **聊天室只在"经房间进入的那本书"的阅读页出现**（用户 2026-09-17：
-   *   "沒有通過房間進入一本書就不會有這個項"）→ 判据 = `roomId && editionId === readerBookId`；
+   * - **聊天室只在"经房间进入的那本书"的阅读页出现** → 判据 = `roomId && editionId === readerBookId`；
    * - 消息/成员与「房间」功能组件**共用同一份**（`features/roomSession.ts`），不各持一份。
    */
   const room = useRoomView()
@@ -172,7 +169,7 @@ export function ReaderFeature({
     : null
 
   /**
-   * 跟随模式（v0.4.9）：开启后，房间内其他成员的位置变化把阅读器带到同一位置。
+   * 跟随模式：开启后，房间内其他成员的位置变化把阅读器带到同一位置。
    * 三道闸门（防"跟错书"与"回声循环"）：
    * ① 开关打开（经 ref 读取 —— 监听只挂一次，不随开关重挂）；
    * ② 当前打开的书 = 房间绑定的书（指纹比对，与位置上报的 B-2 同口径）；
@@ -202,7 +199,7 @@ export function ReaderFeature({
   }, [container, host])
 
   /**
-   * 插件面板格（v1.13，契约 = CONTRACTS §9）：插件运行时注册的右段格，
+   * 插件面板格（契约 = CONTRACTS §9）：插件运行时注册的右段格，
    * 渲染权在宿主（ReaderRail 给外壳，插件拿内容区元素）。
    * ⚠ 指向失效守卫：插件被禁用/重载后 `rightPanel` 可能指向不存在的格 → 回落「參數」（不能空白）。
    */
@@ -214,7 +211,7 @@ export function ReaderFeature({
   }, [pluginPanels, rightPanel])
 
   /**
-   * 右欄卡片页 → 命令面板（批1.13 用户定"标记同步呼出命令面板"）：可用页集变化时重登记
+   * 右欄卡片页 → 命令面板：可用页集变化时重登记
    * （readerCardBus，libraryNavBus 同款模块单例）。清单锚定 `chatAvailable` 布尔与插件注册表 ——
    * **不许锚定 railChat**（消息一变对象就是新的，会造成 register→emit→重渲染 的环）。
    */
@@ -237,7 +234,7 @@ export function ReaderFeature({
     return () => readerCardBus.unregister()
   }, [cardItems])
 
-  // 卡片页开合视图 → 总线（批1.14 平级化）：AppShell 据此收窄阅读卡并让出右槽位。
+  // 卡片页开合视图 → 总线：AppShell 据此收窄阅读卡并让出右槽位。
   // deps 守住（只在开合/切页时 setView）—— AppShell 重渲染不会反过来触发广播，不成环。
   useEffect(() => {
     readerCardBus.setView({ open: controlsOpen, page: rightPanel })
@@ -299,7 +296,7 @@ export function ReaderFeature({
   const applyParams = useCallback(
     (p: ReaderParams, isPdf: boolean) => {
       const root = document.documentElement
-      // PDF 用专属宽档（位图页比文字列宽才舒服，2026-10-02 用户定）；仍受 --page-w 的让位 min() 约束
+      // PDF 用专属宽档（位图页比文字列宽才舒服）；仍受 --page-w 的让位 min() 约束
       root.style.setProperty('--read-width', `${isPdf ? p.readerWidthPdf : p.readerWidth}px`)
       root.style.setProperty('--page-pad-x', `${p.pagePadX}px`)
       void container.render.applyTypography({
@@ -319,9 +316,8 @@ export function ReaderFeature({
       paramsRef.current = next
       setParams(next)
       applyParams(next, book?.format === 'PDF')
-      // 布局模式是 kookit 渲染配置（open 时消费）→ 落库后重开书（STYLE §5.9 #9）。
-      // readerMode 已含在本包 patch 里（2026-10-03 清理：不再单独二次写同一字段），
-      // 重开等落库完成再触发，保证重开时读到的是新档位
+      // 布局模式是 kookit 渲染配置（open 时消费）→ 落库后重开书（阅读参数分工口径）。
+      // readerMode 已含在本包 patch 里，重开等落库完成再触发，保证重开时读到的是新档位
       const saved = container.store.patchSetting('readerSettings', {
         readerWidth: next.readerWidth,
         readerWidthPdf: next.readerWidthPdf,
@@ -337,10 +333,10 @@ export function ReaderFeature({
       } else {
         void saved
       }
-      // PDF 改纸宽 = 整页重开填充（2026-09-13 用户定：纸宽变了 PDF 应当跟着缩放填充）。
-      // kookit PdfRender 用渲染时刻的 clientWidth 定 canvas 像素、无重排入口（PDF 专区原首条），
-      // CSS 变量改宽度不会触发重算 —— 原地重开（flushLastLocation 已保位置）是唯一可靠路径。
-      // 2026-10-02：PDF 有了专属档位（readerWidthPdf），同样走重开。
+      // PDF 改纸宽 = 整页重开填充（纸宽变了 PDF 应当跟着缩放填充）。
+      // kookit PdfRender 用渲染时刻的 clientWidth 定 canvas 像素、无重排入口，
+      // CSS 变量改宽度不会触发重算 —— 原地重开（flushLastLocation 已保位置）是唯一可靠路径；
+      // PDF 专属档位（readerWidthPdf）同样走重开。
       const widthChanged =
         (patch.readerWidth !== undefined && patch.readerWidth !== prev.readerWidth) ||
         (patch.readerWidthPdf !== undefined && patch.readerWidthPdf !== prev.readerWidthPdf)
@@ -397,7 +393,7 @@ export function ReaderFeature({
   }, [container, readerBookId])
 
   // 位置事件 → 持久化 + 跟随（同步数据源，见 RENDER_INTERFACE.md §4）。
-  // 跟随：目录 / 笔记列表要知道"读到第几章"才能把当前条目放到中间（2026-09-16 用户定）
+  // 跟随：目录 / 笔记列表要知道"读到第几章"才能把当前条目放到中间
   useEffect(() => {
     return container.render.on('location-changed', (loc) => {
       saveLastLocation(loc)
@@ -407,7 +403,7 @@ export function ReaderFeature({
   }, [container, saveLastLocation])
 
   /**
-   * ————— 笔记/划线生命周期（2026-09-14 阶段 4）—————
+   * ————— 笔记/划线生命周期 —————
    *
    * 三条硬约束驱动了下面的形状（均经 `note` 探针实测，见 RENDER_INTERFACE §5）：
    * ① `renderHighlighters` **只对当前已渲染的那一节生效**（文字类只有一个 iframe）→
@@ -417,7 +413,7 @@ export function ReaderFeature({
    */
 
   /**
-   * 「带目标打开」的消费（v0.4.2，2026-09-16）—— 笔记管理双击条目：打开他书 + 跳到那条笔记。
+   * 「带目标打开」的消费 —— 笔记管理双击条目：打开他书 + 跳到那条笔记。
    *
    * ⚠ **时序是硬约束**（顺序错会**静默落空**）：reveal 依赖 DOM 里那条高亮
    * （`.kookit-note[data-key=…]`），而高亮由 `renderHighlighters` 画、**只对当前渲染节生效**
@@ -478,20 +474,19 @@ export function ReaderFeature({
     })
   }, [container, tryRevealPending])
 
-  // 正文选区变化（适配器在书文档上观测）。色板已由右键菜单取代（用户 2026-09-14 定：
-  // "新建无论是高亮还是批注，最好的方法还是右键"），但**仍要跟踪选区**：
+  // 正文选区变化（适配器在书文档上观测）。新建的入口是右键菜单，但**仍要跟踪选区**：
   // ① 它决定右键菜单里"新建"两项是否可用；② **输入框的生命周期挂在它上面**（见 composer 注释）；
   // ③ 键盘驱动的流程（预留）没有鼠标坐标，靠它定位。
   useEffect(() => {
     return container.render.on('selection-changed', (sel) => {
       setSelection(sel)
-      // 选区消失 → 关闭"由选区召唤"的输入框（用户 2026-09-16 报障：输入框没跟着选区走）。
-      // 只关 fromSelection 那种：编辑既有笔记的输入框，其对象是**那条笔记**而不是选区。
+      // 选区消失 → 关闭"由选区召唤"的输入框。只关 fromSelection 那种：
+      // 编辑既有笔记的输入框，其对象是**那条笔记**而不是选区。
       if (sel === null) setComposer((c) => (c && c.fromSelection ? null : c))
     })
   }, [container])
 
-  // 阅读区右键 → 弹挂载线菜单（适配器换算好坐标与命中：有选区可新建，点在笔记上可编辑/移除）
+  // 阅读区右键 → 弹菜单（适配器换算好坐标与命中：有选区可新建，点在笔记上可编辑/移除）
   useEffect(() => {
     return container.render.on('context-menu', (req) => {
       setComposer(null)
@@ -499,9 +494,8 @@ export function ReaderFeature({
     })
   }, [container])
 
-  // 单击已有高亮 → **不是**开编辑器，而是"看它"（用户 2026-09-16 纠正："我显然是希望看详细内容
-  // 或者其他原因，而不是为了更改"）。落地 = 右欄切到「筆記」卡片页并按 `focusNote` 定位到这一条
-  // （批1.13：筆記自左垂挂迁入卡片页族）；要**改**仍走右键菜单的「編輯批註」。
+  // 单击已有高亮 → **不是**开编辑器，而是"看它"：右欄切到「筆記」卡片页并按 `focusNote`
+  // 定位到这一条；要**改**仍走右键菜单的「編輯批註」。
   useEffect(() => {
     return container.render.on('note-clicked', ({ noteId }) => {
       const target = notesRef.current.find((n) => n.id === noteId)
@@ -516,8 +510,7 @@ export function ReaderFeature({
   }, [container])
 
   /**
-   * 输入框的**对象**没了，它自己就该收（用户 2026-09-16 报障：在左侧笔记栏把那一条删掉之后，
-   * 输入框还留在屏幕上）。不依赖"谁去关它"——`notes` 是唯一权威。
+   * 输入框的**对象**没了，它自己就该收。不依赖"谁去关它"——`notes` 是唯一权威。
    */
   useEffect(() => {
     if (!composer?.noteId) return
@@ -527,7 +520,7 @@ export function ReaderFeature({
 
   /**
    * 新建一条标记（高亮或批注）。
-   * `id`/时间戳在**用例层**生成（存储层不代生成 id —— 它是同步主键，须跨端稳定，CONTRACTS §4.4）；
+   * `id`/时间戳在**用例层**生成（存储层不代生成 id —— 它是同步主键，须跨端稳定）；
    * 落库成功后交给引擎立即回显，不必等整批重挂（见上「约束③」）。
    * `kind` 记录**创建来路**（选色 → highlight / 写批注 → note），之后编辑正文不改 kind。
    */
@@ -548,9 +541,8 @@ export function ReaderFeature({
       try {
         await container.store.addNote(note)
         await container.render.createNote(note)
-        // **按阅读序插入**，不是追加（用户 2026-09-16 定："笔记按照先后顺序排序，而不是按照
-        // 时间顺序排序"）。库里同一条序列由 `compareNoteOrder` 保证 —— 追加到末尾会让界面
-        // 看上去按创建时间排（第 5 章的新笔记掉到第 1 章后面）。
+        // **按阅读序插入**，不是追加。库里同一条序列由 `compareNoteOrder` 保证 ——
+        // 追加到末尾会让界面看上去按创建时间排（第 5 章的新笔记掉到第 1 章后面）。
         const next = [...notesRef.current, note].sort(compareNoteOrder)
         notesRef.current = next
         setNotes(next)
@@ -602,9 +594,8 @@ export function ReaderFeature({
     [container, host]
   )
 
-  /** 从左侧笔记栏「編輯」打开该条的编辑（用户 2026-09-16：抽屉的编辑功能必须保留）——
-   *  焦点由 `NoteComposer` 挂载即聚焦保证（同一入口，键盘/鼠标都在输入栏落点）。
-   *  与"点高亮 = 看内容"的分工：看 = 左侧定位；改 = 这里或右键菜单「編輯批註」。 */
+  /** 从筆記卡「編輯」打开该条的编辑——焦点由 `NoteComposer` 挂载即聚焦保证（同一入口，键盘/鼠标都在输入栏落点）。
+   *  与"点高亮 = 看内容"的分工：看 = 定位；改 = 这里或右键菜单「編輯批註」。 */
   const editNote = useCallback((note: Note): void => {
     setMenu(null)
     setComposer({ anchor: note.anchor, noteId: note.id, body: note.body })
@@ -653,10 +644,10 @@ export function ReaderFeature({
         const cfg = await container.store.getSetting<ReaderSettings>('readerSettings', {})
         const mode = cfg.readerMode ?? 'scroll'
         setReaderMode(mode)
-        // v0.4.0：阅读状态已从书行拆到 `ReadingState`，**首次定位的目标位置必须显式传入**
-        // （适配器不再读 `record.lastLocation` —— 见 CONTRACTS §2 与 RenderOptions.lastLocation）
+        // 阅读状态住 `ReadingState`，**首次定位的目标位置必须显式传入**
+        // （适配器不读 `record.lastLocation` —— 见 RenderOptions.lastLocation）
         const state = await container.books.getReadingState(latest.id)
-        // 纸宽按**本书格式**切换（PDF 专属档，2026-10-02）——必须在 open/renderTo 之前：
+        // 纸宽按**本书格式**切换（PDF 专属档）——必须在 open/renderTo 之前：
         // kookit PDF 按渲染时刻的容器宽定 canvas 像素，晚切一帧这页就按旧宽度画了
         applyParams(paramsRef.current, latest.format === 'PDF')
         await container.render.open(latest, {
@@ -665,7 +656,7 @@ export function ReaderFeature({
           theme: currentTheme(),
           ...(state?.lastLocation ? { lastLocation: state.lastLocation } : {})
         })
-        // 审计 B-1：open 期间用户可能已换书/关书 —— 作废的流程不得再对 stage 执行
+        // open 期间用户可能已换书/关书（代次守卫）：作废的流程不得再对 stage 执行
         // renderTo（与接管者的渲染交错，正是「重开书偶发空白」的症状形状之一）
         if (cancelled) return
         if (stageRef.current) await container.render.renderTo(stageRef.current)
@@ -675,7 +666,7 @@ export function ReaderFeature({
         // 否则新书的目录会在第一次翻页前停在"上一本读到的那一章"所对应的条目上）
         setCurrentChapter(container.render.getPosition().chapterDocIndex)
         // 兜底启发式：kookit 无 toc 的书会用纯数字页码生成 chapterList（如 PDF 每页一项），
-        // 全数字 = 假目录，不显示挂载线；存在任一非纯数字标题才视为真目录。
+        // 全数字 = 假目录，不显示；存在任一非纯数字标题才视为真目录。
         const rows: TocRow[] = []
         flattenChapterTree(container.render.getChapter(), 0, rows)
         setToc(rows.some((r) => /[^\d]/.test(r.label)) ? rows : [])
@@ -698,7 +689,7 @@ export function ReaderFeature({
     }
   }, [readerBookId, reopenTick, container, host, flushLastLocation])
 
-  // 沉浸全屏（2026-09-13；2026-09-16 改 F11 语义与退出行为）：
+  // 沉浸全屏：
   // - F11（`reader.enterFullscreen`）= **进入**全屏（幂等）；退出走 Esc 分流；
   // - 设置开关（appearance.readerFullscreen）= 进入阅读器自动全屏，默认关；
   // - **离开阅读器**：若当时仍在全屏 → 退出全屏并**保持最大化**（不缩回小窗，见下面的 effect）；
@@ -719,7 +710,7 @@ export function ReaderFeature({
       })
   }, [container])
 
-  // 阅读会话记录器（批1.24，口径 = 失焦暂停/边界落笔/<10s 丢弃，见 readSessionRecorder.ts）：
+  // 阅读会话记录器（口径 = 失焦暂停/边界落笔/<10s 丢弃，见 readSessionRecorder.ts）：
   // enabled = 阅读态（阅读器激活且开着书）；换书/关标签由 editionId/enabled 变化经卸载路径 flush。
   useReadSessionRecorder(container, activeFeature === 'reader' && readerBookId !== null, readerBookId)
 
@@ -735,8 +726,7 @@ export function ReaderFeature({
     if (activeFeature !== 'reader') {
       /**
        * 离开阅读器：先退出全屏。⚠ **若离开时正处于沉浸全屏，窗口保持"大"（最大化）而不是回到小窗口**
-       * （用户 2026-09-16 定："如果进入阅读器，且状态是F11的话，那么即便退出窗口也应该最大化"）——
-       * 用户在阅读器里选了全屏，退出后不该被缩回原来那个小窗。
+       * ——用户在阅读器里选了全屏，退出后不该被缩回原来那个小窗。
        * 顺序与竞态都在主进程处理（全屏未落地时挂到 leave-full-screen 上再最大化，见 main 的
        * `win:set-maximized`）。
        */
@@ -746,7 +736,7 @@ export function ReaderFeature({
     }
   }, [activeFeature])
 
-  // 激活到阅读器时热更新主题（设置里改主题后返回阅读器不重开书也生效，STYLE.md §3.4）
+  // 激活到阅读器时热更新主题（设置里改主题后返回阅读器不重开书也生效）
   useEffect(() => {
     if (activeFeature !== 'reader') return
     if (!readerBookId) return
@@ -760,7 +750,7 @@ export function ReaderFeature({
         if (dir === 'next') await container.render.next()
         else await container.render.prev()
       } catch (err) {
-        // 适配器导航方法未打开即抛错（2026-09-13 销案"静默 no-op"）：落到日志里，
+        // 适配器导航方法未打开即抛错：落到日志里，
         // "重开书偶发空白"这类 rendition 丢失能在这里现形，而不是无声失败
         host.pushLog(`翻页失败：${(err as Error).message}`)
         console.warn('[reader] pageTurn 失败', err)
@@ -770,7 +760,7 @@ export function ReaderFeature({
   )
 
   /** 目录跳转：透传到渲染层 goToChapter（chapterDocIndex 标尺）。
-   *  ⚠ **不收起目录**（用户 2026-09-11 定：目录默认就是展示的，只有用户主动才隐藏）。 */
+   *  ⚠ **不收起目录**（目录默认展示，只有用户主动才隐藏）。 */
   const jumpChapter = useCallback(
     async (row: TocRow) => {
       if (row.chapterDocIndex === undefined || !book || opening) return
@@ -785,7 +775,7 @@ export function ReaderFeature({
   )
 
   /**
-   * 滚轮翻页（分页模式，2026-09-13 用户定：默认键盘、不提供按钮控件，鼠标滚轮可翻页，像 koodo）。
+   * 滚轮翻页（分页模式：默认键盘、不提供按钮控件，鼠标滚轮可翻页，像 koodo）。
    * 触控板/平滑滚轮一次手势发一串小 delta → 短窗内累积、过阈值翻一页，随后冷却窗防止连翻。
    * scroll 模式不适用（原生滚动）。返回是否已接管（接管方据此 preventDefault）。
    */
@@ -812,7 +802,7 @@ export function ReaderFeature({
    * 滚轮（整个阅读器区接管，含左右点击翻页带——那两条带压在纸面上方，挂在纸上会漏）。
    * - scroll 模式：正文列之外是留白，滚轮落在留白上把位移转给正文列（STYLE.md §5.8）；
    *   目录/参数面板内部让位（列表自己滚）。
-   * - 分页模式（single/double）：滚轮翻页（2026-09-13 用户定：默认键盘、无按钮控件，像 koodo）。
+   * - 分页模式（single/double）：滚轮翻页（默认键盘、无按钮控件，像 koodo）。
    *   正文 iframe 内部的滚轮走 iframe 桥（下方 effect），这里只管宿主文档一侧。
    */
   const onReaderWheel = useCallback(
@@ -843,10 +833,10 @@ export function ReaderFeature({
     })
   }, [book, readerMode, turnByWheel])
 
-  // 阅读器键盘（STYLE.md §5.8）——走键鼠意图层（domain/input.ts，2026-09-12 立机制）：
+  // 阅读器键盘——走键鼠意图层（domain/input.ts）：
   // 绑定见 DEFAULT_BINDINGS.reader.*；Space 仅分页模式。
-  // Esc 分流（2026-09-13 用户纠正）：**不收参数面板**——面板是常伴工具，被 Esc 顺手收掉是错误设计；
-  // Esc 只做两件事：全屏先退全屏，否则退出阅读器。面板开合只归挂载线（p 键 / 点线）。
+  // Esc 分流：**不收参数面板**——面板是常伴工具，被 Esc 顺手收掉是错误设计；
+  // Esc 只做两件事：全屏先退全屏，否则退出阅读器。卡片页开合归「卡」按钮 / `p`。
   // ⚠ enabled 守卫必须给：功能组件常驻挂载，不设守卫书库里按 t/p 会误触阅读器意图
   useKeyIntents(
     'reader',
@@ -864,8 +854,8 @@ export function ReaderFeature({
         if (readerMode !== 'scroll') void pageTurn('next')
       },
       'reader.toggleToc': () => setTocOpen((v) => !v),
-      // `` ` `` = 右欄卡片页**总开关**（批1.15 用户定"卡片页需要是呼出"）：开 → 显示上次的页
-      // （首次 = 參數面），关 → 收起；`p`/`c` 保留，语义 = "呼出并切到该面"。
+      // `` ` `` = 右欄卡片页**总开关**：开 → 显示上次的页
+      // （首次 = 參數面），关 → 收起；`p`/`c` 语义 = "呼出并切到该面"。
       'reader.toggleCard': () => setControlsOpen((v) => !v),
       // `p` = 「閱讀參數」这一面：卡片开着已在參數页 → 收起（否则"按 p 没反应"）
       'reader.toggleControls': () => {
@@ -875,7 +865,7 @@ export function ReaderFeature({
           setControlsOpen(true)
         }
       },
-      // `c` = 「聊天」这一面（v0.4.3）：右抽屉开着且已在聊天上 → 收起；否则切到聊天并展开。
+      // `c` = 「聊天」这一面：右欄开着且已在聊天上 → 收起；否则切到聊天并展开。
       // 不在房间里（这本书不是经房间进来的）→ 无此面，按键不做事。
       'reader.toggleChat': () => {
         if (!chatAvailable) return
@@ -885,13 +875,12 @@ export function ReaderFeature({
           setControlsOpen(true)
         }
       },
-      // F11 = **进入**全屏（幂等）。⚠ 不做成切换（用户 2026-09-16："在阅读器内按F11是在切换全屏
-      // 状态，不是在进入全屏"）—— 退出全屏走 Esc（`reader.back` 的分流）；离开阅读器时若仍在全屏，
-      // 由下面的 effect 退出并保持最大化。
+      // F11 = **进入**全屏（幂等，不是切换）—— 退出全屏走 Esc（`reader.back` 的分流）；
+      // 离开阅读器时若仍在全屏，由下面的 effect 退出并保持最大化。
       'reader.enterFullscreen': () => {
         void window.turead.invoke(IPC.winSetFullScreen, true)
       },
-      // ————— 标记/批注的**键盘接口（预留）**，2026-09-14 用户定"现在只需要预留出对应的接口" —————
+      // ————— 标记/批注的**键盘接口（预留）** —————
       // 行为已就位、可直接调用；**键位故意留空**（见 domain/input.ts 的"预留"分组）——
       // 待配键方案（用户要设置页可配置 + 研究主流键鼠模式）定下后填 DEFAULT_BINDINGS 即可，
       // 不必再改这里。目标链条：键盘翻页 → 选中 → 集中焦点 → 做笔记，手不离开键盘。
@@ -912,8 +901,8 @@ export function ReaderFeature({
     activeFeature === 'reader' && !!book
   )
 
-  // 鼠标侧键在阅读器内翻页（2026-09-14 用户定"侧键在阅读器内也可以翻页是没有问题的"）。
-  // 与书库域的侧键（后退/前进）分工**按功能态**：同一物理键在不同域语义不同 —— 这正是用户要的。
+  // 鼠标侧键在阅读器内翻页。
+  // 与书库域的侧键（后退/前进）分工**按功能态**：同一物理键在不同域语义不同。
   // preventDefault 压掉 Chromium 侧键默认的历史导航。
   useEffect(() => {
     if (activeFeature !== 'reader' || !book) return
@@ -931,8 +920,8 @@ export function ReaderFeature({
   }, [activeFeature, book, pageTurn])
 
   /**
-   * 右键菜单项（阅读器域语义，用户 2026-09-14 定："不同的地方右键的语义不同，这就是我的要求"）。
-   * 形态由 `ContextMenu` 统一（挂载线 + 向下生长）；这里只给语义。
+   * 右键菜单项（阅读器域语义）。
+   * 形态由 `ContextMenu` 统一；这里只给语义。
    * - 有选区 → 「標記」四色子菜单 + 「加批註」
    * - 点在已有笔记上 → 「編輯批註」+「移除」
    */
@@ -991,13 +980,13 @@ export function ReaderFeature({
         <div className="reader-stage" id="page-area" ref={stageRef} />
       </div>
 
-      {/* 右键菜单（挂载线形态，2026-09-14 用户定为主入口）：新建标记/批注、编辑/移除既有笔记。
-          阅读页"零控件"（STYLE.md §5.8）不冲突 —— 它随右键生灭，不是常驻控件 */}
+      {/* 右键菜单：新建标记/批注、编辑/移除既有笔记。
+          阅读页"零控件"不冲突 —— 它随右键生灭，不是常驻控件 */}
       {menu && markMenuItems(menu).length > 0 && (
         <ContextMenu x={menu.x} y={menu.y} items={markMenuItems(menu)} onClose={() => setMenu(null)} />
       )}
 
-      {/* 批注输入：**底部居中的纯色容器，零文字**（2026-09-16 用户定）。
+      {/* 批注输入：**底部居中的纯色容器，零文字**。
           Enter 提交 / Shift+Enter 换行 / Esc 取消；移除既有笔记只剩右键菜单一条路径 */}
       {composer && (
         <NoteComposer
@@ -1008,7 +997,7 @@ export function ReaderFeature({
         />
       )}
 
-      {/* 挂载线 + 右欄卡片页（STYLE.md §5.8；批1.13 起右段 = 独立卡片页，目录暂留垂挂） */}
+      {/* 目录内嵌件 + 右欄卡片页 */}
       {book && (
         <ReaderRail
           tocOpen={tocOpen}
@@ -1035,7 +1024,7 @@ export function ReaderFeature({
         />
       )}
 
-      {/* 鼠标左右点击区翻页（z 低于挂载线/目录，不遮它们）。
+      {/* 鼠标左右点击区翻页（z 低于目录，不遮它）。
           ⚠ 只在分页模式（single/double）激活：scroll 模式滚轮优先，点击区会遮住 1/4 边缘的正文选择。 */}
       {book && !opening && readerMode !== 'scroll' && (
         <>

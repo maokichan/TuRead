@@ -1,12 +1,10 @@
 /**
- * 笔记垂挂列表（Stage 4，2026-09-14）—— 挂载线实体的**左挂件另一种内容**。
+ * 笔记列表（与目录同位置的左缘内嵌件）。
  *
  * 为什么复用 `.toc-list` 容器类：与目录是"同一位置、同一形态、不同内容"——卡片页平填几何
- * 由 `.rail-card .toc-list` 统一收口（批1.13 起笔记住卡片页；批1.20 挂载线本体退役，
- * 原垂挂坐标参数已废），另起一套几何必然与目录错位 —— 故直接共用同一容器类，只换行内容。
- * 切换形态 = 顶部两格文字开关（目錄 / 筆記），不做第二块浮层。
+ * 由 `.rail-card .toc-list` 统一收口，另起一套几何必然与目录错位 —— 故直接共用同一容器类，只换行内容。
  *
- * 视觉依据 `STYLE.md`：文字优先（摘录即标签）、字号走阶梯、遮罩高亮沿用目录同款
+ * 视觉依据 `style/components-notes.md`：文字优先（摘录即标签）、字号走阶梯、遮罩高亮沿用目录同款
  * （`--toc-veil` 按距离）—— 与目录行同一套"退场"口径，不新造视觉。
  */
 import { useEffect, useRef } from 'react'
@@ -16,16 +14,14 @@ import { centerInScrollBox, activeNoteIndex } from './readerFollow'
 export interface NotesPanelProps {
   /** 当前书的笔记（**必须是阅读序**：章 → 章内进度 → 创建时间，见 `domain/anchor.ts` 的 `compareNoteOrder`） */
   notes: Note[]
-  /** 顶部开关（目錄 / 筆記）—— 由 ReaderRail 生成，两个面板共用同一份 */
-  header?: React.ReactNode
   onJump: (note: Note) => void
   onRemove: (note: Note) => void
-  /** 打开这条的**编辑**（底部输入栏；用户 2026-09-16：抽屉里必须保留编辑功能） */
+  /** 打开这条的**编辑**（底部输入栏；编辑入口必须保留） */
   onEdit: (note: Note) => void
-  /** 当前阅读位置（章号）：**当前条目自动滚到容器正中**（2026-09-16 用户定，与目录同一判据） */
+  /** 当前阅读位置（章号）：**当前条目自动滚到容器正中**（与目录同一判据） */
   activeChapter?: number
   /**
-   * 「看这条笔记」请求（点正文高亮 → 这里定位到它；2026-09-16 用户纠正单击语义）：
+   * 「看这条笔记」请求（点正文高亮 → 这里定位到它）：
    * 有它时**优先**定位到这一条（只读，不改内容）；`tick` 变化即视为一次新请求。
    */
   focusNote?: { id: string; tick: number } | null
@@ -36,7 +32,6 @@ const EXCERPT_MAX = 24
 
 export function NotesPanel({
   notes,
-  header,
   onJump,
   onRemove,
   onEdit,
@@ -44,8 +39,6 @@ export function NotesPanel({
   focusNote = null
 }: NotesPanelProps): React.JSX.Element {
   const rowsRef = useRef<HTMLDivElement | null>(null)
-  /** 根层引用：「折疊」灯光的绘制范围（笔记行少，不加热遮罩 —— 只有折疊按钮随光标点亮） */
-  const rootRef = useRef<HTMLDivElement | null>(null)
   /** 笔记列表换了（换书 / 新建 / 删除）→ 视为首次落位（瞬时定位，不做平滑动画） */
   const lastNotesRef = useRef<Note[] | null>(null)
   /** 已处理过的「看这条」请求 tick（同一条再点一次时 tick 会变） */
@@ -73,11 +66,7 @@ export function NotesPanel({
   }, [notes, activeChapter, focusNote])
 
   return (
-    <div
-      className="toc-list"
-      ref={rootRef}
-    >
-      {header}
+    <div className="toc-list">
       <div className="toc-list__rows" ref={rowsRef}>
         {notes.length === 0 && <div className="toc-list__empty">本書還沒有筆記</div>}
         {notes.map((n) => {
@@ -100,7 +89,7 @@ export function NotesPanel({
                 <span className="note-row__where">
                   節 {n.anchor.norm.chapterIndex + 1}
                   {/* 「註」= 这条**带批注正文**（判据是 `body`，不是 `kind`）——
-                      用户 2026-09-16："需要在视觉上有一个符号…区分这个是批注，而不是高亮" */}
+                      批注要在视觉上与高亮区分 */}
                   {n.body !== '' && (
                     <span className="note-row__kind" title="帶批註正文">
                       　註

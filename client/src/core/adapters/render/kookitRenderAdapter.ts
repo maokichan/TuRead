@@ -41,7 +41,9 @@ import { loadKookit, buildNamespace, buildKookitConfig } from './kookitLoader'
 import { ensurePdfjs } from './pdfjsSetup'
 import { detectTextCharset } from './charset'
 
-export type ReadBookFile = (path: string) => Promise<ArrayBuffer>/** 正文溢出的"真伪阈值"（px）：kookit 给文字类 iframe 的 height 留了 +300px 余量，
+export type ReadBookFile = (path: string) => Promise<ArrayBuffer>
+
+/** 正文溢出的"真伪阈值"（px）：kookit 给文字类 iframe 的 height 留了 +300px 余量，
  *  ≤ 这个量级不算真的需要滚动，滚动条宽度归零（见 refreshScrollAffordance）。 */
 const SCROLL_SLACK_PX = 320
 
@@ -50,7 +52,7 @@ const DEFAULT_NOTE_COLOR: NoteColor = 'yellow'
 
 /**
  * 文字类的引擎载荷标识（锚点 `Fragment.engine`）。
- * 2026-09-14 逆向核实：kookit 文字类笔记载荷是 **rangy 序列化字符范围**，不是 CFI
+ * kookit 文字类笔记载荷是 **rangy 序列化字符范围**，不是 CFI
  * （`getHightlightCoords()` = `rangy.getSelection(iframe).saveCharacterRanges(doc.body)[0]`）。
  * 换渲染内核时新增取值，旧值由适配器按名分派（见 `anchor.ts` 的 Fragment 设计）。
  */
@@ -85,8 +87,8 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
    */
   private typography: ReaderTypography | null = null
   /**
-   * 首次定位目标（v0.4.0：由 `options.lastLocation` 传入 —— 阅读状态已从 `EditionRecord` 拆到
-   * `ReadingState`，渲染层不该为拿一个位置去依赖阅读状态表）。`close()` 清空。
+   * 首次定位目标（由 `options.lastLocation` 传入——渲染层不该为拿一个位置去依赖阅读状态表）。
+   * `close()` 清空。
    */
   private lastLocation: BookLocation | null = null
 
@@ -107,14 +109,13 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     const [Kookit, buffer] = await Promise.all([loadKookit(), this.readFile(record.filePath)])
     if (token !== this.openToken) {
       // 代次守卫命中：这次 open 已被更晚的 open/close 作废。**reject 而非静默 resolve**——
-      // 静默返回让调用方无法区分"成功 / 什么都没发生"（TODO「适配器方法静默 no-op」销案口径），
-      // 也是"重开书偶发空白"（2026-09-11 dev 自检观察到间歇性 恢复=失败）难定位的根源。
+      // 静默返回让调用方无法区分"成功 / 什么都没发生"，也是"重开书偶发空白"难定位的根源。
       // 错误消息带固定前缀 `[render] open superseded`，调用方可识别并按"预期取消"处理。
       throw new Error(`[render] open superseded（已被更新的 open/close 作废）：${record.filePath}`)
     }
     const config = this.toKookitConfig(record.format, options)
     // TXT 的渲染路径要求调用方提供编码（kookit TxtRender `new TextDecoder(config.charset)`，
-    // 传 '' 直接 RangeError —— 此前 TXT 全格式打不开的根因，2026-09-12）；MD 固定按 UTF-8 读，不在此列
+    // 传 '' 直接 RangeError）；MD 固定按 UTF-8 读，不在此列
     if (record.format === 'TXT') {
       config.charset = detectTextCharset(buffer)
     }
@@ -182,7 +183,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
 
   async renderTo(element: HTMLElement): Promise<void> {
     if (!this.rendition) throw new Error('未打开书籍（先调 open）')
-    // 代次令牌（审计 B-1）：open 内部等"读文件+解析"期间可能已被下一次 open/close 作废，
+    // 代次令牌：open 内部等"读文件+解析"期间可能已被下一次 open/close 作废，
     // 但调用方拿到 open 的 resolve 后仍会跑 renderTo —— 对已换成新书的状态执行
     // innerHTML='' + renderTo，会与新书的 renderTo 交错（「重开书偶发空白」的症状形状）。
     // 记住进入时的代次，await 返回后一旦不等即作废：不再做注入/定位/挂监听。
@@ -203,7 +204,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
       const iframe = element.querySelector('iframe')
       const doc = iframe?.contentDocument
       if (iframe && doc?.body) {
-        // PDF 滚动模式页卡边缘（2026-10-02 用户定）：页与页之间要有可见边界 —— 给每页
+        // PDF 滚动模式页卡边缘：页与页之间要有可见边界 —— 给每页
         // 容器描 1px 纸边（颜色取宿主 --page-edge，随主题；换主题本就要重开，不虑失配）。
         // 先注入后量高：边框 2px/页 要计入 iframe 总高。分页模式页本身占满视口，不注入。
         if (this.readerMode === 'scroll') {
@@ -239,13 +240,13 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     this.refreshScrollAffordance()
   }
 
-  /** 向已打开的正文注入/更新主题样式（CONTRACTS.md §4.1）。未 open 时只记录、renderTo 时生效。 */
+  /** 向已打开的正文注入/更新主题样式（契约 = contracts/ports.md）。未 open 时只记录、renderTo 时生效。 */
   async applyTheme(theme: ResolvedTheme): Promise<void> {
     this.theme = theme
     await this.applyStoredTheme()
   }
 
-  /** 向已打开的正文注入/更新排版参数（CONTRACTS.md §4.1，v0.3.3）。与 applyTheme 共用一份 CSS。 */
+  /** 向已打开的正文注入/更新排版参数（契约 = contracts/ports.md）。与 applyTheme 共用一份 CSS。 */
   async applyTypography(typography: ReaderTypography): Promise<void> {
     this.typography = typography
     await this.applyStoredTheme()
@@ -264,14 +265,13 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   /**
    * 正文样式（kookit 唯一注入口 `setStyle`，换章只重写 `body`、我们的 `<style>` 留在 `head`，
    * 一次注入全书生效）。三部分：
-   * ① **纸内边距**（`--page-pad-x`）：正文与纸边之间的距离（用户 2026-09-11 指出"出血留得太少"）。
+   * ① **纸内边距**（`--page-pad-x`）：正文与纸边之间的距离。
    *    注入到 `body` 而不是宿主容器 —— 见 styles.css `--page-pad-x` 的注释（kookit 排版宽度算术）。
    * ② **排版参数**（`applyTypography`）：字号/行距/段距；**缺省项不注入**（尊重书自带排版）。
    *    字号/行距同时打到 `html,body` 与常见块级元素 —— 书若用相对单位（em/%）会随之缩放，
    *    而写成 px 的那些元素只有显式覆盖才动得了（"保守但有效"）。
    * ③ **深色正文颜色**（仅深色模式）：颜色取自宿主语义 token `--page-bg/--page-text`。
-   * ④ **选区配色**（v0.3.13，用户 2026-09-14 指出"选中文字仍是系统自带蓝色，不好看"）：
-   *    `::selection` 也只能在这份注入 CSS 里定（宿主 CSS 跨不过文档边界）；颜色取宿主 token
+   * ④ **选区配色**：`::selection` 也只能在这份注入 CSS 里定（宿主 CSS 跨不过文档边界）；颜色取宿主 token
    *    `--selection-bg`（四套取向各一组，低饱和、跟主题）→ **在任何主题下都不再是系统蓝**。
    */
   private buildReaderCss(): string {
@@ -344,10 +344,9 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   }
 
   /**
-   * 导航方法的未打开守卫（TODO「适配器方法静默 no-op」销案，2026-09-13）：
-   * 与 renderTo 同口径——**未 open 即抛错**，调用方（UI/自检/用例）能明确收到"什么都没发生"
-   * 的失败，而不是把静默 no-op 当成功吞掉。getPosition/getProgress/getChapter 例外：
-   * 它们是查询，返回零值是文档化语义（CONTRACTS §4.1）。
+   * 导航方法的未打开守卫：与 renderTo 同口径——**未 open 即抛错**，
+   * 调用方（UI/自检/用例）能明确收到"什么都没发生"的失败，而不是把静默 no-op 当成功吞掉。
+   * getPosition/getProgress/getChapter 例外：它们是查询，返回零值是文档化语义（contracts/ports.md）。
    */
   private requireRendition(method: string): KookitRendition {
     if (!this.rendition) throw new Error(`渲染未打开：${method}（先调 open）`)
@@ -409,7 +408,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   async removeNote(noteId: string): Promise<void> {
     const rendition = this.requireRendition('removeNote')
     // 用【笔记自身】所属的渲染节号：kookit removeOneNote(key, chapterDocIndex) 会在该节内查找。
-    // 早期实现拿"当前所在章节"，跨章节删除会找不到/删错（笔记功能落地前先修掉这颗雷）。
+    // ⚠ "当前所在章节"顶不得：跨章节删除会找不到/删错。
     const chapterDocIndex =
       this.noteChapters.get(noteId) ?? normalizeLocation(this.getPosition()).chapterDocIndex
     await rendition.removeOneNote(noteId, chapterDocIndex)
@@ -422,7 +421,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
       this.noteChapters.set(n.id, n.anchor.norm.chapterIndex)
     }
     // ① 过滤到"当前已渲染的节"：kookit 只对当前 document 按字符偏移重锚，
-    //    跨节笔记喂进去会错位或抛错（此前不过滤 —— 见 CONTRACTS §4.1 注）。
+    //    跨节笔记喂进去会错位或抛错。
     const chapter = this.renderedChapter
     const current = chapter === null
       ? []
@@ -454,7 +453,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   async getSelectionAnchor(): Promise<TextAnchor | null> {
     const rendition = this.rendition
     if (!rendition) return null
-    // PDF 是「页 + 归一化坐标」的另一套载荷（第二批；用户 2026-09-14 定文字类优先）
+    // PDF 是「页 + 归一化坐标」的另一套载荷（第二批，待做）
     if (this.record?.format === 'PDF') return null
 
     const doc = rendition.getDocument()
@@ -550,7 +549,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     return normalizeAnchor({
       norm: {
         chapterIndex: best.chapterIndex,
-        // 搜索不给块内偏移 → 记章首。progression 是 display/粗排序角色（§2.1 三级角色），
+        // 搜索不给块内偏移 → 记章首。progression 是 display/粗排序角色（domain/location.ts 三级角色），
         // 这里**不假装精确**：写 0 比编一个数诚实。
         progression: 0,
         quote: anchor.norm.quote
@@ -559,7 +558,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     })
   }
 
-  /** 清掉书文档里的选区（宿主清不掉另一个文档的选区，见 CONTRACTS §4.1） */
+  /** 清掉书文档里的选区（宿主清不掉另一个文档的选区） */
   clearSelection(): void {
     this.rendition?.getDocument()?.getSelection()?.removeAllRanges()
     // 选区没了，UI 那边的色板也该收起 —— 不让调用方自己记得补这一下
@@ -577,7 +576,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
       // 选区手势的收尾事件：鼠标（含双击/三击选中）与键盘（Shift+方向键）
       doc.addEventListener('mouseup', this.onSelectionGesture)
       doc.addEventListener('keyup', this.onSelectionGesture)
-      // 右键（v0.3.12）：唯一能拿到"正文内右键"的地方（事件跨不过文档边界）。
+      // 右键：唯一能拿到"正文内右键"的地方（事件跨不过文档边界）。
       // ⚠ 桌面端**没有** kookit 的 contextmenu 抢占（那两处 preventDefault 都在从未被调用的
       //   触屏路径里，见 KOOKIT.md §5 #15）→ 这个槽位是我们的。
       doc.addEventListener('contextmenu', this.onContextMenu)
@@ -600,12 +599,11 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
    * 书文档内的一点 → **宿主视口坐标**（UI 摆放浮层用）。
    *
    * 为什么要**逐层累加**、不能只加一层：文字类的正文 iframe 直接挂在宿主里（一层），
-   * 但 **PDF 的每一页是"顶层 iframe 里再嵌的子 iframe"**（`KOOKIT.md` §5，2026-09-13 实证）——
+   * 但 **PDF 的每一页是"顶层 iframe 里再嵌的子 iframe"**（`KOOKIT.md` §5）——
    * 只加一层就少算中间那层偏移。故沿 `frameElement` 链一路累加到宿主文档为止。
    *
-   * ⚠ `clientX/clientY` 是**事件所属文档**的视口坐标，**不是宿主坐标**。
-   *   2026-09-16 用户实测报障："选完内容右键，右键栏出现在非内容部分，还得额外移动鼠标"——
-   *   根因就是这里没换算（旧代码直接把 `me.clientX` 当宿主坐标发出去）。
+   * ⚠ `clientX/clientY` 是**事件所属文档**的视口坐标，**不是宿主坐标**——
+   *   直接把 `me.clientX` 当宿主坐标发出去，右键菜单就会出现在错误位置。
    */
   private hostOffset(fromDoc: Document | null): { x: number; y: number } {
     let x = 0
@@ -715,7 +713,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   }
 
   /**
-   * Note v2 → kookit 引擎载荷。**字段名与约定都是 kookit 的，必须照它给**（2026-09-14 逆向核实）：
+   * Note v2 → kookit 引擎载荷。**字段名与约定都是 kookit 的，必须照它给**：
    * - `range`：**JSON 字符串** —— kookit 内部 `JSON.parse(item.range)`（`createOneNote` 与
    *   `renderHighlighters` 两条路径都如此）。即 `anchor.fragment.key` 原样透传。
    * - `color`：kookit 的 `"<styleType>-#RRGGBB"` 形态（`buildHighlightStyleForType` 按 `-`
@@ -723,7 +721,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
    *   styleType 变成那个 hex、switch 无命中而返回 undefined 样式（静默不显色）。
    * - `key`：笔记 id（kookit 用它写 `data-key` 并在删除时查找）。
    * - `notes`：**字符串**（kookit 以 `item.notes !== ""` 判定"是否带批注"）。
-   *   ⚠ v1 曾传数组 `note.notes || []` —— 数组恒 `!== ""` → 恒判为"带批注"，且数组被当正文。
+   *   ⚠ 传数组会恒判为"带批注"，且数组被当正文 —— 必须是字符串。
    * - `chapterIndex`：文字类分支忽略，但 **PDF 分支必读**
    *   （`getSubIframe(item.chapterIndex)` + 逐条 `pageIndex !== chapterIndex` 过滤）—— 故一律带上。
    */
@@ -784,7 +782,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   /**
    * kookit 对文字类 iframe 的 height 硬留了 **+300px 余量**（`handleIframeHeight`，KOOKIT §5.8），
    * 所以"短章节"也总有 ~300px 可滚 —— 那不是真正的内容溢出。这种量级下**隐藏滚动条**，
-   * 否则短章节会顶着一根接近满高的长条（用户 2026-09-11 反馈）。
+   * 否则短章节会顶着一根接近满高的长条。
    *
    * 隐藏手段：设内联 `scrollbar-width: none` —— 标准属性优先于 `::-webkit-scrollbar`
    * （Chromium 121+，见 styles.css 的坑注释），正好当开关用，而且**完全不占位**；
@@ -810,11 +808,11 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   }
 
   private toKookitConfig(format: BookRecord['format'], options?: RenderOptions): KookitConfig {
-    // 深色判定优先走 theme（v0.3.0 规正）：纯色·深 / 羊皮纸·深 = 深色；isDarkMode 为兼容兜底
+    // 深色判定优先走 theme：纯色·深 / 羊皮纸·深 = 深色；isDarkMode 为兼容兜底
     const isDark = options?.theme
       ? isDarkResolvedTheme(options.theme)
       : (options?.isDarkMode ?? false)
-    // 字段全集与缺省收敛在 buildKookitConfig（kookitLoader，2026-09-12 去重）；这里只解析宿主关注点
+    // 字段全集与缺省收敛在 buildKookitConfig（kookitLoader）；这里只解析宿主关注点
     return buildKookitConfig(format, {
       readerMode: options?.readerMode,
       animation: options?.animation,
@@ -856,10 +854,10 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   /**
    * 求"当前已渲染的那一节"。
    *
-   * ⚠ **不能信 `rendered` 事件的载荷**（2026-09-14 逆向 + 探针实测）：kookit 文字类
+   * ⚠ **不能信 `rendered` 事件的载荷**：kookit 文字类
    * （`GeneralRender`，EPUB/TXT/MD/MOBI/AZW3/FB2/DOCX/HTML 全走它）触发的是
    * `this.trigger("rendered")` —— **不带任何参数**；只有 `PdfRender` 是
-   * `this.trigger("rendered", [chapterDocIndex])`。此前按"事件带章号"实现，导致文字类拿到
+   * `this.trigger("rendered", [chapterDocIndex])`。若按"事件带章号"实现，文字类拿到
    * `undefined`：`renderedChapter` 变成 undefined，而 `undefined === null` 为假 →
    * `renderHighlighters` 的章节过滤静默命中 0 条（**高亮永远不出现**，且不报错）。
    *
@@ -878,7 +876,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
 /**
  * 章内进度估计：**按字符位置**（选区起点之前的字符数 / 本章正文字符总数）。
  * 为什么不用像素：改字号/行距/纸宽都会移动像素位置，而字符序不变 —— progression 在 Norm 层
- * 只承担粗排序/粗回跳（§2.1 三级角色里的 display 一侧），不该跟着排版漂移。
+ * 只承担粗排序/粗回跳（`domain/location.ts` 三级角色里的 display 一侧），不该跟着排版漂移。
  */
 function estimateProgression(range: Range, doc: Document): number {
   const body = doc.body

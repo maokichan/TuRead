@@ -1,8 +1,7 @@
 /**
- * 阅读器「跟随当前位置」判据（2026-09-16 用户定）—— 目录与笔记两处**共用同一条判据**。
+ * 阅读器「跟随当前位置」判据 —— 目录与笔记两处**共用同一条判据**。
  *
- * 用户要求（原话）："我们需要确保目录条目索引，用户读到哪里，哪个条目就处于目录的中间位置"，
- * 且"这一点同样反应在笔记上"。所以这里做两件事：
+ * 要求：用户读到哪里，哪个条目就处于目录（与笔记列表）的中间位置。所以这里做两件事：
  * ① **判据纯函数**（`activeTocIndex` / `activeNoteIndex`）—— 输入"当前位置 + 条目序列"，
  *    输出"哪一条是当前条目"；有单测（`readerFollow.test.ts`）。
  * ② **落点动作**（`centerInScrollBox`）—— 把那条滚到滚动容器**正中**。
@@ -20,10 +19,9 @@ import type { Note } from '@core/domain/types'
 /**
  * 目录树扁平化行（`ReaderFeature` 产出，`TocPanel` 展示）。
  *
- * ⚠ 原本定义在 `TocPanel.tsx` 里，2026-09-16 移到本模块：本模块是**纯 `.ts`**，
- * 而 `tsconfig.test.json` **不设 `jsx`** —— 判据的单测一旦经 `.ts` 链条 import 到 `.tsx`，
- * 整个 `typecheck` 就报 `TS6142`（实测）。数据形状住在纯模块里，判据与测试都能干净引用；
- * `TocPanel` 侧保留同名再导出，调用方不必改。
+ * ⚠ 数据形状住**纯 `.ts`**（本模块）：`tsconfig.test.json` 不设 `jsx`——
+ * 判据的单测一旦经 `.ts` 链条 import 到 `.tsx`，整个 `typecheck` 就报 `TS6142`。
+ * 数据形状与测试都要能干净引用；`TocPanel` 侧保留同名再导出，调用方不必改。
  */
 export interface TocRow {
   label: string

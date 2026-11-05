@@ -1,14 +1,10 @@
 /**
- * 聊天室垂挂列表（挂载线实体的**右挂件**第二种内容，2026-09-17 用户定；与「閱讀參數」共处一根挂载线）。
+ * 聊天室列表（右欄卡片页的「聊天」页；只出现在经房间进入的那本书上）。
  *
- * 形态依据（用户 2026-09-17）：
- * > "右抽屜，像是目錄和筆記共用一個掛載線一樣，和右邊的閱讀參數面板處於一根掛載線，
- * >  但是沒有通過房間進入一本書就不會有這個項，樣式和左側抽屜一樣"
- *
- * 因此它**不新造视觉**：容器 / 页签 / 列表 / 遮罩 / 结尾「折疊」全部沿用左抽屉那一套
- * （`.toc-list` 家族 + `--toc-veil` 按距离的遮罩 + §5.8 的挂载线几何），只是贴在线的**另一端**。
- * 唯一的例外是**输入类**（§5.2 例外①：输入必须可见可点）——发消息的输入框带发丝描边，
- * 与 `.note-composer` 同一口径（Enter 送出 / Shift+Enter 换行 / 自增长到五行封顶）。
+ * 它**不新造视觉**：容器 / 列表 / 遮罩全部沿用目录那一套
+ * （`.toc-list` 家族 + `--toc-veil` 按距离的遮罩）。
+ * 唯一的例外是**输入类**（style/components-shell.md 例外①：输入必须可见可点）——发消息的
+ * 输入框带发丝描边，与 `.note-composer` 同一口径（Enter 送出 / Shift+Enter 换行 / 自增长到五行封顶）。
  *
  * 纪律：组件是**纯 props**（消息 + 回调），会话状态归 `features/roomSession.ts`（跨功能共享一份）。
  */
@@ -20,14 +16,12 @@ interface ChatPanelProps {
   messages: ChatMessage[]
   /** 房间号（空态显示用；也提醒"这是哪个房间的聊天"） */
   roomId: string
-  /** 顶部插槽（挂载线右挂件的「參數 / 聊天」两格开关，由 ReaderRail 生成并与 ReaderControls 共用） */
-  header?: React.ReactNode
   /** 发消息（空文本由上游忽略；失败由上游进日志） */
   onSend: (text: string) => void
   /** 当前草稿（受控：输入内容归调用方，便于将来键盘意图直接提交） */
   draft: string
   onDraftChange: (text: string) => void
-  /** 跟随模式（v0.4.9）：开 → 其他成员翻页时本端跟到同一位置（跳转逻辑在 ReaderFeature） */
+  /** 跟随模式：开 → 其他成员翻页时本端跟到同一位置（跳转逻辑在 ReaderFeature） */
   following: boolean
   onToggleFollow: () => void
 }
@@ -43,7 +37,6 @@ function formatTime(unixSeconds: number): string {
 export function ChatPanel({
   messages,
   roomId,
-  header,
   onSend,
   draft,
   onDraftChange,
@@ -61,7 +54,7 @@ export function ChatPanel({
     box.scrollTop = box.scrollHeight
   }, [messages])
 
-  /** 遮罩按距离（共享实现见 veil.ts）+ 「折疊」灯光（灯的法则，v1.14）；mousemove 挂根层 */
+  /** 遮罩按距离（共享实现见 veil.ts）；mousemove 挂根层 */
   const paint = (clientX: number | null, clientY: number | null): void => {
     paintVeilImpl(rootRef.current, { selector: '.chat-row', veilVar: '--toc-veil', restVars: ['--toc-veil-rest'] }, clientY)
   }
@@ -78,9 +71,8 @@ export function ChatPanel({
       onMouseMove={(e) => paint(e.clientX, e.clientY)}
       onMouseLeave={() => paint(null, null)}
     >
-      {header}
-      {/* 跟随模式开关（v0.4.9）：文字动作 + 选中态换 accent —— 不新造视觉语汇（STYLE §5.1）。
-          放在消息列表上方 = 聊天格的"状态行"，与格内容一体，不与页签（header）争位。 */}
+      {/* 跟随模式开关：文字动作 + 选中态换 accent —— 不新造视觉语汇（style/components-shell.md）。
+          放在消息列表上方 = 聊天格的"状态行"，与格内容一体。 */}
       <div className="flex flex-none items-center justify-between px-1 pb-1">
         <button
           className={`text-action text-[13px] ${following ? 'text-action--primary' : ''}`}
@@ -105,7 +97,7 @@ export function ChatPanel({
           </div>
         ))}
       </div>
-      {/* 输入类 = §5.2 例外①（必须可见可点）。Enter 送出 / Shift+Enter 换行，与批注输入栏同一操作口径 */}
+      {/* 输入类 = style/components-shell.md 例外①（必须可见可点）。Enter 送出 / Shift+Enter 换行，与批注输入栏同一操作口径 */}
       <div className="chat-composer">
         <textarea
           ref={inputRef}

@@ -1,9 +1,9 @@
 /**
- * 阅读会话记录器（批1.24，用户定口径）：
+ * 阅读会话记录器：
  * 把"阅读态里实际盯着正文的时长"按**会话段**写进 `reading_sessions`（经 appendReadingSession，
- * 时长累加的唯一写入口）。数据此前零累计（写入路径未接，批1.22 对齐确认），本文件即那条路径。
+ * 时长累加的唯一写入口）。本文件 = 那条写入路径。
  *
- * **口径（2026-11-04 用户拍板）**：
+ * **口径**：
  * - 累计范围 = 阅读态（阅读器激活且开着书）；
  * - **失焦暂停**：窗口 blur → 结段落笔，focus → 开新段；
  * - **边界落笔**（无心跳）：失焦 / 换书 / 关标签退阅读器 / 退 app（pagehide + beforeunload +
@@ -13,11 +13,11 @@
  *
  * ⚠ **段携带自己的 edition 快照**（`Segment.editionId`）：flush 记**开段时刻**的账。
  * 不能读"当前 ref"——ref 在渲染期先更新、effect 清理后跑，换书/离开阅读器时 flush 会把
- * 旧段记到新书名下或因 enabled 已变被静默丢弃（首版实测零落笔的真因）。
+ * 旧段记到新书名下或因 enabled 已变被静默丢弃。
  * invoke 的请求在 send 时即入主进程管道，渲染层随后被拆不回滚主进程侧写入 —— 退 app 路径成立。
  *
  * 数据事实：贡献图（按日聚合）只有从这里开始才有形状；迁移旧账只存在于
- * `reading_state.total_read_ms` 投影（Top 榜的数据源），两者口径不同（FEATURES §12）。
+ * `reading_state.total_read_ms` 投影（Top 榜的数据源），两者口径不同。
  */
 import { useEffect, useRef } from 'react'
 import type { ServiceContainer } from '@core/container'
