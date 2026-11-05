@@ -8,7 +8,7 @@
 
 | 层 | 归属 |
 |---|---|
-| Feature 组件 | `src/renderer/src/features/LibraryFeature/index.tsx`（1095 行）；域内组件 `BookRow`/`BookTile`/`ContainerItem`/`LibraryToolbar`/`LibraryManagerDialog`/`FittedTitle`/`FocusStage`(+`focusStageEngine`)/`useVirtualRange`/`viewSwitchFlash` |
+| Feature 组件 | `src/renderer/src/features/LibraryFeature/`：`index.tsx`（725 行，编排与 JSX 骨架）+ 四钩子 `navHistory.ts`（历史栈/后退前进/侧键/总线）、`queues.ts`（封面/导入/补封面事件接线）、`containerActions.ts`（書箱操作与「移動到」子菜单）、`librarySearch.ts`（全库检索 + coverUrlPairs）；域内组件 `BookRow`/`BookTile`/`ContainerItem`/`LibraryToolbar`/`LibraryManagerDialog`/`FittedTitle`/`FocusStage`(+`focusStageEngine`)/`useVirtualRange`/`viewSwitchFlash` |
 | usecases | `BookService`（edition+holding+lastRead）、`ImportQueue`（串行导入）、`CoverQueue`（封面异步提取）、`ScanService`（映射库对账）——`src/core/usecases/` |
 | ports | `picker`（选文件/目录/扫描/读文件）、`image`（缩略图）、`metadata`（离屏提取）；store 跨域共享 |
 | adapters | `picker/ipcPickerAdapter`、`image/thumbnail`、`render/offscreenMetadataExtractor`、`identity/fingerprint`（与 room 共享） |
