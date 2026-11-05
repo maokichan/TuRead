@@ -1,11 +1,11 @@
 /**
- * NotesFeature —— **笔记管理（跨书）**（契约 = `FEATURES.md` §12，视觉 = `STYLE.md` §5.10）。
+ * NotesFeature —— **笔记管理（跨书）**（契约 = features/notes.md，视觉 = style/components-notes.md）。
  *
- * 定位：**同级功能组件**（用户 2026-09-16 明确纠正过分类倾向 ——「工具组件」就是既有「功能组件」，
- * 容器一样；不引入 `kind` 分类）。所以这里只做三件事：查读模型、渲染卡片流、接动作。
+ * 定位：**同级功能组件**（不引入分类——「工具组件」的提法已被纠正，就是既有「功能组件」，容器一样）。
+ * 所以这里只做三件事：查读模型、渲染卡片流、接动作。
  *
  * 四条纪律（都是定案，写在最前面免得被"顺手优化"掉）：
- * ① **判据是 `body` 是否为空，不是 `kind`** —— "画完线后补 body，那这就是批注"（用户原话）；
+ * ① **判据是 `body` 是否为空，不是 `kind`** —— "画完线后补 body，那这就是批注"；
  *    `kind='highlight'` 可能带 body，`kind='note'` 可能 body 为空（两个方向都有真实路径）。
  * ② **激活时重读**：本组件与阅读器**不同屏**（切过来即离开阅读器），故不需要 `notes-changed`
  *    广播；每次激活重新查询即可保证新鲜。
@@ -38,7 +38,7 @@ const QUERY_DEBOUNCE_MS = 200
 const HINT_MS = 1500
 
 export function NotesFeature({ container, host, activeFeature }: FeatureProps): React.JSX.Element {
-  /** 检索词（批1.11 搜索上底板：词仍归本功能自持，输入框只是底面顶条带的 UI 面；防抖链路不变） */
+  /** 检索词（词归本功能自持，输入框是底面顶条带的 UI 面；防抖链路不变） */
   const [notesQuery, setNotesQuery] = useState('')
   const [settings, setSettings] = useState<NoteSettings>(DEFAULT_SETTINGS)
   const [items, setItems] = useState<NoteFlowItem[]>([])
@@ -85,7 +85,7 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
     return () => window.clearTimeout(t)
   }, [notesQuery])
 
-  // 底面全局搜索（批1.11 搜索上底板）：笔记被激活时向 chromeSearchBus 注册绑定（恒驻挂载，
+  // 底面全局搜索：笔记被激活时向 chromeSearchBus 注册绑定（恒驻挂载，
   // 必须跟激活态走）；value 变化即重注册（绑定闭包要拿到新词，见 chromeSearchBus 注释）。
   useEffect(() => {
     if (activeFeature !== 'notes') return
@@ -153,7 +153,7 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
   }, [hint])
 
   // ————— 动作 —————
-  /** 双击 = 跳转：带目标打开阅读器（`openReader` 的可选参数，v0.4.2 补的契约缺口） */
+  /** 双击 = 跳转：带目标打开阅读器（`openReader` 的可选参数——「带目标打开」契约） */
   const openNote = useCallback(
     (item: NoteFlowItem) => {
       host.openReader(item.note.editionId, { revealNoteId: item.note.id })
@@ -161,7 +161,7 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
     [host]
   )
 
-  /** 複製批註：**只複製批注正文**（用户 2026-09-16 定）；不放开拖选（守全局禁选） */
+  /** 複製批註：**只複製批注正文**；不放开拖选（守全局禁选） */
   const copyNote = useCallback(
     async (item: NoteFlowItem) => {
       const text = item.note.body.trim()
@@ -220,14 +220,10 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
 
   return (
     <div className="flex h-full flex-col">
-      {/* 搜索住底面顶条带（批1.11，chromeSearchBus）—— 卡内不再有本地搜索行 */}
-
-      {/* 滚动容器由本功能自己持有（窗口化要它）——AppShell 的 main 在书库态是滚动的，
-          这里改成"内容区自己滚"，避免两层滚动条。
+      {/* 滚动容器由本功能自己持有（窗口化要它，避免两层滚动条）；
           ⚠ 筛选/检索变化**不重建**本容器（刷新粒度纪律④）。 */}
       <div ref={scrollRef} className="cjk-ui min-h-0 flex-1 overflow-y-auto pr-1">
-        {/* 「閱讀」统计段（批1.24b 修订，用户定"放在左侧边栏的这个，统计全局"）：
-            寄生筆列表顶部，**全局口径**（跨书全库；逐日聚合与 Top 榜本就不带书过滤）。
+        {/* 「閱讀」统计段：寄生筆列表顶部，**全局口径**（跨书全库；逐日聚合与 Top 榜本就不带书过滤）。
             放滚动容器内 = 随内容滚，不占常驻注意力；全宽 page 档两栏。 */}
         <ReadingStatsSection container={container} variant="page" />
         {items.length > 0 ? (
