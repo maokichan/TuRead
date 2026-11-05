@@ -174,17 +174,16 @@
   「宿主容器」定义锚定 RENDER_INTERFACE、跨文档节号引用纪律——docIndex 只查路径边不查节号、
   §6.1 存根随代码注释重构后可删）；② dsh 式 doc-typecheck / type-equiv（文档内 ts 块可编译、
   类型粘贴与源码等价）——远期工程项。
-- [ ] **洗源码（进行中，用户 2026-11-05 立项；11-06 完成 library + reader 两域）**：给源码与注释瘦身。判据（dsh 口径）：
+- [x] **洗源码（用户 2026-11-05 立项；11-06 全五域完成，去向 = git 历史「洗源码」提交组）**：判据（dsh 口径）：
   **契约留注释**（行为/失败/时序/所有权/非显然取向），叙事/历史/教训/推理过程转移
   `client/docs/features/` 对应页或直接退役（git 历史）；「文档与代码不一致」按纪律主动报告。
-  **复杂度维度（用户补充：架构整洁掩盖了代码复杂度）**：巨型文件按 features/ 锚点对照拆分——已完成：
-  LibraryFeature 1102→725+四钩子、ReaderFeature 1056→554+五钩子、kookitRenderAdapter 949→699+三纯模块
-  （洗源码(library)/(reader) 各两笔；验证 = typecheck 四套 + 单测 175 + library/note 探针 + 样张 9/9）。
-  残留随洗同步清（已拔 removeCover 死管道、死 header prop ×4、死 rootRef、死状态 rootPath）。
-  **余项**：① notes/room/settings-main 三域未洗（RoomSession 591 仅 REST 组低风险一刀、
-  sqliteStore 1234 拆分候选未评）；② styles.css 纯批次/日期落款未逐条剥（机制性内容已修正）；
-  ③ veil 双机制合并评估未动；④ features 页头部权威指针仅修 library/reader 两页。
-  按域分批，顺序与节奏由开发者定；**与文档治理余项分阶段进行，不同 session 混做**。
+  **复杂度维度**：巨型文件按 features/ 锚点对照拆分——LibraryFeature 1102→725+四钩子、
+  ReaderFeature 1056→554+五钩子、kookitRenderAdapter 949→699+三纯模块、RoomSession 591→546+roomRest；
+  **sqliteStore（1228）评估后判不拆**：wide-flat 均匀薄 SQL（40 方法清晰分节），非纠缠型复杂度，
+  拆分纯机械、收益低于触碰持久层全表的风险。残留拔除：removeCover 死管道、死 header prop ×4、
+  死 rootRef、死状态 rootPath。验证 = typecheck 四套 + 单测 175 + library/note 探针 + 蜂群 A1-A5 + 样张 9/9。
+  **未了余项**：① styles.css 纯批次/日期落款未逐条剥（机制性内容已全修）；② veil 双机制
+  （paintVeil/paintGlow）合并评估未动（三个活消费者）。
 - [ ] **插件卸载余项**：卸载本体已落（`plugins:uninstall` 通道 + 数据清理 + 设置页「卸載」，
   实现见 `main/plugins.ts` / `SettingsFeature`）。剩余：seeder opt-out 评估；官方插件升级路径
   （版本兼容策略）；`plugin-secret:<id>:*` 密文清不掉（待 store 补「按前缀删键」原语，
