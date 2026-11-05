@@ -18,45 +18,29 @@ import { normalizeLocation, isZeroLocation } from '@core/domain/location'
 import { isDarkResolvedTheme, type ResolvedTheme } from '@core/domain/theme'
 import type { IRenderService, RenderServiceEvents } from '@core/ports/render'
 import type {
-  AnchorQuote,
   BookFormat,
   BookLocation,
   BookMetadata,
   BookRecord,
   Chapter,
   Note,
-  NoteColor,
   ReaderTypography,
   RenderOptions,
   TextAnchor
 } from '@core/domain/types'
-import {
-  QUOTE_CONTEXT_MAX,
-  QUOTE_EXACT_MAX,
-  clipQuote,
-  normalizeAnchor,
-  quoteSimilarity
-} from '@core/domain/anchor'
 import { loadKookit, buildNamespace, buildKookitConfig } from './kookitLoader'
 import { ensurePdfjs } from './pdfjsSetup'
 import { detectTextCharset } from './charset'
+import { normalizeAnchor } from '@core/domain/anchor'
+import { selectionToAnchor, remeasureBySearch } from './kookitAnchor'
+import { toKookitNote } from './kookitNote'
+import { buildReaderCss, readCssVar } from './readerCss'
 
 export type ReadBookFile = (path: string) => Promise<ArrayBuffer>
 
 /** 正文溢出的"真伪阈值"（px）：kookit 给文字类 iframe 的 height 留了 +300px 余量，
  *  ≤ 这个量级不算真的需要滚动，滚动条宽度归零（见 refreshScrollAffordance）。 */
 const SCROLL_SLACK_PX = 320
-
-/** 笔记色缺省：`Note.color` 未给时（书签/墨迹无色的语义回退）用哪一支 token */
-const DEFAULT_NOTE_COLOR: NoteColor = 'yellow'
-
-/**
- * 文字类的引擎载荷标识（锚点 `Fragment.engine`）。
- * kookit 文字类笔记载荷是 **rangy 序列化字符范围**，不是 CFI
- * （`getHightlightCoords()` = `rangy.getSelection(iframe).saveCharacterRanges(doc.body)[0]`）。
- * 换渲染内核时新增取值，旧值由适配器按名分派（见 `anchor.ts` 的 Fragment 设计）。
- */
-const TEXT_FRAGMENT_ENGINE = 'kookit-rangy'
 
 export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> implements IRenderService {
   private readFile: ReadBookFile
@@ -208,7 +192,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
         // 容器描 1px 纸边（颜色取宿主 --page-edge，随主题；换主题本就要重开，不虑失配）。
         // 先注入后量高：边框 2px/页 要计入 iframe 总高。分页模式页本身占满视口，不注入。
         if (this.readerMode === 'scroll') {
-          const edge = this.readCssVar('--page-edge') || '#ccd0d4'
+          const edge = readCssVar('--page-edge') || '#ccd0d4'
           const style = doc.createElement('style')
           style.id = 'turead-pdf-page-edge'
           style.textContent = `.pdf-container{border:1px solid ${edge};}`
@@ -259,63 +243,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     if (this.record?.format === 'PDF') return
     // ⚠ 注意：**排版参数（纸内边距）与主题无关，任何主题下都要注入** ——
     // "浅色不注入"这条只针对**颜色**（保留书的自有外观），不是整份样式。
-    rendition.setStyle(this.buildReaderCss())
-  }
-
-  /**
-   * 正文样式（kookit 唯一注入口 `setStyle`，换章只重写 `body`、我们的 `<style>` 留在 `head`，
-   * 一次注入全书生效）。三部分：
-   * ① **纸内边距**（`--page-pad-x`）：正文与纸边之间的距离。
-   *    注入到 `body` 而不是宿主容器 —— 见 styles.css `--page-pad-x` 的注释（kookit 排版宽度算术）。
-   * ② **排版参数**（`applyTypography`）：字号/行距/段距；**缺省项不注入**（尊重书自带排版）。
-   *    字号/行距同时打到 `html,body` 与常见块级元素 —— 书若用相对单位（em/%）会随之缩放，
-   *    而写成 px 的那些元素只有显式覆盖才动得了（"保守但有效"）。
-   * ③ **深色正文颜色**（仅深色模式）：颜色取自宿主语义 token `--page-bg/--page-text`。
-   * ④ **选区配色**：`::selection` 也只能在这份注入 CSS 里定（宿主 CSS 跨不过文档边界）；颜色取宿主 token
-   *    `--selection-bg`（四套取向各一组，低饱和、跟主题）→ **在任何主题下都不再是系统蓝**。
-   */
-  private buildReaderCss(): string {
-    const cs = getComputedStyle(document.documentElement)
-    const readVar = (name: string): string => (cs.getPropertyValue(name) || '').trim()
-    const padX = readVar('--page-pad-x') || '44px'
-    const parts = [`body{padding-inline:${padX}!important;}`]
-
-    // ④ 选区：**始终注入**（与颜色不同——它不是"书自有外观"的一部分，而是我们接手的选择反馈）。
-    // 只给背景不给前景色：做成一层低饱和"淡扫"，而不是反色块 —— 阅读时更温和，且不必担心
-    // 在深色纸上把正文色配错。token 缺失时留空（退回浏览器默认），并在控制台留痕。
-    const selectionBg = readVar('--selection-bg')
-    if (selectionBg) {
-      parts.push(`::selection{background:${selectionBg}!important;}`)
-    } else {
-      console.warn('[render] 缺少 --selection-bg token（styles.css 未定义？）——选区将回落浏览器默认色')
-    }
-
-    const t = this.typography
-    const blocks = 'body,p,div,li,dd,blockquote,td'
-    if (t?.fontSize) parts.push(`html,body{font-size:${t.fontSize}px!important;}`)
-    if (t?.lineHeight) parts.push(`html,body,${blocks}{line-height:${t.lineHeight}!important;}`)
-    if (t?.paragraphSpacing !== undefined) {
-      parts.push(`p{margin-top:0!important;margin-bottom:${t.paragraphSpacing}px!important;}`)
-    }
-
-    const dark = this.theme ? isDarkResolvedTheme(this.theme) : false
-    if (dark) {
-      const bg = readVar('--page-bg') || '#141619'
-      const text = readVar('--page-text') || '#d8dbe0'
-      parts.push(
-        `body,html{background-color:${bg}!important;color:${text}!important;-webkit-text-fill-color:${text}!important;}` +
-          `a{text-decoration:underline!important;}` +
-          `code,pre{background-color:transparent!important;}` +
-          `img{opacity:0.85;}` +
-          `table{border-color:currentColor!important;}`
-      )
-    }
-    return parts.join('')
-  }
-
-  /** 读取宿主 CSS 变量（页面配色单一来源 = styles.css token） */
-  private readCssVar(name: string, fallback = ''): string {
-    return (getComputedStyle(document.documentElement).getPropertyValue(name) || fallback).trim()
+    rendition.setStyle(buildReaderCss(this.theme, this.typography))
   }
 
   async next(): Promise<void> {
@@ -402,7 +330,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     // 先取引擎再登记章节（requireRendition 抛错时不污染 noteChapters）
     const rendition = this.requireRendition('createNote')
     this.noteChapters.set(note.id, chapterIndex)
-    await rendition.createOneNote(this.toKookitNote(note), this.onNoteClick)
+    await rendition.createOneNote(toKookitNote(note), this.onNoteClick)
   }
 
   async removeNote(noteId: string): Promise<void> {
@@ -437,47 +365,25 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     // ③ 传**拷贝**：kookit `renderHighlighters` 内部 `notes.reverse()` 是原地修改入参，
     //    直接传调用方数组会把 store/Feature 持有的顺序改掉。
     await rendition.renderHighlighters(
-      renderable.map((n) => this.toKookitNote(n)),
+      renderable.map((n) => toKookitNote(n)),
       this.onNoteClick
     )
   }
 
-  // ————— 选区级锚点（定位转换机制的引擎侧原语，DATA_MODEL §3.1.1）—————
+  // ————— 选区级锚点（定位转换机制的引擎侧原语，本体在 `kookitAnchor.ts`）—————
 
   /**
    * `fromSelection`：把当前正文选区取成统一锚点。
-   * 三层证据一次取齐 —— Fragment（引擎精确载荷 = kookit 自己的 rangy 序列化）、
-   * Norm（章 + 章内进度）、quote（划线原文快照 + 前后文，供 remeasure）。
+   * 三层证据一次取齐 —— Fragment（引擎精确载荷）、Norm（章 + 章内进度）、quote（原文快照 + 前后文）。
    * 只读：不改引擎状态、不落库（落库是用例层的事）。
    */
   async getSelectionAnchor(): Promise<TextAnchor | null> {
     const rendition = this.rendition
     if (!rendition) return null
-    // PDF 是「页 + 归一化坐标」的另一套载荷（第二批，待做）
-    if (this.record?.format === 'PDF') return null
-
-    const doc = rendition.getDocument()
-    const sel = doc?.getSelection()
-    if (!doc || !sel || sel.rangeCount === 0 || sel.isCollapsed) return null
-    const range = sel.getRangeAt(0)
-    const exact = range.toString()
-    // 纯空白/图片选区（toString 为空）不算可标内容 —— 建了也没法回显
-    if (exact.trim() === '') return null
-
-    // Fragment 必须 stringify：kookit createOneNote / renderHighlighters 都做 JSON.parse(item.range)
-    const raw = await rendition.getHightlightCoords()
-    if (!raw) return null
-
-    const chapterIndex =
-      this.renderedChapter ?? normalizeLocation(this.getPosition()).chapterDocIndex
-
-    return normalizeAnchor({
-      norm: {
-        chapterIndex,
-        progression: estimateProgression(range, doc),
-        quote: quoteFromRange(range)
-      },
-      fragment: { engine: TEXT_FRAGMENT_ENGINE, key: JSON.stringify(raw) }
+    return selectionToAnchor(rendition, {
+      format: this.record?.format,
+      renderedChapter: this.renderedChapter,
+      positionOf: () => this.getPosition()
     })
   }
 
@@ -515,47 +421,15 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   }
 
   /**
-   * `remeasure`：Fragment 失效后按原文快照找回位置。
-   *
-   * kookit 搜索返回 `{excerpt, cfi}`，`cfi` 是含 `chapterDocIndex` 的 JSON 串
-   * （逆向自 bundle 的 `getSearchResult`：`{text, chapterTitle, chapterDocIndex, chapterHref,
-   * count:"search", percentage, keyword}`）—— **没有字符偏移**，所以只能重建到**章级**：
-   * 产出一定是**弱锚点**（`fragment = null`）。这是诚实降级而非缺陷：弱锚点仍能回跳，
-   * 且用户下次在该处重新划线即可升级为强锚点。
-   *
-   * 选路：多条命中按 `quoteSimilarity` 取最相似的一条（excerpt 是块 ±100 字窗口，
-   * 真正命中的块相似度显著更高）。找不到 → null，由调用方决定保留旧锚点还是标记失效。
-   * 代价：搜索遍历全书各章，属用户显式触发的恢复动作（可接受）。
+   * `remeasure`：Fragment 失效后按原文快照找回位置（本体 = `kookitAnchor.remeasureBySearch`）。
+   * 产出一定是**弱锚点**（搜索不给字符偏移，只能重建到章级）—— 诚实降级而非缺陷；
+   * 多条命中按相似度选路，代价是全书搜索（用户显式触发的恢复动作，可接受）。
    */
   async remeasureAnchor(anchor: TextAnchor): Promise<TextAnchor | null> {
     const rendition = this.rendition
     const quote = anchor?.norm?.quote?.exact ?? ''
     if (!rendition || quote === '') return null
-
-    const hits = (await rendition.doSearch(quote)) as
-      | Array<{ excerpt?: string; cfi?: string }>
-      | undefined
-    if (!Array.isArray(hits) || hits.length === 0) return null
-
-    let best: { chapterIndex: number; sim: number } | null = null
-    for (const hit of hits) {
-      const chapterIndex = chapterIndexOfSearchHit(hit?.cfi)
-      if (chapterIndex === null) continue
-      const sim = quoteSimilarity(quote, hit?.excerpt ?? '')
-      if (!best || sim > best.sim) best = { chapterIndex, sim }
-    }
-    if (!best) return null
-
-    return normalizeAnchor({
-      norm: {
-        chapterIndex: best.chapterIndex,
-        // 搜索不给块内偏移 → 记章首。progression 是 display/粗排序角色（domain/location.ts 三级角色），
-        // 这里**不假装精确**：写 0 比编一个数诚实。
-        progression: 0,
-        quote: anchor.norm.quote
-      },
-      fragment: null
-    })
+    return remeasureBySearch(rendition, anchor)
   }
 
   /** 清掉书文档里的选区（宿主清不掉另一个文档的选区） */
@@ -712,53 +586,6 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     return { x: off.x + r.left, y: off.y + r.top, width: r.width, height: r.height }
   }
 
-  /**
-   * Note v2 → kookit 引擎载荷。**字段名与约定都是 kookit 的，必须照它给**：
-   * - `range`：**JSON 字符串** —— kookit 内部 `JSON.parse(item.range)`（`createOneNote` 与
-   *   `renderHighlighters` 两条路径都如此）。即 `anchor.fragment.key` 原样透传。
-   * - `color`：kookit 的 `"<styleType>-#RRGGBB"` 形态（`buildHighlightStyleForType` 按 `-`
-   *   切分取 [0]=styleType、[1]=rawColor）。**不是语义色名，也不是裸 hex** —— 传裸 hex 会让
-   *   styleType 变成那个 hex、switch 无命中而返回 undefined 样式（静默不显色）。
-   * - `key`：笔记 id（kookit 用它写 `data-key` 并在删除时查找）。
-   * - `notes`：**字符串**（kookit 以 `item.notes !== ""` 判定"是否带批注"）。
-   *   ⚠ 传数组会恒判为"带批注"，且数组被当正文 —— 必须是字符串。
-   * - `chapterIndex`：文字类分支忽略，但 **PDF 分支必读**
-   *   （`getSubIframe(item.chapterIndex)` + 逐条 `pageIndex !== chapterIndex` 过滤）—— 故一律带上。
-   */
-  private toKookitNote(note: Note): Record<string, unknown> {
-    return {
-      key: note.id,
-      range: note.anchor.fragment?.key ?? '',
-      color: this.resolveNoteColor(note.color),
-      notes: note.body ?? '',
-      chapterIndex: note.anchor.norm.chapterIndex
-    }
-  }
-
-  /**
-   * 语义色名 → kookit 颜色串。
-   * **颜色的唯一来源是宿主 CSS token**（`--note-<name>`，定义在 `styles.css`）：
-   * 库内只存语义名（DATA_MODEL §3.2「库内无 hex」），而 kookit 需要具体色值 —— 于是由宿主
-   * 解析出当前主题下的实际值再内联给引擎。**不能用 `var(--note-red)` 传进去**：高亮 span 长在
-   * 书的 iframe 内部 document 里，宿主 CSS 变量不跨文档继承。
-   *
-   * 兜底值取 kookit 自身的默认 `#FEF3CD`（`buildHighlightStyleForType` 的 `rawColor` 初值）——
-   * 这是"引擎默认"而不是 TuRead 的设计取值，故不构成第二处设计真相来源；token 缺失属配置错误，
-   * 记日志让人看见（不做静默 no-op）。
-   */
-  private resolveNoteColor(name?: NoteColor): string {
-    const token = `--note-${name ?? DEFAULT_NOTE_COLOR}`
-    const raw =
-      typeof window === 'undefined'
-        ? ''
-        : window.getComputedStyle(document.documentElement).getPropertyValue(token).trim()
-    if (!raw) {
-      console.warn(`[render] 缺少颜色 token ${token}（styles.css 未定义？）——回退引擎默认色`)
-      return 'background-#FEF3CD'
-    }
-    return `background-${raw}`
-  }
-
   /** 宿主容器滚动（防抖 400ms）—— 只在停稳后补 record()，避免滚动过程中反复重算 */
   private readonly onHostScroll = (): void => {
     if (this.scrollTimer !== null) window.clearTimeout(this.scrollTimer)
@@ -823,7 +650,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
       password: options?.password || '',
       isConvertPDF: false,
       // 正文纸色单一来源 = 宿主 --page-bg token（styles.css）；分页模式的折页阴影据此配色
-      backgroundColor: options?.backgroundColor || this.readCssVar('--page-bg'),
+      backgroundColor: options?.backgroundColor || readCssVar('--page-bg'),
       isScannedPDF: options?.isScannedPDF,
       ocrEngine: options?.ocrEngine || ''
     })
@@ -868,80 +695,5 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   private resolveRenderedChapter(fromEvent?: number): number {
     if (typeof fromEvent === 'number' && Number.isFinite(fromEvent)) return fromEvent
     return this.getPosition().chapterDocIndex
-  }
-}
-
-/* ————————————— 选区 → 锚点证据（模块级纯函数，便于单点复核）————————————— */
-
-/**
- * 章内进度估计：**按字符位置**（选区起点之前的字符数 / 本章正文字符总数）。
- * 为什么不用像素：改字号/行距/纸宽都会移动像素位置，而字符序不变 —— progression 在 Norm 层
- * 只承担粗排序/粗回跳（`domain/location.ts` 三级角色里的 display 一侧），不该跟着排版漂移。
- */
-function estimateProgression(range: Range, doc: Document): number {
-  const body = doc.body
-  if (!body) return 0
-  const total = (body.textContent ?? '').length
-  if (total === 0) return 0
-  const pre = doc.createRange()
-  pre.selectNodeContents(body)
-  try {
-    pre.setEnd(range.startContainer, range.startOffset)
-  } catch {
-    return 0 // 起止不在同一根下（理论上不该发生）→ 放弃估计，不猜一个数
-  }
-  return Math.min(1, Math.max(0, pre.toString().length / total))
-}
-
-/**
- * DOM 选区 → 划线原文快照（exact + 前后文）。
- * 前后文取**所在块**的文本：块是重锚时的天然搜索域（kookit 搜索也按块出结果），
- * 且选区跨块时"前后文"本身没有确定含义 —— 取不到就留空，不硬凑。
- * ⚠ 偏移换算用**未截断**的选区长度，否则长选区（> QUOTE_EXACT_MAX）会让 suffix 起点偏前。
- */
-function quoteFromRange(range: Range): AnchorQuote {
-  const full = range.toString()
-  const exact = clipQuote(full, QUOTE_EXACT_MAX)
-  const node = range.commonAncestorContainer
-  const block = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement
-  const doc = range.startContainer.ownerDocument
-  if (!block || !doc) return { exact, prefix: '', suffix: '' }
-
-  const blockText = block.textContent ?? ''
-  const pre = doc.createRange()
-  pre.selectNodeContents(block)
-  let start: number
-  try {
-    pre.setEnd(range.startContainer, range.startOffset)
-    start = pre.toString().length
-  } catch {
-    return { exact, prefix: '', suffix: '' }
-  }
-  return {
-    exact,
-    prefix: clipQuote(
-      blockText.slice(Math.max(0, start - QUOTE_CONTEXT_MAX), start),
-      QUOTE_CONTEXT_MAX
-    ),
-    suffix: clipQuote(
-      blockText.slice(start + full.length, start + full.length + QUOTE_CONTEXT_MAX),
-      QUOTE_CONTEXT_MAX
-    )
-  }
-}
-
-/**
- * 从 kookit 搜索结果项的 `cfi` 串取 `chapterDocIndex`。
- * 文字类形状已核实（`{text, chapterTitle, chapterDocIndex, …}`）；PDF 的搜索载荷形状**未核实**
- * ——故宽容解析：非 JSON / 无该字段一律 null（当作没命中，而不是抛错或猜）。
- */
-function chapterIndexOfSearchHit(cfi: unknown): number | null {
-  if (typeof cfi !== 'string' || cfi === '') return null
-  try {
-    const parsed = JSON.parse(cfi) as { chapterDocIndex?: unknown }
-    const idx = Number(parsed?.chapterDocIndex)
-    return Number.isFinite(idx) && idx >= 0 ? Math.floor(idx) : null
-  } catch {
-    return null
   }
 }

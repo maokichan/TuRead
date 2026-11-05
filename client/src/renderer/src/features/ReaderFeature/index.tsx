@@ -1,7 +1,8 @@
 /**
- * 功能组件：阅读器（ReaderFeature）
- * 职责（编排的用例/端口）：render.*（open/renderTo/翻页/goToChapter/goToPosition/applyTheme）
- * + store（lastLocation 恢复/保存）+ 主题跟随（2 主题 × 2 模式，夜间模式·非 PDF 深色注入）。
+ * 功能组件：阅读器（ReaderFeature）—— 编排层。域逻辑住同目录钩子：
+ *   useReaderParams（参数态与应用）· useReaderOpening（开书/关书与位置持久化）·
+ *   useReaderNotes（笔记/划线全生命周期）· useRoomFollow（跟随三道闸门）·
+ *   useReaderFullscreen（沉浸全屏）· readSessionRecorder（阅读时长）。
  * 打开/关闭受 readerBookId 驱动（状态继承：Library「打开阅读」或 RoomFeature 加入后 host.openReader 触发）。
  *
  * 沉浸态（style/components-reader.md / FEATURES.md 阅读器节）：
@@ -13,31 +14,14 @@
  * - 滚轮在两侧留白上也要能滚 → 纸容器把 wheel 转发给正文列。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { compareNoteOrder } from '@core/domain/anchor'
-import { isZeroLocation, sameLocation } from '@core/domain/location'
-import type { ResolvedTheme } from '@core/domain/theme'
-import type {
-  BookFingerprint,
-  BookLocation,
-  BookRecord,
-  Chapter,
-  Note,
-  NoteColor,
-  ReaderSettings,
-  RenderOptions,
-  TextAnchor
-} from '@core/domain/types'
-import type { RenderContextMenuRequest, RenderSelection } from '@core/ports/render'
+import type { BookRecord, NoteColor, TextAnchor } from '@core/domain/types'
+import type { RenderContextMenuRequest } from '@core/ports/render'
 import type { PluginReaderContext } from '@shared/plugin'
 import type { FeatureProps } from '../types'
 import { useReadSessionRecorder } from './readSessionRecorder'
 import type { TocRow } from '../../components/TocPanel'
 import { ReaderRail, type CardPageKind } from '../../components/ReaderRail'
-import {
-  ReaderControls,
-  DEFAULT_READER_PARAMS,
-  type ReaderParams
-} from '../../components/ReaderControls'
+import type { ReaderParams } from '../../components/ReaderControls'
 import { useKeyIntents } from '../../components/useKeyIntents'
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
 import { NoteComposer } from '../../components/NoteComposer'
@@ -46,21 +30,11 @@ import { sendRoomChat, setRoomFollow, useRoomView } from '../roomSession'
 import { readerCardBus, type ReaderCardItem } from '../readerCardBus'
 import { usePluginPanels } from '../../plugins/runtime'
 import { IPC } from '@shared/ipc'
-
-type ReaderMode = NonNullable<RenderOptions['readerMode']>
-
-function flattenChapterTree(list: Chapter[], depth: number, out: TocRow[]): void {
-  for (const c of list) {
-    out.push({ label: c.label, depth, chapterDocIndex: c.chapterDocIndex })
-    if (c.subitems && c.subitems.length > 0) flattenChapterTree(c.subitems, depth + 1, out)
-  }
-}
-
-/** 当前 resolved 主题：以宿主 data-theme 为准（SettingsFeature 应用），非法值回退 纯色·深 */
-function currentTheme(): ResolvedTheme {
-  const v = document.documentElement.getAttribute('data-theme')
-  return v === 'light' || v === 'sepia-light' || v === 'sepia-dark' ? v : 'dark'
-}
+import { currentTheme, useReaderOpening } from './useReaderOpening'
+import { useReaderParams } from './useReaderParams'
+import { useReaderNotes } from './useReaderNotes'
+import { useRoomFollow } from './useRoomFollow'
+import { useReaderFullscreen } from './useReaderFullscreen'
 
 export function ReaderFeature({
   container,
@@ -69,33 +43,17 @@ export function ReaderFeature({
   activeFeature,
   readerTarget
 }: FeatureProps): React.JSX.Element {
+  // —— 共享态（多个钩子要读写，所有权在本组件）——
   const [book, setBook] = useState<BookRecord | null>(null)
-  const [readerMode, setReaderMode] = useState<ReaderMode>('scroll')
-  const [toc, setToc] = useState<TocRow[]>([])
-  const [opening, setOpening] = useState(false)
+  const stageRef = useRef<HTMLDivElement | null>(null)
   /** 目录内嵌件开关（TocPanel）。**默认展示**：只有当用户 `t` 强隐藏时才临时收起；
    *  点条目跳转**不**改变它，且不持久化（重开书回到展示态）。 */
   const [tocOpen, setTocOpen] = useState(true)
   /** 右欄卡片页开合。**默认收起**（卡片页是呼出工具：默认视野 = 纯正文 + 目录，
    *  工具卡召之即来挥之即去）；呼出 = 「卡」按钮 / `` ` ``（总开关）/ `p` / `c` / 命令面板，重开书保持收起。 */
   const [controlsOpen, setControlsOpen] = useState(false)
-  const [params, setParams] = useState<ReaderParams>(DEFAULT_READER_PARAMS)
   /** 布局模式改动 = 重开书（kookit config 只在 open 时消费）；tick 触发打开 effect 重跑 */
   const [reopenTick, setReopenTick] = useState(0)
-  /** 沉浸全屏状态（跟随 main 广播的真实状态；切换经 win:* IPC，Shell 镶边级例外，同 ChromeControls） */
-  const [fullscreen, setFullscreen] = useState(false)
-  const fullscreenRef = useRef(false)
-  /** 进入阅读器自动全屏（设置开关，默认关；appearance.readerFullscreen，SettingsFeature 写） */
-  const autoFullscreenRef = useRef(false)
-  const paramsRef = useRef<ReaderParams>(DEFAULT_READER_PARAMS)
-  const stageRef = useRef<HTMLDivElement | null>(null)
-  const lastSavedAtRef = useRef(0)
-  /**
-   * 本书笔记（阶段 4）。**用 ref 供事件回调读取**：`rendered` 订阅是一次性挂载的，
-   * 闭包会锁住旧 state —— 经 ref 才拿得到最新列表。
-   */
-  const [notes, setNotes] = useState<Note[]>([])
-  const notesRef = useRef<Note[]>([])
   /**
    * 右欄卡片页当前内容（单槽位：參數 / 筆記 / 聊天 / 插件格，页签切换）。
    * 默认「參數」（阅读参数是常伴工具，不该被聊天挤掉默认位）；聊天室**只在经房间进入的这本书**上
@@ -104,45 +62,31 @@ export function ReaderFeature({
   const [rightPanel, setRightPanel] = useState<CardPageKind>('params')
   /** 聊天草稿（受控：内容归本组件持有，便于将来键盘意图直接提交；发送成功才清空） */
   const [chatDraft, setChatDraft] = useState('')
-  /** 当前正文选区（适配器在**书文档**上观测后广播；null = 无选区） */
-  const [selection, setSelection] = useState<RenderSelection | null>(null)
   /**
    * 阅读区右键菜单（新建/编辑/移除的主入口）。
    * `anchor` = 右键时的选区锚点（决定「新建」是否可用）；`noteId` = 点在了哪条笔记上。
    */
   const [menu, setMenu] = useState<RenderContextMenuRequest | null>(null)
-  /**
-   * 批注输入面板。`noteId` 有值 = 编辑既有笔记；无值 = 用 `anchor` 新建。
-   * 正文内容（`body`）**由这里持有**（受控），这样 `reader.composerCommit` 等键盘意图
-   * 能够提交"当前输入内容"—— 状态若关在组件里，意图层就够不着（用户要的键盘链条会断）。
-   * 面板形态 = **屏幕底部居中**，故不持有右键坐标 `x/y`。
-   *
-   * **生命周期：输入框绑在它的对象上**（规则只有这一条）：
-   * - 对象 = **选区**（`fromSelection`：右键「加批註」/键盘 `annotateSelection`）或**笔记**（`noteId`）；
-   * - `selection-changed(null)`（显式 `clearSelection`，或书文档手势后已无选区）→ 关掉选区型；
-   * - **它的笔记从库里消失（含在左侧笔记栏删掉那一条）→ 关掉**（见下面的 noteId 效果）；
-   * - 关书 / 换书 / 右键别处 / Enter 保存 / Esc → 一律关闭；
-   * - ⚠ `selection-changed(null)` 的来源已核实：**输入区拿焦点不会产生 null**（焦点移动不触发
-   *   书文档的手势事件），故不需要焦点守卫 —— 直接关就是用户要的语义。
-   */
-  const [composer, setComposer] = useState<{
-    anchor: TextAnchor
-    noteId?: string
-    body: string
-    fromSelection?: boolean
-  } | null>(null)
-  /**
-   * 「看这条笔记」请求：点正文高亮 = **看内容**，不是改内容
-   * → 右欄切到「筆記」并把这一条**定位到正中**（只读呈现）。`tick` 让"同一条再点一次"也重新定位
-   * （与 `readerTarget` 同一手法）。
-   */
-  const [focusNote, setFocusNote] = useState<{ id: string; tick: number } | null>(null)
-  const focusNoteTick = useRef(0)
-  /**
-   * 当前阅读位置（章号，= `BookLocation.chapterDocIndex`）—— 目录/笔记列表据此把"当前条目"
-   * 滚到容器正中。只在**换了章**时 setState，滚动过程中的重复事件不重渲染。
-   */
-  const [currentChapter, setCurrentChapter] = useState(0)
+
+  const { params, paramsRef, applyParams } = useReaderParams(container)
+  const { notes, notesRef, composer, setComposer, focusNote, selection, createMark, saveAnnotation, jumpNote, editNote, removeNote } =
+    useReaderNotes({ container, host, book, readerTarget, setMenu, setRightPanel, setControlsOpen })
+  const { toc, opening, readerMode, setReaderMode, currentChapter } = useReaderOpening({
+    container,
+    host,
+    readerBookId,
+    reopenTick,
+    applyParams,
+    paramsRef,
+    setBook,
+    setTocOpen,
+    setComposer,
+    setMenu,
+    setRightPanel,
+    setChatDraft,
+    stageRef
+  })
+  const { fullscreen } = useReaderFullscreen({ container, activeFeature, readerBookId })
 
   /**
    * 房间会话共享态 —— 聊天室的**生命周期归属于房间**：
@@ -152,6 +96,7 @@ export function ReaderFeature({
    */
   const room = useRoomView()
   const chatAvailable = Boolean(room.roomId && room.editionId && room.editionId === readerBookId)
+  useRoomFollow({ container, host, following: room.following })
   const railChat = chatAvailable && room.roomId
     ? {
         roomId: room.roomId,
@@ -168,35 +113,43 @@ export function ReaderFeature({
       }
     : null
 
-  /**
-   * 跟随模式：开启后，房间内其他成员的位置变化把阅读器带到同一位置。
-   * 三道闸门（防"跟错书"与"回声循环"）：
-   * ① 开关打开（经 ref 读取 —— 监听只挂一次，不随开关重挂）；
-   * ② 当前打开的书 = 房间绑定的书（指纹比对，与位置上报的 B-2 同口径）；
-   * ③ 目标位置 ≠ 当前位置（同位不跳：否则我跳过去的回执会把对方再拽一次）。
-   * 只跟"位置事件"，不区分是谁 —— 共读的语义是"一起读这本书"，不是监控某个人。
-   */
-  const followingRef = useRef(room.following)
-  followingRef.current = room.following
-  useEffect(() => {
-    return container.room.on('location-updated', (loc) => {
-      if (!followingRef.current) return
-      const open = container.render.getOpenBook()
-      const edition = container.room.getRoomState()?.edition
-      if (!open || !edition) return
-      const roomFp: BookFingerprint = {
-        algorithm: edition.hashAlgo as BookFingerprint['algorithm'],
-        hash: edition.hash,
-        size: edition.size
-      }
-      if (!container.identity.verify(open.fingerprint, roomFp)) return
-      if (sameLocation(container.render.getPosition(), loc, open.format)) return
-      container.render.goToPosition(loc).catch((err: Error) => {
-        // 跟随失败不冒泡打断阅读（下一次位置事件会再带过来）
-        host.pushLog(`跟隨跳轉失敗：${err.message}`)
+  /** 改参数：先应用（当场生效）再原子落库（readerSettings；设置页不再写此键，本面板是唯一写者） */
+  const changeParams = useCallback(
+    (patch: Partial<ReaderParams>) => {
+      const prev = paramsRef.current
+      const next = { ...prev, ...patch }
+      paramsRef.current = next
+      applyParams(next, book?.format === 'PDF')
+      // 布局模式是 kookit 渲染配置（open 时消费）→ 落库后重开书（阅读参数分工口径）。
+      // readerMode 已含在本包 patch 里，重开等落库完成再触发，保证重开时读到的是新档位
+      const saved = container.store.patchSetting('readerSettings', {
+        readerWidth: next.readerWidth,
+        readerWidthPdf: next.readerWidthPdf,
+        pagePadX: next.pagePadX,
+        fontSize: next.fontSize,
+        lineHeight: next.lineHeight,
+        paragraphSpacing: next.paragraphSpacing,
+        readerMode: next.readerMode
       })
-    })
-  }, [container, host])
+      if (patch.readerMode !== undefined && patch.readerMode !== prev.readerMode) {
+        setReaderMode(patch.readerMode)
+        void saved.then(() => setReopenTick((t) => t + 1))
+      } else {
+        void saved
+      }
+      // PDF 改纸宽 = 整页重开填充（纸宽变了 PDF 应当跟着缩放填充）。
+      // kookit PdfRender 用渲染时刻的 clientWidth 定 canvas 像素、无重排入口，
+      // CSS 变量改宽度不会触发重算 —— 原地重开（flushLastLocation 已保位置）是唯一可靠路径；
+      // PDF 专属档位（readerWidthPdf）同样走重开。
+      const widthChanged =
+        (patch.readerWidth !== undefined && patch.readerWidth !== prev.readerWidth) ||
+        (patch.readerWidthPdf !== undefined && patch.readerWidthPdf !== prev.readerWidthPdf)
+      if (book?.format === 'PDF' && widthChanged) {
+        setReopenTick((t) => t + 1)
+      }
+    },
+    [container, applyParams, book, paramsRef, setReaderMode]
+  )
 
   /**
    * 插件面板格（契约 = CONTRACTS §9）：插件运行时注册的右段格，
@@ -288,453 +241,9 @@ export function ReaderFeature({
     }
   }, [book, toc, container])
 
-  /**
-   * 应用参数到渲染层。分工（`STYLE.md` §5.9）：
-   * - **宿主几何** → CSS 变量挂在 documentElement（与主题同款做法，渲染层不感知设置来源）
-   * - **正文排版** → `applyTypography` 注入正文 iframe
-   */
-  const applyParams = useCallback(
-    (p: ReaderParams, isPdf: boolean) => {
-      const root = document.documentElement
-      // PDF 用专属宽档（位图页比文字列宽才舒服）；仍受 --page-w 的让位 min() 约束
-      root.style.setProperty('--read-width', `${isPdf ? p.readerWidthPdf : p.readerWidth}px`)
-      root.style.setProperty('--page-pad-x', `${p.pagePadX}px`)
-      void container.render.applyTypography({
-        fontSize: p.fontSize ?? undefined,
-        lineHeight: p.lineHeight ?? undefined,
-        paragraphSpacing: p.paragraphSpacing ?? undefined
-      })
-    },
-    [container]
-  )
-
-  /** 改参数：先应用（当场生效）再原子落库（readerSettings；设置页不再写此键，本面板是唯一写者） */
-  const changeParams = useCallback(
-    (patch: Partial<ReaderParams>) => {
-      const prev = paramsRef.current
-      const next = { ...prev, ...patch }
-      paramsRef.current = next
-      setParams(next)
-      applyParams(next, book?.format === 'PDF')
-      // 布局模式是 kookit 渲染配置（open 时消费）→ 落库后重开书（阅读参数分工口径）。
-      // readerMode 已含在本包 patch 里，重开等落库完成再触发，保证重开时读到的是新档位
-      const saved = container.store.patchSetting('readerSettings', {
-        readerWidth: next.readerWidth,
-        readerWidthPdf: next.readerWidthPdf,
-        pagePadX: next.pagePadX,
-        fontSize: next.fontSize,
-        lineHeight: next.lineHeight,
-        paragraphSpacing: next.paragraphSpacing,
-        readerMode: next.readerMode
-      })
-      if (patch.readerMode !== undefined && patch.readerMode !== prev.readerMode) {
-        setReaderMode(patch.readerMode)
-        void saved.then(() => setReopenTick((t) => t + 1))
-      } else {
-        void saved
-      }
-      // PDF 改纸宽 = 整页重开填充（纸宽变了 PDF 应当跟着缩放填充）。
-      // kookit PdfRender 用渲染时刻的 clientWidth 定 canvas 像素、无重排入口，
-      // CSS 变量改宽度不会触发重算 —— 原地重开（flushLastLocation 已保位置）是唯一可靠路径；
-      // PDF 专属档位（readerWidthPdf）同样走重开。
-      const widthChanged =
-        (patch.readerWidth !== undefined && patch.readerWidth !== prev.readerWidth) ||
-        (patch.readerWidthPdf !== undefined && patch.readerWidthPdf !== prev.readerWidthPdf)
-      if (book?.format === 'PDF' && widthChanged) {
-        setReopenTick((t) => t + 1)
-      }
-    },
-    [container, applyParams, book]
-  )
-
-  // 启动载入阅读参数（缺省 = 不改，尊重书自带排版）
-  useEffect(() => {
-    void container.store.getSetting<ReaderSettings>('readerSettings', {}).then((cfg) => {
-      const loaded: ReaderParams = {
-        fontSize: cfg.fontSize ?? DEFAULT_READER_PARAMS.fontSize,
-        lineHeight: cfg.lineHeight ?? DEFAULT_READER_PARAMS.lineHeight,
-        paragraphSpacing: cfg.paragraphSpacing ?? DEFAULT_READER_PARAMS.paragraphSpacing,
-        pagePadX: cfg.pagePadX ?? DEFAULT_READER_PARAMS.pagePadX,
-        readerWidth: cfg.readerWidth ?? DEFAULT_READER_PARAMS.readerWidth,
-        readerWidthPdf: cfg.readerWidthPdf ?? DEFAULT_READER_PARAMS.readerWidthPdf,
-        readerMode: cfg.readerMode ?? DEFAULT_READER_PARAMS.readerMode
-      }
-      paramsRef.current = loaded
-      setParams(loaded)
-      setReaderMode(loaded.readerMode)
-      // 此时尚无"当前书"格式信息 → 先按文字类应用；开书 effect 里会按本书格式再切一次
-      applyParams(loaded, false)
-    })
-  }, [container, applyParams])
-
-  /** 节流持久化阅读位置（本地恢复用；2s 窗口，翻页连发不刷盘） */
-  const saveLastLocation = useCallback(
-    (loc: BookLocation) => {
-      if (!readerBookId) return
-      const now = Date.now()
-      if (now - lastSavedAtRef.current < 2000) return
-      lastSavedAtRef.current = now
-      void container.books.updateLastLocation(readerBookId, loc)
-    },
-    [container, readerBookId]
-  )
-
-  /**
-   * 关闭/切换书前落一次位置（绕过 2s 节流）。
-   * 没有这一步时，最后 2s 内的翻页/滚动会被节流丢掉，下次开书回到更早的位置。
-   * ⚠ 位置必须【同步】读取：调用方随后就会 render.close()，异步读到的已是零位置。
-   */
-  const flushLastLocation = useCallback((): void => {
-    if (!readerBookId) return
-    const loc = container.render.getPosition()
-    if (isZeroLocation(loc)) return
-    lastSavedAtRef.current = 0
-    void container.books.updateLastLocation(readerBookId, loc)
-  }, [container, readerBookId])
-
-  // 位置事件 → 持久化 + 跟随（同步数据源，见 RENDER_INTERFACE.md §4）。
-  // 跟随：目录 / 笔记列表要知道"读到第几章"才能把当前条目放到中间
-  useEffect(() => {
-    return container.render.on('location-changed', (loc) => {
-      saveLastLocation(loc)
-      if (isZeroLocation(loc)) return
-      setCurrentChapter((prev) => (prev === loc.chapterDocIndex ? prev : loc.chapterDocIndex))
-    })
-  }, [container, saveLastLocation])
-
-  /**
-   * ————— 笔记/划线生命周期 —————
-   *
-   * 三条硬约束驱动了下面的形状（均经 `note` 探针实测，见 RENDER_INTERFACE §5）：
-   * ① `renderHighlighters` **只对当前已渲染的那一节生效**（文字类只有一个 iframe）→
-   *   **每章 `rendered` 后都必须重挂**，否则换章后新章没有高亮；
-   * ② 首次渲染可能**先于**笔记载入（载入要走 IPC）→ 载入完必须补挂一次；
-   * ③ 新增/删除由 `createNote`/`removeNote` 自己改 DOM，**不必**整批重挂（重挂会 clear 再画一遍）。
-   */
-
-  /**
-   * 「带目标打开」的消费 —— 笔记管理双击条目：打开他书 + 跳到那条笔记。
-   *
-   * ⚠ **时序是硬约束**（顺序错会**静默落空**）：reveal 依赖 DOM 里那条高亮
-   * （`.kookit-note[data-key=…]`），而高亮由 `renderHighlighters` 画、**只对当前渲染节生效**
-   * → 必须等 ①书已打开 ②笔记载入完成 ③目标章 `rendered` 之后再 `resolveAnchor(revealNoteId)`。
-   * 故这里只**登记**"待跳"，由上述两个时机尝试；成功即清空（`tick` 防重复消费），
-   * 找不到那条笔记时**保持待跳**（等载入/渲染的下一个时机），失败进日志不静默。
-   */
-  const pendingReveal = useRef<{ tick: number; noteId: string } | null>(null)
-  useEffect(() => {
-    if (!readerTarget?.revealNoteId) return
-    if (book && readerTarget.editionId !== book.id) return // 书还没换过来，下一轮再登记
-    pendingReveal.current = { tick: readerTarget.tick, noteId: readerTarget.revealNoteId }
-  }, [readerTarget, book])
-
-  const tryRevealPending = useCallback((): void => {
-    const pending = pendingReveal.current
-    if (!pending) return
-    const target = notesRef.current.find((n) => n.id === pending.noteId)
-    if (!target) return // 笔记还没载入 → 保持待跳
-    pendingReveal.current = null
-    void container.render
-      .resolveAnchor(target.anchor, { revealNoteId: pending.noteId })
-      .catch((err) => {
-        host.pushLog(`跳轉筆記失敗：${(err as Error).message}`)
-      })
-  }, [container, host])
-
-  // 载入本书笔记（打开/切书时）→ 载入完补挂一次（约束②）
-  useEffect(() => {
-    if (!book) {
-      setNotes([])
-      notesRef.current = []
-      return
-    }
-    let cancelled = false
-    void container.store.listNotes(book.id).then((list) => {
-      if (cancelled) return
-      notesRef.current = list
-      setNotes(list)
-      container.render
-        .renderHighlighters(list)
-        .catch((err) => host.pushLog(`回顯筆記失敗：${(err as Error).message}`))
-      // 笔记载入完成 = 消费"带目标打开"的第 ② 个时机（见上面 pendingReveal 注释）
-      tryRevealPending()
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [container, book, tryRevealPending])
-
-  // 每渲染完一章 → 回显该章高亮（约束①；适配器内部按当前节过滤）
-  useEffect(() => {
-    return container.render.on('rendered', () => {
-      container.render
-        .renderHighlighters(notesRef.current)
-        .catch((err) => host.pushLog(`回顯筆記失敗：${(err as Error).message}`))
-      tryRevealPending()
-    })
-  }, [container, tryRevealPending])
-
-  // 正文选区变化（适配器在书文档上观测）。新建的入口是右键菜单，但**仍要跟踪选区**：
-  // ① 它决定右键菜单里"新建"两项是否可用；② **输入框的生命周期挂在它上面**（见 composer 注释）；
-  // ③ 键盘驱动的流程（预留）没有鼠标坐标，靠它定位。
-  useEffect(() => {
-    return container.render.on('selection-changed', (sel) => {
-      setSelection(sel)
-      // 选区消失 → 关闭"由选区召唤"的输入框。只关 fromSelection 那种：
-      // 编辑既有笔记的输入框，其对象是**那条笔记**而不是选区。
-      if (sel === null) setComposer((c) => (c && c.fromSelection ? null : c))
-    })
-  }, [container])
-
-  // 阅读区右键 → 弹菜单（适配器换算好坐标与命中：有选区可新建，点在笔记上可编辑/移除）
-  useEffect(() => {
-    return container.render.on('context-menu', (req) => {
-      setComposer(null)
-      setMenu(req)
-    })
-  }, [container])
-
-  // 单击已有高亮 → **不是**开编辑器，而是"看它"：右欄切到「筆記」卡片页并按 `focusNote`
-  // 定位到这一条；要**改**仍走右键菜单的「編輯批註」。
-  useEffect(() => {
-    return container.render.on('note-clicked', ({ noteId }) => {
-      const target = notesRef.current.find((n) => n.id === noteId)
-      if (!target) return
-      setMenu(null)
-      setComposer(null)
-      setRightPanel('notes')
-      setControlsOpen(true)
-      focusNoteTick.current += 1
-      setFocusNote({ id: noteId, tick: focusNoteTick.current })
-    })
-  }, [container])
-
-  /**
-   * 输入框的**对象**没了，它自己就该收。不依赖"谁去关它"——`notes` 是唯一权威。
-   */
-  useEffect(() => {
-    if (!composer?.noteId) return
-    if (notes.some((n) => n.id === composer.noteId)) return
-    setComposer(null)
-  }, [notes, composer])
-
-  /**
-   * 新建一条标记（高亮或批注）。
-   * `id`/时间戳在**用例层**生成（存储层不代生成 id —— 它是同步主键，须跨端稳定）；
-   * 落库成功后交给引擎立即回显，不必等整批重挂（见上「约束③」）。
-   * `kind` 记录**创建来路**（选色 → highlight / 写批注 → note），之后编辑正文不改 kind。
-   */
-  const createMark = useCallback(
-    async (anchor: TextAnchor, color: NoteColor, kind: 'highlight' | 'note', body = ''): Promise<void> => {
-      if (!book) return
-      const now = Date.now()
-      const note: Note = {
-        id: crypto.randomUUID(),
-        editionId: book.id,
-        kind,
-        anchor,
-        color,
-        body,
-        createdAt: now,
-        updatedAt: now
-      }
-      try {
-        await container.store.addNote(note)
-        await container.render.createNote(note)
-        // **按阅读序插入**，不是追加。库里同一条序列由 `compareNoteOrder` 保证 ——
-        // 追加到末尾会让界面看上去按创建时间排（第 5 章的新笔记掉到第 1 章后面）。
-        const next = [...notesRef.current, note].sort(compareNoteOrder)
-        notesRef.current = next
-        setNotes(next)
-        host.pushLog(`${kind === 'note' ? '已加批註' : '已劃線'}：${note.anchor.norm.quote.exact.slice(0, 12)}…`)
-      } catch (err) {
-        host.pushLog(`標記失敗：${(err as Error).message}`)
-      }
-      // 清掉书文档选区：否则浏览器自带的选区高亮会盖在我们画的高亮上
-      container.render.clearSelection()
-    },
-    [container, book, host]
-  )
-
-  /** 保存批注正文：既有笔记 → 更新；新建（无 noteId）→ 落一条 `kind='note'` */
-  const saveAnnotation = useCallback(async (): Promise<void> => {
-    const c = composer
-    if (!c) return
-    setComposer(null)
-    try {
-      if (c.noteId) {
-        await container.store.updateNote(c.noteId, { body: c.body })
-        const next = notesRef.current.map((n) =>
-          n.id === c.noteId ? { ...n, body: c.body, updatedAt: Date.now() } : n
-        )
-        notesRef.current = next
-        setNotes(next)
-        // 批注有无会影响 kookit 的"带批注"图标（`isNote = item.notes !== ""`）→ 整批重挂一次
-        await container.render.renderHighlighters(next)
-      } else {
-        await createMark(c.anchor, 'yellow', 'note', c.body)
-      }
-    } catch (err) {
-      host.pushLog(`儲存批註失敗：${(err as Error).message}`)
-    }
-  }, [composer, container, host, createMark])
-
-  /**
-   * 跳到一条笔记（笔记面板点击）。走 `resolveAnchor` 的 `revealNoteId` 口径：
-   * 章级导航 + 把该条高亮元素滚进视野 —— **不依赖 Fragment 解算**，故弱锚点笔记也能看到落点。
-   */
-  const jumpNote = useCallback(
-    async (note: Note): Promise<void> => {
-      try {
-        await container.render.resolveAnchor(note.anchor, { revealNoteId: note.id })
-      } catch (err) {
-        host.pushLog(`跳轉筆記失敗：${(err as Error).message}`)
-      }
-    },
-    [container, host]
-  )
-
-  /** 从筆記卡「編輯」打开该条的编辑——焦点由 `NoteComposer` 挂载即聚焦保证（同一入口，键盘/鼠标都在输入栏落点）。
-   *  与"点高亮 = 看内容"的分工：看 = 定位；改 = 这里或右键菜单「編輯批註」。 */
-  const editNote = useCallback((note: Note): void => {
-    setMenu(null)
-    setComposer({ anchor: note.anchor, noteId: note.id, body: note.body })
-  }, [])
-
-  /** 删除一条笔记：先落库删，再让引擎摘掉 DOM 里的高亮（否则划线会留到换章为止） */
-  const removeNote = useCallback(
-    async (note: Note): Promise<void> => {
-      try {
-        await container.store.removeNote(note.id)
-        await container.render.removeNote(note.id)
-        const next = notesRef.current.filter((n) => n.id !== note.id)
-        notesRef.current = next
-        setNotes(next)
-      } catch (err) {
-        host.pushLog(`移除筆記失敗：${(err as Error).message}`)
-      }
-    },
-    [container, host]
-  )
-
-  // 打开/关闭受 readerBookId 驱动（host.openReader / host.closeReader）
-  useEffect(() => {
-    // 换书 / 关书：两个瞬时浮层都不该留着（它们属于上一本书、上一次交互）
-    setComposer(null)
-    setMenu(null)
-    // 右挂件回「參數」并清掉聊天草稿（聊天属于上一本书的房间会话；页签本身随会话消失）
-    setRightPanel('params')
-    setChatDraft('')
-    if (!readerBookId) {
-      setBook(null)
-      setToc([])
-      setTocOpen(true)
-      void container.render.close()
-      return
-    }
-    let cancelled = false
-    void (async () => {
-      setOpening(true)
-      try {
-        const latest = await container.books.get(readerBookId)
-        if (!latest || cancelled) return
-        // 宿主容器从 display:none 切回后需等一帧再测量/渲染
-        await new Promise((r) => requestAnimationFrame(() => r(null)))
-        // 布局模式来自 readerSettings（阅读参数面板是唯一写者，重开书生效）
-        const cfg = await container.store.getSetting<ReaderSettings>('readerSettings', {})
-        const mode = cfg.readerMode ?? 'scroll'
-        setReaderMode(mode)
-        // 阅读状态住 `ReadingState`，**首次定位的目标位置必须显式传入**
-        // （适配器不读 `record.lastLocation` —— 见 RenderOptions.lastLocation）
-        const state = await container.books.getReadingState(latest.id)
-        // 纸宽按**本书格式**切换（PDF 专属档）——必须在 open/renderTo 之前：
-        // kookit PDF 按渲染时刻的容器宽定 canvas 像素，晚切一帧这页就按旧宽度画了
-        applyParams(paramsRef.current, latest.format === 'PDF')
-        await container.render.open(latest, {
-          readerMode: mode,
-          animation: 'none',
-          theme: currentTheme(),
-          ...(state?.lastLocation ? { lastLocation: state.lastLocation } : {})
-        })
-        // open 期间用户可能已换书/关书（代次守卫）：作废的流程不得再对 stage 执行
-        // renderTo（与接管者的渲染交错，正是「重开书偶发空白」的症状形状之一）
-        if (cancelled) return
-        if (stageRef.current) await container.render.renderTo(stageRef.current)
-        if (cancelled) return
-        setBook(latest)
-        // 跟随判据的**初始值**：以打开后的权威位置为准（不能沿用上一本书的章号 ——
-        // 否则新书的目录会在第一次翻页前停在"上一本读到的那一章"所对应的条目上）
-        setCurrentChapter(container.render.getPosition().chapterDocIndex)
-        // 兜底启发式：kookit 无 toc 的书会用纯数字页码生成 chapterList（如 PDF 每页一项），
-        // 全数字 = 假目录，不显示；存在任一非纯数字标题才视为真目录。
-        const rows: TocRow[] = []
-        flattenChapterTree(container.render.getChapter(), 0, rows)
-        setToc(rows.some((r) => /[^\d]/.test(r.label)) ? rows : [])
-        // 换书回到默认展示态（隐藏是"临时"的，不跨书继承）
-        setTocOpen(true)
-        host.pushLog(`已打开：${latest.metadata.title}（目录 ${rows.length} 项）`)
-      } catch (err) {
-        // 换书/关书时旧 open 被代次守卫作废 = 预期取消，不是失败（适配器口径见 kookitRenderAdapter.open）
-        if (!(err as Error).message.includes('[render] open superseded')) {
-          host.pushLog(`打开失败：${(err as Error).message}`)
-        }
-      } finally {
-        if (!cancelled) setOpening(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-      // 关书 / 切书 / 卸载：先落位置再让下一次 effect（或 render.close）动渲染状态
-      flushLastLocation()
-    }
-  }, [readerBookId, reopenTick, container, host, flushLastLocation])
-
-  // 沉浸全屏：
-  // - F11（`reader.enterFullscreen`）= **进入**全屏（幂等）；退出走 Esc 分流；
-  // - 设置开关（appearance.readerFullscreen）= 进入阅读器自动全屏，默认关；
-  // - **离开阅读器**：若当时仍在全屏 → 退出全屏并**保持最大化**（不缩回小窗，见下面的 effect）；
-  // - main 在 enter/leave-full-screen 时广播真实状态，这里只订阅跟随。
-  useEffect(() => {
-    const off = window.turead.subscribe(IPC.winFullScreenChanged, (payload) => {
-      fullscreenRef.current = payload === true
-      setFullscreen(payload === true)
-    })
-    return off
-  }, [])
-
-  useEffect(() => {
-    void container.store
-      .getSetting<{ readerFullscreen?: boolean }>('appearance', {})
-      .then((cfg) => {
-        autoFullscreenRef.current = cfg.readerFullscreen === true
-      })
-  }, [container])
-
   // 阅读会话记录器（口径 = 失焦暂停/边界落笔/<10s 丢弃，见 readSessionRecorder.ts）：
   // enabled = 阅读态（阅读器激活且开着书）；换书/关标签由 editionId/enabled 变化经卸载路径 flush。
   useReadSessionRecorder(container, activeFeature === 'reader' && readerBookId !== null, readerBookId)
-
-  // 进入阅读器 = 进入全屏（只在"进入"这一跳触发）。⚠ 依赖里没有 `fullscreen`：
-  // 若把它放进来，Esc 退全屏的广播会让本 effect 重跑、把用户刚退出的全屏又顶回去。
-  useEffect(() => {
-    if (activeFeature === 'reader' && readerBookId && autoFullscreenRef.current) {
-      void window.turead.invoke(IPC.winSetFullScreen, true)
-    }
-  }, [activeFeature, readerBookId])
-
-  useEffect(() => {
-    if (activeFeature !== 'reader') {
-      /**
-       * 离开阅读器：先退出全屏。⚠ **若离开时正处于沉浸全屏，窗口保持"大"（最大化）而不是回到小窗口**
-       * ——用户在阅读器里选了全屏，退出后不该被缩回原来那个小窗。
-       * 顺序与竞态都在主进程处理（全屏未落地时挂到 leave-full-screen 上再最大化，见 main 的
-       * `win:set-maximized`）。
-       */
-      const wasFullscreen = fullscreenRef.current
-      void window.turead.invoke(IPC.winSetFullScreen, false)
-      if (wasFullscreen) void window.turead.invoke(IPC.winSetMaximized, true)
-    }
-  }, [activeFeature])
 
   // 激活到阅读器时热更新主题（设置里改主题后返回阅读器不重开书也生效）
   useEffect(() => {
@@ -800,7 +309,7 @@ export function ReaderFeature({
 
   /**
    * 滚轮（整个阅读器区接管，含左右点击翻页带——那两条带压在纸面上方，挂在纸上会漏）。
-   * - scroll 模式：正文列之外是留白，滚轮落在留白上把位移转给正文列（STYLE.md §5.8）；
+   * - scroll 模式：正文列之外是留白，滚轮落在留白上把位移转给正文列（style/components-reader.md）；
    *   目录/参数面板内部让位（列表自己滚）。
    * - 分页模式（single/double）：滚轮翻页（默认键盘、无按钮控件，像 koodo）。
    *   正文 iframe 内部的滚轮走 iframe 桥（下方 effect），这里只管宿主文档一侧。
@@ -876,7 +385,7 @@ export function ReaderFeature({
         }
       },
       // F11 = **进入**全屏（幂等，不是切换）—— 退出全屏走 Esc（`reader.back` 的分流）；
-      // 离开阅读器时若仍在全屏，由下面的 effect 退出并保持最大化。
+      // 离开阅读器时若仍在全屏，由 useReaderFullscreen 的 effect 退出并保持最大化。
       'reader.enterFullscreen': () => {
         void window.turead.invoke(IPC.winSetFullScreen, true)
       },
