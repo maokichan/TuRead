@@ -1,14 +1,14 @@
 # 书库（library）—— feature 参照
 
 > 本页 = 书库域的**架构锚点与实现细节**；交互裁决（聚焦舞台形态、移除语义、面包屑规则等）
-> 的权威在 `FEATURES.md` §10（裁决与本页是上下级，本文不复读裁决）；接口形状 = `CONTRACTS.md`
-> §4.4/§4.5；存储布局 = `DATA_MODEL.md` §1/§2；视觉 = `STYLE.md`。
+> 的权威在 `FEATURES.md` 书库节（裁决与本页是上下级，本文不复读裁决）；接口形状 =
+> `contracts/ports.md`；存储布局 = `DATA_MODEL.md` §1/§2；视觉 = `STYLE.md`。
 
 ## 1. 架构锚点
 
 | 层 | 归属 |
 |---|---|
-| Feature 组件 | `src/renderer/src/features/LibraryFeature/index.tsx`（1102 行）；域内组件 `BookRow`/`BookTile`/`ContainerItem`/`LibraryToolbar`/`LibraryManagerDialog`/`FittedTitle`/`FocusStage`(+`focusStageEngine`)/`useVirtualRange`/`viewSwitchFlash` |
+| Feature 组件 | `src/renderer/src/features/LibraryFeature/index.tsx`（1095 行）；域内组件 `BookRow`/`BookTile`/`ContainerItem`/`LibraryToolbar`/`LibraryManagerDialog`/`FittedTitle`/`FocusStage`(+`focusStageEngine`)/`useVirtualRange`/`viewSwitchFlash` |
 | usecases | `BookService`（edition+holding+lastRead）、`ImportQueue`（串行导入）、`CoverQueue`（封面异步提取）、`ScanService`（映射库对账）——`src/core/usecases/` |
 | ports | `picker`（选文件/目录/扫描/读文件）、`image`（缩略图）、`metadata`（离屏提取）；store 跨域共享 |
 | adapters | `picker/ipcPickerAdapter`、`image/thumbnail`、`render/offscreenMetadataExtractor`、`identity/fingerprint`（与 room 共享） |
@@ -53,7 +53,16 @@ Blob → objectURL（CSP 放行 `blob:`），模块级缓存。提取时机 = �
 批量导入下沉 `IImportQueue`（与 CoverQueue 同构）；设置写入走 `patchSetting`（主进程原子合并，
 消除读-改-写竞态）。已知例外仅 `dev/selfCheck.ts`（开发工具非产品代码）。
 
-## 3. 验证路径
+## 3. 设计取舍（为什么不是那样）
+
+- **封面提取在离屏进程**：主窗口主线程解析大库曾把 UI 饿死——之后 `getMetadata` 永久下放
+  离屏进程，不再回退。
+- **存量补封面 = 延迟 20s + 负缓存**：不做"启动即扫"（大库会挤爆启动窗口）；失败书落
+  `coverFailed` 不随启动重试。
+- **全局库文件名刻意不叫 `turead.db`**：旧版默认库就叫这个名字且是旧 schema；同路径会触发
+  `CREATE TABLE IF NOT EXISTS` 静默跳过 → 迟到的 `no such column` 崩溃（报错点远离真因）。
+
+## 4. 验证路径
 
 `dev/libraryProbe.ts`（TUREAD_DEV_PROBE=library，多库/收录/edition 复用断言）·
 `scripts/style-gallery/`（BookRow/BookTile/LibraryToolbar/FittedTitle 样张 + smoke）·

@@ -127,10 +127,6 @@ export class IpcStoreAdapter implements ILibraryStore {
     return (await this.bridge.invoke(IPC.storeGetCover, editionId)) as ArrayBuffer | null
   }
 
-  async removeCover(editionId: string): Promise<void> {
-    await this.bridge.invoke(IPC.storeRemoveCover, editionId)
-  }
-
   // ————— 阅读状态 / 阅读时间 ——————
 
   async getReadingState(editionId: string): Promise<ReadingState | null> {

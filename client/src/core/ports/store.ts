@@ -1,11 +1,10 @@
 /**
  * ILibraryStore —— 本地持久化（端口）。
- * 依据：client/docs/CONTRACTS.md §4.4（**v0.4.0**）。
- * 实现 = 主进程 `SqliteStore`；**v0.4.0 起全应用一个全局 `.db`**（不再是"一库一 .db"）。
+ * 行为契约 = client/docs/contracts/ports.md（形状权威 = 本文件，接口 1:1）。
+ * 实现 = 主进程 `SqliteStore`；**全应用一个全局 `.db`**。
  *
- * ⚠ v0.4.0（2026-09-15「书的身份」定案，DATA_MODEL §4.2/§6）：本端口从"书库条目 CRUD"
- * 改为三层 —— **内容（edition）／收录（holding）／书库（library）**。
- * 书库管理职责从 `main/store/libraryManager.ts` **收敛进来**（库也是库内实体）。
+ * 三层模型（DATA_MODEL §4.2/§6）：**内容（edition）／收录（holding）／书库（library）**——
+ * 书库（library）也是库内实体，管理方法在本端口（不在 `LibraryManager`）。
  */
 import type {
   BookContainer,
@@ -37,7 +36,7 @@ export interface LibraryListResult {
 export type NotePatch = Partial<Pick<Note, 'anchor' | 'color' | 'body' | 'ink'>>
 
 /**
- * 层级浏览的取入口径（v0.4.0：**必须带库** —— 收录关系是库内的）。
+ * 层级浏览的取入口径（**必须带库** —— 收录关系是库内的）。
  * `containerId` 与 `folder` 互斥：自建库用前者，映射库用后者。
  */
 export interface LibraryLevelQuery {
@@ -55,7 +54,7 @@ export interface LibraryLevelQuery {
 }
 
 /**
- * 笔记管理的查询口径（**v0.4.2**；形态 = `FEATURES.md` §12，视觉 = `STYLE.md` §5.10）。
+ * 笔记管理的查询口径（形态 = features/notes.md，视觉 = style/components-notes.md）。
  * 读模型性质的类型，故与 `LibraryLevelQuery` 同处端口层（不塞进领域层 —— 里面的
  * `editionTitle` 是**展示投影**，不是领域概念）。
  */
@@ -99,7 +98,7 @@ export interface ILibraryStore {
 
   /**
    * 按指纹 upsert：已存在则返回既有行（`filePath` 变化时更新），否则新建。
-   * **导入去重的唯一入口** —— 取代原先"只扫当前库"的 `listBooks().find(verify)`。
+   * **导入去重的唯一入口**。
    */
   upsertEdition(record: EditionRecord): Promise<EditionRecord>
   getEdition(id: string): Promise<EditionRecord | null>
@@ -116,14 +115,14 @@ export interface ILibraryStore {
   /** 新增/更新一条收录（同一 `(libraryId, editionId)` 至多一行） */
   addHolding(holding: Holding): Promise<void>
   /**
-   * 取消收录。⚠ **不得级联删除 edition / notes / reading_state**（CONTRACTS §2.2 不变量 ③）——
+   * 取消收录。⚠ **不得级联删除 edition / notes / reading_state**（contracts/domain-types.md 不变量）——
    * 笔记与阅读时长是用户资产，"移除"只是让它在这个书库里不可见。
    */
   removeHolding(libraryId: string, editionId: string): Promise<void>
   /** 层级取书（读模型）。映射库走 `parent_path` 的 SQL 侧过滤（不再全量拉回 JS 过滤） */
   listItemsAtLevel(query: LibraryLevelQuery): Promise<LibraryItem[]>
   /**
-   * **全库检索**（读模型，批1.12）：跨書箱/文件夹层级，按 **标题 / 来源路径** 子串匹配
+   * **全库检索**（读模型）：跨書箱/文件夹层级，按 **标题 / 来源路径** 子串匹配
    * 某库收录的书（大小写不敏感；不含 `missing`；LIKE 通配符已转义）。
    * 检索是书库的"另一只眼睛"——不看当前层，看整库；SQL 侧完成，不走 N+1。
    */
@@ -145,7 +144,7 @@ export interface ILibraryStore {
   // ————— 书库（组织模式；**不是物理分区**）—————
   /** 库列表 + 当前库 id */
   listLibraries(): Promise<LibraryListResult>
-  /** 新建库并**切换**过去（用户 2026-09-13 定：建库必须二选一模式；`mapped` 必须给 `rootPath`） */
+  /** 新建库并**切换**过去（建库必须二选一模式；`mapped` 必须给 `rootPath`） */
   createLibrary(input: {
     name?: string
     mode: 'mapped' | 'curated'
@@ -162,7 +161,7 @@ export interface ILibraryStore {
   removeLibrary(id: string): Promise<void>
   getLibrary(id: string): Promise<LibraryEntry | null>
 
-  // ————— 书箱（树在库内，v0.4.0 增 libraryId）—————
+  // ————— 书箱（树在库内）—————
   /** 某库某层的子书箱（`parentId=null` = 库根层）；映射库的"文件夹"不落库、不在此列 */
   listContainers(libraryId: string, parentId: string | null): Promise<BookContainer[]>
   createContainer(params: {
@@ -191,13 +190,13 @@ export interface ILibraryStore {
    */
   totalReadMsByWork(work: WorkIdentity): Promise<number>
   /**
-   * 逐日阅读分钟数（批1.24，贡献图数据源）：最近 `days` 天内**有会话的日子**（稀疏，空日由
+   * 逐日阅读分钟数（贡献图数据源）：最近 `days` 天内**有会话的日子**（稀疏，空日由
    * 渲染层补齐），按**本地时区**归日。数据源 = `reading_sessions`（逐日分布只有接入记录器后
-   * 才存在；迁移旧账只住在 `reading_state` 投影，画不进格子——FEATURES §12 的口径注记）。
+   * 才存在；迁移旧账只住在 `reading_state` 投影，画不进格子）。
    */
   readMinutesByDay(days: number): Promise<ReadDayMinutes[]>
   /**
-   * 阅读时长 Top N（批1.24，Top 榜数据源）：按 `reading_state.total_read_ms` 投影倒序，
+   * 阅读时长 Top N（Top 榜数据源）：按 `reading_state.total_read_ms` 投影倒序，
    * **含迁移旧账**（接入记录器前也有数据）；书名随行（JOIN），渲染层不补 N+1。
    */
   topReadEditions(limit: number): Promise<TopReadEdition[]>
@@ -209,8 +208,6 @@ export interface ILibraryStore {
   setCover(editionId: string, bytes: ArrayBuffer, ext: string): Promise<string>
   /** 读封面缩略图字节；无封面 → null */
   getCover(editionId: string): Promise<ArrayBuffer | null>
-  /** 删除封面文件（文件不存在不报错） */
-  removeCover(editionId: string): Promise<void>
 
   // ————— 设置（**一律全局**，D9/F7：没有库级设置）—————
   getSetting<T>(key: string, fallback: T): Promise<T>
@@ -234,7 +231,7 @@ export interface ILibraryStore {
   /** 删除一条笔记（按 edition 删除内容时由外键级联，不必逐条调本方法） */
   removeNote(id: string): Promise<void>
 
-  // ————— 笔记读模型（**跨书管理**，v0.4.2；笔记管理工具的数据口）—————
+  // ————— 笔记读模型（**跨书管理**；笔记管理工具的数据口）—————
   /**
    * 跨书列笔记：库作用域 / 按书 / 按色 / 有无批注 / 关键词子串。
    * 排序默认 `updated` 倒序；`limit`/`offset` 供近千条列表分页取数。

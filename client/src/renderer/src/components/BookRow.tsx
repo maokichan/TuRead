@@ -102,7 +102,7 @@ export function BookRow({
     >
       {/*
         封面槽（左侧 2/5）：**封面图与文字封面同等对待** —— 都套 `.book-row-cover` 渐隐，
-        都填满槽位（FEATURES §10：文字封面的性质就是封面，按图片处理）。
+        都填满槽位（文字封面的性质就是封面，按图片处理；裁决见 features/library.md）。
       */}
       <div data-book-cover className="book-row-cover absolute inset-y-0 left-0 w-2/5 overflow-hidden bg-[var(--panel-2)]">
         {coverUrl ? (

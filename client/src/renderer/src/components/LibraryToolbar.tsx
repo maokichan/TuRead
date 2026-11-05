@@ -12,16 +12,16 @@ interface LibraryToolbarProps {
   onCancelImport: () => void
   /** 后台封面提取进度（null = 空闲） */
   coverProgress: { done: number; total: number } | null
-  /** 打开書庫管理弹窗（2026-09-13 用户立项：Obsidian 仓库管理页风格，见 LibraryManagerDialog） */
+  /** 打开書庫管理弹窗（见 LibraryManagerDialog） */
   onOpenManager: () => void
   /**
-   * 扫描真实文件夹（**仅映射库**提供；v0.4.0 DATA_MODEL §6.1：映射库不能导入，
+   * 扫描真实文件夹（**仅映射库**提供；DATA_MODEL §6.1：映射库不能导入，
    * 书只能在真实路径上加 —— 所以"让书架跟着文件夹走"的唯一入口就是这个）。
    */
   onScan?: () => void
   /** 扫描进行中（按钮禁用 + 进度文案） */
   scanning?: boolean
-  /** 当前层级面包屑（2026-09-13 用户定：书架右下角显示"当前层级"，相对各模式根；
+  /** 当前层级面包屑（书架右下角，相对各模式根；
    *  末段 = 当前层不可点，其余可点回跳；把书/書箱拖到面包屑段 = 移动到该层
    *  （containerId=null 的根段 = 移出書箱回根层）） */
   crumbs: Array<{
@@ -67,8 +67,7 @@ export function LibraryToolbar({
   }
 
   return (
-    /* 状态栏（2026-09-09 定）：**所有元素统一左对齐**（不再左右对称分布），
-       分割线随内容区宽度铺开（此前 max-w-[720px] 收得太短），`pt-4` 让线上移。 */
+    /* 状态栏：**所有元素统一左对齐**；分割线随内容区宽度铺开；`pt-4` 让线上移。 */
     <footer className="flex-none">
       <div className="flex items-center gap-7 border-t border-[var(--border)] pt-4 pb-1 text-[12.5px]">
         {/* 闪屏中再点 = 重开一轮（key 重挂重启关键帧）—— 状态切换永远不被动画挡住 */}
@@ -116,11 +115,11 @@ export function LibraryToolbar({
             {scanning ? '掃描中…' : '掃描'}
           </button>
         )}
-        {/* 当前层级（右下角，2026-09-13 用户定）：根 = 库名；自建模式路径名 = 書箱名，虚拟映射 = 文件夹名。
+        {/* 当前层级（右下角）：根 = 库名；自建模式路径名 = 書箱名，虚拟映射 = 文件夹名。
             面包屑也是拖放目标：书/書箱拖到某段 = 移动到该层（资源管理器语义，拖入段高亮提示）。
-            **根固定、子节点向右增生**（2026-09-13 用户定）：容器取固定宽度再 ml-auto 推到右侧，
+            **根固定、子节点向右增生**：容器取固定宽度再 ml-auto 推到右侧，
             内容从左缘（固定）向右生长——路径变深时根的位置不动，不再整体左移。
-            过长的截断/滚动策略暂不做（用户定：先不管）。 */}
+            过长的截断/滚动策略暂不做。 */}
         <div className="ml-auto flex w-[420px] flex-none items-center gap-1.5 overflow-hidden text-[12.5px] text-[var(--muted)]">
           {crumbs.map((c, i) => (
             <Crumb key={`${c.label}-${i}`} crumb={c} index={i} last={i === crumbs.length - 1} />
@@ -165,7 +164,7 @@ function Crumb({
           }
         }
       : {}
-  // 拖入高亮 = 负片块（STYLE.md §5.5 登记：负片一律直角，同侧边栏选中态先例）
+  // 拖入高亮 = 负片块（style/components-shell.md：负片一律直角，同侧边栏选中态先例）
   const highlight = dropHover ? ' bg-[var(--negative-bg)] px-1 text-[var(--negative-text)]' : ''
   return (
     <span className={`flex min-w-0 items-center gap-1.5${highlight}`} {...dropProps}>
@@ -211,8 +210,7 @@ function ImportMenu({
         導入
       </button>
       {open && (
-        /* 浮层（STYLE.md §5.2 例外③）保留一层底色；**左缘与「導入」按钮左缘对齐**
-           （原来右对齐，菜单整体偏到按钮左侧，看起来"没对齐"—— 2026-09-09 修）。
+        /* 浮层（style/components-shell.md 例外③）保留一层底色；**左缘与「導入」按钮左缘对齐**。
            菜单项本身是文字行，无边框无分隔线。 */
         <div className="absolute bottom-full left-0 z-[var(--z-chrome)] mb-2 flex w-40 flex-col items-start gap-1.5 rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--panel)] p-2.5">
           <button

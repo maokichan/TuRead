@@ -1,16 +1,16 @@
 /**
  * ICoverQueue —— 封面缩略图异步提取（应用服务 / 用例层）。
- * 依据：client/docs/FEATURES.md §10（封面提取时机：导入后异步）。
+ * 依据：client/docs/features/library.md（封面提取时机：导入后异步）。
  *
  * 为什么异步 + 队列：封面提取要读整个文件 + 解析（大 PDF 可达秒级）。导入时同步做会把
  * "选完文件"变成"卡住不动"；改成导入后串行后台跑，界面立刻可用，进度经事件上报。
  *
  * 编排（用例 = 编排多个能力服务）：
- *   IMetadataExtractor.extractFromFile（离屏解析：kookit getMetadata 在独立进程跑，
- *   2026-09-12 前是 IRenderService.getMetadata 在主窗口主线程解析 —— 328 本书库把 UI 饿死）
+ *   IMetadataExtractor.extractFromFile（离屏解析：kookit getMetadata 在独立进程跑——
+ *   主窗口主线程解析大库会饿死 UI）
  *   → makeThumbnail（canvas）→ ILibraryStore.setCover / updateEdition（落盘 + 记 coverPath）
  *
- * ⚠ v0.4.0：队列元素是 **edition id**（内容身份）——封面由内容决定，是 edition 级数据；与库无关。
+ * ⚠ 队列元素是 **edition id**（内容身份）——封面由内容决定，是 edition 级数据；与库无关。
  *
  * 纪律：串行（一次一本，避免 N 个大文件同时进内存）；可取消；单本失败不影响其余（事件上报，
  * 且失败落 coverFailed 负缓存，不随启动重试）。
@@ -93,7 +93,7 @@ export class CoverQueue extends TypedEmitter<CoverQueueEvents> implements ICover
       } catch (err) {
         this.failed++
         // 失败落库（负缓存）：永久性失败（无封面/解析失败）不再随每次启动重试，
-        // 否则书库一大，「存量补封面」会把同样的失败书每次启动重新解析一遍（2026-09-12）。
+        // 否则书库一大，「存量补封面」会把同样的失败书每次启动重新解析一遍。
         try {
           await this.store.updateEdition(id, { coverFailed: true })
         } catch {
@@ -103,8 +103,8 @@ export class CoverQueue extends TypedEmitter<CoverQueueEvents> implements ICover
       }
       this.done++
       this.emit('progress', this.done, this.total)
-      // 每本之间让一拍：解析已下放离屏进程（2026-09-12），但保持节拍可让主窗口的
-      // cover-ready 处理（IPC 读封面 + setState）有机会穿插，批量不至于挤爆事件循环。
+      // 每本之间让一拍：让主窗口的 cover-ready 处理（IPC 读封面 + setState）有机会穿插，
+      // 批量不至于挤爆事件循环。
       await new Promise((r) => setTimeout(r, 0))
     }
     const summary: CoverSummary = {

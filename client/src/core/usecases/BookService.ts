@@ -1,10 +1,9 @@
 /**
  * IBookService —— 书架 + 导入（应用服务/用例层）。
- * 依据：client/docs/CONTRACTS.md §5.2（**v0.4.0**）。
+ * 依据：client/docs/contracts/services-container.md「导入 = 两层写入」。
  *
- * ⚠ v0.4.0（2026-09-15「书的身份」）：本用例从"往书库里加一条 BookRecord"改为
- * **两层写入** —— ① 按指纹 upsert **内容（edition，全局去重）**；
- * ② 往目标书库加一条**收录（holding）**。于是"同一本书登记进多个库"不再产生两份数据。
+ * 两层写入模型：① 按指纹 upsert **内容（edition，全局去重）**；
+ * ② 往目标书库加一条**收录（holding）**——"同一本书登记进多个库"不产生两份数据。
  *
  * `importBook` 是导入**用例**：编排 `IBookIdentityService`（指纹+元数据）与 `ILibraryStore`（持久化）；
  * OCR 提 ISBN 是可插拔步骤（候选 `IOcrService`，v1 未定，见 TODO.md）。
@@ -47,7 +46,7 @@ export interface IBookService {
   get(id: string): Promise<EditionRecord | null>
   /**
    * 从书库移除（**只删收录**）：真实文件不动、**笔记与阅读状态也不动**
-   * （DATA_MODEL §6.1 / CONTRACTS §2.2 不变量 ③）。
+   * （DATA_MODEL §6.1 / contracts/domain-types.md 不变量）。
    */
   remove(editionId: string, libraryId: string): Promise<void>
   /** 记录阅读位置（同时刷新 `lastReadAt`）；`totalReadMs` 由会话接口累加，这里不动它 */
@@ -80,7 +79,7 @@ export class BookService implements IBookService {
       this.identity.extractMetadata(buffer, format, name)
     ])
 
-    // ① 内容身份：**全局按指纹去重**（v0.4.0 起跨库；此前只扫当前库，同一本书进两个库会各存一份）
+    // ① 内容身份：**全局按指纹去重**（跨库唯一，同指纹复用既有行）
     const before = await this.store.findEditionByFingerprint(fingerprint)
     const edition = await this.store.upsertEdition({
       id: before?.id ?? crypto.randomUUID(),
@@ -128,7 +127,7 @@ export class BookService implements IBookService {
 
   /**
    * 最近阅读的书：优先 `lastReadAt` 最大者；都没有阅读记录时回退最近入库（`createdAt`）。
-   * 排序口径收敛在**存储层的一条查询**里（此前在用例层拉全表再排序 —— 全量读没必要）。
+   * 排序口径收敛在**存储层的一条查询**里，用例层不做全量读。
    */
   getLastRead(): Promise<EditionRecord | null> {
     return this.store.getLastReadEdition()

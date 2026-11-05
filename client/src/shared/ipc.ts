@@ -36,7 +36,6 @@ export const IPC = {
   storePatchSetting: 'store:patch-setting',
   storeSetCover: 'store:set-cover',
   storeGetCover: 'store:get-cover',
-  storeRemoveCover: 'store:remove-cover',
   // ————— 阅读状态 / 阅读时间（③ 的落点）—————
   storeGetReadingState: 'store:get-reading-state',
   storeUpdateReadingLocation: 'store:update-reading-location',

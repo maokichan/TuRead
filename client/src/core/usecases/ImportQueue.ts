@@ -1,14 +1,13 @@
 /**
- * IImportQueue —— 批量导入编排（应用服务 / 用例层，v0.1.9）。
- * 依据：client/docs/FEATURES.md §10（导入：串行 + 进度 + 可取消 + 失败逐条上报）。
+ * IImportQueue —— 批量导入编排（应用服务 / 用例层）。
+ * 依据：client/docs/features/library.md；行为契约 = contracts/services-container.md「导入 = 两层写入」。
  *
- * 为什么下沉到用例层：这套编排（串行、进度、取消、失败上报）此前写在 `LibraryFeature` 里，
- * 与同构的 `CoverQueue`（用例）职责重复且位置不一致 —— UI 应当是 driving adapter，
- * 只负责"显示进度、把失败写进诊断日志"。移动后 LibraryFeature 不再持有编排状态。
+ * 职责边界：编排（串行、进度、取消、失败逐条上报）归用例层；UI（driving adapter）只负责
+ * 显示进度、把失败写进诊断日志，不持有编排状态。
  *
  * 编排：readFile（文件能力）→ IBookService.importBook（指纹 + 元数据 + upsert edition + 加收录）
  *
- * ⚠ v0.4.0：导入**必须给出目标书库**（`libraryId`）—— 收录关系是库内的。
+ * ⚠ 导入**必须给出目标书库**（`libraryId`）—— 收录关系是库内的。
  * **映射库（`mode='mapped'`）不该走导入**（应走扫描，DATA_MODEL D5/F4），由 UI 按库模式把关。
  */
 import type { EditionRecord } from '@core/domain/types'

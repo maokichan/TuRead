@@ -5,20 +5,17 @@
  *   store.*   —— 层级浏览：書箱 CRUD（自建库）/ 层级取书（listItemsAtLevel）/ 收录与书库管理
  *   picker.*  —— 选文件 / 选目录 / 扫描目录（可含子目录）/ 读文件 / 列子目录（映射库）
  *   imports.* —— 批量导入（用例：串行/进度/可取消/失败上报；**仅自建库**）
- *   scan.*    —— 映射库与真实路径的**扫描对账**（v0.4.0：映射库不能导入，只能扫描）
+ *   scan.*    —— 映射库与真实路径的**扫描对账**（映射库不能导入，只能扫描）
  *   covers.*  —— 封面缩略图异步提取（进度/取消）
- * 对外状态：selectedBookId（经 host.selectBook 上报 Shell；详情抽屉显示的就是它）。
+ * 对外状态：selectedBookId（经 host.selectBook 上报 Shell；聚焦舞台显示的就是它）。
  *
- * 层级浏览（2026-09-13 用户定：资源管理器式，两种模式不同屏、建库时二选一；
- * ⚠ v0.4.0 术语与代码值已统一（见 `DATA_MODEL.md` §6.2）：
- *  - **映射库**（`mode='mapped'`，原 kind=source）：跟踪唯一真实文件夹（rootPath），书架照搬其文件树
+ * 层级浏览（资源管理器式，两种模式不同屏、建库时二选一；术语与代码值见 `DATA_MODEL.md` §6.2）：
+ *  - **映射库**（`mode='mapped'`）：跟踪唯一真实文件夹（rootPath），书架照搬其文件树
  *    （默认含子文件夹）——"書箱"即真实文件夹，条目 = 子文件夹 + 直接位于当前层的**收录**；
  *    ⚠ **不能导入**：书只能在真实路径上加，靠「掃描」对账（DATA_MODEL §6.1）。
- *  - **自建库**（`mode='curated'`，原 kind=virtual）：空库起步，右键书架空白处新建書箱，
+ *  - **自建库**（`mode='curated'`）：空库起步，右键书架空白处新建書箱，
  *    書箱 = 文件夹可点进；书靠导入。
  *  当前层级显示在状态栏右端（面包屑，相对各自模式的根；自建库的路径名 = 書箱名）。
- *
- * 布局纪律：**状态栏之上是内容区，详情抽屉只在内容区弹出**。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
@@ -42,16 +39,16 @@ import { ContainerItem } from '../../components/ContainerItem'
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
 import { FocusStage } from '../../components/FocusStage'
 import { stageSupported } from '../../components/focusStageEngine'
-
-/* WebGL 能力与会话同寿命：false 时单击只选中（无详情视觉；概率极低，见 TODO「聚焦舞台」） */
-const STAGE_SUPPORTED = stageSupported()
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { LibraryManagerDialog } from '../../components/LibraryManagerDialog'
 import { LibraryToolbar } from '../../components/LibraryToolbar'
 import { useVirtualRange } from '../../components/useVirtualRange'
 
+/* WebGL 能力与会话同寿命：false 时单击只选中（无详情视觉；概率极低，见 TODO「聚焦舞台」） */
+const STAGE_SUPPORTED = stageSupported()
+
 const DEFAULT_SETTINGS: LibrarySettings = { view: 'list', importRecursive: false }
-/** 检索防抖（STYLE.md §5.10 纪律③，与 NotesFeature 同值同口径） */
+/** 检索防抖（style/components-notes.md「配套纪律」，与 NotesFeature 同值同口径） */
 const QUERY_DEBOUNCE_MS = 200
 
 /** 当前层级的条目：書箱（自建）/ 文件夹（映射库）/ 书；書箱与文件夹外观同书籍（ContainerItem） */
@@ -73,10 +70,10 @@ export function LibraryFeature({
   selectedBookId,
   activeFeature
 }: FeatureProps): React.JSX.Element {
-  /** 卡片本地搜索词（批1.7d 自 shell 迁入——搜索是卡片本地物件；防抖过滤链路不变） */
+  /** 书库检索词（底面全局搜索框经 chromeSearchBus 写入；防抖过滤链路不变） */
   const [libraryQuery, setLibraryQuery] = useState('')
   const [books, setBooks] = useState<EditionRecord[]>([])
-  /** 本层每本书的阅读状态（v0.4.0：与 `books` 并列，来自 `listItemsAtLevel` 的读模型 —— 避免 N+1） */
+  /** 本层每本书的阅读状态（与 `books` 并列，来自 `listItemsAtLevel` 的读模型 —— 避免 N+1） */
   const [readingStates, setReadingStates] = useState<Record<string, ReadingState | null>>({})
   /** 当前库 id（收录关系是库内的，凡涉及收录/书箱的调用都要带它） */
   const [libraryId, setLibraryId] = useState('')
@@ -92,7 +89,7 @@ export function LibraryFeature({
   const [scanning, setScanning] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<EditionRecord | null>(null)
   const [skipDeleteNotice, setSkipDeleteNotice] = useState(false)
-  /** 書庫管理弹窗（Obsidian 仓库管理页风格） */
+  /** 書庫管理弹窗 */
   const [managerOpen, setManagerOpen] = useState(false)
   /** 本批导入成功的书 id（done 时一次性交给封面队列） */
   const importedIdsRef = useRef<string[]>([])
@@ -104,7 +101,7 @@ export function LibraryFeature({
   })
   const [navKey, setNavKey] = useState(0)
   const [trail, setTrail] = useState<TrailEntry[]>([])
-  /** 导航历史（资源管理器语义，2026-09-13 用户定）：stack + 当前下标；面包屑整条随条目存取 */
+  /** 导航历史（资源管理器语义）：stack + 当前下标；面包屑整条随条目存取 */
   const histRef = useRef<{ stack: NavEntry[]; idx: number }>({
     stack: [{ containerId: null, folder: null, trail: [] }],
     idx: 0
@@ -261,7 +258,7 @@ export function LibraryFeature({
     void loadLevel()
   }, [loadLevel, navKey])
 
-  // 切换书库（2026-09-13）：main 广播 library-changed = "当前库已变"的唯一信号——
+  // 切换书库：main 广播 library-changed = "当前库已变"的唯一信号——
   // 重置导航到根层、重读库级设置，加载器按新库解析模式与根路径。
   // 选中与阅读器状态由 AppShell 清理（旧库的 bookId 在新库无意义）
   useEffect(() => {
@@ -361,8 +358,7 @@ export function LibraryFeature({
   }, [container, host, loadLevel])
 
   // 存量补封面：老书库里的书没有封面 → 后台补齐（dev 无头自检跳过，保持渲染验证确定性）。
-  // ⚠ 两条纪律（2026-09-12，"启动即饿死 UI"事故）：
-  // ① **延迟启动**（推迟 20s，让应用先可用）② **只补没试过的**（负缓存与已有 coverPath 不重试）
+  // ⚠ 两条纪律：① **延迟启动**（推迟 20s，让应用先可用）② **只补没试过的**（负缓存与已有 coverPath 不重试）
   useEffect(() => {
     if (window.turead.devBook) return
     const timer = setTimeout(() => {
@@ -375,7 +371,7 @@ export function LibraryFeature({
     return () => clearTimeout(timer)
   }, [container])
 
-  // 离开书库（进阅读器/设置/房间）时收起详情抽屉（功能组件常驻挂载，状态继承）
+  // 离开书库（进阅读器/设置/房间）时收起聚焦舞台与右键菜单（功能组件常驻挂载，状态继承）
   useEffect(() => {
     if (activeFeature !== 'library') {
       setDetailId(null)
@@ -393,7 +389,7 @@ export function LibraryFeature({
   )
 
   /**
-   * 导入（文件）—— ⚠ v0.4.0：**映射库不允许导入**（DATA_MODEL D5/F4：映射库的书只能在真实路径上加，
+   * 导入（文件）—— ⚠ **映射库不允许导入**（DATA_MODEL D5/F4：映射库的书只能在真实路径上加，
    * 入口是「掃描」）。这里把关，并在日志里说明为什么。
    */
   const importFiles = useCallback(async (): Promise<void> => {
@@ -425,7 +421,7 @@ export function LibraryFeature({
     container.imports.enqueue(paths, libraryId)
   }, [container, host, libMode, libraryId])
 
-  /** 映射库的「掃描」：与真实文件夹对账（v0.4.0 DATA_MODEL §6.1 —— 映射库不能导入，只能扫描） */
+  /** 映射库的「掃描」：与真实文件夹对账（DATA_MODEL §6.1 —— 映射库不能导入，只能扫描） */
   const runScan = useCallback(async (): Promise<void> => {
     if (!libraryId || libMode !== 'mapped') return
     setScanning(true)
@@ -451,8 +447,8 @@ export function LibraryFeature({
   }, [container, host, libMode, libraryId, loadLevel])
 
   /**
-   * 从书库移除 = **取消收录**（v0.4.0）：只删收录关系，**真实文件不动、笔记与阅读状态也不动**
-   * （DATA_MODEL §6.1 / CONTRACTS §2.2 不变量 ③）。
+   * 从书库移除 = **取消收录**：只删收录关系，**真实文件不动、笔记与阅读状态也不动**
+   * （DATA_MODEL §6.1 / contracts/domain-types.md 不变量）。
    */
   const removeBook = useCallback(
     async (id: string): Promise<void> => {
@@ -503,7 +499,7 @@ export function LibraryFeature({
     [host]
   )
 
-  /** 双击 / Enter → 打开阅读（同时收起抽屉，避免回到书库时还挂着上一本） */
+  /** 双击 / Enter → 打开阅读（同时收起聚焦舞台，避免回到书库时还挂着上一本） */
   const openBook = useCallback(
     (id: string) => {
       setDetailId(null)
@@ -555,7 +551,7 @@ export function LibraryFeature({
   )
 
   /**
-   * 書箱操作（资源管理器语义，2026-09-13 用户定）：
+   * 書箱操作（资源管理器语义）：
    * 新建 = 立即建出「新建書箱」并进入行内更名；更名 = F2/右键 → Enter/失焦提交（**不用 Esc**）；
    * 移除 = Delete/右键（有子書箱时后端拒绝并日志）；拖书入箱 = 移动（单亲归属）；
    * 書箱本身可拖（拖箱入箱 / 拖到面包屑段）；书与書箱右键「移動到」= 上層/根層/兄弟書箱。
@@ -608,7 +604,7 @@ export function LibraryFeature({
     async (bookId: string, targetId: string | null): Promise<void> => {
       const book = books.find((b) => b.id === bookId)
       try {
-        // v0.4.0：移动的是**收录关系**（书属于哪个书箱），所以必须带 libraryId
+        // 移动的是**收录关系**（书属于哪个书箱），所以必须带 libraryId
         await container.store.moveHolding(bookId, libraryId, targetId)
         commitNav(navRef.current)
         const where =
@@ -769,9 +765,9 @@ export function LibraryFeature({
     ]
   )
 
-  // 书库检索（底面全局搜索·书库作用域，批1.12 换源）：**全库检索** —— 跨書箱/文件夹层级，
+  // 书库检索（底面全局搜索·书库作用域）：**全库检索** —— 跨書箱/文件夹层级，
   // SQL 侧按 标题/来源路径/收录路径 子串匹配（`store.searchHoldings`）；不看当前层。
-  // 检索防抖 ~200ms（STYLE.md §5.10 纪律③，与 NotesFeature 同款）；词非空 = 检索态：
+  // 检索防抖 ~200ms（style/components-notes.md「配套纪律」，与 NotesFeature 同款）；词非空 = 检索态：
   // 结果是**书的平面列表**（書箱/文件夹不参与），清词回到当前层。
   const [debouncedLibraryQuery, setDebouncedLibraryQuery] = useState(libraryQuery)
   useEffect(() => {
@@ -839,7 +835,7 @@ export function LibraryFeature({
     books.find((b) => b.id === detailId) ??
     (searching ? (searchResults ?? []).find((b) => b.id === detailId) ?? null : null)
 
-  // —— 窗口化渲染（2026-09-12）：只挂载可视区 ± 缓冲条目。
+  // —— 窗口化渲染：只挂载可视区 ± 缓冲条目。
   // 書箱/文件夹条目与书籍条目同几何（网格 2:3+34px 标签；列表 h-16），共用同一 stride。
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const listVirtual = useVirtualRange(scrollRef, {
@@ -847,7 +843,7 @@ export function LibraryFeature({
     stride: 68,
     resetKey: `list-${view}-${levelItems.length}-${q}-${navKey}`
   })
-  // 网格列数：与原 auto-fill minmax(118px,1fr) + gap-x-4(16) 同口径
+  // 网格列数：等价于 auto-fill minmax(118px,1fr) + gap-x-4(16) 的显式口径
   const gridCols = Math.max(1, Math.floor((listVirtual.width + 16) / (118 + 16)))
   const gridColW = (listVirtual.width - (gridCols - 1) * 16) / gridCols
   const gridStride = gridColW * 1.5 + 6 + 34 + 20
@@ -964,10 +960,7 @@ export function LibraryFeature({
 
   return (
     <section className="flex h-full flex-col gap-3">
-      {/* 搜索住底面顶条带（批1.11，chromeSearchBus）—— 卡内不再有本地搜索行 */}
-
-      {/* 内容区：抽屉的定位上下文（抽屉只在这里弹出，不覆盖下方状态栏） */}
-      <div className="relative min-h-0 flex-1">
+      <div className="min-h-0 flex-1">
         <div
           ref={scrollRef}
           onScroll={onContentScroll}
@@ -978,7 +971,7 @@ export function LibraryFeature({
             // 检索结果在途（代次守卫防乱序；不闪空态）
             null
           ) : searching && visibleBooks.length === 0 ? (
-            // 检索态空态优先于"書架為空"（两个空态分层，2026-10-31 口径）：全库没命中就是说没命中
+            // 检索态空态优先于"書架為空"（两个空态分层）：全库没命中就是说没命中
             <p className="m-0 py-10 text-center text-[12.5px] text-[var(--muted)]">
               整座書庫沒有匹配「{debouncedLibraryQuery.trim()}」的书
             </p>
@@ -1014,7 +1007,7 @@ export function LibraryFeature({
 
         {detailBook && (
           /* 单击详情 = 「聚焦舞台」（key = book.id：换书即重挂，编排一次性）。
-             舞台内无操作（用户 2026-11-03 定：功能键交给右键菜单）；聚焦期原卡 = 空缺提示槽 */
+             舞台内无操作（功能键交给右键菜单）；聚焦期原卡 = 空缺提示槽 */
           <FocusStage
             key={detailBook.id}
             book={detailBook}
@@ -1062,7 +1055,7 @@ export function LibraryFeature({
             try {
               const l = await container.store.createLibrary({ name, mode, rootPath: root })
               host.pushLog(`已新建書庫：${l.name}${mode === 'mapped' && root ? `（跟蹤 ${root}）` : ''}`)
-              // 映射库：建库即**扫描**跟踪文件夹（v0.4.0：映射库不能导入，书只能在真实路径上加）
+              // 映射库：建库即**扫描**跟踪文件夹（映射库不能导入，书只能在真实路径上加）
               if (mode === 'mapped' && root) {
                 host.pushLog('開始掃描跟蹤文件夾…')
                 const s = await container.scan.scanLibrary(l.id)

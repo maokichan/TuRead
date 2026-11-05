@@ -1,11 +1,10 @@
 /**
  * LibraryManager —— 引导文件 + **全局唯一** store 句柄（主进程）。
  *
- * ⚠ **v0.4.0（2026-09-15「书的身份」定案，DATA_MODEL §1/§4.2）职责已大幅收缩**：
- * - 旧职责"多库 = 多 .db、切库 = 换句柄"**作废** —— 现在是**全应用一个 .db**，
- *   书库降为**库内实体**（`libraries` 表 + `holdings` 收录），库管理方法在 `ILibraryStore` 上。
- * - 本类只剩三件事：① 读写**引导文件**（极小）；② 持有并初始化 `SqliteStore`；
- *   ③ 在首次启动（或从旧版升级）时把旧数据交给迁移器。
+ * 职责（全应用一个 .db，DATA_MODEL §1/§4.2）：书库是**库内实体**（`libraries` 表 +
+ * `holdings` 收录），库管理方法在 `ILibraryStore` 上；本类只剩三件事：
+ * ① 读写**引导文件**（极小）；② 持有并初始化 `SqliteStore`；
+ * ③ 首次启动（或从旧版升级）时把旧数据交给迁移器。
  *
  * 引导文件（`config.json`）：
  *   v2（现行）：{ version: 2, dbPath, window? }         ← 唯一必须留在库外的是 dbPath（鸡生蛋）
@@ -27,15 +26,11 @@ export interface BootstrapFile {
 /**
  * 全局库文件名。
  *
- * ⚠ **必须与旧版默认库的文件名（`turead.db`）不同** —— 2026-09-15 用户实测踩到的真 bug：
- * 升级用户的旧版引导文件里，**默认库的 `dbPath` 就是 `<userData>/turead.db`**，
- * 而这个文件是**旧 v2 schema**（`books`/`containers`/`notes`，没有 `library_id`/`edition_id`）。
- * 若把**全局库**也放在同一个路径上，`db.exec(SCHEMA_SQL)` 里的 `CREATE TABLE IF NOT EXISTS`
- * 会**静默跳过**已存在的旧表（形状完全不同！），紧接着针对新列的索引就以
- * `SqliteError: no such column: library_id` 炸掉 —— 且报错点远离真因，极难定位。
- *
- * 所以：**全局库另起一个文件名**，旧 `turead.db` 就只是一份"要迁移的旧书库文件"，
- * 既不冲突、也不会被改动（迁移只读它）。
+ * ⚠ **必须与旧版默认库的文件名（`turead.db`）不同**：升级用户的旧引导文件里，默认库
+ * `dbPath` 就是 `<userData>/turead.db`，且那是一份**旧 v2 schema**（无 `library_id`/`edition_id`）。
+ * 全局库若放同一路径，`db.exec(SCHEMA_SQL)` 的 `CREATE TABLE IF NOT EXISTS` 会**静默跳过**
+ * 已存在的旧表，随后按新列建索引即炸 `no such column: library_id`（报错点远离真因）。
+ * 另起文件名后，旧 `turead.db` 只是一份"要迁移的旧书库文件"（迁移只读，不冲突、不改动）。
  */
 const DEFAULT_DB_NAME = 'store.db'
 

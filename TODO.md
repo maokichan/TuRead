@@ -102,7 +102,7 @@
 
 ### 书库 UI 与交互
 
-- [ ] **聚焦舞台收尾（主体已上线 v0.2.6，形态/移植史/教训见 FEATURES §10 与 git）**：
+- [ ] **聚焦舞台收尾（主体已上线 v0.2.6，形态/移植史/教训见 features/library.md 与 git）**：
   ① **WebGL 上下文运行时丢失硬化**（`webglcontextlost` 监听 → 降级处理，现只覆盖启动期探测）；
   ② **手感细修随用户反馈滚动**（四主题观感 / reduced-motion 实测未做）。
 - [ ] **（用户犹豫，未决）书库列表视图的存续问题**：聚焦舞台上线后用户原话"书库的形式似乎完全
@@ -116,8 +116,8 @@
 - [ ] **命令面板的命令集扩展**（v1 = 导航五向 + 退出閱讀器 + 四主题，见 `FEATURES.md` §14）：
   视图切换 / 阅读器动作（目录/参数/翻页/全屏）接入需要跨组件取状态 —— 命令 = 意图层绑定表的 UI 面，
   随「配键体系」一起做；候选还有「聚焦搜尋欄」（现需跨组件调 TitleBar，先放）。
-- [ ] **详情抽屉「描述」块内容待定**：满宽负片占位（无标签）。候选：① kookit 解析的 `description`（现 `extractMetadata` 只取文件名 → 恒空）② 用户手填书评 ③ 标准化后按 ISBN 拉简介。定之前保持占位。
-- [ ] **详情抽屉操作清单**：当前只有「打开 + 删除」。
+- [ ] **聚焦舞台「描述」块内容待定**：满宽负片占位（无标签）。候选：① kookit 解析的 `description`（现 `extractMetadata` 只取文件名 → 恒空）② 用户手填书评 ③ 标准化后按 ISBN 拉简介。定之前保持占位。
+- [ ] **聚焦舞台操作清单**：当前只有「打开 + 删除」。
 - [ ] **网格卡片标题截断规则**：现 `line-clamp-2`，是否改按行数/字数。
 - [ ] **抽屉与网格的遮挡处理**：抽屉已改全透明，「被盖住的卡片如何避让」需重新评估。
 - [ ] **封面维护动作**：重建 / 清理 / 手工指定（审计里 `coverFailed` 负缓存无 UI 可清的问题也挂这里）。
@@ -184,8 +184,10 @@
   kookitRenderAdapter 949 / RoomSession 591 行）按 features/ 锚点对照评估拆分候选；
   旧机制残留与双实现痕迹随注释洗同步清。按域分批（library → reader → notes →
   room → settings/main），顺序与节奏由开发者定；**与文档治理余项分阶段进行，不同 session 混做**。
-- [ ] **卸载插件 IPC 实现**（方案已定 PLUGINS.md §3，待实施）：`plugins:uninstall` +
-  设置页「卸載」动作 + seeder opt-out 评估；连同官方插件升级路径（版本兼容策略）一并定。
+- [ ] **插件卸载余项**：卸载本体已落（`plugins:uninstall` 通道 + 数据清理 + 设置页「卸載」，
+  实现见 `main/plugins.ts` / `SettingsFeature`）。剩余：seeder opt-out 评估；官方插件升级路径
+  （版本兼容策略）；`plugin-secret:<id>:*` 密文清不掉（待 store 补「按前缀删键」原语，
+  见 client/plugins/PLUGINS.md §3）。
 - [ ] **(P2) `createLibrary` 的 name 契约三方不一致**：端口声明 `name?` 可选（store.ts:149）、
   core 自动命名（sqliteStore.ts:543 `書庫 ${count+1}`）、IPC handler 却必填（ipc.ts:149
   「創建書庫缺少名稱」，2026-10-03 删宽容 shim）——library 探针因此必败（已按现状显式传名

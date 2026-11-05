@@ -106,7 +106,6 @@ export function registerIpc(
     store().setCover(p.editionId, p.bytes, p.ext)
   )
   ipcMain.handle(IPC.storeGetCover, (_e, editionId: string) => store().getCover(editionId))
-  ipcMain.handle(IPC.storeRemoveCover, (_e, editionId: string) => store().removeCover(editionId))
 
   // ————— 插件（v1 官方专用；契约 = CONTRACTS §9）—————
   // 渲染层只发 id：入口路径按主进程自己的扫描结果解析（信任边界收在 main/plugins.ts）
@@ -178,7 +177,7 @@ export function registerIpc(
   ipcMain.handle(IPC.storeGetLibrary, (_e, id: string) => store().getLibrary(id))
 
   // 在系统文件管理器中显示数据库文件（库管理弹窗「所在文件夾」）：
-  // ⚠ v0.4.0 起只有一个全局 .db，**不接受任意路径**（只揭示引导文件指向的那个库文件）
+  // ⚠ 只有一个全局 .db，**不接受任意路径**（只揭示引导文件指向的那个库文件）
   ipcMain.handle(IPC.fsShowInFolder, (_e, p: { libraryId?: string }) => {
     const dbPath = store().describeDbPath()
     if (!dbPath) return false

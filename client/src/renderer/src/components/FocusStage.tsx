@@ -17,12 +17,12 @@ interface FocusStageProps {
 }
 
 /**
- * 书库·详情「聚焦舞台」（单击书卡的全屏焦点态；替代旧详情抽屉的入口，FEATURES §10）。
+ * 书库·详情「聚焦舞台」（单击书卡的全屏焦点态，见 features/library.md）。
  *
  * React 壳只管三件事：① 景深幕（blur + 点场外收场）；② Esc；③ 引擎会话的生命周期。
  * 3D 编排全部在 `focusStageEngine.ts`（持久渲染器 / 墙钟补间 / 看门狗 / 文字承载层）。
  * 顶条带（窗控 / 后退前进）在幕外（top = --inset-top）——底面全局件恒可点（DIRECTION §2）。
- * 操作接口（打开阅读 / 移除等）按用户定**先不进来**——动画定稿后再裁落点（TODO「详情页操作清单」）。
+ * 操作接口（打开阅读 / 移除等）**先不进来**——动画定稿后再裁落点（TODO「聚焦舞台操作清单」）。
  */
 export function FocusStage({
   book,

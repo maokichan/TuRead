@@ -1,8 +1,8 @@
 /**
- * 書庫管理弹窗（2026-09-13 用户立项：参考 Obsidian 仓库管理页）。
+ * 書庫管理弹窗。
  *
  * 职能：库列表（点击切换，当前标「當前」）/ 新建（行内输入命名）/ 更名（行内编辑）/
- * 「所在文件夾」（系统文件管理器高亮 .db，路径管理 = 引导文件持有路径，这里只显示与揭示）。
+ * 「所在文件夾」（系统文件管理器高亮本地資料庫文件；路径管理 = 引导文件持有路径，这里只显示与揭示）。
  * 移除引用不在本弹窗（语义待定，见 TODO「书库管理完善」）。
  *
  * 风格：ConfirmDialog 同款骨架（遮罩点击/Esc 关闭、面板 = token 边框 + panel 底），
@@ -34,7 +34,7 @@ export function LibraryManagerDialog({
   /** 行内更名的目标库 id（null = 无） */
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
-  /** 新建行的开合与草稿（2026-09-13 用户定：建库必须二选一模式） */
+  /** 新建行的开合与草稿（建库必须二选一模式） */
   const [creating, setCreating] = useState(false)
   const [createDraft, setCreateDraft] = useState('')
   const [createMode, setCreateMode] = useState<'mapped' | 'curated'>('curated')
@@ -102,7 +102,7 @@ export function LibraryManagerDialog({
       <button
         onClick={() => void window.turead.invoke(IPC.fsShowInFolder, { libraryId: l.id })}
         className="text-action"
-        title="在文件管理器中显示该書庫的 .db 文件"
+        title="在文件管理器中显示本地資料庫文件"
       >
         所在文件夾
       </button>
@@ -122,7 +122,7 @@ export function LibraryManagerDialog({
       >
         <h3 className="m-0 text-[14px] font-semibold">書庫管理</h3>
         <p className="mt-1 mb-3 text-[12.5px] text-[var(--muted)]">
-          每個書庫是一份獨立的庫（一個 .db 文件）；點擊書庫名切換。
+          所有書庫共用同一份本地資料庫（書庫 = 組織方式）；點擊書庫名切換。
         </p>
 
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
@@ -170,7 +170,7 @@ export function LibraryManagerDialog({
                           {isCurrent && '　·　當前'}
                         </button>
                       </div>
-                      {/* v0.4.0：一库一 .db 已作废（全部数据在一个全局库）→ 改显示**库的模式与跟踪目录** */}
+                      {/* 显示库的模式与跟踪目录（数据在全局单库，不再有库级 .db） */}
                       <div
                         className="mt-0.5 truncate text-[11px] text-[var(--muted)]"
                         title={l.rootPath ?? undefined}
@@ -187,7 +187,7 @@ export function LibraryManagerDialog({
             )
           })}
 
-          {/* 新建行：命名 + 模式二选一（2026-09-13 用户定）+
+          {/* 新建行：命名 + 模式二选一 +
               虚拟映射时选择跟踪的唯一根文件夹；确认后即建即切（source 由调用方初始扫描导入） */}
           {creating ? (
             <div className="flex flex-col gap-2 pt-3">

@@ -396,7 +396,7 @@ export class SqliteStore {
 
   /**
    * 取消收录。**只删 holdings 行** —— edition / notes / reading_state **一律不动**
-   * （CONTRACTS §2.2 不变量 ③：笔记与阅读时长是用户资产，"移除"只是让它在这个书库不可见）。
+   * （contracts/domain-types.md 不变量：笔记与阅读时长是用户资产，"移除"只是让它在这个书库不可见）。
    */
   async removeHolding(libraryId: string, editionId: string): Promise<void> {
     this.db
@@ -782,12 +782,6 @@ export class SqliteStore {
     } catch {
       return null // 文件被手工删掉：视为无封面，不报错
     }
-  }
-
-  async removeCover(editionId: string): Promise<void> {
-    const record = await this.getEdition(editionId)
-    if (!record?.coverPath) return
-    await fs.rm(join(this.opts.coversDir, record.coverPath), { force: true })
   }
 
   // ————— 设置（全局）—————
