@@ -74,7 +74,7 @@ export function ReadingStatsView({
 
   return (
     <div className={`reading-stats${variant === 'page' ? ' reading-stats--page' : ''}`}>
-      <h4 className="reading-stats__title">閱讀</h4>
+      {/* 无标题：贡献图 + 数字自解释（功能界面不配说明书） */}
       {!hasData ? (
         <p className="reading-stats__empty">還沒有閱讀記錄</p>
       ) : (

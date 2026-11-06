@@ -23,6 +23,7 @@ import { NotesToolbar } from '../../components/NotesToolbar'
 import { ReadingStatsSection } from '../../components/ReadingStats'
 import { DocumentsPanel } from './DocumentsPanel'
 import { NoteDetailAxis } from './NoteDetailAxis'
+import { notesNavBus } from '../notesNavBus'
 import { getCoverUrl } from '../coverCache'
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
@@ -58,9 +59,57 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
   /** 文档视图（笔记 v3）：文档 = 消费笔记所生产的内容，归筆记区管（无独立侧栏项） */
   const [docsOpen, setDocsOpen] = useState(false)
   /** 笔记详情（轴视图）：单击卡片进入——跳回原文的入口从这里发生，不再直接从列表跳 */
-  const [detail, setDetail] = useState<{ editionId: string; editionTitle: string; noteId: string } | null>(null)
+  const [detail, setDetail] = useState<{ editionId: string; editionTitle: string } | null>(null)
   const [detailNotes, setDetailNotes] = useState<Note[] | null>(null)
   const [detailCover, setDetailCover] = useState<string | null>(null)
+  /**
+   * 视图历史（底面后退/前进的笔记域机构）：快照 = { 文档视图, 详情 }。
+   * 返回筆記按钮因此不存在——底面的后退/前进**恒在**，域内导航是它分内的活。
+   */
+  type NavSnap = { docsOpen: boolean; detail: { editionId: string; editionTitle: string } | null }
+  const navStack = useRef<{ i: number; entries: NavSnap[] }>({ i: 0, entries: [{ docsOpen: false, detail: null }] })
+  const syncNav = useCallback((): void => {
+    const { i, entries } = navStack.current
+    notesNavBus.update({ canBack: i > 0, canForward: i < entries.length - 1 })
+  }, [])
+  const pushNav = useCallback(
+    (snap: NavSnap): void => {
+      const nav = navStack.current
+      nav.entries = nav.entries.slice(0, nav.i + 1)
+      nav.entries.push(snap)
+      nav.i = nav.entries.length - 1
+      syncNav()
+    },
+    [syncNav]
+  )
+  useEffect(() => {
+    notesNavBus.register(
+      {
+        back: () => {
+          const nav = navStack.current
+          if (nav.i <= 0) return
+          nav.i -= 1
+          const snap = nav.entries[nav.i]
+          setDocsOpen(snap.docsOpen)
+          setDetail(snap.detail)
+          if (snap.detail) void loadDetailData(snap.detail.editionId)
+          syncNav()
+        },
+        forward: () => {
+          const nav = navStack.current
+          if (nav.i >= nav.entries.length - 1) return
+          nav.i += 1
+          const snap = nav.entries[nav.i]
+          setDocsOpen(snap.docsOpen)
+          setDetail(snap.detail)
+          if (snap.detail) void loadDetailData(snap.detail.editionId)
+          syncNav()
+        }
+      },
+      { canBack: false, canForward: false }
+    )
+    return () => notesNavBus.unregister()
+  }, [syncNav])
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
   /** 匯出彙編（笔记 v3 文档层）：当前筛选结果 → vault .md（wikilink 引用；档案使其可解析） */
@@ -185,22 +234,31 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
     [host]
   )
 
-  /** 进详情轴：取该书全部笔记（按阅读序上轴）与封面 */
-  const openDetail = useCallback(
-    async (item: NoteFlowItem): Promise<void> => {
-      setDetail({ editionId: item.note.editionId, editionTitle: item.editionTitle, noteId: item.note.id })
+  /** 详情数据：该书全部笔记（按阅读序上轴）与封面（后退/前进回到详情时也走这里） */
+  const loadDetailData = useCallback(
+    async (editionId: string): Promise<void> => {
       setDetailNotes(null)
       setDetailCover(null)
       const [notes, edition] = await Promise.all([
-        container.store.listNotes(item.note.editionId),
-        container.store.getEdition(item.note.editionId)
+        container.store.listNotes(editionId),
+        container.store.getEdition(editionId)
       ])
       setDetailNotes(notes)
       if (edition?.coverPath) {
-        setDetailCover(await getCoverUrl(container.store, item.note.editionId, edition.coverPath))
+        setDetailCover(await getCoverUrl(container.store, editionId, edition.coverPath))
       }
     },
     [container]
+  )
+
+  /** 进详情轴（列表单击）：推入视图历史 */
+  const openDetail = useCallback(
+    (item: NoteFlowItem): void => {
+      setDetail({ editionId: item.note.editionId, editionTitle: item.editionTitle })
+      void loadDetailData(item.note.editionId)
+      pushNav({ docsOpen: false, detail: { editionId: item.note.editionId, editionTitle: item.editionTitle } })
+    },
+    [loadDetailData, pushNav]
   )
 
   /** 複製批註：**只複製批注正文**；不放开拖选（守全局禁选） */
@@ -275,7 +333,6 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
           editionId={detail.editionId}
           coverPath={detailCover ?? undefined}
           notes={detailNotes}
-          onBack={() => setDetail(null)}
           onJump={(n) => openNote(n)}
         />
       )}
@@ -333,8 +390,10 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
         onExportCompilation={() => void exportCompilation()}
         docsOpen={docsOpen}
         onToggleDocs={() => {
-          setDocsOpen((v) => !v)
+          const next = !docsOpen
+          setDocsOpen(next)
           setDetail(null)
+          pushNav({ docsOpen: next, detail: null })
         }}
       />
       )}

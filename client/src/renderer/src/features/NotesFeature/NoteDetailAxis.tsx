@@ -30,7 +30,6 @@ export function NoteDetailAxis({
   editionId,
   coverPath,
   notes,
-  onBack,
   onJump
 }: {
   store: ILibraryStore
@@ -38,7 +37,6 @@ export function NoteDetailAxis({
   coverPath?: string
   /** 该书的全部笔记（按阅读序；调用方给） */
   notes: Note[]
-  onBack: () => void
   /** 点击线上某条 → 跳回书的位置 */
   onJump: (note: Note) => void
 }): React.JSX.Element {
@@ -62,12 +60,8 @@ export function NoteDetailAxis({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-none items-center gap-7 border-b border-[var(--border)] px-8 py-3 text-[12.5px]">
-        <button className="text-action" onClick={onBack}>
-          返回筆記
-        </button>
-        <span className="text-[var(--muted)]">{notes.length} 條 · 依在書中的位置排列</span>
-      </div>
+      {/* 无头部：返回走底面全局的后退/前进（笔记域已接入 notesNavBus）；说明文不留——
+          内容自解释的界面不需要标题与说明书（STYLE 纪律） */}
       <div className="flex min-h-0 flex-1">
         {/* 封面：书的身份由它携带（轴上不出现任何元信息） */}
         <aside className="w-44 flex-none px-8 pt-8">

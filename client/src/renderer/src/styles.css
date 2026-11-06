@@ -1509,14 +1509,6 @@ textarea {
   border-top: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
 }
 
-.reading-stats__title {
-  margin: 0 0 10px;
-  font-family: var(--font-serif-cn);
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-}
-
 .reading-stats__empty {
   margin: 0;
   font-size: 12.5px;
@@ -1542,7 +1534,7 @@ textarea {
 }
 
 .reading-stats__summary {
-  margin: 10px 0 0;
+  margin: 0;
   font-size: 12.5px;
   color: var(--muted);
 }
@@ -1587,20 +1579,21 @@ textarea {
   color: var(--muted);
 }
 
-/* page 档（批1.24b 修订：侧栏「筆」全宽页）：图 + 摘要在左、Top 榜在右的两栏；
-   窄卡不经过。段落自身在页里 = 内容流第一项，不再贴底。 */
+/* page 档（笔记区重构压扁：侧栏「筆」全宽页）：图 + 摘要并排一行（左）、Top 榜在右两栏；
+   无标题、内边距收紧——统计是列表的序言，不是独立章节。窄卡不经过。 */
 .reading-stats--page {
   display: grid;
   grid-template-columns: minmax(300px, max-content) 1fr;
   gap: 4px 36px;
-  align-items: start;
-  padding-bottom: 4px;
+  align-items: center;
+  padding: 2px 0 10px;
 }
 
 .reading-stats--page .reading-stats__main {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  flex-direction: row;
+  align-items: center;
+  gap: 18px;
 }
 
 .reading-stats--page .reading-stats__top {

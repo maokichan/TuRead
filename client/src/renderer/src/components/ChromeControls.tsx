@@ -19,6 +19,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { IPC } from '@shared/ipc'
 import { libraryNavBus } from '../features/libraryNavBus'
+import { notesNavBus } from '../features/notesNavBus'
 import { chromeSearchBus } from '../features/chromeSearchBus'
 
 /** 无绑定域的占位文案（承自退役 TitleBar 的作用域表；阅读器/房间接线见 TODO「全局搜索接线」。
@@ -47,10 +48,13 @@ export function ChromeControls({
   }, [])
 
   // 书库层级后退/前进（2026-09-13 用户定，资源管理器逻辑）：状态（可否后退/前进）用外部 store 订阅
-  const navState = useSyncExternalStore(libraryNavBus.subscribe, libraryNavBus.getState)
+  const libNav = useSyncExternalStore(libraryNavBus.subscribe, libraryNavBus.getState)
+  const notesNav = useSyncExternalStore(notesNavBus.subscribe, notesNavBus.getState)
+  // 后退/前进按激活域分流（书库 = 层级历史；笔记 = 视图历史[详情轴/文档]；其余域暂无历史机构）
+  const navState = activeFeature === 'notes' ? notesNav : libNav
+  const navBus = activeFeature === 'notes' ? notesNavBus : libraryNavBus
   // 全局搜索绑定（批1.11）：激活域有注册 = 可输入；否则禁用 + 域占位
   const searchBinding = useSyncExternalStore(chromeSearchBus.subscribe, chromeSearchBus.getState)
-  const libraryScope = activeFeature === 'library'
 
   const control = (
     label: string,
@@ -98,16 +102,16 @@ export function ChromeControls({
       >
         {navButton(
           '後退',
-          () => libraryNavBus.back(),
-          libraryScope && navState.canBack,
+          () => navBus.back(),
+          navState.canBack,
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
             <path d="M8 1.5L3.5 6L8 10.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
           </svg>
         )}
         {navButton(
           '前進',
-          () => libraryNavBus.forward(),
-          libraryScope && navState.canForward,
+          () => navBus.forward(),
+          navState.canForward,
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
             <path d="M4 1.5L8.5 6L4 10.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
           </svg>
