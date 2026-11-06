@@ -46,10 +46,11 @@
 
 > 锚点（Norm/Fragment）的分层语义、比较次序、「读到哪 ≠ 标在哪」见总纲 `CONTRACTS.md`；纯函数权威 = `src/core/domain/anchor.ts`。
 
-- **Note** —— v2 形状（v1 退役，过程归 git）。**不含 excerpt 字段**：notes 表 `excerpt` 列是 `anchor.norm.quote.exact` 的投影（权威只在锚点侧，避免两处同值漂移）。`bookId → editionId`（D8）：笔记挂**内容（edition）**——跨库共享、不随条目消失；**各版各一份，不做自动跨版迁移**（跨版搬运是用户的主动动作）。`owner` 本地笔记为 null（同步上线后回填）。`body` 只有这里住批注内容；kookit 侧用 body 判定「是否带批注」且当字符串用——传引擎必须是 string（`KOOKIT.md`）。`ink` 仅 `kind='ink'`（InkStroke[] JSON）。
-- **NoteKind** —— `kind` 是「载体类型」不是「创建来路」：`highlight` = 锚在正文范围（当前唯一形态，带不带 body 都是它）；`bookmark` = 标位置、无文本范围（尚无 UI）；`ink` = 几何画布矢量墨迹（DATA_MODEL §3.3）。~~`note`~~ **已定退役**（与 highlight 语义重复，标签取决于历史）。⚠ **代码尚未改**：现实现仍写 `kind='note'`（`ReaderFeature.createMark`）。收敛计划（待批准）：① NoteKind 去 `'note'`；② 交互统一「标记 + 可选正文」；③ 呈现只按有无 body 区分；④ 存量 `'note'` 行迁移为 `highlight`。
+- **Note** —— v2 形状（v1 退役，过程归 git）。**不含 excerpt 字段**：notes 表 `excerpt` 列是 `anchor.norm.quote.exact` 的投影（权威只在锚点侧，避免两处同值漂移）。`bookId → editionId`（D8）：笔记挂**内容（edition）**——跨库共享、不随条目消失；**各版各一份，不做自动跨版迁移**（跨版搬运是用户的主动动作）。`owner` 本地笔记为 null（同步上线后回填）。`body` 只有这里住批注内容，**原生 Markdown**（笔记 v3 定案：Markdown 对纯文本透明，旧内容原样可读；渲染子集 = 决策笔记 [2026-11-06-notes-v3-data-model.md](../../../.agents/notes/proposed/arch/2026-11-06-notes-v3-data-model.md) 矩阵）；kookit 侧用 body 判定「是否带批注」且当字符串用——传引擎必须是 string（`KOOKIT.md`）。`ink` 仅 `kind='ink'`（InkStroke[] JSON）。`markStyle` = 线样语义名，缺省 `background`。
+- **NoteKind** —— `kind` 是「载体类型」不是「创建来路」（收敛**已执行**：存储层把存量 `'note'` 行迁为 `highlight`，写侧统一「标记 + 可选正文」）：`highlight` = 锚在正文范围（带不带 body 都是它）；`bookmark` = 标位置、无文本范围（尚无 UI）；`ink` = 几何画布矢量墨迹（DATA_MODEL §3.3）。呈现只按有无 body 区分。
+- **NoteMarkStyle**（笔记 v3 新增）—— **线样与色正交两维**：`background`（底纹，历史缺省）/ `underline` / `wavy` / `strikethrough`——kookit `buildHighlightStyleForType` 原生支持四样（PDF 覆盖层走内联 SVG，见 `KOOKIT.md`）。⚠ `--note-*` 色值按「叠正文 0.8 透明」取值、描边色不透明——描边类线样不能共用，需独立 token 族（`--mark-line-*`，落点 STYLE §3.4）。
 - **NoteColor** —— 语义名（red/yellow/green/blue），UI 按主题 token 渲染；库内不存 hex。
-- **NoteView / NoteTextFocus / NoteFilter**（用户 2026-09-16 定案）—— 管理视图**无列表形态**（`grid` 網格 / `masonry` 瀑布流，默认 masonry）；卡片文字主次两档**可切换**（默认 `body`）；筛选 = 单按钮三态循环（批註→劃線→全部）。⚠ **筛选判据是 `body` 是否为空，不是 `kind`**——二者在实现里可互相矛盾（highlight 可有 body、note 可无 body，两个方向都有真实路径），按 kind 分组会分错；与呈现口径一致：**只按有无 body 区分**。
+- **NoteView / NoteTextFocus / NoteFilter**（用户 2026-09-16 定案）—— 管理视图**无列表形态**（`grid` 網格 / `masonry` 瀑布流，默认 masonry）；卡片文字主次两档**可切换**（默认 `body`）；筛选 = 单按钮三态循环（批註→劃線→全部）。⚠ **筛选判据是 `body` 是否为空，不是 `kind`**——kind 只分载体不分内容（划线补正文 ≈ 批注），按 kind 分组会分错；与呈现口径一致：**只按有无 body 区分**。
 
 ## 房间与聊天（wire 镜像）
 

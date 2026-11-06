@@ -540,7 +540,7 @@ export function runNoteProbe(container: ServiceContainer, host: FeatureHost): vo
 
       // ⑩ 批注正文真的到达引擎：`isNote = item.notes !== ""` 会另外长出批注图标
       const annId = crypto.randomUUID()
-      const ann: Note = { ...note, id: annId, kind: 'note', body: '這是一條批註正文' }
+      const ann: Note = { ...note, id: annId, kind: 'highlight', body: '這是一條批註正文' }
       await container.render.createNote(ann)
       await wait(400)
       const icons = liveDoc().querySelectorAll(`.kookit-note-icon[data-key="${annId}"]`)

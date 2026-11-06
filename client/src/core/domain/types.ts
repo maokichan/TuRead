@@ -365,11 +365,20 @@ export type AnchorMatch =
   /** 不同章（或不可比） */
   | 'unrelated'
 
-/** 笔记种类（DATA_MODEL §2 `notes.kind` 四枚举；书签入本表已批复 §4 决定 6） */
-export type NoteKind = 'highlight' | 'note' | 'bookmark' | 'ink'
+/** 笔记种类（DATA_MODEL §2 `notes.kind`；笔记 v3 收敛已执行：`'note'` 退役——与 highlight
+ *  的唯一差别是"怎么被创建的"，标签取决于历史而非当前状态；呈现只按有无 body 区分） */
+export type NoteKind = 'highlight' | 'bookmark' | 'ink'
 
 /** 高亮色**语义名**（不是 hex）：UI 按主题 token 渲染，库内不存颜色字面量（`STYLE.md` 视觉语汇纪律） */
 export type NoteColor = 'red' | 'yellow' | 'green' | 'blue'
+
+/**
+ * 线样（笔记 v3 新增；与色**正交**两维，4 样 × 4 色）。缺省 `background` = 历史行为。
+ * kookit `buildHighlightStyleForType` 原生支持四样（PDF 覆盖层走内联 SVG，`KOOKIT.md`）；
+ * ⚠ 描边类线样不能共用 `--note-*`（那族按"叠正文 0.8 透明"取值，描边色不透明）——
+ * 用独立 token 族（`--mark-line-*`，落点 STYLE §3.4）。
+ */
+export type NoteMarkStyle = 'background' | 'underline' | 'wavy' | 'strikethrough'
 
 /**
  * 笔记/划线 v2（2026-09-14 按 DATA_MODEL §3.1.1/§3.2 收拢，**v1 形状退役**）。
@@ -398,7 +407,10 @@ export interface Note {
   anchor: TextAnchor
   /** 语义色名；bookmark/ink 可缺省 */
   color?: NoteColor
+  /** 线样；缺省 `background`（历史行为）——色样正交，UI 两个自由度各选各的 */
+  markStyle?: NoteMarkStyle
   /** 用户批注正文（**只有这里住批注内容**）—— v1 的 `notes` 更名而来。
+   *  笔记 v3 起为**原生 Markdown**（Markdown 对纯文本透明，旧内容原样可读）。
    *  ⚠ kookit `createOneNote` 用它判定"是否带批注"且当字符串用（`item.notes !== ""`）：
    *  传给引擎时必须是 **string**（2026-09-14 逆向核实，见 `KOOKIT.md`） */
   body: string
@@ -420,12 +432,9 @@ export type NoteTextFocus = 'body' | 'excerpt'
 /**
  * 卡片筛选（用户 2026-09-16 定：**单按钮三态循环** 批註 → 劃線 → 全部，默认 `annotated`）。
  *
- * ⚠ **判据是 `body` 是否为空，不是 `kind`** —— 二者在实现里**可以互相矛盾**，两个方向都有真实路径：
- * - `kind='highlight'` **可能带 body**：划完线再点它补写批注 → `updateNote(id, { body })`
- *   （`ReaderFeature` 的 `saveAnnotation`）→ 用户 2026-09-16 明确："**画完线后补 body，那这就是批注，很显然**"；
- * - `kind='note'` **可能 body 为空**：「加批註」后没写字就回车 —— `NoteComposer` 明确允许空串
- *   （"空串 = 清空批注正文，允许"）→ `createMark(..., 'note', '')`。
- * 按 `kind` 分组会把这两类都分错（正是 `NoteKind` 已记档的"标签取决于历史"坏模型）；
+ * ⚠ **判据是 `body` 是否为空，不是 `kind`** —— kind 只分载体不分内容（笔记 v3 收敛后全为
+ * `highlight`，带不带 body 都是它；划完线补写批注、加批註没写字就回车，两个方向都有真实路径）。
+ * 按 `kind` 分组会分错（正是 `NoteKind` 已记档的"标签取决于历史"坏模型）；
  * 与已记档的收敛口径一致：**呈现只按有无 `body` 区分**。
  */
 export type NoteFilter = 'annotated' | 'highlight' | 'all'

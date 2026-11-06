@@ -71,7 +71,7 @@
 | `libraries` | 书库 = 组织模式（D2） | `mode='mapped'` 跟踪唯一真实文件夹；`'curated'` 空库起步（术语 §6.2） |
 | `containers` | 书箱树（树在库内） | 单亲树 + 不变量（防成环 / 有子拒删 / 删箱归根 / 删库级联）见 §3.4 |
 | `holdings` | 收录："哪个书库里有这本书"（取代 v2 每库一套 books） | 同库同版只收录一次；`origin` = 'scan'/'import'；`missing` = **来源缺失——删的是可见性不是数据**（笔记/阅读状态不动，文件回来自动重现）；`parent_path` 写入时规范化 |
-| `notes` | 笔记（物理挂 edition；跨库共享、不随条目消失） | `excerpt` = `quote.exact` 的投影（**锚点证据，非笔记内容**，§3.1.1 ①）；`anchor_key` = Fragment 层不透明串（§3.1.1）；`color` = 语义名非 hex；批注内容只住 `body` |
+| `notes` | 笔记（物理挂 edition；跨库共享、不随条目消失） | `excerpt` = `quote.exact` 的投影（**锚点证据，非笔记内容**，§3.1.1 ①）；`anchor_key` = Fragment 层不透明串（§3.1.1）；`color` = 语义名非 hex；`mark_style` = 线样语义名（缺省 background）；批注内容只住 `body`（原生 Markdown） |
 | `reading_state` | 阅读状态（逐 edition） | `total_read_ms` 唯一写入口 = `appendReadingSession`（同事务累加）；"按 work 汇总"是**查询口径**（D4），不是存储口径 |
 | `reading_sessions` | 阅读会话（逐 edition 原始记录） | 阅读时间模型落点，口径见下注 |
 | `edition_toc` | 自建目录存储位 | **先留位不实现**（功能见 TODO.md） |
@@ -97,13 +97,13 @@ fromSelection / resolveToView / **compare**（同步合并与跳转）/ **remeas
 > 载荷 `engine='kookit-rangy'`（rangy 序列化的字符范围 JSON，doc.body 字符偏移）；vendored kookit
 > 的 `libs/cfi` 存在但**笔记链路完全没用到**。字符偏移是**同 edition 同解析器内**的精确键
 > （跨解析器版本可能漂移），跨引擎/跨解析器一律靠 Norm 层重建（`remeasure`）——两层结构的价值所在。
-> 首批范围（用户定）：**文字类优先，PDF 第二批**（PDF 是页+坐标的另一套载荷）。
+> 首批范围（用户定）：**文字类优先，PDF 第二批**（页+坐标载荷 `engine='kookit-pdf-rect'`，
+> rect/stroke、quote 可空——位图载体无文本层时 excerpt 诚实留空；笔记 v3 随批落地）。
 
 **3.1.1 定位转换机制（已批复）**
 
-参考 Readium 的中间表示思路：把各格式定位信息抽象掉，降低笔记层复杂度。
-机制名 = **定位转换机制**；领域实体沿既定命名：进度级 = `BookLocation`，
-选区级 = `TextAnchor`（统一锚点）。
+参考 Readium 的中间表示思路（机制名 = **定位转换机制**）；领域实体沿既定命名：
+进度级 = `BookLocation`，选区级 = `TextAnchor`（统一锚点）。
 
 - **两层结构**（关键决策：**统一信封 + 引擎原生载荷**，不做"通用定位语言"让引擎来回翻译——
   翻译有损会破坏选区 round-trip；Readium 同款取舍）：
@@ -118,21 +118,20 @@ fromSelection / resolveToView / **compare**（同步合并与跳转）/ **remeas
   **锚点实体、notes 表、笔记 UI、同步协议零改动**——"统一接口，不统一编码"的落地形态。
 
 **已批复的三个细则**：
-① **quote 的归属**：quote = 划线时刻的**书籍原文快照**（exact/prefix/suffix）——它本质是书的
-   一部分，是**定位证据**，不是笔记内容 → **归锚点侧，不归 note 侧**。落库映射：quote.exact =
-   notes 表 `excerpt` 列（列语义更正为"划线原文快照（锚点证据）"）；prefix/suffix 并入
-   `anchor_hint`（JSON）。用户批注内容只住 `body` 列。
-② **compare 次序：先 Fragment 后 Norm**——Fragment 相等 = 同一位置（同 edition 同引擎下
-   权威精确、O(1) 串比较，直接判同）；Fragment 不等/缺失/跨引擎 → 降级 Norm
-   （chapterIndex/progression 排序 + quote 相似度）做粗判与重锚选路，产出 strong/weak 强弱标注。
-   先精确后模糊，避免文本比较的歧义成本污染精确路径。
+① **quote 的归属**：quote = 划线时刻的**书籍原文快照**（exact/prefix/suffix）——**定位证据**，不是
+   笔记内容 → **归锚点侧，不归 note 侧**；落库 = exact→`excerpt`（投影）、prefix/suffix→`anchor_hint`。
+   批注内容只住 `body` 列。
+② **compare 次序：先 Fragment 后 Norm**——Fragment 相等 = 同一位置（同 edition 同引擎下权威
+   精确、O(1) 直接判同）；不等/缺失/跨引擎 → 降级 Norm（chapterIndex/progression 排序 + quote
+   相似度）做粗判与重锚选路，产出 strong/weak 强弱标注。先精确后模糊，别让文本比较污染精确路径。
 ③ 分层命名沿用 Norm / Fragment。
 
-**3.2 Note 实体**
-`kind`('highlight'|'note'|'bookmark'|'ink') / `anchor{chapterIndex,key,hint}`（"读到哪"是进度
-语义、"标在哪"是选区语义，不同物）/ `color` 语义名（UI 按主题 token 渲染，库内无 hex）/
-`body`（批注正文，只有这里住批注内容）/ `ink` / `owner`（可空预留）。
-⚠ 领域类型**无 `excerpt` 字段**——notes 表 `excerpt` 列是 `anchor.norm.quote.exact` 的投影（§3.1.1 ①）。
+**3.2 Note 实体**（形状权威 = `src/core/domain/types.ts`；表列同名 snake_case，以下只留代码说不出的）
+```ts
+{ kind: 'highlight'|'bookmark'|'ink' /*v3 收敛*/, anchor /*"标在哪"*/, color? /*语义名,库内无 hex*/,
+  markStyle? /*线样,与色正交,缺省 background*/, body /*批注正文·原生 Markdown(v3)*/, ink?, owner? }
+// ⚠ 领域类型无 excerpt 字段——notes 表 excerpt 列是 anchor.norm.quote.exact 的投影（§3.1.1 ①）
+```
 
 **3.2.1 已定决策：「笔记/批注」= 「划线」（用户定，记档防反复）**
 
@@ -142,13 +141,14 @@ fromSelection / resolveToView / **compare**（同步合并与跳转）/ **remeas
 **结论：它们不是两个东西。** 一条笔记 = **锚点（一段正文范围，必然有）+ 可选文字（`body`）**：
 `body` 有值 ≈ 俗称"批注"，`body` 为空 ≈ 俗称"划线"，**同一个实体**。
 
-由此推出两条本建模的修正方向（**代码尚未改**，用户定"概念先记档、具体修改另议"）：
+由此推出两条本建模的修正方向（笔记 v3 **已执行**：kind 收敛、写侧统一「标记 + 可选正文」、
+存量行迁移）：
 ① `kind` 的应然语义 = **载体类型**（承载方式真正不同者），**不是创建来路**；
 ② `'note'` 值**退役** —— 它与 `'highlight'` 的唯一差别是"怎么被创建的"，会造成
 "先划线后补正文 = `highlight`、直接写批注 = `note`"这种**同内容两个名字**（标签取决于历史
 而非当前状态）。`NoteKind` 收敛为 `highlight`（锚在正文范围——**当前唯一形态**）/
-`bookmark`（标位置无文本范围）/ `ink`（几何画布墨迹）；呈现只按**有无 `body`** 区分。
-详见 `CONTRACTS.md` §2 `NoteKind`（含收敛计划与迁移口径）。
+`bookmark`（标位置无文本范围）/ `ink`（几何画布墨迹）；呈现只按**有无 `body`** 区分
+（形状权威 = `src/core/domain/types.ts`，裁决细节 = `client/docs/contracts/domain-types.md`）。
 
 **3.3 墨迹（kind='ink'）**
 矢量笔画（归一化点列 + 语义色 + 相对笔宽）。**与划线的本质差异**：划线锚在内容流（重排安全、

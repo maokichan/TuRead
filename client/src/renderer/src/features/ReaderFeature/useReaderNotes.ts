@@ -51,12 +51,7 @@ export function useReaderNotes(params: {
   focusNote: { id: string; tick: number } | null
   /** 当前正文选区（适配器在**书文档**上观测后广播；null = 无选区） */
   selection: RenderSelection | null
-  createMark: (
-    anchor: TextAnchor,
-    color: NoteColor,
-    kind: 'highlight' | 'note',
-    body?: string
-  ) => Promise<void>
+  createMark: (anchor: TextAnchor, color: NoteColor, body?: string) => Promise<void>
   saveAnnotation: () => Promise<void>
   jumpNote: (note: Note) => Promise<void>
   editNote: (note: Note) => void
@@ -176,16 +171,17 @@ export function useReaderNotes(params: {
    * 新建一条标记（高亮或批注）。
    * `id`/时间戳在**用例层**生成（存储层不代生成 id —— 它是同步主键，须跨端稳定）；
    * 落库成功后交给引擎立即回显，不必等整批重挂（约束③）。
-   * `kind` 记录**创建来路**（选色 → highlight / 写批注 → note），之后编辑正文不改 kind。
+   * 笔记 v3 kind 收敛：**统一落 `highlight`**（带不带 body 都是它，"批注/划线"由 body 有无
+   * 表达——`NoteKind` 是载体类型不是创建来路，DATA_MODEL §3.2.1）。
    */
   const createMark = useCallback(
-    async (anchor: TextAnchor, color: NoteColor, kind: 'highlight' | 'note', body = ''): Promise<void> => {
+    async (anchor: TextAnchor, color: NoteColor, body = ''): Promise<void> => {
       if (!book) return
       const now = Date.now()
       const note: Note = {
         id: crypto.randomUUID(),
         editionId: book.id,
-        kind,
+        kind: 'highlight',
         anchor,
         color,
         body,
@@ -200,7 +196,7 @@ export function useReaderNotes(params: {
         const next = [...notesRef.current, note].sort(compareNoteOrder)
         notesRef.current = next
         setNotes(next)
-        host.pushLog(`${kind === 'note' ? '已加批註' : '已劃線'}：${note.anchor.norm.quote.exact.slice(0, 12)}…`)
+        host.pushLog(`${body ? '已加批註' : '已劃線'}：${note.anchor.norm.quote.exact.slice(0, 12)}…`)
       } catch (err) {
         host.pushLog(`標記失敗：${(err as Error).message}`)
       }
@@ -210,7 +206,7 @@ export function useReaderNotes(params: {
     [container, book, host]
   )
 
-  /** 保存批注正文：既有笔记 → 更新；新建（无 noteId）→ 落一条 `kind='note'` */
+  /** 保存批注正文：既有笔记 → 更新；新建（无 noteId）→ 落一条带 body 的划线（同一条序列） */
   const saveAnnotation = useCallback(async (): Promise<void> => {
     const c = composer
     if (!c) return
@@ -226,7 +222,7 @@ export function useReaderNotes(params: {
         // 批注有无会影响 kookit 的"带批注"图标（`isNote = item.notes !== ""`）→ 整批重挂一次
         await container.render.renderHighlighters(next)
       } else {
-        await createMark(c.anchor, 'yellow', 'note', c.body)
+        await createMark(c.anchor, 'yellow', c.body)
       }
     } catch (err) {
       host.pushLog(`儲存批註失敗：${(err as Error).message}`)

@@ -140,6 +140,7 @@ CREATE TABLE IF NOT EXISTS notes (
     anchor_key TEXT NOT NULL,
     anchor_hint TEXT NOT NULL DEFAULT '',
     color TEXT,
+    mark_style TEXT NOT NULL DEFAULT 'background',
     excerpt TEXT NOT NULL DEFAULT '',
     body TEXT NOT NULL DEFAULT '',
     ink TEXT,
@@ -225,6 +226,7 @@ export class SqliteStore {
       )
     }
     db.exec(SCHEMA_SQL)
+    ensureNotesV4(db)
     this.db = db
     await runMigrations({
       db: this.db,
@@ -831,8 +833,8 @@ export class SqliteStore {
     this.db
       .prepare(
         `INSERT INTO notes
-           (id, edition_id, owner, kind, chapter_index, anchor_key, anchor_hint, color, excerpt, body, ink, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           (id, edition_id, owner, kind, chapter_index, anchor_key, anchor_hint, color, mark_style, excerpt, body, ink, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         note.id,
@@ -843,6 +845,7 @@ export class SqliteStore {
         cols.anchorKey,
         cols.anchorHint,
         note.color ?? null,
+        note.markStyle ?? 'background',
         note.anchor.norm.quote.exact, // excerpt 列 = quote.exact 的投影（§3.1.1 ①）
         note.body,
         note.ink ?? null,
@@ -868,6 +871,10 @@ export class SqliteStore {
     if (patch.color !== undefined) {
       sets.push('color = ?')
       args.push(patch.color ?? null)
+    }
+    if (patch.markStyle !== undefined) {
+      sets.push('mark_style = ?')
+      args.push(patch.markStyle)
     }
     if (patch.body !== undefined) {
       sets.push('body = ?')
@@ -1141,11 +1148,28 @@ function fromNoteRow(r: Record<string, unknown>): Note {
       excerpt: r.excerpt as string
     }),
     color: (r.color as Note['color'] | null) ?? undefined,
+    markStyle: (r.mark_style as Note['markStyle'] | null) ?? 'background',
     body: (r.body as string) ?? '',
     ink: (r.ink as string | null) ?? undefined,
     createdAt: r.created_at as number,
     updatedAt: r.updated_at as number
   }
+}
+
+/**
+ * 笔记 v3 的存量升级（幂等，旧库路径）：① `mark_style` 列补齐（notes v3 新增；缺省
+ * `background` = 历史行为）；② `'note'` kind 收敛为 `'highlight'`（DATA_MODEL §3.2.1）。
+ * SCHEMA_SQL 只管新库——`CREATE TABLE IF NOT EXISTS` 对旧表静默跳过，列级升级只能走这里。
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ensureNotesV4(db: any): void {
+  const cols = (
+    db.prepare('PRAGMA table_info(notes)').all() as Array<{ name: string }>
+  ).map((c) => c.name)
+  if (!cols.includes('mark_style')) {
+    db.exec("ALTER TABLE notes ADD COLUMN mark_style TEXT NOT NULL DEFAULT 'background'")
+  }
+  db.prepare("UPDATE notes SET kind = 'highlight' WHERE kind = 'note'").run()
 }
 
 /** 笔记读模型的排序口径（`NoteQuery.orderBy`；默认 `updated` = 最近改动在前） */

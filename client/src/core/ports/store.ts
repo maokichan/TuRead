@@ -33,7 +33,7 @@ export interface LibraryListResult {
  * 笔记的可更新字段。白名单式：`id`/`editionId`/`kind`/`createdAt` **不可改**
  * （身份与种类是既成事实；改身份等于换一条记录）。`anchor` 可改 = 重锚（`remeasure` 的落点）。
  */
-export type NotePatch = Partial<Pick<Note, 'anchor' | 'color' | 'body' | 'ink'>>
+export type NotePatch = Partial<Pick<Note, 'anchor' | 'color' | 'markStyle' | 'body' | 'ink'>>
 
 /**
  * 层级浏览的取入口径（**必须带库** —— 收录关系是库内的）。

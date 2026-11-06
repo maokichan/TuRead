@@ -119,7 +119,7 @@ const NOTES: Note[] = [
   {
     id: 'n-2',
     editionId: 'demo-1',
-    kind: 'note',
+    kind: 'highlight',
     anchor: {
       norm: {
         chapterIndex: 4,
@@ -245,13 +245,12 @@ const mkNote = (
   excerpt: string,
   body: string,
   color: NoteColor,
-  updatedAt: number,
-  /** 故意允许与 body 不一致 —— 见下面第 3 条 */
-  kind: Note['kind'] = body ? 'note' : 'highlight'
+  updatedAt: number
 ): Note => ({
   id,
   editionId: 'demo-1',
-  kind,
+  // 笔记 v3 kind 收敛：全部 highlight（载体唯一形态），「批注/划线」由 body 有无表达
+  kind: 'highlight' as const,
   anchor: {
     norm: { chapterIndex, progression: 0.5, quote: { exact: excerpt, prefix: '', suffix: '' } },
     fragment: null
@@ -265,9 +264,9 @@ const mkNote = (
 const DAY = 86400000
 /**
  * 笔记流的样张数据：**长短刻意拉开**，用来验证"条目高度随内容变"与上限截断（摘录 ≤4 行 / 批注 ≤6 行）。
- * ⚠ 第 3 条刻意做成 `kind='highlight'` 但 `body` 非空 —— 这正是"划完线再补批注"的真实情形
+ * ⚠ 第 3 条 `body` 非空 —— 这正是"划完线再补批注"的真实情形
  * （用户 2026-09-16："画完线后补 body，那这就是批注，很显然"）。所以**卡片照样按批注显示**：
- * 判据是 `body` 是否为空，不是 `kind`。
+ * 判据是 `body` 是否为空，不是 `kind`（笔记 v3 收敛后 kind 恒为 highlight，判据不变）。
  */
 const NOTE_FLOW_ITEMS: NoteFlowItem[] = [
   {
@@ -293,8 +292,7 @@ const NOTE_FLOW_ITEMS: NoteFlowItem[] = [
       '蛋白质的摄入时机对合成窗口的影响仍在争论',
       '这里说的和上一章的数字对不上：他前面写 1.6 g/kg，这里又写 2.2 g/kg。我倾向于按训练量与总热量来定，而不是死守一个数；回头把两处的原文都抄出来对比一遍，顺便查一下引用的那篇 2018 年的综述到底是不是这个结论，因为如果引用错了，后面整章的推算都要打折看，剂量的事不能含糊。',
       'green',
-      Date.now() - 5 * DAY,
-      'highlight' // ← body 非空但 kind 是 highlight：卡片仍按「批注」显示（判据 = body）
+      Date.now() - 5 * DAY
     )
   },
   {

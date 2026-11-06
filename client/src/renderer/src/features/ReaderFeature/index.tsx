@@ -394,7 +394,7 @@ export function ReaderFeature({
       // 待配键方案（用户要设置页可配置 + 研究主流键鼠模式）定下后填 DEFAULT_BINDINGS 即可，
       // 不必再改这里。目标链条：键盘翻页 → 选中 → 集中焦点 → 做笔记，手不离开键盘。
       'reader.markSelection': () => {
-        if (selection) void createMark(selection.anchor, 'yellow', 'highlight')
+        if (selection) void createMark(selection.anchor, 'yellow')
       },
       'reader.annotateSelection': () => {
         if (!selection) return
@@ -443,7 +443,7 @@ export function ReaderFeature({
         children: (['yellow', 'green', 'blue', 'red'] as NoteColor[]).map((c) => ({
           label: { yellow: '黃', green: '綠', blue: '藍', red: '赤' }[c],
           swatch: `var(--note-${c})`,
-          onClick: () => void createMark(anchor, c, 'highlight')
+          onClick: () => void createMark(anchor, c)
         }))
       })
       items.push({
