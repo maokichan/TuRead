@@ -185,6 +185,40 @@ export function registerIpc(
     return true
   })
 
+  // ————— 文档层 vault（笔记 v3 批N5）：汇编与笔记档案的落点 —————
+  // 真实 .md 文件目录（<userData>/vault）。文件名白名单：单段、无路径分隔、不以点开头
+  // （目录由 main 决定，渲染层只给文件名——不开"任意路径写"的口子，同 fs:save-book-copy）。
+  const vaultDir = (): string => join(app.getPath('userData'), 'vault')
+  const vaultSafeName = (raw: unknown): string => {
+    if (
+      typeof raw !== 'string' ||
+      !/^[^\/:*?"<>| -]{1,80}\.md$/.test(raw) ||
+      raw.startsWith('.')
+    ) {
+      throw new Error(`vault 文件名非法：${String(raw).slice(0, 40)}`)
+    }
+    return raw
+  }
+  ipcMain.handle(IPC.vaultList, async () => {
+    await fs.mkdir(vaultDir(), { recursive: true })
+    return (await fs.readdir(vaultDir())).filter((n) => n.endsWith('.md')).sort()
+  })
+  ipcMain.handle(IPC.vaultRead, async (_e, p: { name: string }) =>
+    fs.readFile(join(vaultDir(), vaultSafeName(p?.name)), 'utf-8')
+  )
+  ipcMain.handle(IPC.vaultWrite, async (_e, p: { name: string; content: string }) => {
+    const name = vaultSafeName(p?.name)
+    await fs.mkdir(vaultDir(), { recursive: true })
+    const path = join(vaultDir(), name)
+    await fs.writeFile(path, p.content, 'utf-8')
+    return { path }
+  })
+  ipcMain.handle(IPC.vaultReveal, async () => {
+    await fs.mkdir(vaultDir(), { recursive: true })
+    void shell.openPath(vaultDir())
+    return { path: vaultDir() }
+  })
+
   // ————— 書箱 / 层级浏览（树在库内）—————
   ipcMain.handle(IPC.storeListContainers, (_e, p: { libraryId: string; parentId: string | null }) =>
     store().listContainers(p.libraryId, p.parentId)

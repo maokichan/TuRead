@@ -19,6 +19,8 @@ export interface NotesToolbarProps {
   scope: 'library' | 'all'
   /** 当前筛选下的条数 */
   count: number
+  /** 匯出彙編（笔记 v3 文档层）：当前筛选结果 → vault 的 .md（wikilink 引用） */
+  onExportCompilation: () => void
   /** 一次性反馈（如「已複製批註」）；显示在计数位置，约 1.5s 后自动消失 */
   hint?: string | null
   onToggleView: () => void
@@ -42,7 +44,8 @@ export function NotesToolbar({
   onToggleView,
   onCycleFilter,
   onToggleFocus,
-  onToggleScope
+  onToggleScope,
+  onExportCompilation
 }: NotesToolbarProps): React.JSX.Element {
   /** 共享动画状态机（viewSwitchFlash.ts，与 LibraryToolbar 同款） */
   const { flashing, flashSeq, shown, toggle } = useViewSwitchFlash<NoteView>(

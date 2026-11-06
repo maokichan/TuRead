@@ -35,7 +35,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 |---|---|---|
 | **仓库治理机制** | ops/ 三门控（doc-index → repoGuard → docGuard）挂 pre-commit；决策笔记三态生命周期；治理/业务脚本分治（ops/ 管仓库，client/scripts/ 管业务与验证，后者信任分级待收编） | `ops/AGENTS.md`；笔记：[机制移植](../.agents/notes/implemented/process/2026-11-04-mechanism-port.md) |
 | **统一日志（2026-11-05）** | 单行 JSONL 契约（`@shared/log`）；生产/探针同格式落 `<userData>/logs/app.jsonl`（启动轮转 5MB/7 份/14 天）；renderer console-message 常驻转发（生产 warn/error、探针全量）；工作区收拢点 = 仓库根 `logs/`；清理 = `node client/scripts/logsClean.mjs`（默认列单，`--yes` 删） | 笔记：[统一日志](../.agents/notes/implemented/process/2026-11-05-unified-logging.md)；契约 `client/src/shared/log.ts` |
-| **笔记区 v3 三层模型（用户定，落地中）** | 锚点二分（内容流 / 几何页 rect+stroke）+ body 原生 Markdown（OFM）+ 色样正交（四样×四色）+ 文档层 vault 真文件（汇编+档案，内置编辑器源码/预览/所见即所得，**不取代 Obsidian**）；OCR 不进渲染管线；本轮不碰插件系统 | 笔记：[笔记区 v3 数据模型](../.agents/notes/proposed/arch/2026-11-06-notes-v3-data-model.md) |
+| **笔记区 v3 三层模型（用户定，已落地批N1–N5）** | 锚点二分（内容流 / 几何页 rect+stroke）+ body 原生 Markdown（OFM）+ 色样正交（四样×四色）+ 文档层 vault 真文件（汇编+档案，内置编辑器源码/预览/所见即所得，**不取代 Obsidian**）；OCR 不进渲染管线；本轮不碰插件系统 | 笔记：[笔记区 v3 数据模型](../.agents/notes/implemented/arch/2026-11-06-notes-v3-data-model.md) |
 | 架构选型 | client = 六边形（端口-适配器）+ DDD 命名；server = 简单分层（非六边形） | `client/docs/ARCHITECTURE.md` §1；`server/docs/ARCHITECTURE.md` §5 |
 | 定位系统 | `BookLocation` 三级角色（key/hint/display），原语收拢进 `core/domain/location.ts`，任何组件不得自行解释位置字段 | `CONTRACTS.md` §2.1 |
 | 书籍标定 | Work/Edition 两层；Work 不设 author/publisher；`content-hash-v1` + `md5-sample3-v1` | `docs/ARCHITECTURE.md` §1 |
@@ -134,7 +134,9 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 ## 6. 交接快照
 
 **当前位置**：`main`（client **v0.2.7** / server v0.2.2；**已 push**（2026-11-06 收尾批，用户授权）；未打包，发行物仍是 v0.1.15 便携版）。
-**未滚版本的增量**（并入下个版本，§4 不加行）：插件卸载落地（`plugins:uninstall`——种子件拒删 +
+**未滚版本的增量**（并入下个版本，§4 不加行）：**笔记 v3 全线落地**（三层模型：kind 收敛执行 +
+markStyle 四样×四色 + 几何页锚[文字选区/框选/记号笔，pdf 用户空间点] + body 原生 Markdown
+渲染子集 + 文档层 vault[彙編/筆記檔案/编辑器三态]，新增「文檔」功能组件）；插件卸载落地（`plugins:uninstall`——种子件拒删 +
 目录围栏 + 渲染层清 `plugin:<id>` 键；已知残留 = `plugin-secret:<id>:*` 密文清不掉，待 store 补
 「按前缀删键」原语，见 `client/plugins/PLUGINS.md` §3）；统一日志机制；治理机制与文档分层（feature-docs 笔记）；
 **洗源码五域全清 + 技术腐化清理**（注释三向分流：契约内核留/叙事退役或转移 features 页/日期批次壳剥除；

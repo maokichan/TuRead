@@ -1,6 +1,6 @@
 # 决策：笔记区 v3——三层数据模型（锚/笔记/文档）与编辑器特性支持
 
-Status: proposed
+Status: implemented
 
 ## Problem
 
@@ -11,9 +11,9 @@ Status: proposed
 前置裁定：本轮**不碰插件系统**——动的是宿主页面（筆記页/右键/命令面板），不是贡献点挂载
 机制；接缝仅「問」读笔记数据（挂起的插件内容专题）与贡献点扩展（远期）。
 
-## Proposal（用户已拍板，落地中）
+## Decision（已落地：批N1–N5，git 为准）
 
-**三层，各自独立演进：**
+**三层，各自独立演进（下为裁决；实现细则随代码与各 feature 页）：**
 
 1. **锚点层 = 承载体制二分**
    - 内容流锚（现行 Norm+Fragment）不动，文字类载体用；
@@ -64,16 +64,12 @@ Status: proposed
 - **引用语法自创（`note://` 类 URI）**：输在——Obsidian 不识别，流通即破裂；wikilink 是
   方言共识。
 
-## Acceptance criteria
+## Consequences
 
-- 无文本层 PDF：框选/记号笔标注、四色四样、重开回显；有文本层时 excerpt/检索可用。
-- body 写 Markdown 卡片渲染；纯文本 body 原样可读。
-- 汇编导出落 vault；Obsidian 打开后引用可解析（经档案）、反链可见；应用内解引用跳回原文。
-- 编辑器三态可用；`'note'` kind 退役；四种线样可选。
-
-## Risks
-
-- WYSIWYG 实现体量（contenteditable 坑深）——排在源码+预览之后交付；
-- stroke 自绘与 kookit PDF 覆盖层的边界——与墨迹（kind=ink）覆盖层机制合流，一套基建；
-- 档案再生成 vs 用户手改的一致性——档案定位「生成物勿手改」，覆盖口径写死；
-- 文档层体量蔓延——「不取代 Obsidian」是红线，功能面按矩阵收口。
+**换来的**：扫描版 PDF（无文本层）有了标注入口（几何页锚两态：框选走 kookit 现成路径、
+记号笔自绘 SVG 层）；body 原生 Markdown + 色样正交（4 样 × 4 色，`--mark-line-*` 描边族）；
+vault 真文件 = Obsidian 反链的物质基础；编辑器三态（源码 = 唯一真相，所见即所得是它的视图）。
+**付出的**：坐标换算依赖 kookit 内部（`chapterDocList`/`getPdfScale`，升级敏感面已入
+`KOOKIT.md` §9）；档案 vs 手改的一致性靠「生成物勿手改 + 整体覆盖」口径；文档层体量
+按矩阵收口（「不取代 Obsidian」是红线）。**待真机复看**：几何拖曳手感与落点精度、
+四样在 EPUB/PDF 的观感、Obsidian 反链实效——探针证不了交互手感。

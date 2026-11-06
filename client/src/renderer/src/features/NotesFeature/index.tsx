@@ -23,6 +23,7 @@ import { NotesToolbar } from '../../components/NotesToolbar'
 import { ReadingStatsSection } from '../../components/ReadingStats'
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { buildCompilationMd, freeVaultName } from '../DocumentsFeature/notesDocs'
 
 const DEFAULT_SETTINGS: NoteSettings = {
   view: 'masonry',
@@ -53,6 +54,20 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
   const [reloadTick, setReloadTick] = useState(0)
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const scrollRef = useRef<HTMLDivElement | null>(null)
+
+  /** 匯出彙編（笔记 v3 文档层）：当前筛选结果 → vault .md（wikilink 引用；档案使其可解析） */
+  const exportCompilation = useCallback(async (): Promise<void> => {
+    if (items.length === 0) {
+      setHint('沒有可匯出的筆記')
+      return
+    }
+    const title = `彙編 · ${items[0].editionTitle} 等 ${items.length} 條`
+    const md = buildCompilationMd(title, items)
+    const list = ((await window.turead.invoke(IPC.vaultList)) as string[]) ?? []
+    const name = freeVaultName('彙編', list)
+    await window.turead.invoke(IPC.vaultWrite, { name, content: md })
+    setHint(`已匯出 ${name.replace(/\.md$/, '')}`)
+  }, [items])
   const active = activeFeature === 'notes'
 
   // ————— 设置（持久化于全局 settings 表的 noteSettings 键；设置一律全局，D9）—————
@@ -262,6 +277,7 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
           patchSettings({ textFocus: settings.textFocus === 'body' ? 'excerpt' : 'body' })
         }
         onToggleScope={() => patchSettings({ scope: settings.scope === 'library' ? 'all' : 'library' })}
+        onExportCompilation={() => void exportCompilation()}
       />
 
       {menu && (

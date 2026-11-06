@@ -9,7 +9,7 @@ import type { ComponentType } from 'react'
 import type { ServiceContainer } from '@core/container'
 
 /** 内置功能组件 id。官方插件扩展时追加新的 id 字面量（不与内置冲突即可）。 */
-export const FEATURE_IDS = ['library', 'reader', 'room', 'notes', 'settings'] as const
+export const FEATURE_IDS = ['library', 'reader', 'room', 'notes', 'documents', 'settings'] as const
 export type FeatureId = (typeof FEATURE_IDS)[number]
 
 /**
