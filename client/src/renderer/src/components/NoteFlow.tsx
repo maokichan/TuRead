@@ -14,12 +14,11 @@
  * 内容驱动的（可测）；網格里它的高度就是行高（测了会自己喂自己）。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Note, NoteTextFocus, NoteView } from '@core/domain/types'
+import type { Note, NoteTextFocus } from '@core/domain/types'
 import { NoteCard } from './NoteCard'
 import {
   computeColW,
   computeCols,
-  packGrid,
   packMasonry,
   visibleIndices,
   FLOW_COL_GAP
@@ -32,13 +31,10 @@ export interface NoteFlowItem {
 }
 
 export interface NoteFlowProps {
-  view: NoteView
   items: NoteFlowItem[]
   selectedId: string | null
   textFocus: NoteTextFocus
   onSelect: (item: NoteFlowItem) => void
-  /** 双击 = 跳转（打开他书并落到锚点） */
-  onOpen: (item: NoteFlowItem) => void
   onContextMenu: (item: NoteFlowItem, e: React.MouseEvent) => void
   /** 滚动容器；缺省 = window（样式样张里就是 window） */
   scrollRef?: React.RefObject<HTMLElement | null>
@@ -75,12 +71,10 @@ function estimateHeight(note: Note): number {
 }
 
 export function NoteFlow({
-  view,
   items,
   selectedId,
   textFocus,
   onSelect,
-  onOpen,
   onContextMenu,
   scrollRef,
   windowing = true
@@ -156,7 +150,6 @@ export function NoteFlow({
   const elsRef = useRef(new Map<string, HTMLElement>())
   const refFns = useRef(new Map<string, (el: HTMLElement | null) => void>())
   useEffect(() => {
-    if (view !== 'masonry') return
     const ro = new ResizeObserver((entries) => {
       let changed = false
       for (const entry of entries) {
@@ -187,7 +180,7 @@ export function NoteFlow({
       ro.disconnect()
       roRef.current = null
     }
-  }, [view])
+  }, [])
 
   const getRef = useCallback((id: string): ((el: HTMLElement | null) => void) => {
     const cached = refFns.current.get(id)
@@ -213,12 +206,10 @@ export function NoteFlow({
   const colWidth = computeColW(box.width, cols)
   const layout = useMemo(() => {
     const heights = items.map((it) => measured.current.get(it.note.id) ?? estimateHeight(it.note))
-    return view === 'masonry'
-      ? packMasonry(heights, cols, colWidth)
-      : packGrid(heights, cols, colWidth)
+    return packMasonry(heights, cols, colWidth)
     // measuredTick 参与依赖：实测高度更新后必须重算（否则位置仍是估算值）
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, view, cols, colWidth, measuredTick])
+  }, [items, cols, colWidth, measuredTick])
 
   const visible = useMemo(() => {
     if (!windowing) return layout.placed.map((p) => p.index)
@@ -234,7 +225,7 @@ export function NoteFlow({
   return (
     <div
       ref={flowRef}
-      className={`note-flow note-flow--${view === 'masonry' ? 'masonry' : 'grid'}`}
+      className="note-flow note-flow--masonry"
       style={{ height: layout.totalHeight }}
     >
       {visible.map((index) => {
@@ -245,13 +236,12 @@ export function NoteFlow({
           <div
             key={item.note.id}
             className="note-flow__item"
-            // 瀑布流：条目盒由内容撑高 → 可测；網格：高度 = 行高（等高行），故不测
-            ref={view === 'masonry' ? getRef(item.note.id) : undefined}
+            // 瀑布流：条目盒由内容撑高 → 可测
+            ref={getRef(item.note.id)}
             style={{
               top: p.top,
               left: p.col * (colWidth + FLOW_COL_GAP),
-              width: colWidth,
-              height: view === 'grid' ? p.height : undefined
+              width: colWidth
             }}
           >
             <NoteCard
@@ -260,7 +250,6 @@ export function NoteFlow({
               selected={selectedId === item.note.id}
               textFocus={textFocus}
               onSelect={() => onSelect(item)}
-              onOpen={() => onOpen(item)}
               onContextMenu={(e) => onContextMenu(item, e)}
             />
           </div>

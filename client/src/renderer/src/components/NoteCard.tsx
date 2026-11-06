@@ -24,8 +24,8 @@ export interface NoteCardProps {
   selected: boolean
   /** 文字主次档（默认 `body` = 批註為主） */
   textFocus: NoteTextFocus
+  /** 单击 = 进详情页（跳回原文的入口移到详情轴；双击跳书退役） */
   onSelect: () => void
-  onOpen: () => void
   onContextMenu: (e: React.MouseEvent) => void
 }
 
@@ -35,7 +35,6 @@ export function NoteCard({
   selected,
   textFocus,
   onSelect,
-  onOpen,
   onContextMenu
 }: NoteCardProps): React.JSX.Element {
   const excerpt = note.anchor.norm.quote.exact
@@ -49,13 +48,9 @@ export function NoteCard({
       data-note-id={note.id}
       title={where}
       onClick={onSelect}
-      onDoubleClick={onOpen}
       onContextMenu={onContextMenu}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          onOpen()
-        } else if (e.key === ' ') {
+        if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
           onSelect()
         }

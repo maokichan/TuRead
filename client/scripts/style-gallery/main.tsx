@@ -38,7 +38,6 @@ import type {
   Note,
   NoteColor,
   NoteTextFocus,
-  NoteView,
   ReadingState,
   RoomInfo,
   RoomMember
@@ -944,7 +943,6 @@ function RailDemo({
  * 真实位置在笔记管理的**底部状态栏**（STYLE §5.10 的 5 件套），这里为便于试而排在一起。
  */
 function NotesDemo(): React.JSX.Element {
-  const [view, setView] = useState<NoteView>('masonry')
   const [focus, setFocus] = useState<NoteTextFocus>('body')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   /** 边界排查开关（用户 2026-09-16 要的"随时改出边缘来"）：见 styles.css 的 `.note-edges` */
@@ -954,13 +952,6 @@ function NotesDemo(): React.JSX.Element {
       <div className="flex flex-wrap items-center gap-7">
         <button
           className="view-switch"
-          title="切换显示模式"
-          onClick={() => setView((v) => (v === 'masonry' ? 'grid' : 'masonry'))}
-        >
-          {view === 'masonry' ? '瀑布流' : '網格'}
-        </button>
-        <button
-          className="text-action text-action--lg"
           title="切换卡片内的文字主次"
           onClick={() => setFocus((f) => (f === 'body' ? 'excerpt' : 'body'))}
         >
@@ -980,12 +971,10 @@ function NotesDemo(): React.JSX.Element {
       {/* 边界开关挂在祖先上即可（两个 token 是继承的 CSS 变量）—— 见 styles.css 的 .note-edges */}
       <div className={edges ? 'note-edges' : ''}>
         <NoteFlow
-          view={view}
           items={NOTE_FLOW_ITEMS}
           selectedId={selectedId}
           textFocus={focus}
           onSelect={(it) => setSelectedId(it.note.id)}
-          onOpen={noop}
           onContextMenu={noop}
         />
       </div>
@@ -1070,13 +1059,11 @@ function ScaleProbe({ n, windowing = true }: { n: number; windowing?: boolean })
         —— 结果在 window.__notesScale
       </p>
       <NoteFlow
-        view="masonry"
         items={items}
         selectedId={null}
         textFocus={focus}
         windowing={windowing}
         onSelect={noop}
-        onOpen={noop}
         onContextMenu={noop}
       />
     </div>

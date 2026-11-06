@@ -2152,16 +2152,19 @@ textarea {
   margin: 0.4em 0 0.1em;
 }
 
-/* 上限（§5.10）：摘录 ≤4 行、批注 ≤6 行；超出省略号收尾，全文跳转进阅读器看 */
-.note-card__excerpt {
-  -webkit-line-clamp: 4;
+/* 上限语义（笔记区重构，用户定）：**主方完整呈现，副方截断两行** ——
+   批註為主 = 批注不截、摘录两行；摘錄為主反之。超出省略号收尾。 */
+.note-card--body-first .note-card__body,
+.note-card--excerpt-first .note-card__excerpt {
+  -webkit-line-clamp: unset;
 }
 
-.note-card__body {
-  -webkit-line-clamp: 6;
+.note-card--body-first .note-card__excerpt,
+.note-card--excerpt-first .note-card__body {
+  -webkit-line-clamp: 2;
 }
 
-/* 两档文字主次（§5.10）：差别**只有字号 + 颜色** —— P2 一套字体、中文只有 Bold 切面
+/* 两档文字主次（§5.10）：主次之上再分字号/颜色 —— P2 一套字体、中文只有 Bold 切面
    （不做字重对比）。默认档 = body（批註為主），由组件挂类名。 */
 .note-card--body-first .note-card__excerpt {
   font-size: 13px;

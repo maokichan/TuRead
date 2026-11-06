@@ -50,7 +50,7 @@
 - **NoteKind** —— `kind` 是「载体类型」不是「创建来路」（收敛**已执行**：存储层把存量 `'note'` 行迁为 `highlight`，写侧统一「标记 + 可选正文」）：`highlight` = 锚在正文范围（带不带 body 都是它）；`bookmark` = 标位置、无文本范围（尚无 UI）；`ink` = 几何画布矢量墨迹（DATA_MODEL §3.3）。呈现只按有无 body 区分。
 - **NoteMarkStyle**（笔记 v3 新增）—— **线样与色正交两维**：`background`（底纹，历史缺省）/ `underline` / `wavy` / `strikethrough`——kookit `buildHighlightStyleForType` 原生支持四样（PDF 覆盖层走内联 SVG，见 `KOOKIT.md`）。⚠ `--note-*` 色值按「叠正文 0.8 透明」取值、描边色不透明——描边类线样不能共用，需独立 token 族（`--mark-line-*`，落点 STYLE §3.4）。
 - **NoteColor** —— 语义名（red/yellow/green/blue），UI 按主题 token 渲染；库内不存 hex。
-- **NoteView / NoteTextFocus / NoteFilter**（用户 2026-09-16 定案）—— 管理视图**无列表形态**（`grid` 網格 / `masonry` 瀑布流，默认 masonry）；卡片文字主次两档**可切换**（默认 `body`）；筛选 = 单按钮三态循环（批註→劃線→全部）。⚠ **筛选判据是 `body` 是否为空，不是 `kind`**——kind 只分载体不分内容（划线补正文 ≈ 批注），按 kind 分组会分错；与呈现口径一致：**只按有无 body 区分**。
+- **NoteTextFocus / NoteFilter**（用户 2026-09-16 定案；2026-11-07 重构升级）—— 视图**只留瀑布流**（`NoteView` 退役：两种排列都没组织起"笔记属于书"的关系，按书的组织归详情轴）；卡片文字主次两档**可切换**，语义 = **主方完整、副方截断两行**（信息取舍，非字号强调）；排序恒按最近更新倒序（不按书组织）；单击卡片 = 进**详情轴**（跳回原文的入口移到轴上）。筛选 = 单按钮三态循环（批註→劃線→全部）。⚠ **筛选判据是 `body` 是否为空，不是 `kind`**——kind 只分载体不分内容（划线补正文 ≈ 批注），按 kind 分组会分错；与呈现口径一致：**只按有无 body 区分**。
 
 ## 房间与聊天（wire 镜像）
 

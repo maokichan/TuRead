@@ -422,11 +422,10 @@ export interface Note {
 
 /* ————— 笔记管理（跨书）—— CONTRACTS v0.4.2；视觉 = STYLE §5.10，形态 = FEATURES §12 ————— */
 
-/** 笔记管理的视图：`grid` = 網格（等高行）；`masonry` = 瀑布流（按列装箱，**默认**）。
- *  ⚠ **没有列表形态**（用户 2026-09-16 定）。 */
-export type NoteView = 'grid' | 'masonry'
-
-/** 卡片内文字主次（用户 2026-09-16 定：两档**可切换**，默认 `body`）。只改字号/颜色的分配，不改数据。 */
+/** 卡片内文字主次（用户 2026-09-16 定：两档**可切换**，默认 `body`）。
+ *  ⚠ 笔记区重构（2026-11-07）语义升级：**主方完整呈现，副方截断**（摘录为主 = 摘录不截、
+ *  批注截断；反之亦然）——不再是字号/颜色的强调，是信息取舍。
+ *  網格视图随批退役（两种排列都没组织起"笔记属于书"的关系；关系归详情轴与舞台入口）。 */
 export type NoteTextFocus = 'body' | 'excerpt'
 
 /**
@@ -441,7 +440,6 @@ export type NoteFilter = 'annotated' | 'highlight' | 'all'
 
 /** 笔记管理设置（持久化于**全局** `settings` 表的 `noteSettings` 键 —— 设置一律全局，D9） */
 export interface NoteSettings {
-  view: NoteView
   filter: NoteFilter
   /** 卡片文字主次（默认 `body` = 批註為主） */
   textFocus: NoteTextFocus
