@@ -443,8 +443,6 @@ export interface NoteSettings {
   filter: NoteFilter
   /** 卡片文字主次（默认 `body` = 批註為主） */
   textFocus: NoteTextFocus
-  /** 作用域：当前库 / 全部库（**默认当前库**，用户 2026-09-16 定） */
-  scope: 'library' | 'all'
 }
 
 /** 聊天消息（v0.1.5 起 server 支持；追加日志模型，历史经 REST 拉取） */

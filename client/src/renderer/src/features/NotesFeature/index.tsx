@@ -31,8 +31,7 @@ import { buildCompilationMd, freeVaultName } from './notesDocs'
 
 const DEFAULT_SETTINGS: NoteSettings = {
   filter: 'annotated',
-  textFocus: 'body',
-  scope: 'library'
+  textFocus: 'body'
 }
 
 const FILTER_CYCLE: NoteFilter[] = ['annotated', 'highlight', 'all']
@@ -49,7 +48,6 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
   const [count, setCount] = useState(0)
   /** 当前筛选为「批註」时被隐藏的划线数（空态要报出来 —— 缺失要可见，不静默） */
   const [hiddenHighlights, setHiddenHighlights] = useState(0)
-  const [libId, setLibId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; item: NoteFlowItem } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<NoteFlowItem | null>(null)
@@ -159,15 +157,6 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
     [container]
   )
 
-  // ————— 当前库（作用域「當前庫」的判据；切库广播后重取）—————
-  useEffect(() => {
-    const read = (): void => {
-      void container.store.listLibraries().then((r) => setLibId(r.currentId))
-    }
-    read()
-    return window.turead.subscribe(IPC.storeLibraryChanged, read)
-  }, [container])
-
   // ————— 检索防抖（纪律③）—————
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQuery(notesQuery), QUERY_DEBOUNCE_MS)
@@ -191,21 +180,21 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
     if (active) setReloadTick((t) => t + 1)
   }, [active])
 
-  /** 当前查询（**唯一构造处**：列表与三个计数共用同一套条件，避免口径漂移） */
+  /** 当前查询（**唯一构造处**：列表与三个计数共用同一套条件，避免口径漂移）。
+   *  不传 libraryId = 查全部库（作用域切换已退役：按库分类不是笔记区的工作，
+   *  库状态只在书库页；笔记区列表恒全部笔记）。 */
   const buildQuery = useCallback(
     (filter: NoteFilter): NoteQuery => ({
-      libraryId: settings.scope === 'library' ? libId : null,
       hasBody: filter === 'annotated' ? true : filter === 'highlight' ? false : null,
       text: debouncedQuery.trim() === '' ? null : debouncedQuery,
       orderBy: 'updated'
     }),
-    [settings.scope, libId, debouncedQuery]
+    [debouncedQuery]
   )
 
-  // ————— 查询（读模型；筛选/检索/作用域/激活变化都走这里）—————
+  // ————— 查询（读模型；筛选/检索/激活变化都走这里）—————
   useEffect(() => {
     if (!active) return
-    if (settings.scope === 'library' && !libId) return
     let cancelled = false
     const run = async (): Promise<void> => {
       try {
@@ -232,7 +221,7 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
     return () => {
       cancelled = true
     }
-  }, [active, settings.filter, settings.scope, libId, buildQuery, container, host, reloadTick])
+  }, [active, settings.filter, buildQuery, container, host, reloadTick])
 
   // 一次性提示自动消失
   useEffect(() => {
@@ -332,8 +321,8 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
     if (settings.filter === 'annotated' && hiddenHighlights > 0) {
       return `批註 0 條 —— 有 ${hiddenHighlights} 條劃線未顯示（點篩選按鈕切到「劃線」）`
     }
-    return settings.scope === 'library' ? '當前書庫還沒有筆記' : '還沒有任何筆記'
-  }, [items.length, debouncedQuery, settings.filter, settings.scope, hiddenHighlights])
+    return '還沒有任何筆記'
+  }, [items.length, debouncedQuery, settings.filter, hiddenHighlights])
 
   return (
     <div className="flex h-full flex-col">
@@ -393,7 +382,6 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
       <NotesToolbar
         filter={settings.filter}
         textFocus={settings.textFocus}
-        scope={settings.scope}
         count={count}
         hint={hint}
         onCycleFilter={() => {
@@ -403,7 +391,6 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
         onToggleFocus={() =>
           patchSettings({ textFocus: settings.textFocus === 'body' ? 'excerpt' : 'body' })
         }
-        onToggleScope={() => patchSettings({ scope: settings.scope === 'library' ? 'all' : 'library' })}
         onExportCompilation={() => void exportCompilation()}
         docsOpen={docsOpen}
         onToggleDocs={() => {

@@ -1,12 +1,13 @@
 /**
  * 笔记管理的**底部状态栏**（纯展示：props in / 回调 out）—— 视觉 = style/components-notes.md。
  *
- * 四件（左对齐，与书库底部状态栏同一结构：`border-t` + `pt-4` + 22px 文字按钮）：
+ * 三件（左对齐，与书库底部状态栏同一结构：`border-t` + `pt-4` + 22px 文字按钮）：
  * ① **内容主次**（批註為主 ⇄ 摘錄為主，两态循环）—— `.view-switch` + **三角负片** + 闪屏动画
  *    （视图切换动画搬家至此：網格退役后，"两态循环 + 负片三角"的语汇由主次切换继承；
  *    主次切换 = **主方完整、副方截断**的信息取舍，不是字号强调）；② **筛选**（批註 → 劃線 → 全部，
- *    单按钮三态循环，默认批註、不带三角不加动画）；③ **作用域**（當前庫 ⇄ 全部庫）；④ **计数**。
+ *    单按钮三态循环，默认批註、不带三角不加动画）；③ **计数**。
  * 另有「文檔」切换（文档视图归筆记区）与「彙編」导出。
+ * 作用域切换已退役（用户定：按库分类不是笔记区的工作，库状态只在书库页；列表恒全部笔记）。
  *
  * 排序恒按**最近更新**倒序（不设切换——按书的组织归详情轴与舞台入口，列表只做时间流）。
  */
@@ -16,7 +17,6 @@ import { useViewSwitchFlash } from './viewSwitchFlash'
 export interface NotesToolbarProps {
   filter: NoteFilter
   textFocus: NoteTextFocus
-  scope: 'library' | 'all'
   /** 当前筛选下的条数 */
   count: number
   /** 匯出彙編（笔记 v3 文档层）：当前筛选结果 → vault 的 .md（wikilink 引用） */
@@ -28,22 +28,18 @@ export interface NotesToolbarProps {
   hint?: string | null
   onCycleFilter: () => void
   onToggleFocus: () => void
-  onToggleScope: () => void
 }
 
 const FILTER_LABEL: Record<NoteFilter, string> = { annotated: '批註', highlight: '劃線', all: '全部' }
 const FOCUS_LABEL: Record<NoteTextFocus, string> = { body: '批註為主', excerpt: '摘錄為主' }
-const SCOPE_LABEL: Record<'library' | 'all', string> = { library: '當前庫', all: '全部庫' }
 
 export function NotesToolbar({
   filter,
   textFocus,
-  scope,
   count,
   hint,
   onCycleFilter,
   onToggleFocus,
-  onToggleScope,
   onExportCompilation,
   docsOpen,
   onToggleDocs
@@ -84,13 +80,6 @@ export function NotesToolbar({
           className={`view-switch ${flashing ? 'view-switch-flash' : ''}`}
         >
           {FOCUS_LABEL[shown]}
-        </button>
-        <button
-          onClick={onToggleScope}
-          title="切换作用域：當前庫 / 全部庫"
-          className="text-action text-action--lg"
-        >
-          {SCOPE_LABEL[scope]}
         </button>
         <span className="text-[var(--muted)]">{hint ?? `${count} 條`}</span>
       </div>
