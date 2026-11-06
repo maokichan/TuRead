@@ -15,6 +15,7 @@
  */
 import type { Note, NoteTextFocus } from '@core/domain/types'
 import { formatRelative } from '../features/format'
+import { renderNoteMarkdown } from './noteMarkdown'
 
 export interface NoteCardProps {
   note: Note
@@ -74,7 +75,8 @@ export function NoteCard({
         <span className="note-card__when">{formatRelative(note.updatedAt)}</span>
       </div>
       {excerpt !== '' && <p className="note-card__excerpt">{`「${excerpt}」`}</p>}
-      {hasBody && <p className="note-card__body">{note.body}</p>}
+      {/* body = 原生 Markdown（笔记 v3）：卡片按子集渲染；输入仍是源码（输入栏口径） */}
+      {hasBody && <div className="note-card__body">{renderNoteMarkdown(note.body)}</div>}
     </div>
   )
 }
