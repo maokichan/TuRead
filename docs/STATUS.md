@@ -69,7 +69,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | iframe 事件桥 | 键盘/滚轮落在书文档里到不了宿主 → `components/iframeBridge.ts`（同源 iframe 挂同一套监听，**按键只看界面不看焦点**）；分页模式滚轮翻页 | `iframeBridge.ts`；`useKeyIntents.ts` |
 | 右键菜单坐标 | 适配器经 `hostOffset()` 沿 iframe 链逐层累加宿主坐标（曾把书文档坐标当宿主坐标的旧 bug 已修，noteProbe 断言在案） | `kookitRenderAdapter.ts` |
 | 全局禁选 | **文字选择 = 阅读正文专属**（宿主 UI 一律不可拖选，`input/textarea` 豁免） | `styles.css`；`FEATURES.md` §10/§11 |
-| 书库层级后退/前进 | 对齐资源管理器：鼠标侧键 + 底面全局件按钮（ChromeControls）；历史栈条目含**面包屑整条**；模块总线 `libraryNavBus` 跨兄弟组件 | `LibraryFeature`；`libraryNavBus.ts` |
+| 域内后退/前进（书库/笔记） | 对齐资源管理器：底面全局件按钮 + 鼠标侧键 = **当前激活域**的后退/前进（书库 = 层级历史 `libraryNavBus`；笔记 = 视图历史 `notesNavBus`[详情轴/文档]；阅读器域侧键 = 翻页，域分工）；历史栈条目含**面包屑整条** | `LibraryFeature`；`libraryNavBus.ts`；`notesNavBus.ts` |
 | 渲染内核可替换性 | kookit 整体封装在 vendor ESM 容器内，UI/应用层**只经端口**触达 → 换内核 = 重写适配器层 | `KOOKIT.md`；`CONTRACTS.md` §4.1 |
 | 主题色取向 | 四套：纯色·深/亮（黑灰白，不引入色相）+ 羊皮纸·深/亮；状态色保留语义色相 | `styles.css`；`STYLE.md` §3.4 |
 | 抽屉平面结构 | 封面 2:3 不拉伸；三行 = 封面高度三等分；标题/数据行单行；指标行无标签；外壳全透明 | `STYLE.md` §5.5 |

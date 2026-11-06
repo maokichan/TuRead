@@ -2145,11 +2145,11 @@ textarea {
   margin: 0.4em 0 0.1em;
 }
 
-/* 上限语义（笔记区重构，用户定）：**主方完整呈现，副方截断两行** ——
-   批註為主 = 批注不截、摘录两行；摘錄為主反之。超出省略号收尾。 */
+/* 上限语义（笔记区重构，用户定）：**主方 ≤8 行、副方 ≤2 行** ——
+   两边都有界（一条 2000 字批注不该撑出一屏高的卡），主方只是界更宽。超出省略号收尾。 */
 .note-card--body-first .note-card__body,
 .note-card--excerpt-first .note-card__excerpt {
-  -webkit-line-clamp: unset;
+  -webkit-line-clamp: 8;
 }
 
 .note-card--body-first .note-card__excerpt,

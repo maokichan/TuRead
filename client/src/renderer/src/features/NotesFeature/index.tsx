@@ -82,6 +82,23 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
     },
     [syncNav]
   )
+  // 鼠标侧键 = 底面同款的后退/前进（键鼠交互与全局导航语义绑定；阅读器域的侧键仍是翻页——
+  // 同一物理键按域分工）。preventDefault 压掉 Chromium 侧键默认的历史导航。
+  useEffect(() => {
+    if (activeFeature !== 'notes') return
+    const onMouseDown = (e: MouseEvent): void => {
+      if (e.button === 3) {
+        e.preventDefault()
+        notesNavBus.back()
+      } else if (e.button === 4) {
+        e.preventDefault()
+        notesNavBus.forward()
+      }
+    }
+    window.addEventListener('mousedown', onMouseDown)
+    return () => window.removeEventListener('mousedown', onMouseDown)
+  }, [activeFeature])
+
   useEffect(() => {
     notesNavBus.register(
       {
