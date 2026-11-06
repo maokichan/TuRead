@@ -84,7 +84,7 @@
 | `applyTypography` | `(typography: ReaderTypography) => Promise<void>` | 向正文注入排版参数（字号/行距/段距） | 字段缺省 = 该项不注入；每次调用重建整份 reader style；PDF 无操作 |
 | `getMetadata` | `(buffer: ArrayBuffer, format: BookFormat) => Promise<BookMetadata>` | 解析元数据 | **无状态**：内部构造临时 rendition，不碰当前阅读会话；cover 为 data URL；失败抛错，兜底在调用方 |
 | `search` | `(keyword: string) => Promise<unknown>` | 引擎内搜索 | 返回形状待定（CONTRACTS §7） |
-| `getSelectionAnchor` | `() => Promise<TextAnchor \| null>` | 取当前正文选区为统一锚点（`fromSelection`） | 只读、不落库；无选区 / PDF（第二批）→ null；见 §5 |
+| `getSelectionAnchor` | `() => Promise<TextAnchor \| null>` | 取当前正文选区为统一锚点（`fromSelection`） | 只读、不落库；PDF = 子页选区 + 页+坐标载荷（笔记 v3 已落）；见 §5 |
 | `resolveAnchor` | `(anchor: TextAnchor, opts?: { revealNoteId?: string }) => Promise<boolean>` | 跳到锚点（`resolveToView`；笔记面板点击 / 同步回跳） | 精度 = 章级（Norm）；`revealNoteId` 给值时把该高亮元素滚进视野（弱锚点也能揭示）；未打开返回 false |
 | `remeasureAnchor` | `(anchor: TextAnchor) => Promise<TextAnchor \| null>` | 按 quote 重锚（`remeasure`） | 产出必为弱锚点（`fragment = null`）；找不到 → null；见 §5 |
 | `clearSelection` | `() => void`（同步） | 清掉书文档内的当前选区 | 选区在书文档，宿主 `document.getSelection()` 清不掉；清完发 `selection-changed = null` |
@@ -114,12 +114,12 @@
 
 ## 5. 笔记/高亮（位置相关能力的完整链路）
 
-> **状态**：本节描述的链路**已落地**（文字类；PDF 第二批）。契约 = CONTRACTS §2（Note v2 +
+> **状态**：本节描述的链路**已落地**（文字类 + PDF 文字选区，笔记 v3）。契约 = CONTRACTS §2（Note v2 +
 > 选区级锚点层）与 §4.1（引擎侧原语）；建模 = `DATA_MODEL.md` §3.1/§3.1.1。
 > 实现 = `domain/anchor.ts`（纯函数）+ `kookitRenderAdapter.ts`（引擎侧）。逆向事实以本节为准。
 
 **为什么在单体内**（详见 `KOOKIT.md` §2 讨论）：选区落在 kookit 渲染的 iframe 内部文档，
-外层无法访问内部节点；载荷是格式相关序列化（文字类→**rangy 字符偏移**、PDF→页码+归一化坐标），
+外层无法访问内部节点；载荷是格式相关序列化（文字类→**rangy 字符偏移**、PDF→页码 + pdf 用户空间点坐标），
 只有引擎能生成与回显。封装层暴露的原语（**已实现**）：
 
 ```

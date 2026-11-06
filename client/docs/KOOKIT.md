@@ -175,8 +175,12 @@ GeneralRender (GeneralRender.ts，事件基类)
   text_layer_builder.css/annotation_layer_builder.css/worker）。pdfjs-dist v4.x 是匹配版本线
   （v5+ 移除 `PDFDataRangeTransport` 等 API，勿升；kookit libs/pdf.js:402 在用）。
   **定位**：页码为主键（`chapterDocIndex` = 页码，每页一个 section，libs/pdf.js:495），不依赖 OCR。
-  PDF 选区锚点暂不产出：`getSelectionAnchor` 对 PDF 返回 null，「页 + 视口坐标」载荷
-  （`engine: 'kookit-pdf-rect'`）仅在域类型中预留，尚无生产者。
+  **PDF 文字选区锚点已产出（笔记 v3）**：`selectionToAnchor` 的 PDF 分支经
+  `getSubDocument(page)` 取子页选区（外层文档拿不到），载荷 = `getHightlightCoords(page)`
+  的 `{page, coords（pdf 用户空间点，缩放无关）, readerMode}`（`engine: 'kookit-pdf-rect'`），
+  quote = 子页选区文字快照；无文本层选不出文字 → 自然 null（诚实不可标）。
+  渲染/删除/回显 = `showPDFHighlight`（`class="kookit-note"` + `data-key`，reveal 约定同文字类）。
+  拉框/记号笔（无选区标注）= 几何锚第二批，另批。
 - **扫描版 PDF（当前未启用）**：文本化路由由 `isConvertPDF:"yes"` 决定（bookHelper.ts:67 →
   `PdfTextRender`）；`isScannedPDF:"yes"` + `ocrEngine:"external-engine"` 时 bookHelper 把
   `config.externalWorker` **覆写**为 kookit 内置 RN 桥 `getPDFOcrResult`（`PdfTextRender`

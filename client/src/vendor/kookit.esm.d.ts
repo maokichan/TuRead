@@ -72,6 +72,13 @@ export interface KookitRendition {
    */
   getHightlightCoords(chapterDocIndex?: number): Promise<unknown>
   /**
+   * 反查（笔记 v3 几何锚；逆向自 `PdfRender`——**PDF 类才有子页结构**）：取某渲染节
+   * （PDF = 页码）的**子页 document**。PDF 的文字选区/右键都发生在子页文档里
+   * （外层 `getDocument()` 返回外层 iframe，拿不到子页选区）——选区监听、量取、清除都要来这里。
+   * 文字类无子页（不调用）。
+   */
+  getSubDocument(chapterDocIndex: number): Document | null
+  /**
    * 反查：读当前选区位置并写入内部 `tempLocation`，返回该位置（kookit 位置形状）。
    * 无选区（或取不到 selectedElement）时返回 `undefined` —— 调用方必须判空。
    */

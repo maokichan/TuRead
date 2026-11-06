@@ -412,9 +412,11 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
           resolve()
         }, 1500)
       })
-      const el = rendition
-        .getDocument()
-        ?.querySelector(`.kookit-note[data-key="${CSS.escape(opts.revealNoteId)}"]`)
+      // PDF 的高亮元素长在**子页文档**里（外层 querySelector 查不到）——目标章导航完成后
+      // renderedChapter = 目标页，selectionTargetDoc() 即该页子文档（文字类仍是书文档，同一取口）。
+      const el = this.selectionTargetDoc()?.querySelector(
+        `.kookit-note[data-key="${CSS.escape(opts.revealNoteId)}"]`
+      )
       el?.scrollIntoView({ block: 'center' })
     }
     return true
@@ -434,15 +436,31 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
 
   /** 清掉书文档里的选区（宿主清不掉另一个文档的选区） */
   clearSelection(): void {
-    this.rendition?.getDocument()?.getSelection()?.removeAllRanges()
+    this.selectionTargetDoc()?.getSelection()?.removeAllRanges()
     // 选区没了，UI 那边的色板也该收起 —— 不让调用方自己记得补这一下
     this.emit('selection-changed', null)
   }
 
-  /** 选区观察：事件必须绑在**书文档**上 —— 宿主 window 收不到 iframe 内的事件
-   *  （事件被文档边界挡住，同 `iframeBridge` 的根因）。 */
+  /**
+   * 选区所在的**目标文档**：文字类 = 书文档（`getDocument()`）；PDF = **当前页的子页文档**
+   * （选区/右键都发生在子页 iframe 里，外层文档拿不到——笔记 v3 几何锚）。
+   * 渲染层对选区的全部观测（监听/量取/清除）都经这里取文档；`rendered` 事件驱动
+   * `attachSelectionWatch` 重绑，PDF 翻页/滚动换页后自然跟到新子页。
+   */
+  private selectionTargetDoc(): Document | null {
+    const rendition = this.rendition
+    if (!rendition) return null
+    if (this.record?.format === 'PDF') {
+      const page = this.renderedChapter
+      return page === null ? null : rendition.getSubDocument(page)
+    }
+    return rendition.getDocument()
+  }
+
+  /** 选区观察：事件必须绑在**选区所在的书文档**上 —— 宿主 window 收不到 iframe 内的事件
+   *  （事件被文档边界挡住，同 `iframeBridge` 的根因）；PDF 子页逐页重绑（见 selectionTargetDoc）。 */
   private attachSelectionWatch(): void {
-    const doc = this.rendition?.getDocument() ?? null
+    const doc = this.selectionTargetDoc()
     if (doc === this.selectionDoc) return
     this.detachSelectionWatch()
     this.selectionDoc = doc
@@ -578,7 +596,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
    */
   private selectionRect(): { x: number; y: number; width: number; height: number } {
     const zero = { x: 0, y: 0, width: 0, height: 0 }
-    const doc = this.rendition?.getDocument() ?? null
+    const doc = this.selectionTargetDoc()
     const range = doc?.getSelection()?.getRangeAt(0)
     if (!doc || !range) return zero
     const r = range.getBoundingClientRect()

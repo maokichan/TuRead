@@ -341,7 +341,7 @@ export interface AnchorNorm {
 export interface AnchorFragment {
   /** 载荷来源标识（文字类 `'kookit-rangy'`；PDF `'kookit-pdf-rect'`）——换内核时据此选解释器 */
   engine: string
-  /** 编码串（文字类 = rangy 序列化字符范围的 JSON；PDF = 页码+归一化坐标）。
+  /** 编码串（文字类 = rangy 序列化字符范围的 JSON；PDF = 页码 + pdf 用户空间点坐标）。
    *  = notes 表 `anchor_key` 列，落库即本层串：**逐字节原样存**、不套壳不加前缀——
    *  适配器解码时不必先剥包装，避免转义事故 */
   key: string

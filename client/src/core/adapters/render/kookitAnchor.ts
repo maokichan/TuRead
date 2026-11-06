@@ -21,6 +21,11 @@ import { normalizeLocation } from '@core/domain/location'
  *  换渲染内核时新增取值，旧值由适配器按名分派（见 `anchor.ts` 的 Fragment 设计）。 */
 export const TEXT_FRAGMENT_ENGINE = 'kookit-rangy'
 
+/** PDF 的引擎载荷标识（笔记 v3 几何锚第一批 = **文字选区**；拉框/记号笔属第二批）。
+ *  载荷 = kookit `getHightlightCoords` 的 PDF 形状 `{page, coords(pdf 点), readerMode}`，
+ *  渲染/删除/回显走 `PdfRender` 的 `showPDFHighlight` 路径（引擎自足，适配器零解释）。 */
+export const PDF_FRAGMENT_ENGINE = 'kookit-pdf-rect'
+
 /**
  * 章内进度估计：**按字符位置**（选区起点之前的字符数 / 本章正文字符总数）。
  * 为什么不用像素：改字号/行距/纸宽都会移动像素位置，而字符序不变 —— progression 在 Norm 层
@@ -97,15 +102,44 @@ function chapterIndexOfSearchHit(cfi: unknown): number | null {
 /**
  * `fromSelection`：把当前正文选区取成统一锚点（适配器 `getSelectionAnchor` 的本体）。
  * 只读：不改引擎状态、不落库（落库是用例层的事）。
- * `deps.format` = 当前书格式（PDF 是「页 + 归一化坐标」的另一套载荷——第二批，待做，现返回 null）；
- * `deps.renderedChapter` = 当前已渲染节号（锚点章号的优先来源）；`deps.positionOf` = 权威位置。
+ * `deps.format` = 当前书格式；`deps.renderedChapter` = 当前已渲染节号（锚点章号的优先来源）；
+ * `deps.positionOf` = 权威位置。
  */
 export async function selectionToAnchor(
   rendition: KookitRendition,
   deps: { format?: string; renderedChapter: number | null; positionOf: () => BookLocation }
 ): Promise<TextAnchor | null> {
-  // PDF 是「页 + 归一化坐标」的另一套载荷（第二批，待做）
-  if (deps.format === 'PDF') return null
+  // ————— PDF：选区住在**子页 iframe** 里（每页一个 section，chapterDocIndex = 页码）—————
+  // 载荷 = kookit 自己的 `{page, coords(pdf 点), readerMode}`（`getHightlightCoords` 的 PdfRender
+  // 实现产出，`showPDFHighlight`/`renderHighlighters`/`createOneNote` 的 PDF 分支都消费同一形状
+  // ——引擎路径现成，这里只是补上"生产者"）。quote 取子页选区的文字快照（pdf.js 文本层给真文字；
+  // 无文本层的扫描版选不出文字 → 自然落 null，诚实不可标）。
+  if (deps.format === 'PDF') {
+    const page = deps.renderedChapter
+    if (page === null) return null
+    const subDoc = rendition.getSubDocument(page)
+    const sel = subDoc?.getSelection() ?? null
+    if (!subDoc || !sel || sel.rangeCount === 0 || sel.isCollapsed) return null
+    const range = sel.getRangeAt(0)
+    const exact = range.toString()
+    // 纯空白选区（toString 为空）不算可标内容 —— 建了也没法回显与重锚
+    if (exact.trim() === '') return null
+
+    const raw = await rendition.getHightlightCoords(page)
+    if (!raw) return null
+
+    const prog = rendition.getProgress()
+    const totalPage = typeof prog?.totalPage === 'number' ? prog.totalPage : 0
+    return normalizeAnchor({
+      norm: {
+        chapterIndex: page,
+        // PDF 的章内进度按**页序**（页码/总页数）；像素会随缩放漂移，页序不随
+        progression: totalPage > 0 ? Math.min(1, Math.max(0, page / totalPage)) : 0,
+        quote: quoteFromRange(range)
+      },
+      fragment: { engine: PDF_FRAGMENT_ENGINE, key: JSON.stringify(raw) }
+    })
+  }
 
   const doc = rendition.getDocument()
   const sel = doc?.getSelection()

@@ -114,7 +114,8 @@ export interface IRenderService extends EventEmitter<RenderServiceEvents> {
   search(keyword: string): Promise<unknown>
   /**
    * 取当前正文选区为统一锚点（`fromSelection` 原语，DATA_MODEL §3.1.1）。
-   * 无选区 / 该格式本轮未支持（PDF 是另一套坐标载荷，第二批）→ null。
+   * 无选区 → null；PDF = 子页选区 + 页+坐标载荷（`kookit-pdf-rect`，笔记 v3 已落；
+   * 无文本层选不出文字同样 null——诚实不可标）。
    * **只读**：不改引擎状态、不落库。
    */
   getSelectionAnchor(): Promise<TextAnchor | null>
