@@ -66,6 +66,13 @@ export interface RenderServiceEvents {
    * 缺省 = 量不到（元素已摘除等），调用方退到安全位。
    */
   'note-clicked': (payload: { noteId: string; x?: number; y?: number }) => void
+  /**
+   * 几何标注捕获完成（笔记 v3 批N2b；PDF 专用）——`armGeomCapture` 武装后用户在页面上
+   * 完成一次拖曳（框选/记号笔）时发出，载荷 = 已建成的统一锚点（Fragment 为
+   * `'kookit-pdf-rect'` 矩形 / `'kookit-pdf-stroke'` 笔迹，坐标 = pdf 用户空间点）。
+   * **落库是 UI 的事**（同 selection-changed 的分工：适配器只管捕获与渲染，色板/建笔记归 UI）。
+   */
+  'geom-captured': (payload: { anchor: TextAnchor; kind: 'rect' | 'stroke' }) => void
 }
 
 export interface IRenderService extends EventEmitter<RenderServiceEvents> {
@@ -139,6 +146,16 @@ export interface IRenderService extends EventEmitter<RenderServiceEvents> {
    * 划完一条线后若不清，浏览器自带的选区高亮会一直盖在我们画的高亮上。
    */
   clearSelection(): void
+  /**
+   * 武装**几何标注捕获**（笔记 v3 批N2b；PDF 专用，文字类 no-op——文字选区已是完整路径）。
+   * 一次性：用户在页面上完成一次拖曳（`rect` 框选 / `stroke` 记号笔）→ 发 `geom-captured`
+   * 并自动解除；`Esc` 走 `disarmGeomCapture`。武装期间拖曳不再产生文字选区（适配器拦截）。
+   * 动机：无文本层的 PDF（扫描版）选不出文字，几何拖曳是它们**唯一**的标注入口
+   * （决策笔记 notes-v3-data-model「几何页锚」）。
+   */
+  armGeomCapture(mode: 'rect' | 'stroke'): void
+  /** 解除几何标注捕获（幂等；未武装时 no-op）。 */
+  disarmGeomCapture(): void
   /**
    * 创建/回显一条笔记（v0.3.9：Note v2）。
    * 要求 `note.anchor.fragment` 就位 —— 无引擎载荷则引擎无从回显，此时**抛错**而非静默 no-op

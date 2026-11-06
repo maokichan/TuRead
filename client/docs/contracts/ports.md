@@ -28,6 +28,7 @@
 - **锚点引擎侧原语**：`getSelectionAnchor`（fromSelection，只读不落库）/ `resolveAnchor`（resolveToView，Fragment 可解→精确、缺失→退章级；`revealNoteId` 把该笔记元素滚进视野）/ `remeasureAnchor`（**诚实降级**：kookit 搜索只给「章 + 块文本」不给字符偏移 → 产出必是弱锚点 fragment=null；找不到 → null）。纯函数部分 = `src/core/domain/anchor.ts`。
 - **笔记三方法**：`createNote` 要求 anchor.fragment 就位，否则**抛错不静默**（静默 no-op 是已销案的反模式）；`removeNote` 按 Note.id（适配器内部维护 id→渲染节映射）；`renderHighlighters` 只对「当前已渲染的那一节」生效（适配器按当前节过滤），调用方须在每次 `rendered` 后重调；传入数组是拷贝（kookit 内部 `notes.reverse()` 原地改入参）；无 fragment 的笔记被跳过（合法降级）。
 - `clearSelection` 必须由适配器提供（选区在书文档里，宿主清不掉）；清完广播 selection-changed = null，UI 不必自己收色板。
+- **几何标注捕获（笔记 v3；PDF 专用）**：`armGeomCapture('rect' | 'stroke')` 一次性武装（拖曳完成 → 发 `geom-captured`（载荷 = 已建锚点）并自动解除；`Esc` = `disarmGeomCapture`）；武装期间适配器拦截拖曳的文字选区。**落库归 UI**（同 selection-changed 分工）。框选与文字选区同形状 `{page, coords}` 走 kookit；记号笔（`kookit-pdf-stroke`，`{page, stroke}`）kookit 不解释 → 适配器自绘 SVG 层（`kookitGeom.renderStrokeLayer`，挂页内 `.noteLayer`，与 kookit 矩形同层同定位口径）。
 - `search()` 返回形状**待定**（总纲 §待定）。
 
 ## INetService —— 传输

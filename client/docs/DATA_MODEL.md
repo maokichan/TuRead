@@ -80,7 +80,7 @@ config.json         // 极小（D1+D9 推论）：库注册表进库、当前库
 BookLocation { … }                                        // "读到哪"——进度语义
 TextAnchor {                                              // "标在哪"——选区语义（两者是不同的物）
   norm:     { chapterIndex, progression(0~1), quote{exact, prefix, suffix} }, // 归一化层：笔记层/存储/同步只看这层
-  fragment: { engine: 'kookit-rangy' | 'kookit-pdf-rect', key } | null       // 引擎载荷层：只有适配器解释；anchor_key 落库即此串
+  fragment: { engine: 'kookit-rangy' | 'kookit-pdf-rect' /*文字选区+框选*/ | 'kookit-pdf-stroke' /*记号笔,适配器自绘*/, key } | null       // 引擎载荷层：只有适配器解释；anchor_key 落库即此串
 }
 // 原语（接口即机制，实现在适配器）：fromSelection / resolveToView / compare / remeasure / display
 ```

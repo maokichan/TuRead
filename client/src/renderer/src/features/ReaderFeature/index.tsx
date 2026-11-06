@@ -69,7 +69,7 @@ export function ReaderFeature({
   const [menu, setMenu] = useState<RenderContextMenuRequest | null>(null)
 
   const { params, paramsRef, applyParams } = useReaderParams(container)
-  const { notes, notesRef, composer, setComposer, focusNote, selection, createMark, saveAnnotation, jumpNote, editNote, removeNote } =
+  const { notes, notesRef, composer, setComposer, focusNote, selection, createMark, armGeom, saveAnnotation, jumpNote, editNote, removeNote } =
     useReaderNotes({ container, host, book, readerTarget, setMenu, setRightPanel, setControlsOpen })
   const { toc, opening, readerMode, setReaderMode, currentChapter } = useReaderOpening({
     container,
@@ -351,6 +351,8 @@ export function ReaderFeature({
     'reader',
     {
       'reader.back': () => {
+        // 几何标注武装中 → Esc 先解除（比退全屏/退阅读器更近的意图）
+        container.render.disarmGeomCapture()
         if (fullscreen) {
           void window.turead.invoke(IPC.winSetFullScreen, false)
           return
@@ -436,6 +438,18 @@ export function ReaderFeature({
    */
   const markMenuItems = (req: RenderContextMenuRequest): ContextMenuItem[] => {
     const items: ContextMenuItem[] = []
+    // 几何标注（笔记 v3，PDF 专用）：无文本层的扫描版选不出文字，拖曳是唯一标注入口。
+    // 选色 = 武装时的色（capture 是一次性的，完成后自动解除；Esc 取消）。
+    if (book?.format === 'PDF') {
+      const geomColor = (mode: 'rect' | 'stroke') =>
+        (['yellow', 'green', 'blue', 'red'] as NoteColor[]).map((c) => ({
+          label: { yellow: '黃', green: '綠', blue: '藍', red: '赤' }[c],
+          swatch: `var(--note-${c})`,
+          onClick: () => armGeom(mode, c)
+        }))
+      items.push({ label: '框選標註', children: geomColor('rect') })
+      items.push({ label: '記號筆', children: geomColor('stroke') })
+    }
     if (req.anchor) {
       const anchor = req.anchor
       items.push({

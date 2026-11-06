@@ -180,7 +180,12 @@ GeneralRender (GeneralRender.ts，事件基类)
   的 `{page, coords（pdf 用户空间点，缩放无关）, readerMode}`（`engine: 'kookit-pdf-rect'`），
   quote = 子页选区文字快照；无文本层选不出文字 → 自然 null（诚实不可标）。
   渲染/删除/回显 = `showPDFHighlight`（`class="kookit-note"` + `data-key`，reveal 约定同文字类）。
-  拉框/记号笔（无选区标注）= 几何锚第二批，另批。
+  **几何标注（批N2b）**：无选区拖曳 = `armGeomCapture('rect' | 'stroke')` 一次性捕获
+  （`kookitGeom.ts`，监听绑子页文档；坐标经 `chapterDocList[page].text.getPage()` +
+  `getPdfScale()` 换算 pdf 用户空间点——**升级敏感面**：kookit 升级必跑全探针）。
+  框选 = `{page, coords}` 走 kookit 现成路径；记号笔 = `{page, stroke}` 适配器自绘 SVG 层
+  （挂 `.noteLayer`——每页模板自带，与 `showPDFHighlight` 同层同定位口径；
+  `.turead-note-stroke` 每页全量重建，polyline 带 `class="kookit-note" data-key` → reveal/命中同约定）。
 - **扫描版 PDF（当前未启用）**：文本化路由由 `isConvertPDF:"yes"` 决定（bookHelper.ts:67 →
   `PdfTextRender`）；`isScannedPDF:"yes"` + `ocrEngine:"external-engine"` 时 bookHelper 把
   `config.externalWorker` **覆写**为 kookit 内置 RN 桥 `getPDFOcrResult`（`PdfTextRender`

@@ -38,7 +38,9 @@ export function toKookitNote(note: Note): Record<string, unknown> {
  * 这是"引擎默认"而不是 TuRead 的设计取值，故不构成第二处设计真相来源；token 缺失属配置错误，
  * 记日志让人看见（不做静默 no-op）。
  */
-function resolveNoteColor(name?: NoteColor): string {
+/** 语义色名 → 具体 hex（宿主 CSS token 的现值；kookit 需要字面色值——CSS 变量不跨文档继承）。
+ *  兜底 = kookit 默认 `#FEF3CD`（引擎默认而非 TuRead 设计取值，不构成第二处真相来源）。 */
+export function resolveNoteHex(name?: NoteColor): string {
   const token = `--note-${name ?? DEFAULT_NOTE_COLOR}`
   const raw =
     typeof window === 'undefined'
@@ -46,7 +48,11 @@ function resolveNoteColor(name?: NoteColor): string {
       : window.getComputedStyle(document.documentElement).getPropertyValue(token).trim()
   if (!raw) {
     console.warn(`[render] 缺少颜色 token ${token}（styles.css 未定义？）——回退引擎默认色`)
-    return 'background-#FEF3CD'
+    return '#FEF3CD'
   }
-  return `background-${raw}`
+  return raw
+}
+
+function resolveNoteColor(name?: NoteColor): string {
+  return `background-${resolveNoteHex(name)}`
 }

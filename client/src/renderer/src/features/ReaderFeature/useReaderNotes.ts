@@ -52,6 +52,8 @@ export function useReaderNotes(params: {
   /** 当前正文选区（适配器在**书文档**上观测后广播；null = 无选区） */
   selection: RenderSelection | null
   createMark: (anchor: TextAnchor, color: NoteColor, body?: string) => Promise<void>
+  /** 武装几何标注捕获（PDF 专用；色 = 捕获完成后建笔记用的色） */
+  armGeom: (mode: 'rect' | 'stroke', color: NoteColor) => void
   saveAnnotation: () => Promise<void>
   jumpNote: (note: Note) => Promise<void>
   editNote: (note: Note) => void
@@ -196,7 +198,9 @@ export function useReaderNotes(params: {
         const next = [...notesRef.current, note].sort(compareNoteOrder)
         notesRef.current = next
         setNotes(next)
-        host.pushLog(`${body ? '已加批註' : '已劃線'}：${note.anchor.norm.quote.exact.slice(0, 12)}…`)
+        // 几何标注没有文字 quote（excerpt 空）→ 日志不带引文
+        const label = body ? '已加批註' : note.anchor.norm.quote.exact ? '已劃線' : '已幾何標註'
+        host.pushLog(`${label}${note.anchor.norm.quote.exact ? `：${note.anchor.norm.quote.exact.slice(0, 12)}…` : ''}`)
       } catch (err) {
         host.pushLog(`標記失敗：${(err as Error).message}`)
       }
@@ -205,6 +209,22 @@ export function useReaderNotes(params: {
     },
     [container, book, host]
   )
+
+  // 几何标注（PDF 拖曳）：武装时记下色，捕获完成（适配器事件）→ 建笔记
+  const geomColorRef = useRef<NoteColor>('yellow')
+  const armGeom = useCallback(
+    (mode: 'rect' | 'stroke', color: NoteColor): void => {
+      geomColorRef.current = color
+      container.render.armGeomCapture(mode)
+      host.pushLog(mode === 'rect' ? '幾何標註（框選）：在頁面上拖曳，Esc 取消' : '幾何標註（記號筆）：在頁面上拖曳，Esc 取消')
+    },
+    [container, host]
+  )
+  useEffect(() => {
+    return container.render.on('geom-captured', ({ anchor }) => {
+      void createMark(anchor, geomColorRef.current)
+    })
+  }, [container, createMark])
 
   /** 保存批注正文：既有笔记 → 更新；新建（无 noteId）→ 落一条带 body 的划线（同一条序列） */
   const saveAnnotation = useCallback(async (): Promise<void> => {
@@ -278,6 +298,7 @@ export function useReaderNotes(params: {
     focusNote,
     selection,
     createMark,
+    armGeom,
     saveAnnotation,
     jumpNote,
     editNote,

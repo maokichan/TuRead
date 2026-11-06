@@ -32,7 +32,8 @@ import { loadKookit, buildNamespace, buildKookitConfig } from './kookitLoader'
 import { ensurePdfjs } from './pdfjsSetup'
 import { detectTextCharset } from './charset'
 import { normalizeAnchor } from '@core/domain/anchor'
-import { selectionToAnchor, remeasureBySearch } from './kookitAnchor'
+import { selectionToAnchor, remeasureBySearch, PDF_STROKE_FRAGMENT_ENGINE } from './kookitAnchor'
+import { PdfGeomCapturer, getPdfViewport, renderStrokeLayer } from './kookitGeom'
 import { toKookitNote } from './kookitNote'
 import { buildReaderCss, readCssVar } from './readerCss'
 
@@ -75,10 +76,19 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
    * `close()` 清空。
    */
   private lastLocation: BookLocation | null = null
+  /** 记号笔笔记（`kookit-pdf-stroke` 载荷）——kookit 不解释该形状，回显由自绘 SVG 层承担（`kookitGeom`） */
+  private strokeNotesById = new Map<string, Note>()
+  /** 几何标注捕获器（框選/記號筆一次性拖曳；PDF 专用） */
+  private readonly geom: PdfGeomCapturer
 
   constructor(readFile: ReadBookFile) {
     super()
     this.readFile = readFile
+    this.geom = new PdfGeomCapturer({
+      rendition: () => this.rendition,
+      currentPage: () => this.renderedChapter,
+      onCapture: (anchor, kind) => this.emit('geom-captured', { anchor, kind })
+    })
   }
 
   async open(record: BookRecord, options?: RenderOptions): Promise<void> {
@@ -109,6 +119,8 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     rendition.on('rendered', (chapterDocIndex?: number) => {
       this.renderedChapter = this.resolveRenderedChapter(chapterDocIndex)
       this.attachSelectionWatch()
+      // 几何捕获武装中 → 跟随新子页文档（换页/滚动换页监听不断）
+      if (this.geom.isArmed()) this.geom.bindDoc(this.selectionTargetDoc())
       this.emit('rendered', this.renderedChapter)
       this.refreshScrollAffordance()
       this.emitLocationChanged()
@@ -121,7 +133,9 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     this.openToken++ // 作废仍在进行的 open
     this.clearScrollWatch()
     this.detachSelectionWatch()
+    this.geom.disarm()
     this.noteChapters.clear()
+    this.strokeNotesById.clear()
     this.renderedChapter = null
     if (this.rendition) {
       this.rendition.removeContent()
@@ -330,6 +344,12 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     // 先取引擎再登记章节（requireRendition 抛错时不污染 noteChapters）
     const rendition = this.requireRendition('createNote')
     this.noteChapters.set(note.id, chapterIndex)
+    // 记号笔：kookit 不解释 stroke 载荷 → 自绘 SVG 层即时回显（全量重建该页，成本 = 笔迹数）
+    if (note.anchor.fragment.engine === PDF_STROKE_FRAGMENT_ENGINE) {
+      this.strokeNotesById.set(note.id, note)
+      await this.renderStrokes(chapterIndex)
+      return
+    }
     await rendition.createOneNote(toKookitNote(note), this.onNoteClick)
   }
 
@@ -339,6 +359,12 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     // ⚠ "当前所在章节"顶不得：跨章节删除会找不到/删错。
     const chapterDocIndex =
       this.noteChapters.get(noteId) ?? normalizeLocation(this.getPosition()).chapterDocIndex
+    // 记号笔：自绘层自己删（kookit 的 removeOneNote 找不到它）
+    if (this.strokeNotesById.delete(noteId)) {
+      await this.renderStrokes(chapterDocIndex)
+      this.noteChapters.delete(noteId)
+      return
+    }
     await rendition.removeOneNote(noteId, chapterDocIndex)
     this.noteChapters.delete(noteId)
   }
@@ -354,20 +380,49 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     const current = chapter === null
       ? []
       : notes.filter((n) => n.anchor.norm.chapterIndex === chapter)
-    // ② 无载荷的笔记跳过（合法降级态；不是调用方的编程错误，故只记日志不抛）
-    const renderable = current.filter((n) => n.anchor.fragment)
-    if (renderable.length < current.length) {
-      console.warn(
-        `[render] renderHighlighters 跳过 ${current.length - renderable.length} 条无引擎载荷的笔记（章 ${chapter}）`
-      )
+    // ② 按解释者分派：记号笔（stroke）kookit 不解释 → 自绘层；其余无载荷跳过（合法降级态，只记日志）
+    const strokes = current.filter((n) => n.anchor.fragment?.engine === PDF_STROKE_FRAGMENT_ENGINE)
+    for (const n of strokes) this.strokeNotesById.set(n.id, n)
+    const renderable = current.filter((n) => n.anchor.fragment && n.anchor.fragment.engine !== PDF_STROKE_FRAGMENT_ENGINE)
+    const noPayload = current.length - strokes.length - renderable.length
+    if (noPayload > 0) {
+      console.warn(`[render] renderHighlighters 跳过 ${noPayload} 条无引擎载荷的笔记（章 ${chapter}）`)
     }
-    if (renderable.length === 0) return
     // ③ 传**拷贝**：kookit `renderHighlighters` 内部 `notes.reverse()` 是原地修改入参，
     //    直接传调用方数组会把 store/Feature 持有的顺序改掉。
-    await rendition.renderHighlighters(
-      renderable.map((n) => toKookitNote(n)),
-      this.onNoteClick
+    if (renderable.length > 0) {
+      await rendition.renderHighlighters(
+        renderable.map((n) => toKookitNote(n)),
+        this.onNoteClick
+      )
+    }
+    // ④ 记号笔层重建（该页全量；kookit 的 clearHighlight 不碰 .turead-note-stroke）
+    if (chapter !== null) await this.renderStrokes(chapter)
+  }
+
+  /** 重建某页的记号笔 SVG 层（自 `strokeNotesById` 取该页条目；PDF 专用，其他格式 no-op） */
+  private async renderStrokes(chapter: number): Promise<void> {
+    const rendition = this.rendition
+    if (!rendition || this.record?.format !== 'PDF') return
+    const subDoc = rendition.getSubDocument(chapter)
+    if (!subDoc) return
+    const viewport = await getPdfViewport(rendition, chapter)
+    if (!viewport) return
+    const pageStrokes = [...this.strokeNotesById.values()].filter(
+      (n) => n.anchor.norm.chapterIndex === chapter
     )
+    renderStrokeLayer(subDoc, pageStrokes, viewport, this.onNoteClick)
+  }
+
+  // ————— 几何标注捕获（笔记 v3 批N2b；PDF 专用）—————
+
+  armGeomCapture(mode: 'rect' | 'stroke'): void {
+    if (this.record?.format !== 'PDF') return
+    this.geom.arm(mode, this.selectionTargetDoc())
+  }
+
+  disarmGeomCapture(): void {
+    this.geom.disarm()
   }
 
   // ————— 选区级锚点（定位转换机制的引擎侧原语，本体在 `kookitAnchor.ts`）—————

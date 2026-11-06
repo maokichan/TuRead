@@ -77,12 +77,41 @@ export interface KookitRendition {
    * （外层 `getDocument()` 返回外层 iframe，拿不到子页选区）——选区监听、量取、清除都要来这里。
    * 文字类无子页（不调用）。
    */
+  /**
+   * 反查（笔记 v3 几何锚；逆向自 `PdfRender`——**PDF 类才有子页结构**）：取某渲染节
+   * （PDF = 页码）的**子页 document**。PDF 的文字选区/右键都发生在子页文档里
+   * （外层 `getDocument()` 返回外层 iframe，拿不到子页选区）——选区监听、量取、清除都要来这里。
+   * 文字类无子页（不调用）。
+   */
   getSubDocument(chapterDocIndex: number): Document | null
+  /** PDF 类（PdfRender）当前渲染缩放（几何标注坐标换算用）。⚠ 升级敏感面（KOOKIT.md §9）。 */
+  getPdfScale(): Promise<number>
+  /**
+   * PDF 类（PdfRender）内部页表——几何标注的坐标换算要拿 pdfjs page/viewport
+   * （`convertToPdfPoint` / `convertToViewportPoint`）。⚠ **升级敏感面**（KOOKIT.md §9）：
+   * kookit 升级必须复核 `chapterDocList[i].text.getPage()` 与 viewport 方法名。
+   * 仅 PDF 分支访问；文字类实例无此成员。
+   */
+  chapterDocList: Array<{ text: { getPage(): Promise<KookitPdfPage> } }>
   /**
    * 反查：读当前选区位置并写入内部 `tempLocation`，返回该位置（kookit 位置形状）。
    * 无选区（或取不到 selectedElement）时返回 `undefined` —— 调用方必须判空。
    */
   getNotePosition(): Promise<KookitPosition | undefined>
+}
+
+/** pdf.js viewport 的最小形状（kookit PDF 路径在用的方法；见 KOOKIT.md §7） */
+export interface KookitPdfViewport {
+  width: number
+  height: number
+  convertToPdfPoint(x: number, y: number): number[]
+  convertToViewportPoint(x: number, y: number): number[]
+  convertToViewportRectangle(rect: number[]): number[]
+}
+
+/** pdf.js page 的最小形状（kookit PDF 路径在用） */
+export interface KookitPdfPage {
+  getViewport(params: { scale: number }): KookitPdfViewport
 }
 
 export interface KookitNamespace {

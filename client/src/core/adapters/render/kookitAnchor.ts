@@ -26,6 +26,11 @@ export const TEXT_FRAGMENT_ENGINE = 'kookit-rangy'
  *  渲染/删除/回显走 `PdfRender` 的 `showPDFHighlight` 路径（引擎自足，适配器零解释）。 */
 export const PDF_FRAGMENT_ENGINE = 'kookit-pdf-rect'
 
+/** PDF 记号笔（自由 polyline）的引擎载荷标识——kookit 不解释这个形状，
+ *  渲染/删除/回显由适配器自绘 SVG 层承担（`kookitGeom.renderStrokeLayer`）。
+ *  载荷 = `{page, stroke: pdf 点[][]}`。 */
+export const PDF_STROKE_FRAGMENT_ENGINE = 'kookit-pdf-stroke'
+
 /**
  * 章内进度估计：**按字符位置**（选区起点之前的字符数 / 本章正文字符总数）。
  * 为什么不用像素：改字号/行距/纸宽都会移动像素位置，而字符序不变 —— progression 在 Norm 层
