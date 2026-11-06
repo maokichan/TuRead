@@ -304,7 +304,7 @@ export function renderStrokeLayer(
       })
       .join(' ')
     polyline.setAttribute('points', points)
-    strokeAttrs(polyline, resolveNoteHex(note.color), viewport)
+    strokeAttrs(polyline, resolveNoteHex('background', note.color), viewport)
     polyline.setAttribute('class', 'kookit-note')
     polyline.setAttribute('data-key', note.id)
     // 命中：只让笔迹线本身接事件（svg 整面 pointer-events:none）

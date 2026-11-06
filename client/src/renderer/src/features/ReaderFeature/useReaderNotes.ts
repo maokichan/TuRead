@@ -17,7 +17,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import { compareNoteOrder } from '@core/domain/anchor'
-import type { Note, NoteColor, TextAnchor } from '@core/domain/types'
+import type { Note, NoteColor, TextAnchor, NoteMarkStyle 
+} from '@core/domain/types'
 import type { RenderContextMenuRequest, RenderSelection } from '@core/ports/render'
 import type { ServiceContainer } from '@core/container'
 import type { FeatureHost, ReaderTarget } from '../types'
@@ -51,7 +52,7 @@ export function useReaderNotes(params: {
   focusNote: { id: string; tick: number } | null
   /** 当前正文选区（适配器在**书文档**上观测后广播；null = 无选区） */
   selection: RenderSelection | null
-  createMark: (anchor: TextAnchor, color: NoteColor, body?: string) => Promise<void>
+  createMark: (anchor: TextAnchor, color: NoteColor, body?: string, markStyle?: NoteMarkStyle) => Promise<void>
   /** 武装几何标注捕获（PDF 专用；色 = 捕获完成后建笔记用的色） */
   armGeom: (mode: 'rect' | 'stroke', color: NoteColor) => void
   saveAnnotation: () => Promise<void>
@@ -177,7 +178,7 @@ export function useReaderNotes(params: {
    * 表达——`NoteKind` 是载体类型不是创建来路，DATA_MODEL §3.2.1）。
    */
   const createMark = useCallback(
-    async (anchor: TextAnchor, color: NoteColor, body = ''): Promise<void> => {
+    async (anchor: TextAnchor, color: NoteColor, body = '', markStyle: NoteMarkStyle = 'background'): Promise<void> => {
       if (!book) return
       const now = Date.now()
       const note: Note = {
@@ -186,6 +187,7 @@ export function useReaderNotes(params: {
         kind: 'highlight',
         anchor,
         color,
+        markStyle,
         body,
         createdAt: now,
         updatedAt: now

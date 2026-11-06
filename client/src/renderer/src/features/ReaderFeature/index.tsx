@@ -14,7 +14,7 @@
  * - 滚轮在两侧留白上也要能滚 → 纸容器把 wheel 转发给正文列。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { BookRecord, NoteColor, TextAnchor } from '@core/domain/types'
+import type { BookRecord, NoteColor, NoteMarkStyle, TextAnchor } from '@core/domain/types'
 import type { RenderContextMenuRequest } from '@core/ports/render'
 import type { PluginReaderContext } from '@shared/plugin'
 import type { FeatureProps } from '../types'
@@ -452,12 +452,24 @@ export function ReaderFeature({
     }
     if (req.anchor) {
       const anchor = req.anchor
+      // 色样正交（笔记 v3）：先样后色（样 = 一级子菜单，色 = 二级；ContextMenu 递归渲染）
+      const colorItems = (style: NoteMarkStyle) =>
+        (['yellow', 'green', 'blue', 'red'] as NoteColor[]).map((c) => ({
+          label: { yellow: '黃', green: '綠', blue: '藍', red: '赤' }[c],
+          swatch: `var(--${style === 'background' ? 'note' : 'mark-line'}-${c})`,
+          onClick: () => void createMark(anchor, c, '', style)
+        }))
+      const styleLabel: Record<NoteMarkStyle, string> = {
+        background: '底紋',
+        underline: '劃線',
+        wavy: '波浪',
+        strikethrough: '刪除線'
+      }
       items.push({
         label: '標記',
-        children: (['yellow', 'green', 'blue', 'red'] as NoteColor[]).map((c) => ({
-          label: { yellow: '黃', green: '綠', blue: '藍', red: '赤' }[c],
-          swatch: `var(--note-${c})`,
-          onClick: () => void createMark(anchor, c)
+        children: (['background', 'underline', 'wavy', 'strikethrough'] as NoteMarkStyle[]).map((st) => ({
+          label: styleLabel[st],
+          children: colorItems(st)
         }))
       })
       items.push({

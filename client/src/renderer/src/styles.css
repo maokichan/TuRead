@@ -199,6 +199,11 @@
   --note-green: #2f5a3a;
   --note-blue: #2c4a70;
   --note-red: #6b3230;
+  /* 线样专用色（笔记 v3）：描边不透明、要比底纹色更亮——深底上要看得见 */
+  --mark-line-yellow: #c9a94f;
+  --mark-line-green: #6fae7f;
+  --mark-line-blue: #7aa5d4;
+  --mark-line-red: #c47a72;
   /* 选区（2026-09-14，style/tokens.md）——默认选区是系统蓝，与"纯色取向不引入色相"直接冲突。
      只给背景、不给前景色：做成**低饱和淡扫**而非反色块（阅读更温和，也不用担心深色纸上配错正文色）。
      ⚠ 书文档里的 `::selection` 由适配器读本 token 后**内联注入**（宿主 CSS 不跨文档边界）；
@@ -280,6 +285,10 @@
   --note-green: #c6ead0;
   --note-blue: #c8dcf5;
   --note-red: #f8ccc6;
+  --mark-line-yellow: #c9a227;
+  --mark-line-green: #4f8a5b;
+  --mark-line-blue: #4a7ab5;
+  --mark-line-red: #c26a62;
   /* 选区：纯色·浅 = 中性灰（不引入色相，同本主题取向） */
   --selection-bg: rgba(27, 29, 31, 0.2);
   /* 压印字（批1.20）：纯色·浅 = 浅灰桌上的凹刻，亮缘强、暗缘轻 */
@@ -326,6 +335,10 @@
   --note-green: #cfe0b8;
   --note-blue: #cad6e0;
   --note-red: #eec4b4;
+  --mark-line-yellow: #b8912a;
+  --mark-line-green: #6d8f52;
+  --mark-line-blue: #5f7f99;
+  --mark-line-red: #b56560;
   /* 选区：羊皮纸·浅 = 暖调淡扫（贴合米色纸） */
   --selection-bg: rgba(122, 86, 32, 0.26);
   /* 压印字（批1.20）：羊皮纸·浅 = 暖桌上的凹刻，亮缘暖白 */
@@ -372,6 +385,10 @@
   --note-green: #3d5433;
   --note-blue: #33465e;
   --note-red: #66352c;
+  --mark-line-yellow: #cfae55;
+  --mark-line-green: #7d9a6b;
+  --mark-line-blue: #6e8fa8;
+  --mark-line-red: #b8786e;
   /* 选区：羊皮纸·深 = 暖调提亮（低饱和，不刺眼） */
   --selection-bg: rgba(230, 220, 201, 0.28);
   /* 压印字（批1.20）：羊皮纸·深 = 暗桌上的凹刻，亮缘极弱、暗缘更重 */

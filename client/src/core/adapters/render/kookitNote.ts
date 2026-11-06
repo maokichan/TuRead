@@ -12,7 +12,7 @@
  * - `chapterIndex`：文字类分支忽略，但 **PDF 分支必读**
  *   （`getSubIframe(item.chapterIndex)` + 逐条 `pageIndex !== chapterIndex` 过滤）—— 故一律带上。
  */
-import type { Note, NoteColor } from '@core/domain/types'
+import type { Note, NoteColor, NoteMarkStyle } from '@core/domain/types'
 
 /** 笔记色缺省：`Note.color` 未给时（书签/墨迹无色的语义回退）用哪一支 token */
 const DEFAULT_NOTE_COLOR: NoteColor = 'yellow'
@@ -21,7 +21,7 @@ export function toKookitNote(note: Note): Record<string, unknown> {
   return {
     key: note.id,
     range: note.anchor.fragment?.key ?? '',
-    color: resolveNoteColor(note.color),
+    color: resolveNoteColor(note),
     notes: note.body ?? '',
     chapterIndex: note.anchor.norm.chapterIndex
   }
@@ -38,10 +38,13 @@ export function toKookitNote(note: Note): Record<string, unknown> {
  * 这是"引擎默认"而不是 TuRead 的设计取值，故不构成第二处设计真相来源；token 缺失属配置错误，
  * 记日志让人看见（不做静默 no-op）。
  */
-/** 语义色名 → 具体 hex（宿主 CSS token 的现值；kookit 需要字面色值——CSS 变量不跨文档继承）。
- *  兜底 = kookit 默认 `#FEF3CD`（引擎默认而非 TuRead 设计取值，不构成第二处真相来源）。 */
-export function resolveNoteHex(name?: NoteColor): string {
-  const token = `--note-${name ?? DEFAULT_NOTE_COLOR}`
+/**
+ * （线样,语义色名）→ 具体 hex（宿主 CSS token 现值；kookit 需要字面色值——CSS 变量不跨文档继承）。
+ * 底纹走 `--note-*`（按"叠正文 0.8 透明"取值）；描边类线样走 `--mark-line-*`（不透明、更亮）——
+ * 两族不能共用（STYLE §3.4）。兜底 = kookit 默认 `#FEF3CD`（引擎默认而非 TuRead 设计取值）。
+ */
+export function resolveNoteHex(style: NoteMarkStyle, name?: NoteColor): string {
+  const token = style === 'background' ? `--note-${name ?? DEFAULT_NOTE_COLOR}` : `--mark-line-${name ?? DEFAULT_NOTE_COLOR}`
   const raw =
     typeof window === 'undefined'
       ? ''
@@ -53,6 +56,9 @@ export function resolveNoteHex(name?: NoteColor): string {
   return raw
 }
 
-function resolveNoteColor(name?: NoteColor): string {
-  return `background-${resolveNoteHex(name)}`
+/** Note → kookit 颜色串：`${styleType}-${hex}`（`buildHighlightStyleForType` 按 `-` 切分）。
+ *  NoteMarkStyle 四值与 kookit styleType 字面一致（background/underline/wavy/strikethrough）。 */
+function resolveNoteColor(note: Pick<Note, 'markStyle' | 'color'>): string {
+  const style = note.markStyle ?? 'background'
+  return `${style}-${resolveNoteHex(style, note.color)}`
 }
