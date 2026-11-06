@@ -133,10 +133,11 @@ export function renderNoteMarkdown(body: string): ReactNode[] {
       )
       continue
     }
-    if (line.startsWith('> ')) {
+    // 引用（标准 CommonMark）：`> 文字` 与空引用行 `>` 都算
+    if (line === '>' || line.startsWith('> ')) {
       const quoted: string[] = []
-      while (i < lines.length && lines[i].startsWith('> ')) {
-        quoted.push(lines[i].slice(2))
+      while (i < lines.length && (lines[i] === '>' || lines[i].startsWith('> '))) {
+        quoted.push(lines[i] === '>' ? '' : lines[i].slice(2))
         i += 1
       }
       blocks.push(
@@ -154,7 +155,7 @@ export function renderNoteMarkdown(body: string): ReactNode[] {
       i < lines.length &&
       lines[i].trim() !== '' &&
       !lines[i].startsWith('- ') &&
-      !lines[i].startsWith('> ') &&
+      !(lines[i] === '>' || lines[i].startsWith('> ')) &&
       !/^(#{1,3})\s+/.test(lines[i])
     ) {
       para.push(lines[i])
@@ -195,11 +196,12 @@ export function markdownToDom(body: string, doc: Document): DocumentFragment {
       frag.appendChild(ul)
       continue
     }
-    if (line.startsWith('> ')) {
+    // 引用：`> 文字` 与空引用行 `>` 都算（与 renderNoteMarkdown 同口径）
+    if (line === '>' || line.startsWith('> ')) {
       const bq = doc.createElement('blockquote')
-      while (i < lines.length && lines[i].startsWith('> ')) {
+      while (i < lines.length && (lines[i] === '>' || lines[i].startsWith('> '))) {
         const p = doc.createElement('p')
-        fillInline(p, lines[i].slice(2))
+        fillInline(p, lines[i] === '>' ? '' : lines[i].slice(2))
         bq.appendChild(p)
         i += 1
       }

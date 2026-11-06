@@ -2193,6 +2193,13 @@ textarea {
   padding: 1px 5px;
   border-radius: 2px;
 }
+/* 活动引用行（光标所在块不渲染 widget，源码态也要有引用的样子） */
+.md-editor .md-quote-line {
+  border-left: 2px solid var(--border);
+  margin-left: 2px;
+  padding-left: 8px;
+  color: var(--muted);
+}
 
 /* 卡片里的 body 含标题时压回正文行高（卡片是紧凑流，标题只作轻分层） */
 .note-card__body h1,

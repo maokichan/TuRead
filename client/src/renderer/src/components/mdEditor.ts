@@ -21,7 +21,7 @@ import {
 } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { syntaxTree } from '@codemirror/language'
-import { markdown } from '@codemirror/lang-markdown'
+import { markdown, markdownKeymap } from '@codemirror/lang-markdown'
 import type { Extension } from '@codemirror/state'
 import { markdownToDom } from './noteMarkdown'
 import { inlineMarks, topLevelBlocks } from './mdEditorLive'
@@ -75,6 +75,14 @@ function livePreview(): Extension {
               b.push(Decoration.replace({ widget: new MdBlockWidget(text.slice(blk.from, blk.to)) }).range(blk.from, blk.to))
             }
           } else {
+            // 活动引用块：行级装饰（左竖条 + 缩进——写的时候也有引用的样子）
+            if (blk.name === 'BlockQuote') {
+              for (let pos = blk.from; pos <= blk.to; ) {
+                const line = view.state.doc.lineAt(pos)
+                b.push(Decoration.line({ class: 'md-quote-line' }).range(line.from))
+                pos = line.to + 1
+              }
+            }
             for (const m of marks) {
               if (m.from < blk.from || m.to > blk.to) continue
               if (head > m.from && head < m.to) continue // 光标在 token 内 = 显形源码
@@ -125,7 +133,9 @@ export function createMdEditor(opts: MdEditorOptions): MdEditorHandle {
   const extraComp = new Compartment()
   const extensions: Extension[] = [
     history(),
-    keymap.of([...defaultKeymap, ...historyKeymap]),
+    // markdownKeymap = 列表/引用的**续行**（Enter 自动补 `- `/`> `,退格剥壳）——
+    // 漏了它，引用和列表写一行就断（真机实锤："根本没用"的主因）
+    keymap.of([...markdownKeymap, ...defaultKeymap, ...historyKeymap]),
     markdown(),
     EditorView.lineWrapping,
     liveComp.of(opts.live ? livePreview() : []),
