@@ -30,20 +30,18 @@ function renderInline(text: string, keyBase: string): ReactNode[] {
       { re: /`([^`]+)`/, build: (m) => <code key={`${keyBase}-${k}`}>{m[1]}</code> },
       {
         re: /\[([^\]]+)\]\(([^)\s]+)\)/,
-        build: (m) =>
-          HTTP_URL.test(m[2]) ? (
-            <a key={`${keyBase}-${k}`} href={m[2]} target="_blank" rel="noreferrer">
-              {m[1]}
-            </a>
-          ) : (
-            // 非法协议：诚实降级为纯文本（「[文字](地址)」原样可见，不吞字）
-            <span key={`${keyBase}-${k}`}>{m[0]}</span>
-          )
+        build: (m) => (
+          <a key={`${keyBase}-${k}`} href={m[2]} target="_blank" rel="noreferrer">
+            {m[1]}
+          </a>
+        )
       }
     ]
     let best: { index: number; match: RegExpMatchArray; build: (m: RegExpMatchArray) => ReactNode } | null = null
     for (const p of patterns) {
       const m = rest.match(p.re)
+      // 链接协议白名单在**匹配时**判：非法 = 这个模式不参与（整段走字面，一个字符都不吞）
+      if (m && m[0].startsWith('[') && !HTTP_URL.test(m[2])) continue
       if (m && m.index !== undefined && (best === null || m.index < best.index)) {
         best = { index: m.index, match: m, build: p.build }
       }
@@ -194,15 +192,16 @@ export function markdownToDom(body: string, doc: Document): DocumentFragment {
         const c = doc.createElement('code')
         c.textContent = m[1]
         p.appendChild(c)
+      } else if (HTTP_URL.test(m[2])) {
+        const a = doc.createElement('a')
+        a.href = m[2]
+        a.textContent = m[1]
+        p.appendChild(a)
       } else {
-        if (HTTP_URL.test(m[2])) {
-          const a = doc.createElement('a')
-          a.href = m[2]
-          a.textContent = m[1]
-          p.appendChild(a)
-        } else {
-          run += m[0]
-        }
+        // 非法协议：整段字面（回退一个字符重扫，括号不吞）
+        run += inline[j]
+        j += 1
+        continue
       }
       j += m[0].length
     }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { renderNoteMarkdown, markdownFromDom, markdownToDom } from './noteMarkdown'
+import { renderNoteMarkdown } from './noteMarkdown'
 import type { ReactElement, ReactNode } from 'react'
 
 /** 取块级节点的类型序列（段落 p / 列表 ul / 引用 blockquote） */
@@ -12,6 +12,12 @@ function propsOf(n: ReactNode): Record<string, unknown> {
   return (n as ReactElement).props as Record<string, unknown>
 }
 
+/** 行内子节点（块级元素的 children；单子节点归一成数组） */
+function inlineOf(block: ReactNode): ReactNode[] {
+  const c = propsOf(block).children
+  return (Array.isArray(c) ? c : [c]) as ReactNode[]
+}
+
 describe('renderNoteMarkdown（笔记 body 渲染子集）', () => {
   it('纯文本 = 单段落（Markdown 对纯文本透明）', () => {
     const nodes = renderNoteMarkdown('就是一句话')
@@ -20,18 +26,20 @@ describe('renderNoteMarkdown（笔记 body 渲染子集）', () => {
 
   it('粗体/斜体/行内代码', () => {
     const nodes = renderNoteMarkdown('**重**和*斜*与`码`')
-    const p = nodes[0] as ReactElement
-    const parts = propsOf(p).children as ReactNode[]
+    const parts = inlineOf(nodes[0])
     expect(parts.some((n) => (n as ReactElement)?.type === 'strong')).toBe(true)
     expect(parts.some((n) => (n as ReactElement)?.type === 'em')).toBe(true)
     expect(parts.some((n) => (n as ReactElement)?.type === 'code')).toBe(true)
   })
 
   it('http 链接成 <a>；javascript: 降级纯文本不吞字', () => {
-    const ok = renderNoteMarkdown('[站](https://a.b)')[0] as ReactElement
-    expect(((propsOf(ok).children as ReactNode[].find((n) => (n as ReactElement)?.type === 'a') as ReactElement)?.props.href).toBe('https://a.b')
-    const bad = renderNoteMarkdown('[x](javascript:alert(1))')[0] as ReactElement
-    const text = (propsOf(bad).children as ReactNode[].map((n) => String((n as ReactElement)?.props?.children ?? n)).join('')
+    const ok = inlineOf(renderNoteMarkdown('[站](https://a.b)')[0])
+    const a = ok.find((n) => (n as ReactElement)?.type === 'a') as ReactElement
+    expect((a.props as Record<string, unknown>).href).toBe('https://a.b')
+
+    const bad = inlineOf(renderNoteMarkdown('[x](javascript:alert(1))')[0])
+    // 非法协议 = 整段字面文本（一个字符都不吞——括号是完整的）
+    const text = bad.filter((n) => typeof n === 'string').join('')
     expect(text).toContain('[x](javascript:alert(1))')
   })
 
@@ -44,5 +52,4 @@ describe('renderNoteMarkdown（笔记 body 渲染子集）', () => {
     const nodes = renderNoteMarkdown('第一行\n第二行\n\n第三行')
     expect(blockTypes(nodes)).toEqual(['p', 'p'])
   })
-
 })
