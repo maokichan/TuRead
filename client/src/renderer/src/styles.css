@@ -2136,6 +2136,45 @@ textarea {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+/* —— 文档编辑器（CodeMirror 6，笔记 v3 文档层）—— 主题只走 token；
+   非活动块的渲染 widget 直接挂 .note-doc 继承文档排版。 */
+.md-editor .cm-editor {
+  height: 100%;
+  background: transparent;
+}
+.md-editor .cm-editor.cm-focused {
+  outline: none;
+}
+.md-editor .cm-scroller {
+  font-family: var(--font-serif-cn);
+  line-height: 1.7;
+}
+.md-editor .cm-content {
+  padding: 0;
+  user-select: text;
+  caret-color: var(--text);
+}
+.md-editor .cm-line {
+  padding: 0 2px;
+}
+.md-editor .cm-cursor {
+  border-left-color: var(--text);
+}
+.md-editor .cm-selectionBackground {
+  background: var(--selection-bg) !important;
+}
+.md-editor .md-strong {
+  font-weight: 700;
+}
+.md-editor .md-em {
+  font-style: italic;
+}
+.md-editor .md-code {
+  background: var(--panel-2);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
 /* 卡片里的 body 含标题时压回正文行高（卡片是紧凑流，标题只作轻分层） */
 .note-card__body h1,
 .note-card__body h2,

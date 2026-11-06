@@ -23,6 +23,13 @@
     "rebuild:sqlite": "cd node_modules/better-sqlite3 && npx prebuild-install -r electron -t 33.4.11"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.4",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/markdown": "^1.8.1",
     "better-sqlite3": "^12.11.1",
     "chardet": "^2.2.0",
     "pdfjs-dist": "^4.8.69",
