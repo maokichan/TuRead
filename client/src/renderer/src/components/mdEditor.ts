@@ -115,18 +115,21 @@ export interface MdEditorHandle {
   setDoc(text: string): void
   /** 切 Live Preview（compartment reconfigure，不重建实例） */
   setLive(on: boolean): void
+  setExtra(ext: Extension[]): void
   focus(): void
   destroy(): void
 }
 
 export function createMdEditor(opts: MdEditorOptions): MdEditorHandle {
   const liveComp = new Compartment()
+  const extraComp = new Compartment()
   const extensions: Extension[] = [
     history(),
     keymap.of([...defaultKeymap, ...historyKeymap]),
     markdown(),
     EditorView.lineWrapping,
     liveComp.of(opts.live ? livePreview() : []),
+    extraComp.of(opts.extra ?? []),
     EditorView.updateListener.of((u) => {
       if (u.docChanged) opts.onChange(u.state.doc.toString())
     }),
@@ -140,7 +143,6 @@ export function createMdEditor(opts: MdEditorOptions): MdEditorHandle {
         return false
       }
     }),
-    ...(opts.extra ?? [])
   ]
   const view = new EditorView({
     state: EditorState.create({ doc: opts.doc, extensions }),
@@ -154,6 +156,10 @@ export function createMdEditor(opts: MdEditorOptions): MdEditorHandle {
     },
     setLive(on: boolean): void {
       view.dispatch({ effects: liveComp.reconfigure(on ? livePreview() : []) })
+    },
+    /** 追加扩展重配（@ 补全候选异步加载后重装） */
+    setExtra(ext: Extension[]): void {
+      view.dispatch({ effects: extraComp.reconfigure(ext) })
     },
     focus(): void {
       view.focus()

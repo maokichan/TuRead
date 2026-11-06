@@ -1,6 +1,6 @@
 # 决策：文档编辑器引入 CodeMirror 6（Live Preview 内核）
 
-Status: proposed
+Status: implemented
 
 ## Problem
 
@@ -9,7 +9,7 @@ DOM→Markdown 往返有损。用户裁定 md 看齐 Obsidian：**实时渲染**
 其余块实时渲染）是硬需求。自研 contenteditable 逐块隐藏 = 光标恢复/选区跨界/IME 合成
 三大坑自趟，等于重写残缺版 CodeMirror——否决。
 
-## Decision（用户本会话已同意引入）
+## Decision（已落地：mdEditor.ts/mdEditorLive.ts，DocumentsPanel 三态接入）
 
 引入 **CodeMirror 6**（Obsidian 编辑器同款内核）作为渲染进程 npm 依赖：
 

@@ -329,7 +329,7 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
       {docsOpen ? (
         /* 文档视图（笔记 v3）：文档 = 消费笔记所生产的内容，归筆记区。
            整个滚动容器让位——文档面板有自己的列表+编辑区布局。 */
-        <DocumentsPanel container={container} />
+        <DocumentsPanel container={container} host={host} />
       ) : (
       <>
       {/* 笔记详情（轴视图）：列表单击进入；跳回原文在这里发生 */}

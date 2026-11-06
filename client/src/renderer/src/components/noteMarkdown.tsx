@@ -3,13 +3,15 @@
  *
  * 支持子集（决策笔记 notes-v3-data-model「编辑器特性支持矩阵」——body 面 + 文档层基础 GFM）：
  * 段落（空行分段，段内单换行 = 换行）· **粗体** · *斜体* · `行内代码` · [文字](https://链接)
- * · `- ` 无序列表 · `> ` 引用 · `#`/`##`/`###` 标题（文档层；body 里同样按块渲染）。
+ * · `- ` 无序列表 · `> ` 引用 · `#`/`##`/`###` 标题（文档层；body 里同样按块渲染）
+ * · 笔记引用 `![[目標]]` / `[[目標|顯示名]]`（文档层批：目標 = `檔案 · 書名#note-<uuid>`
+ *   或短形态 `note-<uuid>`，渲染成可点 span，点击解引用归调用方）。
  *
  * 纪律：
  * - **不用 dangerouslySetInnerHTML**——笔记内容会进 React 树，节点树是唯一出口；
  * - 链接只放行 http(s)（协议白名单，javascript: 等一律降级为纯文本）；
- * - 超出子集的语法（表格/代码块/wikilink…）按**字面文本**渲染——Markdown 对纯文本透明，
- *   未知语法不吞字。
+ * - 超出子集的语法（表格/代码块/普通 wikilink…）按**字面文本**渲染——Markdown 对纯文本透明，
+ *   未知语法不吞字（笔记引用除外：上方正则认得的才解析，认不得的照旧字面）。
  */
 
 import React from 'react'
@@ -17,19 +19,57 @@ import type { ReactNode } from 'react'
 
 const HTTP_URL = /^https?:\/\//i
 
-/** 行内语法 → React 节点（**bold** / *italic* / `code` / [t](url)）。
+// ————— 笔记引用（wikilink）—————
+/** 笔记 id 形态（uuid，小写十六进制——落库即此形态） */
+const NOTE_UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+/**
+ * 笔记引用：`![[目標]]` / `[[目標|顯示名]]`；目標 = `檔案 · 書名#note-<uuid>` 或短形态 `note-<uuid>`。
+ * 「目标必须指向 note-<uuid>」的合法性**直接编进正则**——不合法（普通 wikilink）= 不匹配 =
+ * 字面渲染，一个字符都不吞。捕获组：1 = `!`（嵌入记号），2 = 书部（含结尾 `#`，可空），
+ * 3 = noteId（恒为 `note-<uuid>`），4 = 顯示名（可空）。
+ */
+const NOTE_REF_RE = new RegExp(`(!?)\\[\\[((?:[^\\]|\\n]*#)?)(note-${NOTE_UUID})(?:\\|([^\\]\\n]+))?\\]\\]`)
+/** 同上、锚定行内起点（markdownToDom 的逐位扫描用） */
+const NOTE_REF_RE_AT = new RegExp(`^${NOTE_REF_RE.source}`)
+
+/** 引用顯示名兜底：无 `|` 段时 = 目标去掉 `#note-<uuid>` 部分（全形态 = 「檔案 · 書名」；短形态 = noteId）。 */
+function noteRefTitle(m: RegExpMatchArray): string {
+  return m[2] !== '' ? m[2].replace(/#$/, '') : m[3]
+}
+
+/** 行内语法 → React 节点（笔记引用 / **bold** / *italic* / `code` / [t](url)）。
  *  实现 = 顺序扫描 + 最小匹配：先找最早的触发符，同类不嵌套（子集口径）。 */
 function renderInline(text: string, keyBase: string): ReactNode[] {
   const nodes: ReactNode[] = []
   let rest = text
   let k = 0
   while (rest.length > 0) {
-    const patterns: Array<{ re: RegExp; build: (m: RegExpMatchArray) => ReactNode }> = [
+    const patterns: Array<{
+      re: RegExp
+      /** 可选闸：命中但不合法 = 该模式不参与（整段走字面，一个字符都不吞） */
+      guard?: (m: RegExpMatchArray) => boolean
+      build: (m: RegExpMatchArray) => ReactNode
+    }> = [
+      {
+        // 笔记引用（合法性已编进正则，无需 guard）；`![[` 与 `[[` 同一模式，`!` 记号不参与先后
+        re: NOTE_REF_RE,
+        build: (m) => (
+          <span
+            key={`${keyBase}-${k}`}
+            className="note-ref"
+            data-note-ref={m[3]}
+            data-note-raw={m[0]}
+          >
+            {m[4] ?? noteRefTitle(m)}
+          </span>
+        )
+      },
       { re: /\*\*([^*]+)\*\*/, build: (m) => <strong key={`${keyBase}-${k}`}>{m[1]}</strong> },
       { re: /\*([^*]+)\*/, build: (m) => <em key={`${keyBase}-${k}`}>{m[1]}</em> },
       { re: /`([^`]+)`/, build: (m) => <code key={`${keyBase}-${k}`}>{m[1]}</code> },
       {
         re: /\[([^\]]+)\]\(([^)\s]+)\)/,
+        guard: (m) => HTTP_URL.test(m[2]),
         build: (m) => (
           <a key={`${keyBase}-${k}`} href={m[2]} target="_blank" rel="noreferrer">
             {m[1]}
@@ -40,8 +80,8 @@ function renderInline(text: string, keyBase: string): ReactNode[] {
     let best: { index: number; match: RegExpMatchArray; build: (m: RegExpMatchArray) => ReactNode } | null = null
     for (const p of patterns) {
       const m = rest.match(p.re)
-      // 链接协议白名单在**匹配时**判：非法 = 这个模式不参与（整段走字面，一个字符都不吞）
-      if (m && m[0].startsWith('[') && !HTTP_URL.test(m[2])) continue
+      // 闸在**匹配时**判（链接协议白名单）：非法 = 这个模式不参与（整段走字面，一个字符都不吞）
+      if (m && p.guard && !p.guard(m)) continue
       if (m && m.index !== undefined && (best === null || m.index < best.index)) {
         best = { index: m.index, match: m, build: p.build }
       }
@@ -148,7 +188,7 @@ export function markdownToDom(body: string, doc: Document): DocumentFragment {
       const ul = doc.createElement('ul')
       while (i < lines.length && lines[i].startsWith('- ')) {
         const li = doc.createElement('li')
-        li.textContent = lines[i].slice(2)
+        fillInline(li, lines[i].slice(2))
         ul.appendChild(li)
         i += 1
       }
@@ -159,7 +199,7 @@ export function markdownToDom(body: string, doc: Document): DocumentFragment {
       const bq = doc.createElement('blockquote')
       while (i < lines.length && lines[i].startsWith('> ')) {
         const p = doc.createElement('p')
-        p.textContent = lines[i].slice(2)
+        fillInline(p, lines[i].slice(2))
         bq.appendChild(p)
         i += 1
       }
@@ -182,7 +222,7 @@ export function markdownToDom(body: string, doc: Document): DocumentFragment {
   }
   return frag
 
-  /** 行内填充（粗/斜/码/链接；textContent-only 构建 → 无注入面） */
+  /** 行内填充（笔记引用/粗/斜/码/链接；textContent-only 构建 → 无注入面） */
   function fillInline(el: HTMLElement, text: string): void {
     let run = ''
     const flushText = (): void => {
@@ -193,7 +233,9 @@ export function markdownToDom(body: string, doc: Document): DocumentFragment {
     let j = 0
     while (j < text.length) {
       const rest = text.slice(j)
+      const ref = rest.match(NOTE_REF_RE_AT)
       const m =
+        ref ??
         rest.match(/^\*\*([^*]+)\*\*/) ??
         rest.match(/^\*([^*]+)\*/) ??
         rest.match(/^`([^`]+)`/) ??
@@ -204,7 +246,15 @@ export function markdownToDom(body: string, doc: Document): DocumentFragment {
         continue
       }
       flushText()
-      if (m[0].startsWith('**')) {
+      if (ref) {
+        // 笔记引用：span 带 data-note-ref（noteId）+ data-note-raw（原文，序列化无损的锚）
+        const span = doc.createElement('span')
+        span.className = 'note-ref'
+        span.setAttribute('data-note-ref', ref[3])
+        span.setAttribute('data-note-raw', ref[0])
+        span.textContent = ref[4] ?? noteRefTitle(ref)
+        el.appendChild(span)
+      } else if (m[0].startsWith('**')) {
         const b = doc.createElement('strong')
         b.textContent = m[1]
         el.appendChild(b)
@@ -239,6 +289,10 @@ export function markdownFromDom(root: HTMLElement): string {
     if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
     if (node.nodeType !== Node.ELEMENT_NODE) return ''
     const el = node as HTMLElement
+    // 笔记引用：原样还回插入串（无损 round-trip 的锚是 data-note-raw；缺失时按 noteId 重建）
+    if (el.getAttribute('data-note-ref') !== null) {
+      return el.getAttribute('data-note-raw') ?? `[[${el.getAttribute('data-note-ref')}]]`
+    }
     switch (el.tagName) {
       case 'BR':
         return '\n'
@@ -266,11 +320,12 @@ export function markdownFromDom(root: HTMLElement): string {
     const el = child as HTMLElement
     if (el.tagName === 'UL') {
       for (const li of Array.from(el.children)) {
-        blocks.push(`- ${(li as HTMLElement).textContent ?? ''}`)
+        // 走行内序列化（li 里可能有引用/粗斜/码——textContent 会把这些拍平丢语法）
+        blocks.push(`- ${inlineChildren(li as HTMLElement)}`)
       }
     } else if (el.tagName === 'BLOCKQUOTE') {
       for (const q of Array.from(el.children)) {
-        blocks.push(`> ${(q as HTMLElement).textContent ?? ''}`)
+        blocks.push(`> ${inlineChildren(q as HTMLElement)}`)
       }
     } else if (/^H[1-3]$/.test(el.tagName)) {
       const text = inlineChildren(el)

@@ -2136,6 +2136,25 @@ textarea {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+/* 笔记引用（wikilink）：可点跳回原文——下划线语言与 .note-doc a 同源，颜色继承正文（token 链上游） */
+.note-ref {
+  cursor: pointer;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* —— 文档面板·文件列表（收注意力）：编辑器聚焦收起，「清單」唤回 —— */
+.docs-aside {
+  width: 224px;
+  transition: width var(--dur-panel) var(--ease-out);
+}
+.docs-aside:not([data-open]) {
+  width: 0;
+  border-right-color: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+
 /* —— 文档编辑器（CodeMirror 6，笔记 v3 文档层）—— 主题只走 token；
    非活动块的渲染 widget 直接挂 .note-doc 继承文档排版。 */
 .md-editor .cm-editor {
