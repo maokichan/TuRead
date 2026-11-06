@@ -86,13 +86,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     this.readFile = readFile
     this.geom = new PdfGeomCapturer({
       rendition: () => this.rendition,
-      pageOf: (doc) => {
-        const total = this.rendition?.chapterDocList?.length ?? 0
-        for (let i = 0; i < total; i += 1) {
-          if (this.rendition?.getSubDocument(i) === doc) return i
-        }
-        return null
-      },
+      pageOf: (doc) => this.pageOfPdfDoc(doc),
       onCapture: (anchor, kind) => this.emit('geom-captured', { anchor, kind })
     })
   }
@@ -410,7 +404,8 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   private async renderStrokes(chapter: number): Promise<void> {
     const rendition = this.rendition
     if (!rendition || this.record?.format !== 'PDF') return
-    const subDoc = rendition.getSubDocument(chapter)
+    // 只对**已加载**页回显（DOM 直查；getSubDocument 对缺失页会建 iframe——禁止）
+    const subDoc = this.loadedPdfPages().find((p) => p.page === chapter)?.doc ?? null
     if (!subDoc) return
     const viewport = await getPdfViewport(rendition, chapter)
     if (!viewport) return
@@ -519,14 +514,34 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
       const doc = rendition.getDocument()
       return doc ? [doc] : []
     }
-    const docs: Document[] = []
-    const total = rendition.chapterDocList?.length ?? 0
-    for (let i = 0; i < total; i += 1) {
-      const doc = rendition.getSubDocument(i)
-      // 空壳子页（未加载）不绑：body 为空的文档是 kookit 尚未填充的占位
-      if (doc && doc.body?.innerHTML !== '') docs.push(doc)
+    return this.loadedPdfPages().map((p) => p.doc)
+  }
+
+  /**
+   * PDF：**已加载**子页（DOM 直查，page 解析自 iframe id = `pdf-iframe-<N>`）。
+   * ⚠ 绝不走 `getSubDocument(i)` 逐页摸——它对缺失页会**顺手创建 iframe**
+   * （`createPDFIframe`，kookit 源码 PdfRender.ts:772），多页循环 = 把全书页框都强建出来，
+   * 炸性能且破坏 kookit 渲染状态（真机实锤：几何捕获被它搞死）。
+   */
+  private loadedPdfPages(): Array<{ page: number; doc: Document }> {
+    const top = this.rendition?.getDocument()
+    if (!top) return []
+    const out: Array<{ page: number; doc: Document }> = []
+    for (const f of Array.from(top.querySelectorAll('iframe[id^="pdf-iframe-"]'))) {
+      const n = Number((f.getAttribute('id') ?? '').slice('pdf-iframe-'.length))
+      const doc = (f as HTMLIFrameElement).contentDocument
+      // 空壳子页（刚创建/未填充）不算已加载
+      if (Number.isFinite(n) && doc && doc.body?.innerHTML !== '') out.push({ page: n, doc })
     }
-    return docs
+    return out
+  }
+
+  /** 子页文档 → 页号（读 iframe id；非子页 = null） */
+  private pageOfPdfDoc(doc: Document): number | null {
+    const id = (doc.defaultView?.frameElement as HTMLElement | null)?.getAttribute('id') ?? ''
+    if (!id.startsWith('pdf-iframe-')) return null
+    const n = Number(id.slice('pdf-iframe-'.length))
+    return Number.isFinite(n) ? n : null
   }
 
   /** 有**非塌陷选区**的那个文档（PDF = 逐页找；文字类 = 书文档）。菜单定位/锚点解算用它。 */

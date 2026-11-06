@@ -35,6 +35,7 @@
 | 渲染自检 | `TUREAD_DEV_BOOK=<书>` | 导入→打开→渲染→位置；`[TUREAD-TEST-OK/FAIL]` 驱动退出码 |
 | library | `TUREAD_DEV_PROBE=library`（需 `TUREAD_DEV_BOOK`） | 多库/書箱/收录/edition 复用读模型 |
 | note | `TUREAD_DEV_PROBE=note` | 选择→锚点→高亮→跳转→删除全链路 ①–⑥ |
+| pdf-note | `TUREAD_DEV_PROBE=pdf-note`（需 `TUREAD_DEV_BOOK` 指向 PDF） | PDF 笔记全链路：选区→context-menu anchor→kookit-pdf-rect 载荷→回显/删除；几何框選（合成拖曳→geom-captured→落库→回显） |
 | room | `TUREAD_DEV_PROBE=room` | **唯一要真 server**：token/建房/标定/聊天/历史 16 断言；负向断言留 `net:send` 报错日志是预期的 |
 | paged-interact / pdfWidth | `TUREAD_DEV_PROBE=…` | 事实行探针（无产品断言，看数字） |
 | room-peer | `TUREAD_DEV_PROBE=room-peer` + `TUREAD_DEV_KEEPALIVE=1` | 双开联调驻留型（独立 member token） |

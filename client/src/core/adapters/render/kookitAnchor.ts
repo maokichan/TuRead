@@ -122,14 +122,18 @@ export async function selectionToAnchor(
   if (deps.format === 'PDF') {
     // 页号 = **逐页找有选区的那页**，不信 renderedChapter——PDF 滚动模式预渲染会让
     // "最后渲染页"≠"用户正在看的页"（真机实锤：右键在眼前这页毫无反应的根因）。
+    // ⚠ 子页发现走 **DOM 直查**（顶层文档下 `iframe[id^="pdf-iframe-"]`）——
+    // `getSubDocument(i)` 对缺失页会顺手创建 iframe（kookit 副作用，禁用）。
     let page: number | null = null
     let subDoc: Document | null = null
-    const total = rendition.chapterDocList?.length ?? 0
-    for (let i = 0; i < total; i += 1) {
-      const d = rendition.getSubDocument(i)
+    const top = rendition.getDocument()
+    for (const f of Array.from(top?.querySelectorAll('iframe[id^="pdf-iframe-"]') ?? [])) {
+      const d = (f as HTMLIFrameElement).contentDocument
       const sel = d?.getSelection()
       if (d && sel && sel.rangeCount > 0 && !sel.isCollapsed) {
-        page = i
+        const n = Number((f.getAttribute('id') ?? '').slice('pdf-iframe-'.length))
+        if (!Number.isFinite(n)) continue
+        page = n
         subDoc = d
         break
       }

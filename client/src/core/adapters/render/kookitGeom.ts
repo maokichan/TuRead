@@ -32,7 +32,9 @@ export async function getPdfViewport(
     const pdfPage = await entry.text.getPage()
     const scale = await rendition.getPdfScale()
     return pdfPage.getViewport({ scale })
-  } catch {
+  } catch (err) {
+    // 几何捕获静默放弃 = 用户拖了却什么都没发生（最坏的失败形态）——必须留痕
+    console.warn(`[geom] viewport 获取失败（页 ${page}）：`, err)
     return null
   }
 }
@@ -72,7 +74,7 @@ export class PdfGeomCapturer {
   private docs = new Set<Document>()
   /** 拖曳发生在哪个文档（commit 时经 pageOf 反查页号） */
   private dragDoc: Document | null = null
-  private drag: { x0: number; y0: number; points: Array<{ x: number; y: number }> } | null = null
+  private drag: { x0: number; y0: number; cur: { x: number; y: number }; points: Array<{ x: number; y: number }> } | null = null
   private preview: Element | null = null
 
   constructor(
@@ -95,12 +97,22 @@ export class PdfGeomCapturer {
     this.bindDocs(docs)
   }
 
-  /** 换页/重绑（rendered 驱动）：armed 期间跟随全部已加载子页（空壳子页跳过）。 */
+  /**
+   * 换页/重绑（rendered 驱动）：armed 期间跟随全部已加载子页。
+   * ⚠ **增减式**重绑：PDF 滚动模式 rendered 频发（预渲染），若每次全拆全挂，
+   * 在飞的拖曳状态会被清掉（真机实锤：mousedown 后 mouseup 永远收不到）——
+   * 只摘已卸载页、只挂新页，drag/预览一律不动。
+   */
   bindDocs(docs: Document[]): void {
     if (this.mode === null) return
-    this.unbind()
+    for (const doc of Array.from(this.docs)) {
+      if (!docs.includes(doc)) {
+        this.detachDoc(doc)
+        this.docs.delete(doc)
+      }
+    }
     for (const doc of docs) {
-      if (doc.body?.innerHTML === '') continue
+      if (doc.body?.innerHTML === '' || this.docs.has(doc)) continue
       this.docs.add(doc)
       // capture 阶段拦截：武装期间的拖曳不再产生文字选区（pdf.js 文本层上尤其会）
       doc.addEventListener('mousedown', this.onDown, true)
@@ -111,20 +123,19 @@ export class PdfGeomCapturer {
   }
 
   disarm(): void {
-    this.unbind()
-    this.mode = null
-  }
-
-  private unbind(): void {
-    for (const doc of this.docs) {
-      doc.removeEventListener('mousedown', this.onDown, true)
-      doc.removeEventListener('mousemove', this.onMove)
-      doc.removeEventListener('mouseup', this.onUp)
-      if (doc.body) doc.body.style.cursor = ''
-    }
+    for (const doc of this.docs) this.detachDoc(doc)
     this.docs.clear()
+    this.mode = null
     this.removePreview()
     this.dragDoc = null
+    this.drag = null
+  }
+
+  private detachDoc(doc: Document): void {
+    doc.removeEventListener('mousedown', this.onDown, true)
+    doc.removeEventListener('mousemove', this.onMove)
+    doc.removeEventListener('mouseup', this.onUp)
+    if (doc.body) doc.body.style.cursor = ''
   }
 
   /** 拖曳点（subDoc 视口坐标）→ 相对 canvas 的坐标（与 kookit getHightlightCoords 同口径：
@@ -149,7 +160,7 @@ export class PdfGeomCapturer {
     me.preventDefault()
     me.stopPropagation()
     this.dragDoc = doc
-    this.drag = { x0: start.x, y0: start.y, points: [start] }
+    this.drag = { x0: start.x, y0: start.y, cur: start, points: [start] }
     this.showPreview(doc)
   }
 
@@ -157,6 +168,7 @@ export class PdfGeomCapturer {
     if (!this.drag || !this.dragDoc || this.mode === null) return
     const p = this.canvasPoint(this.dragDoc, e as MouseEvent)
     if (!p) return
+    this.drag.cur = p
     if (this.mode === 'rect') {
       this.updateRectPreview(p)
     } else {
@@ -175,26 +187,30 @@ export class PdfGeomCapturer {
     const drag = this.drag
     this.drag = null
     this.removePreview()
-    const last = drag.points[drag.points.length - 1]
+    const last = drag.cur
     const span =
       mode === 'rect'
         ? Math.max(Math.abs(last.x - drag.x0), Math.abs(last.y - drag.y0))
         : Math.hypot(last.x - drag.x0, last.y - drag.y0)
     if (span < MIN_SPAN) return
-    void this.commit(mode, drag)
+    // 提交链任何一步静默拒绝 = 用户拖了没结果（最坏失败形态）——必须留痕
+    this.commit(mode, drag).catch((err) => console.error('[geom] commit 异常：', err))
   }
 
   /** 屏→pdf 点换算 + 建锚点 + 回调，然后自动解除（一次性）。换算失败 = 放弃本轮。 */
-  private async commit(mode: 'rect' | 'stroke', drag: { x0: number; y0: number; points: Array<{ x: number; y: number }> }): Promise<void> {
+  private async commit(mode: 'rect' | 'stroke', drag: { x0: number; y0: number; cur: { x: number; y: number }; points: Array<{ x: number; y: number }> }): Promise<void> {
     const rendition = this.deps.rendition()
     const page = this.dragDoc ? this.deps.pageOf(this.dragDoc) : null
-    if (!rendition || page === null) return
+    if (!rendition || page === null) {
+      console.warn(`[geom] 提交放弃：rendition=${Boolean(rendition)} 页号=${String(page)}（拖曳落点不是已加载子页？）`)
+      return
+    }
     const viewport = await getPdfViewport(rendition, page)
     if (!viewport) return
     const toPoint = (p: { x: number; y: number }): number[] => viewport.convertToPdfPoint(p.x, p.y)
     const totalPage = rendition.chapterDocList?.length ?? 0
     if (mode === 'rect') {
-      const last = drag.points[drag.points.length - 1]
+      const last = drag.cur
       const p1 = toPoint({ x: Math.min(drag.x0, last.x), y: Math.min(drag.y0, last.y) })
       const p2 = toPoint({ x: Math.max(drag.x0, last.x), y: Math.max(drag.y0, last.y) })
       this.deps.onCapture(geomAnchor(page, totalPage, PDF_FRAGMENT_ENGINE, { page, coords: [p1, p2] }), 'rect')
