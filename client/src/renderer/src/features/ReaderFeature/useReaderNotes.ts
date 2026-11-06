@@ -132,9 +132,14 @@ export function useReaderNotes(params: {
   useEffect(() => {
     return container.render.on('selection-changed', (sel) => {
       setSelection(sel)
-      // 选区消失 → 关闭"由选区召唤"的输入框。只关 fromSelection 那种：
-      // 编辑既有笔记的输入框，其对象是**那条笔记**而不是选区。
-      if (sel === null) setComposer((c) => (c && c.fromSelection ? null : c))
+      if (sel === null) {
+        // 选区消失 → 关闭"由选区召唤"的输入框。只关 fromSelection 那种：
+        // 编辑既有笔记的输入框，其对象是**那条笔记**而不是选区。
+        setComposer((c) => (c && c.fromSelection ? null : c))
+        // 右键菜单同样跟着关：书内容里的 mouseup 会上报"无选区"——用户在内容区点了别处
+        // = 交互状态已切换，菜单不能赖着不走（宿主 window 的 mousedown 听不到 iframe 内点击）。
+        setMenu(null)
+      }
     })
   }, [container])
 

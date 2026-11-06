@@ -1,11 +1,10 @@
 /**
- * 文档层生成器（笔记 v3 批N5）——汇编与笔记档案的 Markdown 文本构建（纯函数，零依赖）。
+ * 文档层生成器（笔记 v3）——汇编与笔记档案的 Markdown 文本构建（纯函数，零依赖）。
  *
  * **两层文件的关系**（决策笔记 notes-v3-data-model「文档层」）：
  * - **汇编**（用户所有）：wikilink 引用笔记 `![[note-<id>]]`——生产性总结发生在这里；
- * - **笔记档案**（生成物，每书一份、可重生成覆盖）：节标题 = `note-<id>` = 引用的**解析目标**，
- *   使汇编里的引用在 Obsidian 可解析、可反链。我们这边解引用成活笔记卡（可点跳回原文）。
- * 档案定位「生成物勿手改」——再生成整体覆盖。
+ * - **筆記檔案**（生成物，每书一份、可重生成覆盖）：节标题 = `note-<id>` = 引用的**解析目标**，
+ *   使汇编里的引用在 Obsidian 可解析、可反链。档案定位「生成物勿手改」——再生成整体覆盖。
  */
 import type { Note } from '@core/domain/types'
 
@@ -17,11 +16,11 @@ export function buildCompilationMd(title: string, items: Array<{ note: Note }>):
   for (const it of items) {
     lines.push(`![[note-${it.note.id}]]`)
   }
-  lines.push('', '<!-- 引用经「笔记档案」解析；在 Obsidian 中打开 vault 即可反链。 -->', '')
+  lines.push('', '<!-- 引用经「筆記檔案」解析；用 Obsidian 打开 vault 資料夾即可反链。 -->', '')
   return lines.join('\n')
 }
 
-/** 笔记档案（单书）：每条笔记一个标题节。 */
+/** 筆記檔案（单书）：每条笔记一个标题节。 */
 export function buildArchiveMd(
   editionTitle: string,
   editionId: string,
@@ -37,7 +36,7 @@ export function buildArchiveMd(
     '',
     `# 檔案 · ${editionTitle}`,
     '',
-    '<!-- 本文件是生成物：由「文檔」页重新生成整体覆盖，请勿手改。 -->',
+    '<!-- 本文件是生成物：由「筆記」页的文档视图重新生成整体覆盖，请勿手改。 -->',
     ''
   ]
   for (const it of items) {

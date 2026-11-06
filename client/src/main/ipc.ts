@@ -218,6 +218,11 @@ export function registerIpc(
     void shell.openPath(vaultDir())
     return { path: vaultDir() }
   })
+  ipcMain.handle(IPC.vaultDelete, async (_e, p: { name: string }) => {
+    const name = vaultSafeName(p?.name)
+    await fs.rm(join(vaultDir(), name), { force: true })
+    return true
+  })
 
   // ————— 書箱 / 层级浏览（树在库内）—————
   ipcMain.handle(IPC.storeListContainers, (_e, p: { libraryId: string; parentId: string | null }) =>

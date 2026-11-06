@@ -68,14 +68,18 @@ function docLayerMarginLeft(subDoc: Document): number {
  */
 export class PdfGeomCapturer {
   private mode: 'rect' | 'stroke' | null = null
-  private doc: Document | null = null
+  /** 武装期间绑定的**全部已加载子页**（拖曳可能落在任何可见页上） */
+  private docs = new Set<Document>()
+  /** 拖曳发生在哪个文档（commit 时经 pageOf 反查页号） */
+  private dragDoc: Document | null = null
   private drag: { x0: number; y0: number; points: Array<{ x: number; y: number }> } | null = null
   private preview: Element | null = null
 
   constructor(
     private deps: {
       rendition: () => KookitRendition | null
-      currentPage: () => number | null
+      /** 文档 → 页号（拖曳落点的页；找不到 = 放弃） */
+      pageOf: (doc: Document) => number | null
       /** 捕获完成（适配器据此发 `geom-captured`，落库归 UI） */
       onCapture: (anchor: TextAnchor, kind: 'rect' | 'stroke') => void
     }
@@ -85,23 +89,25 @@ export class PdfGeomCapturer {
     return this.mode !== null
   }
 
-  arm(mode: 'rect' | 'stroke', doc: Document | null): void {
+  arm(mode: 'rect' | 'stroke', docs: Document[]): void {
     this.disarm()
     this.mode = mode
-    this.bindDoc(doc)
+    this.bindDocs(docs)
   }
 
-  /** 换页/重绑（rendered 驱动）：armed 期间跟随新子页文档。 */
-  bindDoc(doc: Document | null): void {
+  /** 换页/重绑（rendered 驱动）：armed 期间跟随全部已加载子页（空壳子页跳过）。 */
+  bindDocs(docs: Document[]): void {
     if (this.mode === null) return
     this.unbind()
-    this.doc = doc
-    if (!doc) return
-    // capture 阶段拦截：武装期间的拖曳不再产生文字选区（pdf.js 文本层上尤其会）
-    doc.addEventListener('mousedown', this.onDown, true)
-    doc.addEventListener('mousemove', this.onMove)
-    doc.addEventListener('mouseup', this.onUp)
-    doc.body.style.cursor = 'crosshair'
+    for (const doc of docs) {
+      if (doc.body?.innerHTML === '') continue
+      this.docs.add(doc)
+      // capture 阶段拦截：武装期间的拖曳不再产生文字选区（pdf.js 文本层上尤其会）
+      doc.addEventListener('mousedown', this.onDown, true)
+      doc.addEventListener('mousemove', this.onMove)
+      doc.addEventListener('mouseup', this.onUp)
+      doc.body.style.cursor = 'crosshair'
+    }
   }
 
   disarm(): void {
@@ -110,19 +116,21 @@ export class PdfGeomCapturer {
   }
 
   private unbind(): void {
-    if (!this.doc) return
-    this.doc.removeEventListener('mousedown', this.onDown, true)
-    this.doc.removeEventListener('mousemove', this.onMove)
-    this.doc.removeEventListener('mouseup', this.onUp)
-    this.doc.body.style.cursor = ''
+    for (const doc of this.docs) {
+      doc.removeEventListener('mousedown', this.onDown, true)
+      doc.removeEventListener('mousemove', this.onMove)
+      doc.removeEventListener('mouseup', this.onUp)
+      if (doc.body) doc.body.style.cursor = ''
+    }
+    this.docs.clear()
     this.removePreview()
-    this.doc = null
+    this.dragDoc = null
   }
 
   /** 拖曳点（subDoc 视口坐标）→ 相对 canvas 的坐标（与 kookit getHightlightCoords 同口径：
    *  当前 scale 下 1 pdf 单位 = scale 像素，故 canvas 相对像素 ≈ viewport 坐标）。 */
-  private canvasPoint(e: MouseEvent): { x: number; y: number } | null {
-    const canvas = this.doc?.querySelector('canvas')
+  private canvasPoint(doc: Document, e: MouseEvent): { x: number; y: number } | null {
+    const canvas = doc.querySelector('canvas')
     const rect = canvas?.getClientRects()[0]
     if (!rect) return null
     return { x: e.clientX - rect.x, y: e.clientY - rect.y }
@@ -134,18 +142,20 @@ export class PdfGeomCapturer {
 
   private readonly onDown = (e: Event): void => {
     const me = e as MouseEvent
-    if (me.button !== 0 || !this.doc) return
-    const start = this.canvasPoint(me)
+    const doc = me.target instanceof Document ? me.target : ((me.target as HTMLElement)?.ownerDocument ?? null)
+    if (me.button !== 0 || !doc || !this.docs.has(doc)) return
+    const start = this.canvasPoint(doc, me)
     if (!start) return
     me.preventDefault()
     me.stopPropagation()
+    this.dragDoc = doc
     this.drag = { x0: start.x, y0: start.y, points: [start] }
-    this.showPreview()
+    this.showPreview(doc)
   }
 
   private readonly onMove = (e: Event): void => {
-    if (!this.drag || !this.doc || this.mode === null) return
-    const p = this.canvasPoint(e as MouseEvent)
+    if (!this.drag || !this.dragDoc || this.mode === null) return
+    const p = this.canvasPoint(this.dragDoc, e as MouseEvent)
     if (!p) return
     if (this.mode === 'rect') {
       this.updateRectPreview(p)
@@ -159,7 +169,7 @@ export class PdfGeomCapturer {
   }
 
   private readonly onUp = (e: Event): void => {
-    if (!this.drag || !this.doc || this.mode === null) return
+    if (!this.drag || !this.dragDoc || this.mode === null) return
     e.preventDefault()
     const mode = this.mode
     const drag = this.drag
@@ -177,7 +187,7 @@ export class PdfGeomCapturer {
   /** 屏→pdf 点换算 + 建锚点 + 回调，然后自动解除（一次性）。换算失败 = 放弃本轮。 */
   private async commit(mode: 'rect' | 'stroke', drag: { x0: number; y0: number; points: Array<{ x: number; y: number }> }): Promise<void> {
     const rendition = this.deps.rendition()
-    const page = this.deps.currentPage()
+    const page = this.dragDoc ? this.deps.pageOf(this.dragDoc) : null
     if (!rendition || page === null) return
     const viewport = await getPdfViewport(rendition, page)
     if (!viewport) return
@@ -199,10 +209,9 @@ export class PdfGeomCapturer {
 
   // ————— 预览（拖曳中的即时反馈；定位口径与回显一致：canvas 像素 ≈ viewport 坐标）—————
 
-  private showPreview(): void {
-    const doc = this.doc
-    const layer = doc ? this.layer(doc) : null
-    if (!doc || !layer) return
+  private showPreview(doc: Document): void {
+    const layer = this.layer(doc)
+    if (!layer) return
     if (this.mode === 'rect') {
       const el = doc.createElement('div')
       el.setAttribute('class', 'turead-geom-preview')
@@ -229,8 +238,8 @@ export class PdfGeomCapturer {
   }
 
   private updateRectPreview(p: { x: number; y: number }): void {
-    if (!this.preview || !this.doc || !this.drag) return
-    const ml = docLayerMarginLeft(this.doc)
+    if (!this.preview || !this.dragDoc || !this.drag) return
+    const ml = docLayerMarginLeft(this.dragDoc)
     this.preview.setAttribute(
       'style',
       `position:absolute;border:1px dashed currentColor;pointer-events:none;z-index:2;` +

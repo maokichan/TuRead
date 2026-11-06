@@ -21,6 +21,9 @@ export interface NotesToolbarProps {
   count: number
   /** 匯出彙編（笔记 v3 文档层）：当前筛选结果 → vault 的 .md（wikilink 引用） */
   onExportCompilation: () => void
+  /** 文档视图开关（文档 = 笔记生产的内容，归筆记区管） */
+  docsOpen: boolean
+  onToggleDocs: () => void
   /** 一次性反馈（如「已複製批註」）；显示在计数位置，约 1.5s 后自动消失 */
   hint?: string | null
   onToggleView: () => void
@@ -45,7 +48,9 @@ export function NotesToolbar({
   onCycleFilter,
   onToggleFocus,
   onToggleScope,
-  onExportCompilation
+  onExportCompilation,
+  docsOpen,
+  onToggleDocs
 }: NotesToolbarProps): React.JSX.Element {
   /** 共享动画状态机（viewSwitchFlash.ts，与 LibraryToolbar 同款） */
   const { flashing, flashSeq, shown, toggle } = useViewSwitchFlash<NoteView>(
@@ -79,6 +84,9 @@ export function NotesToolbar({
           className="text-action text-action--lg"
         >
           {FILTER_LABEL[filter]}
+        </button>
+        <button onClick={onToggleDocs} title="文檔 = 消费笔记所生产的内容（vault 的 .md 文件）" className={`text-action text-action--lg${docsOpen ? ' text-[var(--fg)]' : ''}`}>
+          {docsOpen ? '返回筆記' : '文檔'}
         </button>
         <button
           onClick={onToggleFocus}

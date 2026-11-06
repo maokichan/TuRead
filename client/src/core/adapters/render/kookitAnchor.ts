@@ -120,12 +120,22 @@ export async function selectionToAnchor(
   // ——引擎路径现成，这里只是补上"生产者"）。quote 取子页选区的文字快照（pdf.js 文本层给真文字；
   // 无文本层的扫描版选不出文字 → 自然落 null，诚实不可标）。
   if (deps.format === 'PDF') {
-    const page = deps.renderedChapter
-    if (page === null) return null
-    const subDoc = rendition.getSubDocument(page)
-    const sel = subDoc?.getSelection() ?? null
-    if (!subDoc || !sel || sel.rangeCount === 0 || sel.isCollapsed) return null
-    const range = sel.getRangeAt(0)
+    // 页号 = **逐页找有选区的那页**，不信 renderedChapter——PDF 滚动模式预渲染会让
+    // "最后渲染页"≠"用户正在看的页"（真机实锤：右键在眼前这页毫无反应的根因）。
+    let page: number | null = null
+    let subDoc: Document | null = null
+    const total = rendition.chapterDocList?.length ?? 0
+    for (let i = 0; i < total; i += 1) {
+      const d = rendition.getSubDocument(i)
+      const sel = d?.getSelection()
+      if (d && sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+        page = i
+        subDoc = d
+        break
+      }
+    }
+    if (page === null || !subDoc) return null
+    const range = subDoc.getSelection()!.getRangeAt(0)
     const exact = range.toString()
     // 纯空白选区（toString 为空）不算可标内容 —— 建了也没法回显与重锚
     if (exact.trim() === '') return null

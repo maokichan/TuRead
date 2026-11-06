@@ -59,8 +59,8 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
    * 按**字符偏移**重锚的 —— 喂进别的节的笔记会错位或抛错。null = 尚未渲染过任何节。
    */
   private renderedChapter: number | null = null
-  /** 已挂选区监听的**书文档**（换章可能换文档 → 每次 rendered 重新对齐绑定） */
-  private selectionDoc: Document | null = null
+  /** 已挂选区监听的**书文档**集合（文字类一个；PDF = 已加载子页，随 rendered 对齐增减） */
+  private selectionDocsBound = new Set<Document>()
   private scrollTimer: number | null = null
   /** 当前主题（open 时由 options.theme 写入；applyTheme 热更新；深色 → 注入正文 CSS） */
   private theme: ResolvedTheme | null = null
@@ -86,7 +86,13 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     this.readFile = readFile
     this.geom = new PdfGeomCapturer({
       rendition: () => this.rendition,
-      currentPage: () => this.renderedChapter,
+      pageOf: (doc) => {
+        const total = this.rendition?.chapterDocList?.length ?? 0
+        for (let i = 0; i < total; i += 1) {
+          if (this.rendition?.getSubDocument(i) === doc) return i
+        }
+        return null
+      },
       onCapture: (anchor, kind) => this.emit('geom-captured', { anchor, kind })
     })
   }
@@ -119,8 +125,8 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     rendition.on('rendered', (chapterDocIndex?: number) => {
       this.renderedChapter = this.resolveRenderedChapter(chapterDocIndex)
       this.attachSelectionWatch()
-      // 几何捕获武装中 → 跟随新子页文档（换页/滚动换页监听不断）
-      if (this.geom.isArmed()) this.geom.bindDoc(this.selectionTargetDoc())
+      // 几何捕获武装中 → 跟随全部已加载子页（新页加载后拖曳也有效）
+      if (this.geom.isArmed()) this.geom.bindDocs(this.selectionDocs())
       this.emit('rendered', this.renderedChapter)
       this.refreshScrollAffordance()
       this.emitLocationChanged()
@@ -418,7 +424,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
 
   armGeomCapture(mode: 'rect' | 'stroke'): void {
     if (this.record?.format !== 'PDF') return
-    this.geom.arm(mode, this.selectionTargetDoc())
+    this.geom.arm(mode, this.selectionDocs())
   }
 
   disarmGeomCapture(): void {
@@ -468,10 +474,12 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
         }, 1500)
       })
       // PDF 的高亮元素长在**子页文档**里（外层 querySelector 查不到）——目标章导航完成后
-      // renderedChapter = 目标页，selectionTargetDoc() 即该页子文档（文字类仍是书文档，同一取口）。
-      const el = this.selectionTargetDoc()?.querySelector(
-        `.kookit-note[data-key="${CSS.escape(opts.revealNoteId)}"]`
-      )
+      // renderedChapter = 目标页，逐页查已加载子文档（文字类仍是书文档，同一取口）。
+      let el: Element | null = null
+      for (const doc of [this.rendition?.getDocument() ?? null, ...this.selectionDocs()]) {
+        el = doc?.querySelector(`.kookit-note[data-key="${CSS.escape(opts.revealNoteId)}"]`) ?? null
+        if (el) break
+      }
       el?.scrollIntoView({ block: 'center' })
     }
     return true
@@ -489,37 +497,57 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     return remeasureBySearch(rendition, anchor)
   }
 
-  /** 清掉书文档里的选区（宿主清不掉另一个文档的选区） */
+  /** 清掉书文档里的选区（宿主清不掉另一个文档的选区）；PDF 逐页清 */
   clearSelection(): void {
-    this.selectionTargetDoc()?.getSelection()?.removeAllRanges()
+    for (const doc of this.selectionDocs()) {
+      doc.getSelection()?.removeAllRanges()
+    }
     // 选区没了，UI 那边的色板也该收起 —— 不让调用方自己记得补这一下
     this.emit('selection-changed', null)
   }
 
   /**
-   * 选区所在的**目标文档**：文字类 = 书文档（`getDocument()`）；PDF = **当前页的子页文档**
-   * （选区/右键都发生在子页 iframe 里，外层文档拿不到——笔记 v3 几何锚）。
-   * 渲染层对选区的全部观测（监听/量取/清除）都经这里取文档；`rendered` 事件驱动
-   * `attachSelectionWatch` 重绑，PDF 翻页/滚动换页后自然跟到新子页。
+   * 选区所在的**目标文档族**：文字类 = 书文档；PDF = **全部已加载子页文档**。
+   * ⚠ 为什么是"全部"而不是"当前渲染页"：PDF 滚动模式预渲染会让"最后渲染页"≠"用户正在看的页"，
+   * 只绑一页 = 右键/选区在隔壁页上生效、在眼前这页**毫无反应**（真机实锤）。
+   * `rendered` 驱动重绑（新页加载后跟上；卸载页的监听随文档一起消亡）。
    */
-  private selectionTargetDoc(): Document | null {
+  private selectionDocs(): Document[] {
     const rendition = this.rendition
-    if (!rendition) return null
-    if (this.record?.format === 'PDF') {
-      const page = this.renderedChapter
-      return page === null ? null : rendition.getSubDocument(page)
+    if (!rendition) return []
+    if (this.record?.format !== 'PDF') {
+      const doc = rendition.getDocument()
+      return doc ? [doc] : []
     }
-    return rendition.getDocument()
+    const docs: Document[] = []
+    const total = rendition.chapterDocList?.length ?? 0
+    for (let i = 0; i < total; i += 1) {
+      const doc = rendition.getSubDocument(i)
+      // 空壳子页（未加载）不绑：body 为空的文档是 kookit 尚未填充的占位
+      if (doc && doc.body?.innerHTML !== '') docs.push(doc)
+    }
+    return docs
+  }
+
+  /** 有**非塌陷选区**的那个文档（PDF = 逐页找；文字类 = 书文档）。菜单定位/锚点解算用它。 */
+  private selectionActiveDoc(): Document | null {
+    if (this.record?.format !== 'PDF') return this.rendition?.getDocument() ?? null
+    for (const doc of this.selectionDocs()) {
+      const sel = doc.getSelection()
+      if (sel && sel.rangeCount > 0 && !sel.isCollapsed) return doc
+    }
+    return null
   }
 
   /** 选区观察：事件必须绑在**选区所在的书文档**上 —— 宿主 window 收不到 iframe 内的事件
-   *  （事件被文档边界挡住，同 `iframeBridge` 的根因）；PDF 子页逐页重绑（见 selectionTargetDoc）。 */
+   *  （事件被文档边界挡住，同 `iframeBridge` 的根因）；PDF = 全部已加载子页（见 selectionDocs）。 */
   private attachSelectionWatch(): void {
-    const doc = this.selectionTargetDoc()
-    if (doc === this.selectionDoc) return
+    const docs = this.selectionDocs()
+    const fresh = docs.filter((d) => !this.selectionDocsBound.has(d))
+    if (fresh.length === 0 && this.selectionDocsBound.size === docs.length) return
     this.detachSelectionWatch()
-    this.selectionDoc = doc
-    if (doc) {
+    for (const doc of docs) {
+      this.selectionDocsBound.add(doc)
       // 选区手势的收尾事件：鼠标（含双击/三击选中）与键盘（Shift+方向键）
       doc.addEventListener('mouseup', this.onSelectionGesture)
       doc.addEventListener('keyup', this.onSelectionGesture)
@@ -531,11 +559,12 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   }
 
   private detachSelectionWatch(): void {
-    if (!this.selectionDoc) return
-    this.selectionDoc.removeEventListener('mouseup', this.onSelectionGesture)
-    this.selectionDoc.removeEventListener('keyup', this.onSelectionGesture)
-    this.selectionDoc.removeEventListener('contextmenu', this.onContextMenu)
-    this.selectionDoc = null
+    for (const doc of this.selectionDocsBound) {
+      doc.removeEventListener('mouseup', this.onSelectionGesture)
+      doc.removeEventListener('keyup', this.onSelectionGesture)
+      doc.removeEventListener('contextmenu', this.onContextMenu)
+    }
+    this.selectionDocsBound.clear()
   }
 
   private readonly onSelectionGesture = (): void => {
@@ -651,7 +680,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
    */
   private selectionRect(): { x: number; y: number; width: number; height: number } {
     const zero = { x: 0, y: 0, width: 0, height: 0 }
-    const doc = this.selectionTargetDoc()
+    const doc = this.selectionActiveDoc()
     const range = doc?.getSelection()?.getRangeAt(0)
     if (!doc || !range) return zero
     const r = range.getBoundingClientRect()

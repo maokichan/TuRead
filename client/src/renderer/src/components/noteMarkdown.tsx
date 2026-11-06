@@ -1,9 +1,9 @@
 /**
  * 笔记 body 的 Markdown 渲染（笔记 v3 批N3）—— **纯函数 + React 节点，零依赖，无 innerHTML**。
  *
- * 支持子集（决策笔记 notes-v3-data-model「编辑器特性支持矩阵」——笔记 body 面）：
+ * 支持子集（决策笔记 notes-v3-data-model「编辑器特性支持矩阵」——body 面 + 文档层基础 GFM）：
  * 段落（空行分段，段内单换行 = 换行）· **粗体** · *斜体* · `行内代码` · [文字](https://链接)
- * · `- ` 无序列表 · `> ` 引用。
+ * · `- ` 无序列表 · `> ` 引用 · `#`/`##`/`###` 标题（文档层；body 里同样按块渲染）。
  *
  * 纪律：
  * - **不用 dangerouslySetInnerHTML**——笔记内容会进 React 树，节点树是唯一出口；
@@ -70,6 +70,14 @@ export function renderNoteMarkdown(body: string): ReactNode[] {
       i += 1
       continue
     }
+    // 标题（文档层 = 基础 GFM；# / ## / ###，更深按字面）
+    const heading = line.match(/^(#{1,3})\s+(.*)$/)
+    if (heading) {
+      const H = `h${heading[1].length}` as 'h1' | 'h2' | 'h3'
+      blocks.push(<H key={`b${key++}`}>{renderInline(heading[2], `h${key}`)}</H>)
+      i += 1
+      continue
+    }
     if (line.startsWith('- ')) {
       const items: string[] = []
       while (i < lines.length && lines[i].startsWith('- ')) {
@@ -106,7 +114,8 @@ export function renderNoteMarkdown(body: string): ReactNode[] {
       i < lines.length &&
       lines[i].trim() !== '' &&
       !lines[i].startsWith('- ') &&
-      !lines[i].startsWith('> ')
+      !lines[i].startsWith('> ') &&
+      !/^(#{1,3})\s+/.test(lines[i])
     ) {
       para.push(lines[i])
       i += 1
@@ -157,25 +166,40 @@ export function markdownToDom(body: string, doc: Document): DocumentFragment {
       frag.appendChild(bq)
       continue
     }
+    // 标题
+    const heading = line.match(/^(#{1,3})\s+(.*)$/)
+    if (heading) {
+      const h = doc.createElement(`h${heading[1].length}`)
+      fillInline(h, heading[2])
+      frag.appendChild(h)
+      i += 1
+      continue
+    }
     const p = doc.createElement('p')
+    fillInline(p, line)
+    frag.appendChild(p)
+    i += 1
+  }
+  return frag
+
+  /** 行内填充（粗/斜/码/链接；textContent-only 构建 → 无注入面） */
+  function fillInline(el: HTMLElement, text: string): void {
     let run = ''
     const flushText = (): void => {
       if (run === '') return
-      p.appendChild(doc.createTextNode(run))
+      el.appendChild(doc.createTextNode(run))
       run = ''
     }
-    // 行内：粗/斜/码/链接（textContent-only 构建 → 无注入面）
-    const inline = line
     let j = 0
-    while (j < inline.length) {
-      const rest = inline.slice(j)
+    while (j < text.length) {
+      const rest = text.slice(j)
       const m =
         rest.match(/^\*\*([^*]+)\*\*/) ??
         rest.match(/^\*([^*]+)\*/) ??
         rest.match(/^`([^`]+)`/) ??
         rest.match(/^\[([^\]]+)\]\(([^)\s]+)\)/)
       if (!m) {
-        run += inline[j]
+        run += text[j]
         j += 1
         continue
       }
@@ -183,33 +207,30 @@ export function markdownToDom(body: string, doc: Document): DocumentFragment {
       if (m[0].startsWith('**')) {
         const b = doc.createElement('strong')
         b.textContent = m[1]
-        p.appendChild(b)
+        el.appendChild(b)
       } else if (m[0].startsWith('*')) {
         const em = doc.createElement('em')
         em.textContent = m[1]
-        p.appendChild(em)
+        el.appendChild(em)
       } else if (m[0].startsWith('`')) {
         const c = doc.createElement('code')
         c.textContent = m[1]
-        p.appendChild(c)
+        el.appendChild(c)
       } else if (HTTP_URL.test(m[2])) {
         const a = doc.createElement('a')
         a.href = m[2]
         a.textContent = m[1]
-        p.appendChild(a)
+        el.appendChild(a)
       } else {
         // 非法协议：整段字面（回退一个字符重扫，括号不吞）
-        run += inline[j]
+        run += text[j]
         j += 1
         continue
       }
       j += m[0].length
     }
     flushText()
-    frag.appendChild(p)
-    i += 1
   }
-  return frag
 }
 
 /** DOM → Markdown（所见即所得退出/失焦时的序列化；只认子集标签，其余按文本走）。 */
@@ -251,8 +272,10 @@ export function markdownFromDom(root: HTMLElement): string {
       for (const q of Array.from(el.children)) {
         blocks.push(`> ${(q as HTMLElement).textContent ?? ''}`)
       }
+    } else if (/^H[1-3]$/.test(el.tagName)) {
+      const text = inlineChildren(el)
+      if (text.trim() !== '') blocks.push('#'.repeat(Number(el.tagName[1])) + ' ' + text)
     } else {
-      // P / DIV / H1-H6 一律按段落（子集内标题不进 v1——进了也只是文本行）
       const text = inlineChildren(el)
       if (text.trim() !== '') blocks.push(text)
     }

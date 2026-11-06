@@ -82,6 +82,7 @@ export const IPC = {
   vaultRead: 'vault:read',
   vaultWrite: 'vault:write',
   vaultReveal: 'vault:reveal',
+  vaultDelete: 'vault:delete',
   pickerPickFiles: 'picker:pick-files',
   pickerPickDirectory: 'picker:pick-directory',
   pickerListEbooks: 'picker:list-ebooks',

@@ -2100,6 +2100,58 @@ textarea {
   overflow: hidden;
 }
 
+/* —— 文档视图（筆记区·文档面板）的 Markdown 块排版（笔记 v3）——
+   颜色只走 token；标题不放大字号（文档是正文流，层级靠字重/留白不靠吼）。 */
+.note-doc h1,
+.note-doc h2,
+.note-doc h3 {
+  font-size: inherit;
+  font-weight: inherit;
+  margin: 1.4em 0 0.4em;
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 6px;
+}
+.note-doc h1:first-child,
+.note-doc h2:first-child,
+.note-doc h3:first-child {
+  margin-top: 0;
+}
+.note-doc p {
+  margin: 0.5em 0;
+}
+.note-doc ul {
+  margin: 0.5em 0;
+  padding-left: 1.4em;
+}
+.note-doc blockquote {
+  margin: 0.6em 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+  color: var(--muted);
+}
+.note-doc blockquote p {
+  margin: 0.2em 0;
+}
+.note-doc code {
+  background: var(--panel-2);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+.note-doc a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* 卡片里的 body 含标题时压回正文行高（卡片是紧凑流，标题只作轻分层） */
+.note-card__body h1,
+.note-card__body h2,
+.note-card__body h3 {
+  font-size: inherit;
+  font-weight: inherit;
+  margin: 0.4em 0 0.1em;
+}
+
 /* 上限（§5.10）：摘录 ≤4 行、批注 ≤6 行；超出省略号收尾，全文跳转进阅读器看 */
 .note-card__excerpt {
   -webkit-line-clamp: 4;

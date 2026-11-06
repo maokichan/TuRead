@@ -9,7 +9,6 @@ import { LibraryFeature } from './LibraryFeature'
 import { ReaderFeature } from './ReaderFeature'
 import { RoomFeature } from './RoomFeature'
 import { NotesFeature } from './NotesFeature'
-import { DocumentsFeature } from './DocumentsFeature'
 import { SettingsFeature } from './SettingsFeature'
 
 /**
@@ -22,6 +21,5 @@ export const FEATURES: FeatureDescriptor[] = [
   { id: 'reader', icon: '閱', label: '阅读', component: ReaderFeature },
   { id: 'room', icon: '房', label: '房间', component: RoomFeature },
   { id: 'notes', icon: '筆', label: '筆記', component: NotesFeature },
-  { id: 'documents', icon: '文', label: '文檔', component: DocumentsFeature },
   { id: 'settings', icon: '設', label: '设置', component: SettingsFeature, pinned: true }
 ]

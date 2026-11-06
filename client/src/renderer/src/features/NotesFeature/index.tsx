@@ -21,9 +21,10 @@ import { NoteFlow, type NoteFlowItem } from '../../components/NoteFlow'
 import { chromeSearchBus } from '../chromeSearchBus'
 import { NotesToolbar } from '../../components/NotesToolbar'
 import { ReadingStatsSection } from '../../components/ReadingStats'
+import { DocumentsPanel } from './DocumentsPanel'
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
-import { buildCompilationMd, freeVaultName } from '../DocumentsFeature/notesDocs'
+import { buildCompilationMd, freeVaultName } from './notesDocs'
 
 const DEFAULT_SETTINGS: NoteSettings = {
   view: 'masonry',
@@ -53,6 +54,8 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
   const [hint, setHint] = useState<string | null>(null)
   const [reloadTick, setReloadTick] = useState(0)
   const [debouncedQuery, setDebouncedQuery] = useState('')
+  /** 文档视图（笔记 v3）：文档 = 消费笔记所生产的内容，归筆记区管（无独立侧栏项） */
+  const [docsOpen, setDocsOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
   /** 匯出彙編（笔记 v3 文档层）：当前筛选结果 → vault .md（wikilink 引用；档案使其可解析） */
@@ -235,6 +238,12 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
 
   return (
     <div className="flex h-full flex-col">
+      {docsOpen ? (
+        /* 文档视图（笔记 v3）：文档 = 消费笔记所生产的内容，归筆记区。
+           整个滚动容器让位——文档面板有自己的列表+编辑区布局。 */
+        <DocumentsPanel container={container} />
+      ) : (
+      <>
       {/* 滚动容器由本功能自己持有（窗口化要它，避免两层滚动条）；
           ⚠ 筛选/检索变化**不重建**本容器（刷新粒度纪律④）。 */}
       <div ref={scrollRef} className="cjk-ui min-h-0 flex-1 overflow-y-auto pr-1">
@@ -260,6 +269,8 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
           <div className="pt-6 text-[12.5px] text-[var(--muted)] opacity-70">{emptyText}</div>
         )}
       </div>
+      </>
+      )}
 
       <NotesToolbar
         view={settings.view}
@@ -278,6 +289,8 @@ export function NotesFeature({ container, host, activeFeature }: FeatureProps): 
         }
         onToggleScope={() => patchSettings({ scope: settings.scope === 'library' ? 'all' : 'library' })}
         onExportCompilation={() => void exportCompilation()}
+        docsOpen={docsOpen}
+        onToggleDocs={() => setDocsOpen((v) => !v)}
       />
 
       {menu && (
