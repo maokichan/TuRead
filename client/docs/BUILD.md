@@ -8,7 +8,7 @@
 ## 范围与形态
 
 - **只出 64 位 Windows**，形态 = **免安装便携版**（NSIS 暂不出，配置块保留备用）。
-- 产物落 `client/release/`（gitignored，不进仓库）；仓库里最新已打包 = v0.1.15 便携版。
+- 产物落 `client/release/`（gitignored，不进仓库）；仓库里最新已打包 = v0.2.8 便携版。
 - extraResources：官方插件随包进 `resources/plugins`（运行时「缺则种」的种子源）。
 
 ## 打包配方（实测在案）
@@ -36,8 +36,11 @@
 ⚠ 未获指示的改动**并入当前版本**（「已提交但版本未滚」合法，此时不打 tag，STATUS §6 的
 「未滚版本的增量」段承载）；tag 与 push 由用户定节奏。**产物（便携版 exe）不随版本列管**。
 
-## 发行物缺件（对外发行前必修，行动项在 TODO）
+## 许可文件随发行物（已补）
 
-仓库无 `LICENSE` 文件；OFL 全文未随包（源流明体要求保留声明）；第三方声明应随发行物。
-做法与判据见 `TODO.md` 发行物缺件条（取官方全文走代理，不手抄；electron-builder 打进发行物）。
-字体许可语境 = `STYLE.md` §3 与 `assets/fonts/NOTICE.md`。
+- 仓库根 `LICENSE` = AGPL-3.0 官方全文（gnu.org 原文，走代理下载不手抄）；字体目录
+  `assets/fonts/OFL.txt` = OFL 1.1 官方明文（openfontlicense.org 原文）。
+- 两件经 `electron-builder.yml` `extraResources` 进发行物 `resources/`（与 electron 自带的
+  LICENSE.electron.txt / LICENSES.chromium.html 同层）；pdfjs 第三方声明（LICENSE / LICENSE_FOXIT /
+  LICENSE_LIBERATION）随 `public/lib/pdfjs/` 进包。
+- 字体许可语境 = `STYLE.md` §3 与 `assets/fonts/NOTICE.md`。

@@ -5,7 +5,7 @@
 | 字体名 | 源流明體 / GenRyuMin2（TW = 繁体中文切面） |
 | 文件 | `GenRyuMinTW-B.otf`（由系统 `GenRyuMin2-B.ttc` 的第 0 个 face 抽取，再子集化） |
 | 版本 | 2.100（`name` 表 nameID 5） |
-| 许可 | **SIL Open Font License 1.1**（字体自带 nameID 13/14 声明；全文 <http://scripts.sil.org/OFL>） |
+| 许可 | **SIL Open Font License 1.1**（全文随同目录 [`OFL.txt`](OFL.txt)；原字体 nameID 13/14 声明在子集时被剥除，本文件代为记录来源） |
 | 用途 | 侧边栏功能符号（書/閱/房/設）+ 书库无封面时的「文字封面」 |
 | 子集 | BMP CJK（U+4E00–9FFF）+ 拉丁 + 常用标点 + 全角标点；`--no-hinting`、`--layout-features=''` |
 | 体积 | 原始 face 18.8MB → 子集 **10.95MB** |
@@ -28,6 +28,7 @@ pyftsubset GenRyuMinTW-B.otf `
   --output-file=GenRyuMinTW-B.otf
 ```
 
-> ⚠ OFL 1.1 要求随字体分发许可声明。本文件记录来源与许可；若需严格的**许可全文**随包，
-> 请把 <https://openfontlicense.org/open-font-license-official-text/> 的正文存为同目录 `OFL.txt`
-> （本仓库未内置该正文，避免手抄出错）。来源/子集/复现步骤以本文件为准；**OFL 全文需随发行物附带**（登记在 `TODO.md`）。
+> OFL 1.1 要求随字体分发许可全文：官方明文已存为同目录 [`OFL.txt`](OFL.txt)
+> （取自 <https://openfontlicense.org/documents/OFL.txt>，不手抄；文件头的占位写法即官方样例，
+> 字体自身的版本/来源声明以本文件为准）。打包经 electron-builder `extraResources`
+> 进发行物（`resources/OFL.txt`，见 `client/electron-builder.yml`）。来源/子集/复现步骤以本文件为准。

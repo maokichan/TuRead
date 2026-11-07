@@ -44,7 +44,7 @@
 ### 怎么拿到 / 怎么跑
 
 - **免安装便携版**（Windows x64）：`client/release/TuRead-<版本>-win-x64-portable.exe`，双击即用。
-  ⚠ 这个目录**不进仓库**，需要本机打包（见下）；仓库里最新已打包的是 **v0.1.15**。
+  ⚠ 这个目录**不进仓库**，需要本机打包（见下）；仓库里最新已打包的是 **v0.2.8**。
 - **从源码跑**（需要 Node 20+）：
 
 ```bash
@@ -115,7 +115,6 @@ TuRead 最早的原型来自朋友那条线（`V2tin19/TuRead`，Express/socket.
 
 ## 许可证
 
-TuRead 以 **AGPL-3.0** 开源（核心依赖 kookit 为 AGPL-3.0）。
-
-> ⚠ **发行物缺件（对外发行前必修）**：仓库尚无 `LICENSE` 文件，源流明体的 OFL 全文也未随包。
-> 引入新依赖请**先核许可证与 AGPL-3.0 兼容性**。登记在 [`TODO.md`](TODO.md)。
+TuRead 以 **AGPL-3.0** 开源（核心依赖 kookit 为 AGPL-3.0；全文在根 [`LICENSE`](LICENSE)）。
+发行物随带许可文件：根 `LICENSE` 与字体 OFL 全文经 extraResources 进 `resources/`
+（口径见 [`client/docs/BUILD.md`](client/docs/BUILD.md)）。引入新依赖请**先核许可证与 AGPL-3.0 兼容性**。

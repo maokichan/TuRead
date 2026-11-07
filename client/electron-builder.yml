@@ -103,3 +103,9 @@ nsis:
 extraResources:
   - from: plugins
     to: plugins
+  # 许可文件随发行物（BUILD.md「发行物缺件」落点）：根 LICENSE（AGPL-3.0）与字体目录 OFL.txt
+  # （官方全文）落 resources/，与 electron 自带的 LICENSE.electron.txt / LICENSES.chromium.html 同层。
+  - from: ../LICENSE
+    to: LICENSE
+  - from: src/renderer/src/assets/fonts/OFL.txt
+    to: OFL.txt
