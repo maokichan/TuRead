@@ -34,6 +34,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | 决策 | 一句话 | 权威 |
 |---|---|---|
 | **仓库治理机制** | ops/ 三门控（doc-index → repoGuard → docGuard）挂 pre-commit；决策笔记三态生命周期；治理/业务脚本分治（ops/ 管仓库，client/scripts/ 管业务与验证，后者信任分级待收编） | `ops/AGENTS.md`；笔记：[机制移植](../.agents/notes/implemented/process/2026-11-04-mechanism-port.md) |
+| **发版纪律（用户定）** | **每版本发 GitHub Release**：滚版本打 tag 后发 release（asset = 便携版 exe，说明 = §4 要点）；README 效果动图已立项（未定口径） | `client/docs/BUILD.md`「滚版本」第 5 步；TODO 产品与发行 |
 | **统一日志（2026-11-05）** | 单行 JSONL 契约（`@shared/log`）；生产/探针同格式落 `<userData>/logs/app.jsonl`（启动轮转 5MB/7 份/14 天）；renderer console-message 常驻转发（生产 warn/error、探针全量）；工作区收拢点 = 仓库根 `logs/`；清理 = `node client/scripts/logsClean.mjs`（默认列单，`--yes` 删） | 笔记：[统一日志](../.agents/notes/implemented/process/2026-11-05-unified-logging.md)；契约 `client/src/shared/log.ts` |
 | **笔记区 v3 三层模型（用户定，已落地批N1–N5）** | 锚点二分（内容流 / 几何页 rect+stroke）+ body 原生 Markdown（OFM）+ 色样正交（四样×四色）+ 文档层 vault 真文件（汇编+档案，内置编辑器源码/预览/所见即所得，**不取代 Obsidian**）；OCR 不进渲染管线；本轮不碰插件系统 | 笔记：[笔记区 v3 数据模型](../.agents/notes/implemented/arch/2026-11-06-notes-v3-data-model.md) |
 | 架构选型 | client = 六边形（端口-适配器）+ DDD 命名；server = 简单分层（非六边形） | `client/docs/ARCHITECTURE.md` §1；`server/docs/ARCHITECTURE.md` §5 |

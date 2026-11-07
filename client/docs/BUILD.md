@@ -26,15 +26,18 @@
 
 ## 滚版本（发版节奏：功能确定后即滚，不长期堆改动）
 
-滚版本时同步四处 + 打 tag：
+滚版本时同步五处 + 打 tag：
 
 1. `client/package.json` + `package-lock.json`（server 侧同理其 go.mod 语境）
 2. `docs/STATUS.md` §4 版本历史
 3. `README.md`（版本号与产物状态）
 4. annotated tag：**两端独立滚动，带端名前缀** `client-v0.2.x` / `server-v0.2.x`
+5. **GitHub Release（用户 2026-11-07 定：每版本都发）**：以该 tag 发 release，asset = 本机打包的
+   便携版 exe，说明 = STATUS §4 该版要点；API 走代理（节奏 = 随 push 由用户定）。
 
 ⚠ 未获指示的改动**并入当前版本**（「已提交但版本未滚」合法，此时不打 tag，STATUS §6 的
-「未滚版本的增量」段承载）；tag 与 push 由用户定节奏。**产物（便携版 exe）不随版本列管**。
+「未滚版本的增量」段承载）；tag 与 push 由用户定节奏。**产物（便携版 exe）不进仓库**
+（对外列管于 GitHub Release asset）。
 
 ## 许可文件随发行物（已补）
 
