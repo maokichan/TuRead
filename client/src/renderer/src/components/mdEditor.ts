@@ -83,6 +83,15 @@ function livePreview(): Extension {
                 pos = line.to + 1
               }
             }
+            // 活动标题行：与 .note-doc 同阶的字号/字重（编辑中也能看到层级）
+            const hLevel = /^ATXHeading([123])$/.exec(blk.name ?? '')
+            if (hLevel) {
+              for (let pos = blk.from; pos <= blk.to; ) {
+                const line = view.state.doc.lineAt(pos)
+                b.push(Decoration.line({ class: `md-heading-${hLevel[1]}` }).range(line.from))
+                pos = line.to + 1
+              }
+            }
             for (const m of marks) {
               if (m.from < blk.from || m.to > blk.to) continue
               if (head > m.from && head < m.to) continue // 光标在 token 内 = 显形源码

@@ -2094,16 +2094,24 @@ textarea {
 }
 
 /* —— 文档视图（筆记区·文档面板）的 Markdown 块排版（笔记 v3）——
-   颜色只走 token；标题不放大字号（文档是正文流，层级靠字重/留白不靠吼）。 */
-.note-doc h1,
-.note-doc h2,
-.note-doc h3 {
-  font-size: inherit;
-  font-weight: inherit;
+   颜色只走 token。标题层级（样张试验台 A' 胜者）：h1 = 1.4em + 底线（章回结构）、
+   h2 = 1.2em、h3 = 1.05em,均 Bold——# 和 ## 一眼可分,正文流不被打断。 */
+.note-doc h1 {
+  font-size: 1.4em;
+  font-weight: 700;
+  margin: 1.6em 0 0.5em;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.note-doc h2 {
+  font-size: 1.2em;
+  font-weight: 700;
   margin: 1.4em 0 0.4em;
-  text-decoration: underline;
-  text-decoration-color: var(--border);
-  text-underline-offset: 6px;
+}
+.note-doc h3 {
+  font-size: 1.05em;
+  font-weight: 700;
+  margin: 1.2em 0 0.3em;
 }
 .note-doc h1:first-child,
 .note-doc h2:first-child,
@@ -2199,6 +2207,20 @@ textarea {
   margin-left: 2px;
   padding-left: 8px;
   color: var(--muted);
+}
+/* 活动标题行（与 .note-doc 同阶——编辑中也能看到层级） */
+.md-editor .md-heading-1 {
+  font-size: 1.4em;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+}
+.md-editor .md-heading-2 {
+  font-size: 1.2em;
+  font-weight: 700;
+}
+.md-editor .md-heading-3 {
+  font-size: 1.05em;
+  font-weight: 700;
 }
 
 /* 卡片里的 body 含标题时压回正文行高（卡片是紧凑流，标题只作轻分层） */

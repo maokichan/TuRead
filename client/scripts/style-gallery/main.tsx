@@ -24,6 +24,7 @@ import { ReaderRail, type CardPageKind } from '@renderer/components/ReaderRail'
 import { ContextMenu, type ContextMenuItem } from '@renderer/components/ContextMenu'
 import { NoteComposer } from '@renderer/components/NoteComposer'
 import { NoteFlow, type NoteFlowItem } from '@renderer/components/NoteFlow'
+import { renderNoteMarkdown } from '@renderer/components/noteMarkdown'
 import { ReadingStatsView } from '@renderer/components/ReadingStats'
 import type { ReadDayMinutes, TopReadEdition } from '@core/domain/types'
 import { DEFAULT_READER_PARAMS, type ReaderParams } from '@renderer/components/ReaderControls'
@@ -733,6 +734,16 @@ export function Gallery(): React.JSX.Element {
       </Panel>
 
       <Panel
+        title="文档排版 · 标题层级（.note-doc 定妆：h1 底线 / h2 / h3 三阶）"
+        path="components/noteMarkdown.tsx（渲染器）/ styles.css .note-doc .md-editor（落点）"
+        note="层级定稿（样张 A' 胜者）：h1 = 1.4em + 底线、h2 = 1.2em、h3 = 1.05em,均 Bold——# 和 ## 一眼可分,正文流不被打断。编辑器活动标题行走同阶（.md-editor .md-heading-N）。"
+      >
+        <div className="note-doc rounded-md border border-[var(--border-soft)] bg-[var(--desk-bg)] p-6" style={{ maxWidth: 720 }}>
+          {renderNoteMarkdown(BENCH_MD)}
+        </div>
+      </Panel>
+
+      <Panel
         title="笔记管理 · 卡片与流（NoteCard / NoteFlow）"
         path="components/NoteFlow.tsx / components/NoteCard.tsx（视觉 = STYLE §5.10 立案）"
         note="视图两态（**瀑布流默认** / 網格）与文字主次两档（默认「批註為主」）都是真实的受控 props —— 点左上按钮切视图、点第二个按钮切主次。卡片高度**随内容长短变**（摘录 ≤4 行、批注 ≤6 行由 line-clamp 封顶，长批注截断）。点任意卡片看**选中态**（试验档：1px --accent-ring 直角矩形；卡片常驻 8px 内边距，所以选中不会抖）。⚠ 卡片零 chrome：无边框、无底色、无阴影、无圆角（书库封面格的 1px 边框是因为「图需要槽」，文字卡没有图）。单击选中 / 双击跳转 / 右键菜单由 NotesFeature 接，本页只验视觉"
@@ -942,6 +953,27 @@ function RailDemo({
  * 两个控件的形态与真实状态栏一致（视图切换带三角负片；主次切换是普通文字按钮）——
  * 真实位置在笔记管理的**底部状态栏**（STYLE §5.10 的 5 件套），这里为便于试而排在一起。
  */
+/** 文档排版样张：标题层级定妆(.note-doc 直出) */
+const BENCH_MD = [
+  '# 一级标题：糖原与运动表现',
+  '',
+  '正文一段。糖原是运动中最容易被消耗的能源物质，浓度随训练量波动。',
+  '',
+  '## 二级标题：训练日的碳水策略',
+  '',
+  '更多正文。每日碳水摄入建议按每公斤体重 3–5 g 计，训练日取上限。',
+  '',
+  '### 三级标题：补充时机',
+  '',
+  '- 训练后 30 分钟内',
+  '- 与蛋白质同补',
+  '',
+  '> 引用一段原文作为佐证，虚影呈现。',
+  '',
+  '收尾正文行。'
+].join('\n')
+
+
 function NotesDemo(): React.JSX.Element {
   const [focus, setFocus] = useState<NoteTextFocus>('body')
   const [selectedId, setSelectedId] = useState<string | null>(null)
