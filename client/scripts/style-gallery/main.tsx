@@ -25,6 +25,13 @@ import { ContextMenu, type ContextMenuItem } from '@renderer/components/ContextM
 import { NoteComposer } from '@renderer/components/NoteComposer'
 import { NoteFlow, type NoteFlowItem } from '@renderer/components/NoteFlow'
 import { renderNoteMarkdown } from '@renderer/components/noteMarkdown'
+import { createMdEditor, type MdEditorHandle } from '@renderer/components/mdEditor'
+import { noteRefCompletion, type NoteRefCandidate } from '@renderer/features/NotesFeature/noteRefCompletion'
+import { autocompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
+import { EditorView } from '@codemirror/view'
+import { EditorState } from '@codemirror/state'
+// 最小对照bench通过 window 引用 CM 模块(避免组件内 TS 排版摩擦)
+
 import { ReadingStatsView } from '@renderer/components/ReadingStats'
 import type { ReadDayMinutes, TopReadEdition } from '@core/domain/types'
 import { DEFAULT_READER_PARAMS, type ReaderParams } from '@renderer/components/ReaderControls'
@@ -734,6 +741,22 @@ export function Gallery(): React.JSX.Element {
       </Panel>
 
       <Panel
+        title="最小补全对照（裸 CM6 + autocompletion）"
+        path="无工厂——纯 CM6 最小配置"
+        note="在文本尾部敲 @：弹「MIN-候选」= 环境正常，问题在我的工厂装配；不弹 = 环境问题。"
+      >
+        <MinimalCompletionBench />
+      </Panel>
+
+      <Panel
+        title="文檔編輯器試驗台（CM6 Live Preview + @ 索引——真机失灵复现用）"
+        path="components/mdEditor.ts / features/NotesFeature/noteRefCompletion.ts"
+        note="實例 = createMdEditor 实装(live 开)。点进正文看:其他块是否渲染成版面(widget)、**粗**星号是否隐藏;敲 @ 看候选是否自动弹出。"
+      >
+        <EditorBench />
+      </Panel>
+
+      <Panel
         title="文档排版 · 标题层级（.note-doc 定妆：h1 底线 / h2 / h3 三阶）"
         path="components/noteMarkdown.tsx（渲染器）/ styles.css .note-doc .md-editor（落点）"
         note="层级定稿（样张 A' 胜者）：h1 = 1.4em + 底线、h2 = 1.2em、h3 = 1.05em,均 Bold——# 和 ## 一眼可分,正文流不被打断。编辑器活动标题行走同阶（.md-editor .md-heading-N）。"
@@ -953,6 +976,108 @@ function RailDemo({
  * 两个控件的形态与真实状态栏一致（视图切换带三角负片；主次切换是普通文字按钮）——
  * 真实位置在笔记管理的**底部状态栏**（STYLE §5.10 的 5 件套），这里为便于试而排在一起。
  */
+/** 最小补全对照:裸 CM6 + autocompletion(平凡源) */
+function MinimalCompletionBench(): React.JSX.Element {
+  const hostRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!hostRef.current) return
+    const src = (ctx: CompletionContext): CompletionResult | null => {
+      const head = ctx.state.selection.main.head
+      return { from: head, options: [{ label: `MIN-候选@${head}`, type: 'text' }] }
+    }
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: 'hello @',
+        extensions: [autocompletion({ override: [src], activateOnTyping: true })]
+      }),
+      parent: hostRef.current
+    })
+    return () => view.destroy()
+  }, [])
+  return <div className="min-h-16 rounded-md border border-[var(--border-soft)] bg-[var(--desk-bg)] p-4" ref={hostRef} />
+}
+
+/** 文檔編輯器試驗台:CM6 实装(真机失灵复现) */
+const MOCK_NOTES: NoteRefCandidate[] = [
+  { id: 'a1b2c3d4-e1f2-4a1b-8c2d-000000000001', editionId: 'e1', editionTitle: '高级运动营养学（第2版）', chapterIndex: 12, excerpt: '糖原是运动中最容易被消耗的能源物质', body: '' },
+  { id: 'a1b2c3d4-e1f2-4a1b-8c2d-000000000002', editionId: 'e2', editionTitle: '星表與航路', chapterIndex: 3, excerpt: '潮汐表勘誤三条', body: '一些批注正文' }
+]
+
+function EditorBench(): React.JSX.Element {
+  const hostRef = useRef<HTMLDivElement | null>(null)
+  const handleRef = useRef<MdEditorHandle | null>(null)
+  const [live, setLive] = useState(true)
+  const [log, setLog] = useState<string[]>([])
+  const [err, setErr] = useState<string | null>(null)
+  const addLog = useCallback((line: string): void => {
+    setLog((l) => [...l.slice(-5), line])
+  }, [])
+  useEffect(() => {
+    if (!hostRef.current || handleRef.current) return
+    try {
+      const loggedSource = (ctx: CompletionContext) => {
+        addLog('补全源被调用')
+        const r = noteRefCompletion(MOCK_NOTES)(ctx as never)
+        addLog(`补全源返回: ${r === null ? 'null' : '候选'}`)
+        return r
+      }
+      handleRef.current = createMdEditor({
+        parent: hostRef.current,
+        doc: BENCH_MD,
+        live: true,
+        onChange: (t) => addLog(`onChange len=${t.length}`),
+        onNoteRefClick: (raw) => addLog(`refClick: ${raw}`),
+        extra: [autocompletion({ override: [loggedSource as never] })]
+      })
+    } catch (e) {
+      setErr(`${(e as Error).message}
+${(e as Error).stack ?? ''}`)
+    }
+    ;(window as unknown as Record<string, unknown>).__mdview = handleRef.current?.view ?? null
+    void import('@codemirror/autocomplete').then((m) => {
+      ;(window as unknown as Record<string, unknown>).__startC = (): void => {
+        const v = (window as unknown as Record<string, unknown>).__mdview
+        if (v) m.startCompletion(v as never)
+      }
+    })
+    return () => {
+      handleRef.current?.destroy()
+      handleRef.current = null
+    }
+  }, [addLog])
+  useEffect(() => {
+    const onErr = (e: ErrorEvent): void => setErr((p) => `${p ?? ''}
+[window] ${e.message}`)
+    window.addEventListener('error', onErr)
+    return () => window.removeEventListener('error', onErr)
+  }, [])
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-7 text-[12.5px]">
+        <button className="text-action" onClick={() => { setLive((v) => { const n = !v; handleRef.current?.setLive(n); return n }) }}>
+          {live ? '實時：開' : '實時：關'}
+        </button>
+        <span className="text-[var(--muted)]">点进编辑器试 @ 与标记;事件日志在下方</span>
+      </div>
+      {err && <pre className="whitespace-pre-wrap text-[11px] text-red-400">{err}</pre>}
+      <div className="md-editor rounded-md border border-[var(--border-soft)] bg-[var(--desk-bg)] p-4" style={{ minHeight: 260 }} ref={hostRef} />
+      <div className="text-[11px] text-[var(--muted)]">{log.length === 0 ? '（无事件）' : log.join(' · ')}</div>
+      <button
+        className="text-action"
+        onClick={() => {
+          const view = handleRef.current?.view
+          if (!view) return
+          void import('@codemirror/autocomplete').then((m) => {
+            view.dispatch({ effects: m.startCompletion(view) as never })
+          })
+        }}
+      >
+        強制 startCompletion
+      </button>
+    </div>
+  )
+}
+
 /** 文档排版样张：标题层级定妆(.note-doc 直出) */
 const BENCH_MD = [
   '# 一级标题：糖原与运动表现',
