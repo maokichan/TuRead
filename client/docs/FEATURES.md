@@ -1,9 +1,9 @@
 # UI 功能组件设计（Feature Components）—— 裁决权威与索引
 
-> **本文职责（feature-docs 机制，2026-11-05）**：承载**用户定案的交互语义**（裁决权威）与
-> 功能容器契约；各功能域的**架构锚点、实现细节、验证路径**在 [`features/`](features) 一页一域
-> （library / reader / notes / room / settings）。冲突序：CONTRACTS > 本文 > features/ 页 > 其余。
-> 视觉语汇一律以 **`STYLE.md`** 为准；六边形/端口见 `ARCHITECTURE.md`；插件 = `client/plugins/PLUGINS.md`（插件侧子树自持）。
+> **本文职责（feature-docs 机制，）**：承载**用户定案的交互语义**（裁决权威）与
+> 功能容器契约；各功能域的**架构锚点、实现细节、验证路径**在                         一页一域
+> （[library](features/library.md) / [reader](features/reader.md) / [notes](features/notes.md) / [room](features/room.md) / [settings](features/settings.md)）。冲突序：[CONTRACTS](CONTRACTS.md) > 本文 > [features/](features) 页 > 其余。
+> 视觉语汇一律以 **[`STYLE.md`](STYLE.md)** 为准；六边形/端口见 [`ARCHITECTURE.md`](ARCHITECTURE.md)；插件 = [`client/plugins/PLUGINS.md`](../plugins/PLUGINS.md)（插件侧子树自持）。
 > 状态：v0.1.6 落地实施（五 Feature 标准容器 + Tailwind v4 迁移完成）。
 
 ---
@@ -13,7 +13,7 @@
 **目标**：把 22KB 单体 App.tsx 拆成按交互域划分的 Feature（已交付）；标准化「视图模式 / 域内
 状态」；新功能 = 新 Feature 或新展示原语，追加不改动他域；为插件留出 UI 侧边界。
 
-**不做**：服务侧插件运行时（ports 即边界，`ARCHITECTURE.md` §4；渲染层运行时已落地，见 §13）；
+**不做**：服务侧插件运行时（[ports](contracts/ports.md) 即边界，[`ARCHITECTURE.md`](ARCHITECTURE.md) §4；渲染层运行时已落地，见 §13）；
 UI 状态库（纯 React）。
 
 ## 2. 分层与目录
@@ -65,7 +65,7 @@ src/renderer/src/
 - **v1 只装官方插件**：随应用首发种进运行时文件夹，加载不做沙箱；第三方开放远期（需沙箱与
   审核）。侧边栏 descriptor 口 v1 不开放给插件。
 - 插件**不进** `ServiceContainer`（六边形内核不变）；运行时是渲染层外壳的模块（同
-  `roomSession`/`logStore` 先例）。**能力边界 / 开发标准 / 生命周期（含卸载）= `client/plugins/PLUGINS.md`**
+  `roomSession`/`logStore` 先例）。**能力边界 / 开发标准 / 生命周期（含卸载）= [`client/plugins/PLUGINS.md`](../plugins/PLUGINS.md)**
  ——本节只留裁决，不复读。
 - 插件格与聊天**互斥**（`hideWhenInRoom`：进房让位——AI 的「問」用）。
 
@@ -86,34 +86,34 @@ src/renderer/src/
    新增一条 `FeatureDescriptor`；容器/宿主/状态继承/跳转一律复用，不为"工具"另起第二套。
 10. **阅读标签页模型（批1.10，用户定）**：打开一本书 = 开一个标签（重复打开 = 激活既有标签）；
     **切换 = 重开链路**（B1 代次守卫；B2 真并行留作性能升级）。标签区 = 侧栏 `TagRail`
-    （2026-11-03 重设计：窄格首字 + 悬停揭示全题，与 `.feature-nav` 同款几何；**关闭交右键菜单**；
+    （ 重设计：窄格首字 + 悬停揭示全题，与 `.feature-nav` 同款几何；**关闭交右键菜单**；
     原顶栏 `ReaderTabStrip` 退役）。Esc / 命令面板「退出閱讀器」= 关当前标签（邻位激活，最后回
     书库）；侧边栏离开 = 卡片收起、标签存活。会话级状态，切库清空。
 
 ## 7. 实施落地（AppShell）
 
-- **chrome 底面 + 卡片层宿主**：空间语法见 `STYLE.md` §1.1；五张功能卡经 `FeatureCard` 浮于底面
+- **chrome 底面 + 卡片层宿主**：空间语法见 [`STYLE.md`](STYLE.md) §1.1；五张功能卡经 `FeatureCard` 浮于底面
   （scrim 归阅读卡独占）。无顶栏/无日志栏/无品牌 logo（自绘标题栏退役；Electron 菜单移除双保险）。
 - **侧边栏 = 单色符号图标栏**（56px）：`FeatureDescriptor.icon` 繁体单字，label 悬停提示；
   `settings` 钉底（`pinned`）。
 - **Tailwind**：`@tailwindcss/vite` v4；`styles.css` 保留主题 token / 全局 base / 滚动条 +
-  **kookit 硬编码契约**（`.reader-stage` overflow + iframe 不设 height，KOOKIT.md §5）——两条
+  **kookit 硬编码契约**（`.reader-stage` overflow + iframe 不设 height，[KOOKIT.md](KOOKIT.md) §5）——两条
   不能用 utility 替代。颜色一律走语义 token，组件内禁写死 hex/rgba。
 - **已知例外**：UI 层直用桥已消除（收敛 `IBookPicker`）；仅 `dev/selfCheck.ts`（开发工具）直用。
 - **已知无头时序抖动**：书库启动即渲染封面后自检窗口变窄，偶发「渲染可疑」重跑即绿（历史教训见
-  KOOKIT.md §8）。
+  [KOOKIT.md](KOOKIT.md) §8）。
 
 ## 8. 书库——交互裁决
 
-> 域参照（锚点/细节/验证）= [`features/library.md`](features/library.md)；契约 `CONTRACTS.md`
-> §4.4/§4.5；存储 = `DATA_MODEL.md` §1/§2。
+> 域参照（锚点/细节/验证）=                                             ；契约 [`CONTRACTS.md`](CONTRACTS.md)
+> §4.4/§4.5；存储 = [`DATA_MODEL.md`](DATA_MODEL.md) §1/§2。
 
 - **两视图**：`列表` / `網格`（**瀑布流已并入网格**——缩略图我方生成统一 2:3）；网格不显示指纹，
   封面 + 标题（**不显示作者**）；状态栏**不显示书目数量**（用户定）。
 - **聚焦舞台**（用户定形态全套）：单击 = 选中并弹出全屏焦点态（卡片飞向中央、景深失焦、三维绶带
   流转真实数据）；**聚焦期原卡 = 空缺提示槽**（原位留空 + 淡边框 +「再次點擊打開」，点击直进阅读）；
   **雕塑卡本身可点击**（命中区 = 落定矩形）；**动作交右键**（舞台内不放操作键：打開/詳情/從書庫移除）；
-  开场期幕不拦点击（双击语义不变）。旧详情抽屉退役（2026-11-03，git 历史为准）。
+  开场期幕不拦点击（双击语义不变）。旧详情抽屉退役（，git 历史为准）。
 - **层级浏览与書箱**：書箱 = 与书籍同地位的一等条目（外观/选中/右键/拖拽/更名全对齐，区别只是
   "打开 = 进入下一层"）；交互对齐文件资源管理器（单击选中/双击进入/F2 更名/右键/拖书入箱 = 移动，
   单亲归属）；**面包屑根固定**（容器固定宽，根锚死子节点右增）。
@@ -127,7 +127,7 @@ src/renderer/src/
 
 ## 9. 阅读器——交互裁决
 
-> 域参照 = [`features/reader.md`](features/reader.md)；视觉细则一律 `STYLE.md` §5.8；
+> 域参照 =                                           ；视觉细则一律 [`STYLE.md`](STYLE.md) §5.8；
 > 可调参数频率表 §5.9。**两条最容易做错的**：全屏的是"桌"不是"正文"；鼠标一动就浮出的栏同样是
 > 状态栏。
 
@@ -146,13 +146,13 @@ src/renderer/src/
   点高亮 = 看内容不是改内容。
 - **聊天只在"经房间进入的那本书"上存在**（用户定）；生命周期归房间；与房间组件共享同一份消息。
 - **主题模型**：2 tone × 2 mode，正文页跟随模式（深色 = 该主题深色纸）。
-- **不做的**：PDF 像素反相（方案见 KOOKIT.md §7）；剩余阅读参数（字距/字体/对齐等，改法已定 =
+- **不做的**：PDF 像素反相（方案见 [KOOKIT.md](KOOKIT.md) §7）；剩余阅读参数（字距/字体/对齐等，改法已定 =
   注入，按频率进参数页或设置页）；右侧"模型阅读"容器（预留，原则 = 只占留白不挤压纸）。
 
 ## 10. 笔记管理——交互裁决
 
-> 域参照 = [`features/notes.md`](features/notes.md)；契约 = CONTRACTS v0.4.1/v0.4.2；视觉 =
-> STYLE §5.10 立案。
+> 域参照 =                                         ；契约 = [CONTRACTS](CONTRACTS.md) v0.4.1/v0.4.2；视觉 =
+> [STYLE](STYLE.md) §5.10 立案。
 
 - **入口形态 = 左侧功能组件**（用户定；**不再考虑**其他形态）；「工具组件」不是新分类（§6.9）。
 - **「閱讀」统计段**（批1.24，用户定"放在左侧边栏的那个，统计全局"）：住侧栏「筆」列表顶部，
@@ -182,12 +182,12 @@ src/renderer/src/
 - **命令集 v1**：前往五域（registry 枚举走 `host.navigate`）；退出閱讀器（仅阅读态；多标签时 =
   「關閉當前標籤」）；**呼出右欄卡片页**（清单由 ReaderFeature 经 `readerCardBus` 登记、随页族
   增减）；主題四取向（阅读中同步 `render.applyTheme`）。后续 = 视图切换/阅读器动作，随「配键
-  体系」一起做（TODO）。
+  体系」一起做（[TODO](../../TODO.md)）。
 
 ## 12. 房间入口与副本分发——交互裁决
 
-> 域参照（补书链实现/三道闸门/状态机）= [`features/room.md`](features/room.md)；契约 =
-> CONTRACTS v0.4.7/§4.5/§5.1；实现主体 = `RoomFeature.joinAndResolveBook`。
+> 域参照（补书链实现/三道闸门/状态机）=                                       ；契约 =
+> [CONTRACTS](CONTRACTS.md) v0.4.7/§4.5/§5.1；实现主体 = `RoomFeature.joinAndResolveBook`。
 
 - **进房三路**（统一入口 `enterRoom`）：创建房间（需选中书；**建房即上传副本**，失败不挡进房）/
   大厅行点击（**无书进入**，服务器必收 → 自动补书）/ 手动输房号（有选书 = 带书，未选 = 无书）。
@@ -199,4 +199,4 @@ src/renderer/src/
 ---
 
 > 本文为交互裁决权威：任何改动先更新此处再动代码；新决策追加 §6；
-> **视觉语汇一律以 `STYLE.md` 为准**；域细节（锚点/实现/验证）改 `features/` 对应页。
+> **视觉语汇一律以 [`STYLE.md`](STYLE.md) 为准**；域细节（锚点/实现/验证）改 [`features/`](features) 对应页。

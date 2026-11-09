@@ -1,8 +1,8 @@
 # server API 契约（REST + WebSocket，v0.2.1）
 
-> **形状权威 = Go struct 的 json tag**：`server/internal/domain/types.go`（BookLocation / Fingerprint / Edition / Member / PresencePayload / ChatMessage / MessageEnvelope / JoinAck）、`server/internal/transport/rest.go` 与 `server/internal/transport/ws.go`（请求/响应与 WS 载荷）、`server/internal/room/manager.go`（join-ack reason 串与房间语义）。本文只留代码不能自证的：协议语义、应然与 why。
-> 客户端侧适配入口：`client/docs/CONTRACTS.md` 的 `INetService`（信封搬运，不理解语义）与 `IRoomSession`（业务语义）。
-> 配置与运维：见 `OPS.md`。**同步协议与转发规范**（转发语义权威）见下文。
+> **形状权威 = Go struct 的 json tag**：[`server/internal/domain/types.go`](../internal/domain/types.go)（BookLocation / Fingerprint / Edition / Member / PresencePayload / ChatMessage / MessageEnvelope / JoinAck）、[`server/internal/transport/rest.go`](../internal/transport/rest.go) 与 [`server/internal/transport/ws.go`](../internal/transport/ws.go)（请求/响应与 WS 载荷）、[`server/internal/room/manager.go`](../internal/room/manager.go)（join-ack reason 串与房间语义）。本文只留代码不能自证的：协议语义、应然与 why。
+> 客户端侧适配入口：[`client/docs/CONTRACTS.md`](../../client/docs/CONTRACTS.md) 的 `INetService`（信封搬运，不理解语义）与 `IRoomSession`（业务语义）。
+> 配置与运维：见 [`OPS.md`](OPS.md)。**同步协议与转发规范**（转发语义权威）见下文。
 
 ## 基础约定
 
@@ -11,7 +11,7 @@
 - **文件分发走内容寻址**：`<dataDir>/books/<hash>.<ext>`，文件名即指纹，同一电子版天然去重。
 - **edition.url（下载来源）**：`editions.url` 存"这本书可以从哪下"——外部平台（zlib / Anna's Archive 等）链接，或本机地址；可选，创建房间时由客户端提供。**本机下载地址不落库**：`local_copy = 1` 时下载即派生的 `GET /books/{editionID}/file`，绝对地址由客户端用其配置的 server 地址拼接。
 - **edition.local_copy（本机副本状态）**：`0` = 本机（server 内容寻址存储）无副本，`1` = 已存副本（`POST /books/{editionID}/file` 上传成功后 server 自动置 1）。与 `url` **正交**：外部源 + 本机有副本可同时成立，也可只有其一。
-- **配置**：TOML 配置文件（`turead.toml`，`TUREAD_CONFIG` 指定路径）+ 环境变量覆盖（`TUREAD_*`），见 `OPS.md`；策略类字段（access_token / admin_tokens / room_ttl / max_upload_mb）支持**热重载**。
+- **配置**：TOML 配置文件（`turead.toml`，`TUREAD_CONFIG` 指定路径）+ 环境变量覆盖（`TUREAD_*`），见 [`OPS.md`](OPS.md)；策略类字段（access_token / admin_tokens / room_ttl / max_upload_mb）支持**热重载**。
 
 ## 数据形状参考（Wire Shapes —— 语义钉子）
 
@@ -98,7 +98,7 @@
 }
 ```
 
-> 模型说明（2026-08-27）：**Work 不设 author / publisher**（多作者需联结表+核对机制，远期复杂不做；ISBN 已提供可查询性）。
+> 模型说明（）：**Work 不设 author / publisher**（多作者需联结表+核对机制，远期复杂不做；ISBN 已提供可查询性）。
 > `content-hash-v1` = **edition 内容指纹**：同一扫描版/同一文件内容 → 同 code（标题/文件名不同不影响）；扫描版不同即不同 edition，位置无法对齐。
 > **Edition 信息由客户端计算并上传**：客户端用其校准算法（含 OCR，如扫描书提 ISBN）计算指纹，创建房间时**同时上传副本与 edition 信息**；server 只登记，从不自己计算指纹。
 > **owner 昵称约束（v0.2.1）**：与 WS 握手同一判据（非空 + rune 数 ≤12，`maxNickLen`）——超长 `400`。此前建房路径不校验，房主可用超长昵称建档、随后自己 WS join 被握手拒绝（进不去自己的房）。
@@ -172,7 +172,7 @@
 
 ## 同步协议与转发规范（转发语义权威，v0.1.5）
 
-> 目标：把"服务器转什么、怎么转"钉死，**与客户端交互方式解耦**——客户端无论用点击/滚轮/键盘哪种方式翻页，最终都归一为位置状态（`room.location`）上报；server 只转发**状态**，不转发操作动作。改协议 = 契约先行（同 commit 改本文 + `client/docs/CONTRACTS.md`）。
+> 目标：把"服务器转什么、怎么转"钉死，**与客户端交互方式解耦**——客户端无论用点击/滚轮/键盘哪种方式翻页，最终都归一为位置状态（`room.location`）上报；server 只转发**状态**，不转发操作动作。改协议 = 契约先行（同 commit 改本文 + [`client/docs/CONTRACTS.md`](../../client/docs/CONTRACTS.md)）。
 
 **信封**（transport 只搬运，不理解语义）：
 
@@ -180,7 +180,7 @@
 { "type": "<消息类型>", "payload": { } }
 ```
 
-**消息集与转发规则**（type 枚举即客户端适配依据，常量定义 `server/internal/domain/types.go`）：
+**消息集与转发规则**（type 枚举即客户端适配依据，常量定义 [`server/internal/domain/types.go`](../internal/domain/types.go)）：
 
 | type | 方向 | 触发 | 转发规则 |
 |---|---|---|---|
@@ -200,7 +200,7 @@
 4. **离开必须广播**：成员断线/离开 → server 移除成员后立即广播 presence，其余成员不残留离线成员
 5. **加入即全量同步**：join-ack 携带 members 快照，新成员拿到当前房间状态
 6. **背压**：广播非阻塞入队（每连接队列 32），队列满或写失败即断开慢客户端（不拖垮房间）
-7. **广播频率**：位置上报的节流是 client 职责（见 CONTRACTS IRoomSession"节流 → send"）
+7. **广播频率**：位置上报的节流是 client 职责（见 [CONTRACTS](../../client/docs/CONTRACTS.md) IRoomSession"节流 → send"）
 
 ## WebSocket —— `GET /ws?room=<id>&nick=<name>`
 
@@ -257,6 +257,6 @@ server 落库成功后广播 `room.message`：
 
 ## 已知不一致（已解决）
 
-- ~~`domain.Member` / `domain.Edition` 无 json tag~~ —— v0.1.5 / v0.1.6 已对齐 camelCase（`server/internal/domain/types.go`）
-- ~~join-ack 的失败 reason 串与文档不一致~~ —— v0.2.1 服务器向文档看齐：错误串改连字符（`room.ErrNotFound` / `ErrMismatch` / `ErrFull`，`server/internal/room/manager.go`；`ws.go` 硬编码一并改引 `room.ErrNotFound`）；客户端 `normalizeJoinReason` **精确匹配契约串**（容错已随技术腐化清理批退役——同仓同版本走，串偏离由蜂群/room 探针拦截）
+- ~~`domain.Member` / `domain.Edition` 无 json tag~~ —— v0.1.5 / v0.1.6 已对齐 camelCase（[`server/internal/domain/types.go`](../internal/domain/types.go)）
+- ~~join-ack 的失败 reason 串与文档不一致~~ —— v0.2.1 服务器向文档看齐：错误串改连字符（`room.ErrNotFound` / `ErrMismatch` / `ErrFull`，[`server/internal/room/manager.go`](../internal/room/manager.go)；`ws.go` 硬编码一并改引 `room.ErrNotFound`）；客户端 `normalizeJoinReason` **精确匹配契约串**（容错已随技术腐化清理批退役——同仓同版本走，串偏离由蜂群/[room](../../client/docs/features/room.md) 探针拦截）
 - ~~presence 载荷形状与 client 契约不符~~ —— v0.2.2 三处发送点包 `domain.PresencePayload`（此前裸数组，真客户端成员快照恒空——蜂群首跑抓出）；client `normalizePresenceMembers` 的双形状兼容已随技术腐化清理批退役（只认 `{members}` 契约形状）。过程明细随 git 历史

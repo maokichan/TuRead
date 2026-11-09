@@ -3,17 +3,17 @@
 > 本页 = 文档域的**架构锚点**。**归属裁定（用户定）：文档 = 消费笔记所生产的内容，归筆记区管——
 > 不是独立功能组件，侧栏不设「文檔」**；由「筆」工具栏的「文檔」动作切入。
 > 产品定位与编辑器特性支持矩阵的权威 = 决策笔记
-> [.agents/notes/implemented/arch/2026-11-06-notes-v3-data-model.md](../../../.agents/notes/implemented/arch/2026-11-06-notes-v3-data-model.md)
-> （三层模型之「文档层」）；数据形态 = `DATA_MODEL.md` §3.2（body = 原生 Markdown）；
-> IPC 围栏 = `src/main/ipc.ts` vault 组。
+>                                                                                                                                              
+> （三层模型之「文档层」）；数据形态 = [`DATA_MODEL.md`](../DATA_MODEL.md) §3.2（body = 原生 Markdown）；
+> IPC 围栏 = [`src/main/ipc.ts`](../../src/main/ipc.ts) vault 组。
 
 ## 1. 架构锚点
 
 | 层 | 归属 |
 |---|---|
-| 视图 | `src/renderer/src/features/NotesFeature/DocumentsPanel.tsx`（`NotesFeature` 的 `docsOpen` 视图，工具栏「文檔/返回筆記」切换） |
+| 视图 | [`src/renderer/src/features/NotesFeature/DocumentsPanel.tsx`](../../src/renderer/src/features/NotesFeature/DocumentsPanel.tsx)（`NotesFeature` 的 `docsOpen` 视图，工具栏「文檔/返回筆記」切换） |
 | 生成器 | `features/NotesFeature/notesDocs.ts`（纯函数：彙編/筆記檔案构建 + vault 文件名净化/防撞名） |
-| ports | 无新端口——vault 走 `window.turead.invoke` 直调（`IPC.vault*` 五通道含 delete，main 侧白名单兜底） |
+| [ports](../contracts/ports.md) | 无新端口——vault 走 `window.turead.invoke` 直调（`IPC.vault*` 五通道含 delete，main 侧白名单兜底） |
 | 缝合件 | `container.store.listAllNotes`（档案生成的数据源）；Markdown 渲染/序列化 = `components/noteMarkdown.tsx` |
 
 ## 2. 实现细节

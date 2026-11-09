@@ -1,20 +1,20 @@
 # 房间（room）—— feature 参照
 
 > 本页 = 房间域的**架构锚点与实现细节**；进房三路/补书链/跟随模式的交互语义权威在
-> `FEATURES.md` 房间节；接口形状 = `contracts/ports.md`（连接粒度 = 房间）+
-> `contracts/services-container.md`（joinRoom 编排）+ `server/docs/API.md`；服务器运维 =
-> `server/docs/OPS.md`。
+> [`FEATURES.md`](../FEATURES.md) 房间节；接口形状 = [`contracts/ports.md`](../contracts/ports.md)（连接粒度 = 房间）+
+> [`contracts/services-container.md`](../contracts/services-container.md)（joinRoom 编排）+ [`server/docs/API.md`](../../../server/docs/API.md)；服务器运维 =
+> [`server/docs/OPS.md`](../../../server/docs/OPS.md)。
 
 ## 1. 架构锚点
 
 | 层 | 归属 |
 |---|---|
-| Feature 组件 | `src/renderer/src/features/RoomFeature/index.tsx`（489 行，含连接配置 + 大厅 + 会话——连接是房间的一部分，非独立 Feature）；域内组件 `RoomRow`/`MemberList`/`ChatLog`/`ChatPanel`/`StatePill` |
+| Feature 组件 | [`src/renderer/src/features/RoomFeature/index.tsx`](../../src/renderer/src/features/RoomFeature/index.tsx)（489 行，含连接配置 + 大厅 + 会话——连接是房间的一部分，非独立 Feature）；域内组件 `RoomRow`/`MemberList`/`ChatLog`/`ChatPanel`/`StatePill` |
 | usecases | `RoomSession`（591 行：join/leave/chat/位置同步；+454 行单测）——消费 net + render + identity 三端口 |
-| ports | `net`（INetService，本域独占）、`identity`（指纹，与 library 共享）、`render`（位置事件来源） |
+| [ports](../contracts/ports.md) | `net`（INetService，本域独占）、`identity`（指纹，与 [library](library.md) 共享）、`render`（位置事件来源） |
 | adapters | `net/ipcNetAdapter`（渲染层侧）+ `src/main/net/wsNetAdapter`（主进程 WS 实现） |
 | domain | `core/domain/protocol.ts`（ROOM_MSG 消息契约/JoinFailureReason/chat 合并/presence 归一，+159 行单测）；`types.ts` Room*/Chat*/ConnectionState 段 |
-| 缝合件 | `features/roomSession.ts`（126 行：IRoomSession 的渲染层共享投影——RoomFeature 会话视图与 ReaderFeature 聊天页同一份）；位置上报判据 = 指纹一致（与 library 的 identity 共用） |
+| 缝合件 | `features/roomSession.ts`（126 行：IRoomSession 的渲染层共享投影——RoomFeature 会话视图与 ReaderFeature 聊天页同一份）；位置上报判据 = 指纹一致（与 [library](library.md) 的 identity 共用） |
 
 ## 2. 实现细节
 
@@ -26,7 +26,7 @@
 打开，下载中 `joining` 禁用按钮 + 日志逐行进度；③ 两端皆无 → 留在房间，日志说明等房主补传；
 ④ 下载/入库失败降级为无书成员，不回滚加入。
 
-**位置同步与补书解耦**：打开的书与房间 edition 指纹一致即自动上报（CONTRACTS v0.4.7 的 B-2 判据）
+**位置同步与补书解耦**：打开的书与房间 edition 指纹一致即自动上报（[CONTRACTS](../CONTRACTS.md) v0.4.7 的 B-2 判据）
 ——先进房后补书，补完打开，位置自然出现在其他成员房间。
 
 **跟随模式三道闸门**（实现 = ReaderFeature 的 `location-updated` 订阅）：① 开关打开（ref 读取，
@@ -44,6 +44,6 @@ join 代次守卫（并发 join 落败方 `superseded`，UI 静默）。
 ## 3. 验证路径
 
 `dev/roomProbe.ts`（对真 server 的链路断言：token/建房/join/聊天/历史，跑完即退）·
-`dev/roomPeer.ts`（双开联调驻留型，独立 member token）· `scripts/swarm/`（A1 全员到齐 / A2 位置
+`dev/roomPeer.ts`（双开联调驻留型，独立 member token）· [`scripts/swarm/`](../../scripts/swarm)（A1 全员到齐 / A2 位置
 广播不含发送者 / A3 聊天回执含发送者 / A4 离房不残留 / A5 无意外错误）· 单测 `RoomSession.test.ts`
 （454 行）/ `protocol.test.ts`。

@@ -1,17 +1,17 @@
 # §5.10 笔记管理（跨书）视图
 
-> 本页承载 `client/docs/STYLE.md` §5.10。形态与契约 = `client/docs/FEATURES.md` §12；
-> 数据口径 = `client/docs/CONTRACTS.md` §4.4 读模型。本节只定**视觉语汇**。
+> 本页承载 [`client/docs/STYLE.md`](../STYLE.md) §5.10。形态与契约 = [`client/docs/FEATURES.md`](../FEATURES.md) §12；
+> 数据口径 = [`client/docs/CONTRACTS.md`](../CONTRACTS.md) §4.4 读模型。本节只定**视觉语汇**。
 > 参考对象 = **书库**：笔记管理是书库的"同族视图"（状态栏结构、视图切换、
 > hover 口径、相对时间全部沿用），**不新造语汇**。
 
 **「閱讀」统计段（寄生于「筆」列表顶部，全局口径）**：**贡献图** = 9px 格、
 列流（列 = 周）、`--accent` 的 color-mix 透明度 5 档（25/45/70/100 + 空格 `--panel-2`；
-**不引新色相**，tokens 页 §3.4 纪律）、今天 1px `--border` 描边；**摘要行**（今日/本週，12.5px muted）
+**不引新色相**，[tokens](tokens.md) 页 §3.4 纪律）、今天 1px `--border` 描边；**摘要行**（今日/本週，12.5px muted）
 + **Top 榜行**（序号注脚 + 13px 书名〔长题 Marquee，目录同款〕+ 右对齐时长）。
 两档布局：`card`（纵排）/ `page`（全宽两栏：图+摘要在左、榜在右，榜列 1px 左分隔）。
 格子/榜行 v1 无交互（不做假交互）。纯视图 `ReadingStatsView`（样张挂 mock）与取数段
-`ReadingStatsSection` 分离（`client/src/renderer/src/components/ReadingStats.tsx`）。
+`ReadingStatsSection` 分离（[`client/src/renderer/src/components/ReadingStats.tsx`](../../src/renderer/src/components/ReadingStats.tsx)）。
 
 **视图**：**只留瀑布流**（按列装箱，最短列优先；仍是时间倒序的视觉流）——
 網格已退役（笔记区重构，用户定：两种排列都没组织起"笔记属于书"的关系；
@@ -67,14 +67,14 @@
 - 选中 = 卡片外扩 **8px 内边距**的 **1px `--accent-ring`** 矩形（**直角，不加圆角** —— 矩形是选中标记，
   不是容器外观）。对齐书库网格的选中色（书库那处是 `border` + `ring` 双层，因为它本来就有 1px 边框）。
 - ⚠ **卡片常驻 8px 内边距**：否则选中加框会挤动文字、整片瀑布流重排（**视觉抖动**）。
-- ⚠ 这条落在 shell 页 §5.2 例外清单**之外**（"给纯文字块加框"）。按 STYLE.md §7 纪律：
+- ⚠ 这条落在 shell 页 §5.2 例外清单**之外**（"给纯文字块加框"）。按 [STYLE.md](../STYLE.md) §7 纪律：
   **单 commit 可回退**，实测若与 P1 冲突，回退到**元行套负片块**（`--negative-*`，面积小、不刺眼；
   新增负片用途先改 shell 页 §5.5）。
-- **单卡选中**（不做多选）。键盘（方向键移焦点 / Enter 跳转 / Delete 刪除）随**意图层**收编，见 `TODO.md`。
+- **单卡选中**（不做多选）。键盘（方向键移焦点 / Enter 跳转 / Delete 刪除）随**意图层**收编，见 [`TODO.md`](../../../TODO.md)。
 
 **动作：卡片右键 = 挂载线菜单**
 
-- **形态复用** `client/src/renderer/src/components/ContextMenu.tsx`（挂载线 + 自线下生长，
+- **形态复用** [`client/src/renderer/src/components/ContextMenu.tsx`](../../src/renderer/src/components/ContextMenu.tsx)（挂载线 + 自线下生长，
   无圆角/无阴影/无卡片底）。**语义按域**（已定并再次确认：右键在书库 = 文件管理、阅读器 = 标记/批注、
   **笔记管理 = 笔记处理** —— 右键在不同功能组件里语义不同）。
 - 项：`跳轉` ／ `複製批註`（**仅 `body` 非空时出现**）／ `刪除`。
@@ -82,7 +82,7 @@
 - **鼠标分工**：**单击 = 选中、双击 = 跳转**（与书库资源管理器语义一致）。
 - ⚠ **用词纪律**：书库的「**移除**」= 只删索引、**不删源文件**；
   笔记的删除是**真实删除** → 一律写「**刪除**」，**两词不得混用**。确认弹窗
-  （`client/src/renderer/src/components/ConfirmDialog.tsx`）写明**不可恢复**，且**不提供"下次不再提示"**
+  （[`client/src/renderer/src/components/ConfirmDialog.tsx`](../../src/renderer/src/components/ConfirmDialog.tsx)）写明**不可恢复**，且**不提供"下次不再提示"**
   —— 不可逆动作不能免确认。
 
 **底部状态栏（复用书库结构）**：`footer` + `border-t` + `pt-4`，元素**统一左对齐**；
@@ -96,14 +96,14 @@
 | 4 | **计数** `128 條`（筛选后） | 12px `--muted`。⚠ 与书库"不显示书目数量"**不同**：**筛选计数是筛选器的必要反馈**（"筛出来多少条"），不是装饰性统计 |
 
 - **只有视图切换带三角负片**：三角的职责是"引导点击切换视图"（shell 页 §5.1）；其余是状态/筛选，不带。
-- **作用域切换已退役**（用户 2026-11-07 定：按库分类不是笔记区的工作，库状态只在书库页；列表恒全部笔记——原「當前庫 ⇄ 全部庫」按钮删除，查询不传 `libraryId`）。
+- **作用域切换已退役**（用户 定：按库分类不是笔记区的工作，库状态只在书库页；列表恒全部笔记——原「當前庫 ⇄ 全部庫」按钮删除，查询不传 `libraryId`）。
 - **空态（缺失要可见，不静默）**：一行静息淡度文字；且**当前筛选是「批註」时必须报出被隐藏的数量**：
   「還沒有任何筆記」／「沒有符合條件的筆記」／「批註 0 條 —— 有 37 條劃線未顯示」。
 
-**检索入口 = 底面全局搜索·笔记作用域**（搜索住底面顶条带；接线 = `client/docs/FEATURES.md` §12.8）
+**检索入口 = 底面全局搜索·笔记作用域**（搜索住底面顶条带；接线 = [`client/docs/FEATURES.md`](../FEATURES.md) §12.8）
 
-- 关键词对 `excerpt` + `body` 做**子串**匹配（`NoteQuery.text`；v1 = `LIKE`，`client/docs/DATA_MODEL.md` §5 问题 6）。
-- `Ctrl+F` 聚焦（全局输入框，`client/src/renderer/src/features/chromeSearchBus.ts`）、`Esc` 清空复用。
+- 关键词对 `excerpt` + `body` 做**子串**匹配（`NoteQuery.text`；v1 = `LIKE`，[`client/docs/DATA_MODEL.md`](../DATA_MODEL.md) §5 问题 6）。
+- `Ctrl+F` 聚焦（全局输入框，[`client/src/renderer/src/features/chromeSearchBus.ts`](../../src/renderer/src/features/chromeSearchBus.ts)）、`Esc` 清空复用。
 
 **窗口化与"刷新"成本（已量化、已实现）**
 
@@ -117,10 +117,10 @@
 **结论**：**窗口化保留** —— 理由不是某个计时数字，而是"**DOM 节点与观察器数量不随规模增长**"
 （42 vs 1000，且每个卡片挂一个 `ResizeObserver`），以及有效计时下首屏 22 ms vs 519 ms。
 有效 A/B 的跑法与探针计时口径（隐藏窗口不出帧 → rAF 计时假高，探针需关后台节流 + 出帧 + 计时环境自检）
-见 [acceptance.md](acceptance.md) §8.0。
+见                                §8.0。
 
-**实现（已落地）**：`client/src/renderer/src/components/noteLayout.ts`（**纯函数、零 DOM、有单测**）负责
-装箱 + 按列二分；`client/src/renderer/src/components/NoteFlow.tsx` 只渲染视口 ± overscan。
+**实现（已落地）**：[`client/src/renderer/src/components/noteLayout.ts`](../../src/renderer/src/components/noteLayout.ts)（**纯函数、零 DOM、有单测**）负责
+装箱 + 按列二分；[`client/src/renderer/src/components/NoteFlow.tsx`](../../src/renderer/src/components/NoteFlow.tsx) 只渲染视口 ± overscan。
 - **自己装箱**（最短列优先 + 绝对定位）而非 CSS grid 的 `span`：窗口化的前提是
   "**不渲染就知道第 i 条在哪**"，而 grid 的自动布局把位置算在浏览器里、取不回来。
 - 一个装箱器服务两种视图：網格 = 高度取齐（等高行），瀑布流 = 自然高度。

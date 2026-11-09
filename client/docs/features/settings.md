@@ -1,23 +1,23 @@
 # 设置（settings）—— feature 参照
 
 > 本页 = 设置域的**架构锚点与实现细节**；设置页格局裁决（无标题/无提示/去线、布尔 =「關｜開」
-> 文字选项等）的权威在 `style/components-shell.md` 与 `FEATURES.md` 设置节；插件注册表
-> （一行一生死）语义 = `FEATURES.md` 插件节 + `client/plugins/PLUGINS.md` §3。
+> 文字选项等）的权威在 [`style/components-shell.md`](../style/components-shell.md) 与 [`FEATURES.md`](../FEATURES.md) 设置节；插件注册表
+> （一行一生死）语义 = [`FEATURES.md`](../FEATURES.md) 插件节 + [`client/plugins/PLUGINS.md`](../../plugins/PLUGINS.md) §3。
 
 ## 1. 架构锚点
 
 | 层 | 归属 |
 |---|---|
-| Feature 组件 | `src/renderer/src/features/SettingsFeature/index.tsx`（299 行）；域内组件 `themeTransition` |
+| Feature 组件 | [`src/renderer/src/features/SettingsFeature/index.tsx`](../../src/renderer/src/features/SettingsFeature/index.tsx)（299 行）；域内组件 `themeTransition` |
 | usecases | 无——`store` settings 键读写（`patchSetting` 原子合并）+ 主题应用 |
-| ports | `store`（appearance / librarySettings / plugins / deleteNotice / readerSettings 等键） |
-| domain | `core/domain/theme.ts`（103 行：2 tone × 2 mode + system resolve，与 reader 共享）；`input.ts` 的 DEFAULT_BINDINGS（快捷键只读清单的数据面） |
-| 缝合件 | `data-theme` 应用到 `<html>`（全局生效面）；插件启停 = 重载渲染层插件运行时（`client/plugins/PLUGINS.md` §3）；`system` 跟随 = `matchMedia` 解析并监听，只在暗/亮间切换 |
+| [ports](../contracts/ports.md) | `store`（appearance / librarySettings / plugins / deleteNotice / readerSettings 等键） |
+| domain | `core/domain/theme.ts`（103 行：2 tone × 2 mode + system resolve，与 [reader](reader.md) 共享）；`input.ts` 的 DEFAULT_BINDINGS（快捷键只读清单的数据面） |
+| 缝合件 | `data-theme` 应用到 `<html>`（全局生效面）；插件启停 = 重载渲染层插件运行时（[`client/plugins/PLUGINS.md`](../../plugins/PLUGINS.md) §3）；`system` 跟随 = `matchMedia` 解析并监听，只在暗/亮间切换 |
 
 ## 2. 实现细节
 
 **主题应用**：四套取向（`dark`/`light`/`sepia-light`/`sepia-dark`）经 `data-theme` 落 `<html>`；
-阅读中切主题必须同步调 `render.applyTheme`（正文 iframe 不会自动跟上，见 features/reader.md 注入节）；
+阅读中切主题必须同步调 `render.applyTheme`（正文 iframe 不会自动跟上，见 [features/reader.md](reader.md) 注入节）；
 `system` 只作用于深/亮模式选择，不引入色相。
 
 **设置页格局**（批1.22/1.23 定）：无标题、无提示段落、分组去线；布尔 =「關｜開」文字选项
@@ -31,5 +31,5 @@
 
 ## 3. 验证路径
 
-`src/tests/styleGrammar.test.ts`（视觉 token 纪律，含主题面）· 样张：theme/token 面板段落 ·
-插件注册表链路 = `pluginManager.test.ts` / `pluginManifest.test.ts`（`client/plugins/PLUGINS.md` §3 验证面）。
+[`src/tests/styleGrammar.test.ts`](../../src/tests/styleGrammar.test.ts)（视觉 token 纪律，含主题面）· 样张：theme/token 面板段落 ·
+插件注册表链路 = `pluginManager.test.ts` / `pluginManifest.test.ts`（[`client/plugins/PLUGINS.md`](../../plugins/PLUGINS.md) §3 验证面）。

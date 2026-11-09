@@ -1,11 +1,11 @@
 # server 架构（模块 / 通讯模型 / 数据模型）
 
-> 归属：**server 专属**。跨端共同内容（书籍标定 / 仓库布局）见 `../../docs/ARCHITECTURE.md`；
-> REST / WS 接口契约与转发规范见 `API.md`；配置与运维见 `OPS.md`；待办见 `../../TODO.md`。
+> 归属：**server 专属**。跨端共同内容（书籍标定 / 仓库布局）见 [`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)；
+> REST / WS 接口契约与转发规范见 [`API.md`](API.md)；配置与运维见 [`OPS.md`](OPS.md)；待办见根 TODO.md。
 
 ## 1. 服务端模块与数据模型（Go，v0.2.0）
 
-> `server/` 为**独立 Go module**（依赖全部内置，不依赖 client），可随时拆为独立仓库。
+> [`server/`](..) 为**独立 Go module**（依赖全部内置，不依赖 client），可随时拆为独立仓库。
 
 ```
 cmd/server           入口：装配 config / store / room / transport，监听端口
@@ -18,17 +18,17 @@ internal/transport   REST + WebSocket（信封收发 / 认证 / 管理）
 
 | 模块 | 职责 | 实现 |
 |---|---|---|
-| `config` | TOML 配置文件 + 环境变量覆盖 + 热重载（策略类字段） | `internal/config` |
-| `room` | 房间状态机：成员、绑定 edition、当前位置；**运行时状态纯内存**，房间定义落库；空房间 TTL 惰性清理；发现（大厅/按书找房） | `internal/room`（RoomManager） |
-| `book` | 标定注册表：works / editions 查询、注册、比对；指纹校验 | `internal/store`（SQLite）+ `internal/domain`（协议校验） |
-| `sync` | 同步事件分发（房间内广播），WS 消息信封 | `internal/transport`（WS）+ `internal/room`（广播） |
-| `store` | SQLite（`modernc.org/sqlite`，纯 Go 无 cgo：works / editions / users / rooms / messages）+ 内容寻址文件存储 | `internal/store` |
-| `api` | REST（token 签发 / 房间 / 书籍 / 上传下载 / 聊天历史）+ WebSocket（同步） | `internal/transport` |
+| `config` | TOML 配置文件 + 环境变量覆盖 + 热重载（策略类字段） | [`internal/config`](../internal/config) |
+| `room` | 房间状态机：成员、绑定 edition、当前位置；**运行时状态纯内存**，房间定义落库；空房间 TTL 惰性清理；发现（大厅/按书找房） | [`internal/room`](../internal/room)（RoomManager） |
+| `book` | 标定注册表：works / editions 查询、注册、比对；指纹校验 | [`internal/store`](../internal/store)（SQLite）+ [`internal/domain`](../internal/domain)（协议校验） |
+| `sync` | 同步事件分发（房间内广播），WS 消息信封 | [`internal/transport`](../internal/transport)（WS）+ [`internal/room`](../internal/room)（广播） |
+| `store` | SQLite（`modernc.org/sqlite`，纯 Go 无 cgo：works / editions / users / rooms / messages）+ 内容寻址文件存储 | [`internal/store`](../internal/store) |
+| `api` | REST（token 签发 / 房间 / 书籍 / 上传下载 / 聊天历史）+ WebSocket（同步） | [`internal/transport`](../internal/transport) |
 
 **数据模型**：
 - **持久化（SQLite）**：`works`（作品 = 同一本书，协议+编码唯一）｜`editions`（电子版 = 同一电子文件，扩展名+指纹唯一，含下载来源 `url`、本机副本标志 `local_copy`）｜`users`（用户档案：token=成员 ID/nick/bio/role/ip/token_issued_at）｜`rooms`（房间定义：id/edition_id/owner_token）｜`messages`（聊天消息，追加日志，随房间删除级联清理）
 - **内存态**：房间成员 / 位置 / WS 连接（不落库）；空房间 TTL 倒计时（默认 12h，可热改），超时惰性清理（含删持久化记录与聊天），重新有人加入取消
-- schema 管理：`internal/store/schema.sql`（`go:embed` 嵌入二进制；老库缺列自动 `ALTER` 补列）
+- schema 管理：[`internal/store/schema.sql`](../internal/store/schema.sql)（`go:embed` 嵌入二进制；老库缺列自动 `ALTER` 补列）
 
 ## 2. 通讯模型（token 双闸，v0.1.1 已实现第 2/3 层）
 
@@ -48,15 +48,15 @@ internal/transport   REST + WebSocket（信封收发 / 认证 / 管理）
 
 ## 3. 待定事项
 
-待办统一在根 `../../TODO.md`（server 一节：房主转让、用户系统剩余、部署形态、cmd/smoke、服务器地址部署细节）。已定案：空房间 TTL（v0.1.4）、房间发现（v0.1.4）、聊天室与持久化（v0.1.5）、服务端签发 token（v0.1.6）、房主删房（v0.2.0）。
+待办统一在根 TODO.md（server 一节：房主转让、用户系统剩余、部署形态、cmd/smoke、服务器地址部署细节）。已定案：空房间 TTL（v0.1.4）、房间发现（v0.1.4）、聊天室与持久化（v0.1.5）、服务端签发 token（v0.1.6）、房主删房（v0.2.0）。
 
-## 4. 传输与运行基本功（2026-08-27 已实现）
+## 4. 传输与运行基本功（ 已实现）
 
 ### 4.1 广播背压（backpressure）
 
 **问题**：v0.1.0 的广播在发送者 goroutine 里同步写每个连接——一个慢客户端（网络慢/不读消息）会阻塞整个房间广播链。
 
-**解法**（gorilla 官方聊天模式，`internal/transport/server.go`）：
+**解法**（gorilla 官方聊天模式，[`internal/transport/server.go`](../internal/transport/server.go)）：
 
 - 每个 WS 连接：**独立 out 队列（容量 32）+ 独立写 goroutine**；广播方（`send` 回调）只做**非阻塞入队**，队列满即 `kick` 断开慢客户端
 - 写 goroutine 串行写（10s 写超时）+ 周期 ping（54s）保活；任何写失败同样 `kick`
@@ -70,11 +70,11 @@ internal/transport   REST + WebSocket（信封收发 / 认证 / 管理）
 
 ### 4.3 优雅关停（graceful shutdown）
 
-`cmd/server/main.go`：`signal.NotifyContext(SIGINT/SIGTERM)` → `http.Server.Shutdown(10s)`（停收新连接、等在途 REST 请求）→ 关 SQLite → 退出。
+[`cmd/server/main.go`](../cmd/server/main.go)：`signal.NotifyContext(SIGINT/SIGTERM)` → `http.Server.Shutdown(10s)`（停收新连接、等在途 REST 请求）→ 关 SQLite → 退出。
 
 > 注：`Shutdown` 不等 hijacked 连接（WebSocket）——当前接受，关停时 WS 被直接断开。
 
-### 4.4 HTTP 服务模型与请求追踪（协程视角，2026-08-31 补）
+### 4.4 HTTP 服务模型与请求追踪（协程视角， 补）
 
 > 帮助建立"一个请求进来后发生了什么"的心智模型。goroutine = Go 运行时管理的用户态轻量线程（几 KB 栈，可同时成千上万）；per-request 协程由标准库自动开，代码里看不到。
 
@@ -82,7 +82,7 @@ internal/transport   REST + WebSocket（信封收发 / 认证 / 管理）
 
 | 协程 | 谁开的 | 干什么 | 数量 |
 |---|---|---|---|
-| main | 入口（`cmd/server/main.go`） | 装配 + 阻塞 `<-ctx.Done()` 等信号（**进程活着的关键**） | 1 |
+| main | 入口（[`cmd/server/main.go`](../cmd/server/main.go)） | 装配 + 阻塞 `<-ctx.Done()` 等信号（**进程活着的关键**） | 1 |
 | accept 循环 | `go func(){ srv.ListenAndServe() }()` | 等连接（= C++ 的 accept 循环） | 1 |
 | per-connection | **net/http 自动开**（看不到） | 读请求 → 调 `Handler.ServeHTTP` → 跑完这条请求 | 每连接 1 |
 | per-WS-writer | `go c.writer()`（`ws.go`） | WS 出站写 goroutine（+ ping 保活） | 每个 WS 连接 1 |
@@ -102,13 +102,13 @@ internal/transport   REST + WebSocket（信封收发 / 认证 / 管理）
 
 - **REST = 每请求一条独立执行流**：从 Handler 入口沿 authMiddleware → mux → 单一 handler 走到底；无状态，身份靠 header 里的 token。
 - **WS = 一条常驻双向流**：握手 `GET /ws` 走过同样链路后，`handleWS`（`ws.go`）upgrade 劫持连接；per-connection 协程变为 `c.loop()` 读循环，另开 `c.writer()` 写 goroutine —— **一读一写两条常驻**，之后房间内所有事件（位置/聊天）在这两条流上循环收发。
-- **连接状态如何维持**：进程存活靠 main 阻塞；连接存活靠 TCP 长连接 + 心跳（54s ping / 60s pongWait，超时判死 kick）；成员/订阅/位置是内存态（room 包，重启即失）。REST 无连接状态，WS 有（见 §1 内存态）。
+- **连接状态如何维持**：进程存活靠 main 阻塞；连接存活靠 TCP 长连接 + 心跳（54s ping / 60s pongWait，超时判死 kick）；成员/订阅/位置是内存态（[room](../../client/docs/features/room.md) 包，重启即失）。REST 无连接状态，WS 有（见 §1 内存态）。
 
-## 5. 分层与抽象决策（2026-08-27 定案）
+## 5. 分层与抽象决策（ 定案）
 
 **结论：不增加分层/抽象，维持当前包结构；只做文件级整理。**
 
-- 现有分层已正确：`cmd → transport → room → store → domain`，依赖方向单向，domain 零依赖——**server 是简单分层，不是六边形**（六边形是 client 的选型，见 `../../client/docs/ARCHITECTURE.md`）
+- 现有分层已正确：`cmd → transport → room → store → domain`，依赖方向单向，domain 零依赖——**server 是简单分层，不是六边形**（六边形是 client 的选型，见 [`../../client/docs/ARCHITECTURE.md`](../../client/docs/ARCHITECTURE.md)）
 - 核心业务（房间转发）简单且不会再膨胀；复杂度集中在横切关注点（认证 / 背压 / 管理 / 并发安全），已各归其位
 - 过早抽象是负债（YAGNI / Rule of Three）：当前每个抽象只有 1 个实现（SQLite / WebSocket / REST），没有第二个实现方，抽 interface 没有对象
 - **文件级划分**（transport 包）：`server.go`（装配+路由）/ `rest.go`（业务 REST）/ `ws.go`（WS+背压）/ `admin.go`（管理接口）/ `auth.go`（双闸）/ `utils.go`
@@ -117,5 +117,5 @@ internal/transport   REST + WebSocket（信封收发 / 认证 / 管理）
 
 1. 出现第二个传输（HTTP 轮询 / 自定义协议 / gRPC）——先抽 `transport` 接口
 2. 出现第二个存储（PostgreSQL / 内存态可切换）——先抽 `store` 接口
-3. 出现第二个调用方（Web 壳 / 移动端 API 复用）——先立 `usecases` 层
+3. 出现第二个调用方（Web 壳 / 移动端 [API](API.md) 复用）——先立 `usecases` 层
 4. `transport` 包再次超过 ~800 行或 handler 数量翻倍——先拆文件

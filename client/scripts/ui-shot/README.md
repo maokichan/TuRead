@@ -1,6 +1,6 @@
 # ui-shot —— 真窗口截屏/点击探针（批1.5 起，"自己看自己"的验收工具）
 
-> 背景：样式样张（`scripts/style-gallery/`）只覆盖组件层，**AppShell 级的观感它照不到**。
+> 背景：样式样张（[`scripts/style-gallery/`](../style-gallery)）只覆盖组件层，**AppShell 级的观感它照不到**。
 > 批1.5 卡片化改动曾"改完不看"就交付（教训）；本工具 = 用真实 dev 实例截屏 + 模拟点击，
 > 让界面改动**必须看过再交付**。全部走 PowerShell + user32，无新依赖。
 

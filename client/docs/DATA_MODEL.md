@@ -1,6 +1,6 @@
 # 客户端数据建模（DATA MODEL）
 
-> **性质**：活文档。数据持久化的建模与库设计；讨论增量直接补节；结论回写 `CONTRACTS.md`。
+> **性质**：活文档。数据持久化的建模与库设计；讨论增量直接补节；结论回写 [`CONTRACTS.md`](CONTRACTS.md)。
 > 阅读顺序：§1 总构 → §2 schema → §3 实体与锚点 → §4 已批复 → §5 开放问题 → §6 术语与状态转移。
 > 「书的身份」定案权威 = §4.2（D1–D12）。**形状一律以代码为权威**——本文代码块只做速览与裁决注记，不复读形状。
 
@@ -32,37 +32,37 @@ config.json         // 极小（D1+D9 推论）：库注册表进库、当前库
 
 **打包（已验证）**：better-sqlite3@**12**（v13 无 electron prebuild）：`prebuild-install -r electron
 -t <electron 版本>` 取 Electron ABI 二进制 + `asarUnpack` 解出 .node；dev 与打包产物双验证通过
-（主进程加载/WAL/重开持久化/328 行事务批量写 2-3ms；spike = `src/main/dev/sqliteSpike.ts`，
+（主进程加载/WAL/重开持久化/328 行事务批量写 2-3ms；spike = [`src/main/dev/sqliteSpike.ts`](../src/main/dev/sqliteSpike.ts)，
 `TUREAD_DEV_SQLITE=1`）。原生路线成立，**wasm 兜底不需要**；换 Electron 版本须重跑 `npm run rebuild:sqlite`
 （v13 若恢复 electron prebuild 可升级）。
 
-## 2. schema v3（DDL 权威 = `SCHEMA_SQL` @ `src/main/store/sqliteStore.ts`；本文不复述 DDL）
+## 2. schema v3（DDL 权威 = `SCHEMA_SQL` @ [`src/main/store/sqliteStore.ts`](../src/main/store/sqliteStore.ts)；本文不复述 DDL）
 
-> 实现状态：已落地——`SqliteStore` 拆表、迁移器 `src/main/store/migrate.ts`（T1/T2，§6.3）、
+> 实现状态：已落地——`SqliteStore` 拆表、迁移器 [`src/main/store/migrate.ts`](../src/main/store/migrate.ts)（T1/T2，§6.3）、
 > `ScanService`（映射库扫描对账）、Work 活列、`edition_toc` 留位；迁移夹具 =
-> `src/main/dev/migrateFixture.ts`（dev-only，`TUREAD_DEV_MIGRATE=fixture|json|verify`；
+> [`src/main/dev/migrateFixture.ts`](../src/main/dev/migrateFixture.ts)（dev-only，`TUREAD_DEV_MIGRATE=fixture|json|verify`；
 > **不给 `TUREAD_USER_DATA` 拒绝运行**，防写真实书库）。
 >
 > ⚠ **全局库文件名不能是 `turead.db`**（用户实测踩过的阻塞级 bug，已修）：同名会让
 > `CREATE TABLE IF NOT EXISTS` **静默跳过旧表**，随后新列索引以 `no such column` 崩在启动路径上。
 > 现用 **`store.db`** + 形状守卫（`looksLikeLegacyStore`，旧 schema 给可行动的报错）+
 > "单库失败不阻断其余库、`failed` 可重试"；夹具用真实 `turead.db` 命名 + 变异测试钉住此坑。
-> 相对 v2 的结构性变化（books→editions+works、holdings 取代每库 books、notes 挂 edition、
-> 阅读状态拆出、settings 全局化）过程归 git。
+> 相对 v2 的结构性变化（books→editions+works、holdings 取代每库 books、笔记挂 edition、
+> 阅读状态拆出、设置全局化）过程归 git。
 
 **表清单**（只记**代码说不出的语义与规则**；结构本身看 `SCHEMA_SQL`）：
 
 | 表 | 代码说不出的规则 |
 |---|---|
 | `works` | 只留接口、不做完整标准化（D11/F9）；补录 = T3（§6.3，改一列、笔记零重写） |
-| `editions` | 全局唯一键 = 指纹（采样哈希 `md5-sample3-v1`，`src/core/adapters/identity/fingerprint.ts`）；两类误差与"不做自动合并"的取舍见 §4.2 注 2 |
+| `editions` | 全局唯一键 = 指纹（采样哈希 `md5-sample3-v1`，[`src/core/adapters/identity/fingerprint.ts`](../src/core/adapters/identity/fingerprint.ts)）；两类误差与"不做自动合并"的取舍见 §4.2 注 2 |
 | `libraries` | `mode` 语义见 §1 代码块（术语 §6.2） |
 | `containers` | 单亲树 + 不变量见 §3.4 |
 | `holdings` | 同库同版只收录一次；`missing` = **来源缺失——删的是可见性不是数据**（笔记/阅读状态不动，文件回来自动重现）；`parent_path` 写入时规范化 |
 | `notes` | `excerpt` = `quote.exact` 的投影（**锚点证据，非笔记内容**，§3.1.1 ①）；`anchor_key` = Fragment 串**逐字节原样存**；`color`/`mark_style` = 语义名非字面量；批注内容只住 `body`（原生 Markdown，笔记 v3） |
 | `reading_state` | `total_read_ms` 唯一写入口 = `appendReadingSession`（同事务累加）；"按 work 汇总"是**查询口径**（D4） |
 | `reading_sessions` | 阅读时间口径见下注 |
-| `edition_toc` | **先留位不实现**（功能见 TODO.md） |
+| `edition_toc` | **先留位不实现**（功能见 [TODO.md](../../TODO.md)） |
 | `settings` / `meta` | `meta.migrated_v3` = `fresh\|from-v2\|from-json\|failed`（failed 可重试，防"迁移后删光书 → 从留档复活"） |
 
 > **阅读时间口径（批1.24，用户定）**：写 = 渲染层 `readSessionRecorder` → `appendReadingSession`。
@@ -88,9 +88,9 @@ TextAnchor {                                              // "标在哪"——�
 > **why（关键决策）**：**统一信封 + 引擎原生载荷**，不做"通用定位语言"让引擎来回翻译——翻译
 > 有损会破坏选区 round-trip（Readium 同款取舍）；**同步不需要统一编码**（指纹标定保证对端同一
 > edition → 同一解释器）。**换渲染内核的爆炸半径** = 重写适配器的载荷生成/解释 + 跑一次
-> `remeasure`；锚点实体、notes 表、笔记 UI、同步协议**零改动**。
+> `remeasure`；锚点实体、`notes` 表、笔记 UI、同步协议**零改动**。
 >
-> ⚠ **文字类载荷 = rangy 字符范围，不是 CFI**（逆向核实；引擎侧细节见 `KOOKIT.md` §5 #14）：
+> ⚠ **文字类载荷 = rangy 字符范围，不是 CFI**（逆向核实；引擎侧细节见 [`KOOKIT.md`](KOOKIT.md) §5 #14）：
 > vendored kookit 的 `libs/cfi` 存在但笔记链路**完全没用到**。字符偏移 = 同 edition 同解析器内的
 > 精确键（跨解析器版本可能漂移），跨引擎/跨解析器一律靠 Norm 层重建（`remeasure`）——两层结构
 > 的价值所在。PDF = 页+坐标载荷（`'kookit-pdf-rect'`，rect/stroke、quote 可空——位图载体无文本
@@ -104,7 +104,7 @@ TextAnchor {                                              // "标在哪"——�
   重锚选路，产出 strong/weak 强弱标注。先精确后模糊，别让文本比较污染精确路径。
 ③ 分层命名沿用 Norm / Fragment。
 
-**3.2 Note 实体**（形状权威 = `src/core/domain/types.ts`；表列同名 snake_case）
+**3.2 Note 实体**（形状权威 = [`src/core/domain/types.ts`](../src/core/domain/types.ts)；表列同名 snake_case）
 
 ```ts
 { kind: 'highlight'|'bookmark'|'ink' /*v3 收敛*/, anchor /*"标在哪"*/, color? /*语义名,库内无 hex*/,
@@ -126,14 +126,14 @@ NoteKind = 'highlight'（锚在正文范围）| 'bookmark'（标位置无文本�
 呈现判据 = body 是否为空，不是 kind
 ```
 
-裁决细节 = `client/docs/contracts/domain-types.md`。
+裁决细节 = [`client/docs/contracts/domain-types.md`](contracts/domain-types.md)。
 
 **3.3 墨迹（kind='ink'）**：矢量笔画（归一化点列 + 语义色 + 相对笔宽）。与划线的本质差异：
 划线锚**内容流**（重排安全、渲染由布局引擎做）；墨迹锚**几何画布**（脱离版面坐标无意义）→ 只进
 版式固定载体。真开销在渲染（连续滚动/缩放全量重绘）→ 按页懒取 + **覆盖层位图缓存** + 写入抽稀。
 
 > ⚠ **"覆盖层" = 墨迹的渲染优化手段**（矢量笔画→位图缓存层），**不是**自建一层覆盖渲染接管正文。
-> 架构分工（`RENDER_INTERFACE.md` §1/§5）：正文排版与高亮的绘制都是 **kookit 的**（高亮 = 行内
+> 架构分工（[`RENDER_INTERFACE.md`](RENDER_INTERFACE.md) §1/§5）：正文排版与高亮的绘制都是 **kookit 的**（高亮 = 行内
 > span，随重排自然对齐），我们只提供宿主容器 + 注入样式 + 调用引擎原语；**只有墨迹/几何标记
 > 将来需要我们自己画**（几何锚点，布局引擎管不了）——那时才轮到覆盖层。
 
@@ -174,18 +174,18 @@ addHolding(container_id = null) = 未指定归属 → 保持原值（不覆盖�
 | D5 | **虚拟映射**：移除 = 移除可见性；**不能在映射库"添加"书**；需要扫描/同步机制（**监听不作首选**） |
 | D6 | **登录前应用必须可用**；登录是**升级**动作，带来状态转移，须显式设计 |
 | D7 | **词汇标准化**（§6.2：收录 / 映射库 / 自建库；`mode: 'mapped' \| 'curated'`） |
-| D8 | **笔记按 edition 各一份，不做自动迁移**；跨版搬运 = **用户主动动作**（Pro 候选，见 TODO.md） |
+| D8 | **笔记按 edition 各一份，不做自动迁移**；跨版搬运 = **用户主动动作**（Pro 候选，见 [TODO.md](../../TODO.md)） |
 | D9 | **设置一律全局**（无库级设置） |
 | D10 | **不假设多用户共用一台机器** → 本地数据 = 本机默认档案；登录 = **认领**；退出登录**不删**本地数据 |
 | D11 | **本次不做完整标准化，但必须留出 Work 接口**（阅读时间按 work 汇总的前提） |
-| D12 | **Pro 版 = 功能分层、非订阅**（捐赠走爱发电；服务器开源可自建）—— 见 TODO.md「产品与发行」 |
+| D12 | **Pro 版 = 功能分层、非订阅**（捐赠走爱发电；服务器开源可自建）—— 见 [TODO.md](../../TODO.md)「产品与发行」 |
 
 **两个关键取舍的理由**（防反复，别处不再重复）：
 
 1. **笔记物理挂 edition，而不是挂 work**：锚点是在**某个 edition 里**量出来的（rangy 字符偏移），
    挂 work 会让异版锚点必然失准；挂 edition 还有个副作用好处 —— **补录 work 时零重写**
    （T3 退化成"改一列"，§6.3）。
-2. **指纹是采样哈希**（`md5-sample3-v1`：头/中/尾各 64KB + size，`src/core/adapters/identity/fingerprint.ts`），
+2. **指纹是采样哈希**（`md5-sample3-v1`：头/中/尾各 64KB + size，[`src/core/adapters/identity/fingerprint.ts`](../src/core/adapters/identity/fingerprint.ts)），
    所以它当主身份有两类误差：只改中段未触及采样窗 → **假同一**；EPUB 重存/换封面 → **假不同**。
    承认误差，不做自动合并。
 
@@ -195,7 +195,7 @@ F10 Pro 功能边界（详见 §6.4）。
 ## 5. 开放问题（待批复）
 
 > 第 6 条**已批复**（用户定）：v1 检索用 `LIKE` 子串、不引入 FTS5，范围 = 只搜笔记；
-> 契约 = `CONTRACTS.md` §4.4 + 形态 = `FEATURES.md` §12。详见该条末尾。
+> 契约 = [`CONTRACTS.md`](CONTRACTS.md) §4.4 + 形态 = [`FEATURES.md`](FEATURES.md) §12。详见该条末尾。
 
 1. ~~better-sqlite3 vs sql.js~~ **已解（spike 全绿，见 §1）**：走 better-sqlite3@12 原生 +
    prebuild（electron-v130 = Electron 33）+ asarUnpack。待办收敛为一件小事：新机器 `npm install`
@@ -238,7 +238,7 @@ F10 Pro 功能边界（详见 §6.4）。
 
 > 三问（可见性与追踪 / 笔记身份 / 阅读时间模型）**本质同一问**：「虚拟映射下什么算同一本书」。
 > **定案与理由已全部收编 §4.2（权威表 D1–D12 + 两个取舍注），本节不复述定案。**
-> 小节编号沿用 6.2/6.3/6.4 —— `src/main/store/migrate.ts` 等代码注释按节号引用此文件。
+> 小节编号沿用 6.2/6.3/6.4 —— [`src/main/store/migrate.ts`](../src/main/store/migrate.ts) 等代码注释按节号引用此文件。
 
 ### 6.1 定案要点
 
@@ -265,5 +265,5 @@ F10 Pro 功能边界（详见 §6.4）。
 
 ### 6.4 已登记、尚未拍板的项
 
-见 `TODO.md` 文首 ★ 块末尾「以后再说」：F3 孤儿 edition 清理 · F5「全部书」顶层视角 · F6「导出库包」 ·
+见 [`TODO.md`](../../TODO.md) 文首 ★ 块末尾「以后再说」：F3 孤儿 edition 清理 · F5「全部书」顶层视角 · F6「导出库包」 ·
 F10 Pro 功能边界 · F11 同库多路径的收录键 · F12 迁移器两条口径（位置 vs 时间戳优先级、同库同指纹两行静默丢一条）。

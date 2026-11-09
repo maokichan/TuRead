@@ -1,7 +1,7 @@
 # 测试与验证口径（TESTING）
 
 > **职能文档**：回归与验证的全部口径在此，不到验证环节不加载。专项细节不夺位——各专项
-> README 是其领域权威（见下声明）；本页只做总口径、判据要点与指路。
+> [README](../README.md) 是其领域权威（见下声明）；本页只做总口径、判据要点与指路。
 
 ## 环境事实（跑不起来的先看这里）
 
@@ -32,11 +32,11 @@
 | 探针 | 触发 | 断言口径 |
 |---|---|---|
 | 渲染自检 | `TUREAD_DEV_BOOK=<书>` | 导入→打开→渲染→位置；`[TUREAD-TEST-OK/FAIL]` 驱动退出码 |
-| library | `TUREAD_DEV_PROBE=library`（需 `TUREAD_DEV_BOOK`） | 多库/書箱/收录/edition 复用读模型 |
+| [library](../client/docs/features/library.md) | `TUREAD_DEV_PROBE=library`（需 `TUREAD_DEV_BOOK`） | 多库/書箱/收录/edition 复用读模型 |
 | note | `TUREAD_DEV_PROBE=note` | 选择→锚点→高亮→跳转→删除全链路 ①–⑥ |
-| link | `TUREAD_DEV_PROBE=link`（需 `TUREAD_DEV_BOOK` 指向**脚注样书**，构造器 `client/test_docs/build-footnote-repro.mjs`） | 书内链接三分支不导航 iframe：同文件锚点原地滚 / 跨文件脚注跳章定锚 / 外链发 `link-external`（Issue #2 白屏回归） |
+| link | `TUREAD_DEV_PROBE=link`（需 `TUREAD_DEV_BOOK` 指向**脚注样书**，构造器 [`client/test_docs/build-footnote-repro.mjs`](../client/test_docs/build-footnote-repro.mjs)） | 书内链接三分支不导航 iframe：同文件锚点原地滚 / 跨文件脚注跳章定锚 / 外链发 `link-external`（Issue #2 白屏回归） |
 | pdf-note | `TUREAD_DEV_PROBE=pdf-note`（需 `TUREAD_DEV_BOOK` 指向 PDF） | PDF 笔记全链路：选区→context-menu anchor→kookit-pdf-rect 载荷→回显/删除；几何框選（合成拖曳→geom-captured→落库→回显） |
-| room | `TUREAD_DEV_PROBE=room` | **唯一要真 server**：token/建房/标定/聊天/历史 16 断言；负向断言留 `net:send` 报错日志是预期的 |
+| [room](../client/docs/features/room.md) | `TUREAD_DEV_PROBE=room` | **唯一要真 server**：token/建房/标定/聊天/历史 16 断言；负向断言留 `net:send` 报错日志是预期的 |
 | paged-interact / pdfWidth | `TUREAD_DEV_PROBE=…` | 事实行探针（无产品断言，看数字） |
 | room-peer | `TUREAD_DEV_PROBE=room-peer` + `TUREAD_DEV_KEEPALIVE=1` | 双开联调驻留型（独立 member token） |
 
@@ -46,19 +46,19 @@
 ## 样张与蜂群
 
 - **样式样张**：`npm run style`（:5199）+ 无头机检 `smoke.cjs`（判据与量法坑的**权威** =
-  [style-gallery README](../client/scripts/style-gallery/README.md)；STYLE.md §8.0 是视觉验收口径）。
+                                                                   ；[STYLE.md](../client/docs/STYLE.md) §8.0 是视觉验收口径）。
   ⚠ **探针的假数字/假绿比 FAIL 更危险**：`--scale` 自检计时环境；受控组件必须自持 state；
   模板字符串不写反引号（改完 `node --check`）。
 - **蜂群**：`npm run swarm`（纯 Node，退出码即结论）——A1 全员到齐 / A2 位置不含发送者 /
   A3 聊天回执含发送者 / A4 离房不残留 / A5 无意外错误；覆盖边界 = 同步逻辑/协议/传输。
-  判据权威 = [swarm README](../client/scripts/swarm/README.md)（每房上限 20，别超）。
+  判据权威 =                                                  （每房上限 20，别超）。
 
 ## server 侧
 
-`go test ./...`（白盒在源码旁）+ `server/test/e2e/`（黑盒走 HTTP/WS）；e2e 洪泛
-`TestE2EFloodNoDrop` 本机既有不稳（非回归，登记 TODO）。
+`go test ./...`（白盒在源码旁）+ [`server/test/e2e/`](../server/test/e2e)（黑盒走 HTTP/WS）；e2e 洪泛
+`TestE2EFloodNoDrop` 本机既有不稳（非回归，登记 [TODO](../TODO.md)）。
 
 ## 发行版冒烟（打包之后才做）
 
-独立 userData 起 `release/win-unpacked/TuRead.exe` → 应落盘 `config.json` + `store.db` +
-`covers/<editionId>.jpg`。打包配方与红线 = `client/docs/BUILD.md`。
+独立 userData 起 [`release/win-unpacked/TuRead.exe`](../client/release/win-unpacked/TuRead.exe) → 应落盘 `config.json` + `store.db` +
+`covers/<editionId>.jpg`。打包配方与红线 = [`client/docs/BUILD.md`](../client/docs/BUILD.md)。

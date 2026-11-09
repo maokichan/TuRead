@@ -14,7 +14,7 @@
  */
 
 import { execSync } from 'node:child_process'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -35,23 +35,6 @@ const trackedMd = () =>
 const dirOf = (rel) => {
   const d = dirname(rel).split(sep).join('/')
   return d === '.' ? '' : d
-}
-
-/** md 链接方向的比较基准：目录目标取目录本身，文件目标取其所在目录 */
-const effectiveTargetDir = (rel) => {
-  try {
-    if (statSync(join(ROOT, rel)).isDirectory()) return rel
-  } catch {
-    // 不存在的路径按文件处理
-  }
-  return dirOf(rel)
-}
-
-const isAncestorDir = (effDir, docRel) => {
-  const d = dirOf(docRel)
-  if (effDir === d) return false // 平级
-  if (effDir === '') return d !== '' // 仓库根是所有非根目录的祖先
-  return d.startsWith(effDir + '/')
 }
 
 /** 路径形 token：含 `/` 或以 1–4 位扩展名结尾；剥尾部标点 */
@@ -130,14 +113,13 @@ const inspect = () => {
     }
     const docSet = new Set()
     edges.set(doc, docSet)
-    // md 链接：方向纪律（导航语义）
+    // md 链接：越仓检查（方向纪律已退役——引用即链接后，子页向上指认父权威是合法引用形态；
+    // 渐进披露改由「入口→子树」读序与行数门控承担，不再靠链接方向）
     for (const m of text.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) {
       const target = m[1]
       if (/^(https?:|mailto:|#)/.test(target)) continue
       const rel = relative(ROOT, resolve(ROOT, dirOf(doc), target.split('#')[0])).split(sep).join('/')
       if (rel.startsWith('..')) errors.push(`${doc}：引用越出仓库 —— ${target}`)
-      else if (isAncestorDir(effectiveTargetDir(rel), doc))
-        errors.push(`${doc}：引用方向向上（祖先）—— ${target}（只允许平级或子一级）`)
     }
     // 路径 token：引用即跟踪
     for (const m of text.matchAll(TOKEN_RE)) {

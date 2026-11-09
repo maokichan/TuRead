@@ -2,8 +2,8 @@
 
 > 归属：client 专属。定义 kookit 封装模块（`core/adapters/render/`）的对外接口面，供 UI 与应用服务层消费。
 > UI 只依赖本清单 + 领域类型，不直接 import kookit / pdfjs。
-> 随 kookit 升级需核对（`KOOKIT.md` §9 升级指南）。
-> 权威契约：`CONTRACTS.md` §4.1（端口）；本文件是实施细则 + 行为语义。
+> 随 kookit 升级需核对（[`KOOKIT.md`](KOOKIT.md) §9 升级指南）。
+> 权威契约：[`CONTRACTS.md`](CONTRACTS.md) §4.1（端口）；本文件是实施细则 + 行为语义。
 
 ---
 
@@ -35,7 +35,7 @@
 >
 > 需要自有覆盖层的情形（标记锚在几何而非内容流）：
 > - **墨迹（`kind='ink'`）**：矢量笔画脱离版面坐标无意义，必须自铺画布
->   （`DATA_MODEL.md` §3.3 的"覆盖层位图缓存"，不是替换正文渲染）。
+>   （[`DATA_MODEL.md`](DATA_MODEL.md) §3.3 的"覆盖层位图缓存"，不是替换正文渲染）。
 > - kookit 画不出的视觉（页边标记、跨页连线等）；将来换渲染内核。
 
 ---
@@ -48,12 +48,12 @@
 
 - **宿主容器**（全项目统一叫法）：阅读视图中承载 kookit 渲染 iframe 的滚动容器，
   实现 = 带 `id="page-area"` 的元素（CSS 类 `.reader-stage`）。
-  宿主容器规则（自身 `overflow-y:auto`、其内 iframe 不得 `height:100%`）见 `KOOKIT.md` 坑 §5.8；
-  「宿主页面」另指承载 kookit 的应用页面（CSP / 全局注入，见 KOOKIT 坑 §5.3/§5.5）。
+  宿主容器规则（自身 `overflow-y:auto`、其内 iframe 不得 `height:100%`）见 [`KOOKIT.md`](KOOKIT.md) 坑 §5.8；
+  「宿主页面」另指承载 kookit 的应用页面（CSP / 全局注入，见 [KOOKIT](KOOKIT.md) 坑 §5.3/§5.5）。
 - `open`：读文件 → 构建 rendition → 挂事件。可重复调用（内部先 `close`）。
   并发代次守卫：`close` / 后一次 `open` 推进代次，仍在读文件/解析的旧 `open` 作废并**抛错**
   （固定前缀 `[render] open superseded`），不静默 resolve。
-- `renderTo(element)`：渲染到宿主容器。宿主容器必须带 `id="page-area"`（kookit 硬编码契约，KOOKIT.md §5.1）。
+- `renderTo(element)`：渲染到宿主容器。宿主容器必须带 `id="page-area"`（kookit 硬编码契约，[KOOKIT.md](KOOKIT.md) §5.1）。
   - 首次定位：`options.lastLocation` 有值 → `goToPosition(JSON.stringify(lastLocation))`；
     无 → `goToChapterIndex(0)`。renderTo 只建 iframe、不渲染正文，必须补一次导航调用，否则正文空。
   - 事件：每次 `rendered`（内容加载完成）后跟随一条 `location-changed`。
@@ -80,10 +80,10 @@
 | `getPosition` | `() => BookLocation`（同步） | 当前定位 | **主定位源**（同步/持久化用它）；未 open 返回零位置 |
 | `getProgress` | `() => { totalPage; currentPage }`（同步） | 页码进度 | PDF：页码/总页数；EPUB scroll：滚动估算；未 open 返回 0/0 |
 | `getChapter` | `() => Chapter[]`（同步） | 目录（TOC） | 含 `label/href/chapterDocIndex/subitems`；`chapterDocIndex` 为目录项起始渲染节号、可缺省（无直达渲染节）；未 open 返回 `[]` |
-| `applyTheme` | `(theme: ResolvedTheme) => Promise<void>` | 向正文注入主题色 | 每次都经 `setStyle` 重建整份 reader CSS（纸内边距/`::selection` 恒注入），**深色才追加深色配色块**（浅色不注入颜色，保留书自有外观）；与 `applyTypography` 共用 `setStyle` 通道；PDF 无操作；未 open 只记录，renderTo 时生效 |
-| `applyTypography` | `(typography: ReaderTypography) => Promise<void>` | 向正文注入排版参数（字号/行距/段距） | 字段缺省 = 该项不注入；每次调用重建整份 reader style；PDF 无操作 |
+| `applyTheme` | `(theme: ResolvedTheme) => Promise<void>` | 向正文注入主题色 | 每次都经 `setStyle` 重建整份正文 CSS（纸内边距/`::selection` 恒注入），**深色才追加深色配色块**（浅色不注入颜色，保留书自有外观）；与 `applyTypography` 共用 `setStyle` 通道；PDF 无操作；未 open 只记录，renderTo 时生效 |
+| `applyTypography` | `(typography: ReaderTypography) => Promise<void>` | 向正文注入排版参数（字号/行距/段距） | 字段缺省 = 该项不注入；每次调用重建整份正文 style；PDF 无操作 |
 | `getMetadata` | `(buffer: ArrayBuffer, format: BookFormat) => Promise<BookMetadata>` | 解析元数据 | **无状态**：内部构造临时 rendition，不碰当前阅读会话；cover 为 data URL；失败抛错，兜底在调用方 |
-| `search` | `(keyword: string) => Promise<unknown>` | 引擎内搜索 | 返回形状待定（CONTRACTS §7） |
+| `search` | `(keyword: string) => Promise<unknown>` | 引擎内搜索 | 返回形状待定（[CONTRACTS](CONTRACTS.md) §7） |
 | `getSelectionAnchor` | `() => Promise<TextAnchor \| null>` | 取当前正文选区为统一锚点（`fromSelection`） | 只读、不落库；PDF = 子页选区 + 页+坐标载荷（笔记 v3 已落）；见 §5 |
 | `resolveAnchor` | `(anchor: TextAnchor, opts?: { revealNoteId?: string }) => Promise<boolean>` | 跳到锚点（`resolveToView`；笔记面板点击 / 同步回跳） | 精度 = 章级（Norm）；`revealNoteId` 给值时把该高亮元素滚进视野（弱锚点也能揭示）；未打开返回 false |
 | `remeasureAnchor` | `(anchor: TextAnchor) => Promise<TextAnchor \| null>` | 按 quote 重锚（`remeasure`） | 产出必为弱锚点（`fragment = null`）；找不到 → null；见 §5 |
@@ -105,8 +105,8 @@
 | `location-changed` | `BookLocation` | 翻页/滚动/定位后（`page-changed`/`scroll-text` 归一）；宿主容器滚动停稳 400ms 后适配器补一次 `record()` 再上报（坑 §5.10）；未打开不上报 | RoomSession 节流广播；UI 进度；store 存 lastLocation |
 | `selection-changed` | `RenderSelection \| null` = `{ anchor: TextAnchor; rect: { x, y, width, height } } \| null` | 正文选区变化；适配器在书文档上监听 mouseup/keyup（选区事件跨不过 iframe 文档边界，宿主无法自行观测）；`rect` 为适配器换算好的**宿主视口**矩形；清空/取不到 → null | UI 摆放 / 收起色板 |
 | `context-menu` | `RenderContextMenuRequest` = `{ x, y, anchor: TextAnchor \| null, noteId? }`（宿主视口坐标） | 阅读区右键（书文档 `contextmenu`，由适配器换算坐标并判定命中）；`noteId` = 右键落在已有笔记高亮上时给出其 id | UI 弹右键菜单；新建高亮/批注与编辑既有笔记的**主入口** |
-| `note-clicked` | `{ noteId: string; x?: number; y?: number }`（x/y = 高亮元素在宿主视口的**下沿左端**：`r.left` / `r.bottom`；量不到 = 缺省，调用方退安全位） | 点击某条已渲染高亮（kookit `handleNoteClick` 回调，从 `event.target.dataset.key` 取笔记 id，KOOKIT.md §5 #14） | 批注面板就近弹出 |
-| `link-external` | `{ href: string }`（已核实 `http(s)://`/`mailto:`） | 点了书内**外部链接**（适配器在书文档 capture 拦截所有 `a[href]` 点击——不拦 = 浏览器默认导航把正文 iframe 带走 = 白屏，Issue #2）。书内链接（脚注/交叉引用等，术语见 KOOKIT.md §7）不经事件：适配器自持跳转语义，原地完成 | UI `window.open` → 主进程 `shell.openExternal`（`useReaderLinks`） |
+| `note-clicked` | `{ noteId: string; x?: number; y?: number }`（x/y = 高亮元素在宿主视口的**下沿左端**：`r.left` / `r.bottom`；量不到 = 缺省，调用方退安全位） | 点击某条已渲染高亮（kookit `handleNoteClick` 回调，从 `event.target.dataset.key` 取笔记 id，[KOOKIT.md](KOOKIT.md) §5 #14） | 批注面板就近弹出 |
+| `link-external` | `{ href: string }`（已核实 `http(s)://`/`mailto:`） | 点了书内**外部链接**（适配器在书文档 capture 拦截所有 `a[href]` 点击——不拦 = 浏览器默认导航把正文 iframe 带走 = 白屏，Issue #2）。书内链接（脚注/交叉引用等，术语见 [KOOKIT.md](KOOKIT.md) §7）不经事件：适配器自持跳转语义，原地完成 | UI `window.open` → 主进程 `shell.openExternal`（`useReaderLinks`） |
 
 > 语义：`location-changed` 是同步的数据源。上层不得自行猜测位置，一律读事件/`getPosition()`；
 > 上报前用 `getOpenBook()` 校验事件属于哪本书。
@@ -115,11 +115,11 @@
 
 ## 5. 笔记/高亮（位置相关能力的完整链路）
 
-> **状态**：本节描述的链路**已落地**（文字类 + PDF 文字选区，笔记 v3）。契约 = CONTRACTS §2（Note v2 +
-> 选区级锚点层）与 §4.1（引擎侧原语）；建模 = `DATA_MODEL.md` §3.1/§3.1.1。
+> **状态**：本节描述的链路**已落地**（文字类 + PDF 文字选区，笔记 v3）。契约 = [CONTRACTS](CONTRACTS.md) §2（Note v2 +
+> 选区级锚点层）与 §4.1（引擎侧原语）；建模 = [`DATA_MODEL.md`](DATA_MODEL.md) §3.1/§3.1.1。
 > 实现 = `domain/anchor.ts`（纯函数）+ `kookitRenderAdapter.ts`（引擎侧）。逆向事实以本节为准。
 
-**为什么在单体内**（详见 `KOOKIT.md` §2 讨论）：选区落在 kookit 渲染的 iframe 内部文档，
+**为什么在单体内**（详见 [`KOOKIT.md`](KOOKIT.md) §2 讨论）：选区落在 kookit 渲染的 iframe 内部文档，
 外层无法访问内部节点；载荷是格式相关序列化（文字类→**rangy 字符偏移**、PDF→页码 + pdf 用户空间点坐标），
 只有引擎能生成与回显。封装层暴露的原语（**已实现**）：
 
@@ -141,7 +141,7 @@ UI 选段（iframe 内用户选中，适配器在书文档上听 mouseup/keyup�
 → removeNote(id) 删除
 ```
 
-**锚点三层证据**（`TextAnchor`，CONTRACTS §2）：
+**锚点三层证据**（`TextAnchor`，[CONTRACTS](CONTRACTS.md) §2）：
 - `norm.chapterIndex` —— 章（PDF = 页码）；**跨格式可比层**
 - `norm.progression` —— 章内进度（**按字符位置**算，与排版无关；改字号/行距不漂移）
 - `norm.quote.{exact,prefix,suffix}` —— 划线原文快照 + 前后文（**锚点证据，非笔记内容**）→
@@ -151,7 +151,7 @@ UI 选段（iframe 内用户选中，适配器在书文档上听 mouseup/keyup�
 
 归属在 Note 层，不在锚点上：`Note.editionId`（v0.4.0 起，原 `bookId` 口径退役）——笔记挂**内容身份**
 （edition），跨库共享、不随"移除收录"消失。笔记是**书外数据**，存 `ILibraryStore`
-（`notes` 表；v0.4.0 起全应用一个全局 `.db`，`DATA_MODEL.md` §1/§2 v3），不写进电子书文件；
+（`notes` 表；v0.4.0 起全应用一个全局 `.db`，[`DATA_MODEL.md`](DATA_MODEL.md) §1/§2 v3），不写进电子书文件；
 同步（v1 明确排除）将来在用例层加 `room.note` 信封广播。
 
 **四条实测硬约束**（`note` 探针全绿验证，改动前先读）：
@@ -169,7 +169,7 @@ UI 选段（iframe 内用户选中，适配器在书文档上听 mouseup/keyup�
 （`fragment = null`，`progression` 记 0）；多条命中按 `quoteSimilarity` 取最相似，找不到 → null。
 弱锚点仍可回跳，用户在该处重新划线即升级为强锚点。
 
-**多端一致性（PDF 场景）**：见 `KOOKIT.md` §7「OCR 多端一致性」—— OCR 文本化的 range/text 跨引擎不一致，
+**多端一致性（PDF 场景）**：见 [`KOOKIT.md`](KOOKIT.md) §7「OCR 多端一致性」—— OCR 文本化的 range/text 跨引擎不一致，
 PDF 笔记优先走坐标（页码+归一化坐标），text 兜底仅在同 OCR 引擎族内有效。
 
 ---
@@ -219,8 +219,8 @@ config.externalWorker = {
 
 ## 8. 遗留事项
 
-- 待办统一在根 `TODO.md`（涉及本模块的如：「PDF 可见窗口交互抽查」「阅读器内搜索接线」——
-  后者卡在 `search` 返回形状，CONTRACTS §7 待定）。
+- 待办统一在根 [`TODO.md`](../../TODO.md)（涉及本模块的如：「PDF 可见窗口交互抽查」「阅读器内搜索接线」——
+  后者卡在 `search` 返回形状，[CONTRACTS](CONTRACTS.md) §7 待定）。
 
 ---
 
@@ -228,7 +228,7 @@ config.externalWorker = {
 
 1. UI 只 import：`ServiceContainer.render`（或直接 `KookitRenderAdapter`）+ 领域类型。
 2. 打开：`render.open(book)` → 宿主容器 `<div id="page-area">`（**必须此 id**；宿主容器自身 `overflow-y:auto`，
-   **不得**对其内 iframe 设 `height:100%`，见 `KOOKIT.md` §5.8）→ `render.renderTo(el)`；
+   **不得**对其内 iframe 设 `height:100%`，见 [`KOOKIT.md`](KOOKIT.md) §5.8）→ `render.renderTo(el)`；
    恢复阅读位置经 `options.lastLocation` 传入。
 3. 进度/同步：订阅 `location-changed`（节流后广播）；进度条用 `getProgress()`；
    上报位置前用 `getOpenBook()` 校验事件属于哪本书。

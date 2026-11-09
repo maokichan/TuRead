@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-Issue #2 修复（`attachLinkWatch`/`activateLink`，见 `client/docs/KOOKIT.md` §7）让书内链接点击
+Issue #2 修复（`attachLinkWatch`/`activateLink`，见 [`client/docs/KOOKIT.md`](../../../../client/docs/KOOKIT.md) §7）让书内链接点击
 第一次有了行为，随之必须裁定**交互形态**：脚注类链接点击后是「跳转到注释位置」还是
 「原地弹层展示注释内容」（Koodo Reader 的形态）。同时需要澄清概念边界——脚注/尾注/注释/
 交叉引用/边注在渲染层是什么关系，「全量支持」指什么。
@@ -41,6 +41,6 @@ Issue #2 修复（`attachLinkWatch`/`activateLink`，见 `client/docs/KOOKIT.md`
 
 - 所得：一次拦截覆盖全部注类编排；无新 UI 组件；往返闭环免费成立。
 - 代价：读长注释（尾注整节）时离开原文位置，靠回跳链接/跳转历史回去——
-  跳转历史（TODO「渲染与阅读器」组）的用户价值因此上升。
+  跳转历史（[TODO](../../../../TODO.md)「渲染与阅读器」组）的用户价值因此上升。
 - 边界债：MOBI `kindle:` 脚注半支持是无条目挂账的显式边界（本笔记为账）；真要支持
   需逆向 kookit 的 `resolveHref`（foliate MOBI 侧），按需立项。

@@ -1,14 +1,14 @@
 # kookit 逆向文档（渲染引擎黑盒使用指南）
 
-> **可替换性（2026-09-12 定）**：kookit 连同 pdfjs 等被 vendor 单文件容器整体封装，对上层只暴露
+> **可替换性（ 定）**：kookit 连同 pdfjs 等被 vendor 单文件容器整体封装，对上层只暴露
 > 端口（`IRenderService` / `IMetadataExtractor`）。**更换渲染内核 = 重写适配器层**，UI/应用层/领域层零改动；
 > kookit 专属概念（config 字段、rendition 事件、`kookitmarker`）不得越过适配器上行。
 
 
-> 归属：**client 专属**。基于 `kookit/` 子模块源码逆向整理：kookit 在做什么、该怎么用、违反什么会翻车。
-> 版本基线：kookit HEAD `6e18465`；产物 `client/src/vendor/kookit.esm.js`（单文件 ESM，
-> 构建配置 `kookit/rollup.turead.config.mjs`，不受 kookit 版本控制）。
-> 验证工具：`client/scripts/kookit-harness/`（§8）。历史定位过程见 git log，本文只记**当前事实**。
+> 归属：**client 专属**。基于 [`kookit/`](../../kookit) 子模块源码逆向整理：kookit 在做什么、该怎么用、违反什么会翻车。
+> 版本基线：kookit HEAD `6e18465`；产物 [`client/src/vendor/kookit.esm.js`](../src/vendor/kookit.esm.js)（单文件 ESM，
+> 构建配置 [`kookit/rollup.turead.config.mjs`](../../kookit/rollup.turead.config.mjs)，不受 kookit 版本控制）。
+> 验证工具：[`client/scripts/kookit-harness/`](../scripts/kookit-harness)（§8）。历史定位过程见 git log，本文只记**当前事实**。
 
 ## 1. 一句话模型
 
@@ -77,7 +77,7 @@ GeneralRender (GeneralRender.ts，事件基类)
 > **术语 · 宿主容器**：阅读视图中承载 kookit 渲染 iframe 的滚动容器。本项目实现 = 带
 > 硬编码 `id="page-area"` 的元素（`#page-area`，CSS 类 `.reader-stage`）。下文坑 §5.1/§5.8/§5.9/§5.10
 > 中涉及的「宿主容器」均指它；「宿主页面」则指承载 kookit 的应用页面（CSP / 全局对象注入，见坑 §5.3/§5.5）。
-> 术语锚点见 `RENDER_INTERFACE.md` §2；位置语义概念名 =「定位系统」（`CONTRACTS.md` §2.1）。
+> 术语锚点见 [`RENDER_INTERFACE.md`](RENDER_INTERFACE.md) §2；位置语义概念名 =「定位系统」（[`CONTRACTS.md`](CONTRACTS.md) §2.1）。
 
 1. **`getDocument()` 硬编码 `document.getElementById("page-area")`**（GeneralRender.ts:582；
    PdfRender 侧同款硬编码在 `getSubDocument`/`getSubIframe`，PdfRender.ts:760/777）——
@@ -97,7 +97,7 @@ GeneralRender (GeneralRender.ts，事件基类)
    （layoutUtil.ts:101-102，仅文字类 scroll 模式），翻页是对宿主容器 `scrollTo/scrollBy` →
    **宿主容器必须 `overflow-y: auto`，且 CSS 不得对其内 iframe 设 `height: 100%`**
    （作者样式会覆盖 kookit 设的 height 属性 → iframe 压回一屏、宿主容器不可滚、翻页退化为跳章，
-   2026-09-07 定位）。single/double 分页模式走 iframe 内列滚动，无此要求。
+   定位）。single/double 分页模式走 iframe 内列滚动，无此要求。
 9. **PDF scroll 模式 kookit 不拉高外层 iframe**（`handleIframeHeight` 只被文字类调用）——
    页面容器全在外层 iframe 内，宿主容器永不可滚。适配器 `renderTo` 按 `doc.body.scrollHeight + 300` 补齐。
 10. **文字类渲染不监听宿主容器 scroll**：`next()` 是 smooth 滚动刚开始就 `record()` → 位置是旧值。
@@ -105,8 +105,8 @@ GeneralRender (GeneralRender.ts，事件基类)
     另：无头隐藏窗口（show:false）会把 smooth scroll 推迟 ~2s 才执行。
 11. **`record()` 有动画等待**：`animation !== "none" && isMobile !== "yes"` 时 sleep(1000)。
 12. **`getPosition()` 的数值字段是 string**（`tempLocation` 原样返回）——域层一律经
-    `normalizeLocation` 归一为 number（CONTRACTS §2.1）。
-13. **`rendered` 事件的载荷不可靠**（2026-09-14 逆向 + `note` 探针实测，坑「静默型」）：
+    `normalizeLocation` 归一为 number（[CONTRACTS](CONTRACTS.md) §2.1）。
+13. **`rendered` 事件的载荷不可靠**（ 逆向 + `note` 探针实测，坑「静默型」）：
     - **文字类（`GeneralRender`，EPUB/MOBI/AZW3/AZW/TXT/MD/FB2/DOCX/HTML 全走它）**：
       `this.trigger("rendered")` —— **不带任何参数**（多处，如 goToChapter 尾、next/prev 尾）；
     - **`PdfRender`**：`this.trigger("rendered", [chapterDocIndex])` —— **带章号**（PdfRender.ts:1402）。
@@ -115,7 +115,7 @@ GeneralRender (GeneralRender.ts，事件基类)
     **正确做法**：一律以**位置**为权威 —— `getPosition().chapterDocIndex`
     （kookit 多数渲染路径在 `trigger("rendered")` 前已 `record()`，tempLocation 就绪）。
     实现见 `kookitRenderAdapter.resolveRenderedChapter()`；事件真给数字（PDF）时用事件值省一次读取。
-14. **笔记/高亮契约（文字类）**（2026-09-14 逆向，`note` 探针验证）：
+14. **笔记/高亮契约（文字类）**（ 逆向，`note` 探针验证）：
     - 载荷 = **rangy 序列化字符范围**（不是 CFI）：`getHightlightCoords()` =
       `rangy.getSelection(iframe).saveCharacterRanges(doc.body)[0]`；无选区返回 `undefined`。
     - `createOneNote(item)` 读 `item.{range,color,key,notes}`，其中 **`range` 是 JSON 字符串**
@@ -139,7 +139,7 @@ GeneralRender (GeneralRender.ts，事件基类)
       `touchend` 路径走 `elementFromPoint` 命中（无选区时），不受 5px 约束。
       另：hover（mousemove）时读 `data-note-content` 弹 tooltip（`showNoteTooltip`）——
       带批注的笔记 hover 可见正文，kookit 自带能力，不需要我们实现。
-15. **`contextmenu` 在桌面端是空的**（2026-09-14 逆向）：本包内 `oncontextmenu` 只有两处赋值，
+15. **`contextmenu` 在桌面端是空的**（ 逆向）：本包内 `oncontextmenu` 只有两处赋值，
     都在 `addAndroidTouchEvent` / `addAppleTouchEvent` 里，而它们的唯一调用者 `addTouchEvent()`
     **全包只有定义、没有调用点** → 整条触屏/右键接线是**死代码**。
     **结论：桌面端书文档上没有任何 kookit 右键处理，右键槽位可自由使用**
@@ -152,12 +152,12 @@ GeneralRender (GeneralRender.ts，事件基类)
   —— `count` = 可见滚动块序号；`page` = 分页模式页码（scroll 模式为空串）；
   `percentage` = 按 chapterDoc `text.size` 加权的累计比例；`text` = 可见块前 200 字。
 - `getProgress()` = `progressInfo()`（按 readerMode 算 totalPage/currentPage）+ percentage。
-- **域层语义与比较规则以定位系统为权威**：`CONTRACTS.md` §2.1 + `core/domain/location.ts`。
+- **域层语义与比较规则以定位系统为权威**：[`CONTRACTS.md`](CONTRACTS.md) §2.1 + `core/domain/location.ts`。
   本节只描述 kookit 侧行为，消费方不要基于本节自行造比较逻辑。
 
 ## 7. 我们的使用（KookitRenderAdapter）
 
-`client/src/core/adapters/render/kookitRenderAdapter.ts`（行为细则见 `RENDER_INTERFACE.md`）：
+[`client/src/core/adapters/render/kookitRenderAdapter.ts`](../src/core/adapters/render/kookitRenderAdapter.ts)（行为细则见 [`RENDER_INTERFACE.md`](RENDER_INTERFACE.md)）：
 
 - **vendor 动态加载**：`open()` 先 `ensurePdfjs()`（`import('pdfjs-dist')` 挂全局）再
   `import('@vendor/kookit.esm')` —— 不能静态 import（坑 §5.5）。
@@ -169,8 +169,8 @@ GeneralRender (GeneralRender.ts，事件基类)
   `goToChapter(idx)` = 透传 `goToChapterDocIndex(idx)`（直接按渲染节跳转，不依赖 flatten 顺序）。
 - **宿主容器要求**（UI 侧）：带 `id="page-area"` + `overflow-y:auto` + 其内 iframe 无 `height:100%`
   （坑 §5.1/§5.8）；宿主页面 CSP 含 `blob:` + `worker-src`（坑 §5.3）。
-- **书内链接点击拦截（Issue #2，2026-11-09）**：
-  **术语 · 书内链接**（2026-11-10 用户钦定）= 书中全部 `a[href]` 点击对象——脚注/尾注/注释/
+- **书内链接点击拦截（Issue #2，）**：
+  **术语 · 书内链接**（ 用户钦定）= 书中全部 `a[href]` 点击对象——脚注/尾注/注释/
   交叉引用在机制层是同一种东西（链接 → 锚点），这些词是**书籍编排用词**，不做功能名；
   与**外部链接**（交系统浏览器）成对；与用户批注（笔记 v3）是两个通道。交互形态 = 跳转
   （弹层为可接受备选；记录见决策笔记 footnote-link-semantics）。
@@ -181,14 +181,14 @@ GeneralRender (GeneralRender.ts，事件基类)
   重挂；mousedown/click ≤5px 拖选守卫同 §5 #14 口径），自持跳转语义（`activateLink`）：
   同章 `#锚点` → `goToNode`；跨章 `file#锚点` → `resolveChapter`（⚠ 内部**不剥 `#` 片段**，
   必须传 `href.split('#')[0]`）→ `goToChapterDocIndex` → 活文档 `getElementById` → `goToNode`；
-  外链发 `link-external` 事件（RENDER_INTERFACE §4）。引擎新入黑盒声明：`resolveChapter`/
-  `goToNode`（`kookit.esm.d.ts`）。回归探针 = `TUREAD_DEV_PROBE=link`（TESTING.md）。
+  外链发 `link-external` 事件（[RENDER_INTERFACE](RENDER_INTERFACE.md) §4）。引擎新入黑盒声明：`resolveChapter`/
+  `goToNode`（`kookit.esm.d.ts`）。回归探针 = `TUREAD_DEV_PROBE=link`（[TESTING.md](../../docs/TESTING.md)）。
   PDF 位图无 HTML 链接不挂；MOBI `kindle:` 链接不在语义内（点击原地不动，不再白屏）。
 - **滚动位置补录（v0.1.7）**：`renderTo` 在宿主容器上挂 `scroll` 监听，停稳 400ms 后补一次 `record()`
   并上报 `location-changed` —— 即坑 §5.10 的消费侧义务落到了适配器里（文字类手动滚动此前不留任何位置痕迹）。
 - **PDF**：pdfjs-dist@4.8.69 注入 + `/lib/pdfjs/` 静态资源（cmaps/standard_fonts/
   text_layer_builder.css/annotation_layer_builder.css/worker）。pdfjs-dist v4.x 是匹配版本线
-  （v5+ 移除 `PDFDataRangeTransport` 等 API，勿升；kookit libs/pdf.js:402 在用）。
+  （v5+ 移除 `PDFDataRangeTransport` 等 `API`，勿升；kookit libs/pdf.js:402 在用）。
   **定位**：页码为主键（`chapterDocIndex` = 页码，每页一个 section，libs/pdf.js:495），不依赖 OCR。
   **PDF 文字选区锚点已产出（笔记 v3）**：`selectionToAnchor` 的 PDF 分支经
   `getSubDocument(page)` 取子页选区（外层文档拿不到），载荷 = `getHightlightCoords(page)`
@@ -206,7 +206,7 @@ GeneralRender (GeneralRender.ts，事件基类)
   `config.externalWorker` **覆写**为 kookit 内置 RN 桥 `getPDFOcrResult`（`PdfTextRender`
   构造函数读 `config.externalWorker`）。适配器恒传 `isConvertPDF:"no"`，
   `RenderOptions.isScannedPDF` 只透传、不影响路由。引擎实现单独立项。
-- **PDF 夜间模式 = 逐像素烘焙（2026-10-02 实现）**：PDF 页面是**位图**（pdfjs 渲染到 canvas），
+- **PDF 夜间模式 = 逐像素烘焙（ 实现）**：PDF 页面是**位图**（pdfjs 渲染到 canvas），
   改 CSS 文字颜色对它无效。旧实现 `#koodoPDFLayer` 挂 `filter: invert(1) hue-rotate(180deg)`，
   合成器**每帧**都对整张大图重做像素变换，滚动掉帧。现为 kookit
   `PdfRender.bakeDarkModePixels`：每页渲染完成时对主画布 `getImageData` → **逐像素复算原
@@ -214,11 +214,11 @@ GeneralRender (GeneralRender.ts，事件基类)
   → `putImageData`，开销变成每页一次，色彩与旧 filter 逐位一致。`#fabric` 批注画布不烘焙
   （保持批注原色）。暗色随开书配置生效，改主题仍需重开（`applyTheme` 对 PDF 是运行时 no-op）。
   扫描版 OCR 路径（`PdfTextRender`）独立渲染、无暗色处理，存量缺口另立项。
-  **深底跳过（2026-10-25）**：烘焙前 `isSelfDarkCanvas` 把画布降采样到 64×64 探测——
+  **深底跳过（）**：烘焙前 `isSelfDarkCanvas` 把画布降采样到 64×64 探测——
   不透明覆盖率（alpha 加权）> 0.6 且不透明像素均亮度 < 0.35 判定为自带深色底，跳过烘焙
   （反转会把自带深色页变成刺眼白页）。必须联合判据：文字页在透明背景下不透明像素只剩
   深色字形，只看亮度会误判。
-- **PDF 滚动模式渲染调度（kookit 侧，2026-10-02；2026-10-25 收队列）**：滚动卡手根因在
+- **PDF 滚动模式渲染调度（kookit 侧，； 收队列）**：滚动卡手根因在
   kookit `PdfRender`（旧写法滚动 debounce 100ms 即开火，当前页渲染 + 3 页预渲染并发抢主线程）。
   现为：① 滚动回调挂 `requestIdleCallback`（300ms 兜底），滚动帧先落地；
   ② **页级工作（卸载旧页 / 渲染当前页 / 预渲染）一律串行过同一条队列**（`pdfPrefetchChain` +
@@ -227,12 +227,12 @@ GeneralRender (GeneralRender.ts，事件基类)
   `reloadPdfPage`（同一队列）。消除两类竞态：同页并发渲染时后完成者 `replaceChildren`
   把已烘焙 canvas 换成未烘焙的（暗色挂白页），以及卸载与在飞渲染互踩致 `replaceChildren`
   查 `#canvas` 得 null 抛 TypeError。
-- **PDF 滚动模式页卡边缘（适配器侧，2026-10-02）**：滚动模式本就是"每页独立容器 + 2% 页间
+- **PDF 滚动模式页卡边缘（适配器侧，）**：滚动模式本就是"每页独立容器 + 2% 页间
   距"，但页边界不可见。适配器 `renderTo` 在 PDF scroll 模式往书文档注入
   `.pdf-container{border:1px solid <--page-edge>}`（`turead-pdf-page-edge`，先注入后量
-  iframe 总高）；分页模式不注入。页眉页脚**不裁**（用户 2026-10-02 定：远期再议，候选 =
+  iframe 总高）；分页模式不注入。页眉页脚**不裁**（用户 定：远期再议，候选 =
   kookit 现成 `pdfCrop` 百分比裁切 + 每书记忆）。
-- **PDF 专属纸宽档位（2026-10-02）**：`readerSettings.readerWidthPdf`（默认 1080，档位
+- **PDF 专属纸宽档位（）**：`readerSettings.readerWidthPdf`（默认 1080，档位
   840/1080/1320），仅 PDF 消费；`--read-width` 在**开书前**按本书格式切换（PDF canvas 按
   渲染时刻容器宽定像素，晚切一帧就按旧宽画了）。仍受 `--page-w` 的挂件让位 `min()` 约束
   （用户定：不动 §5.8 几何契约）。改 PDF 纸宽 = 原地重开（同文字纸宽口径）。
@@ -240,9 +240,9 @@ GeneralRender (GeneralRender.ts，事件基类)
   同步回跳与笔记回显只在同引擎族内有效。
 
 ## 8. 独立测试工具（kookit-harness）
-`client/scripts/kookit-harness/`，隔离 App 环境验证单体：
+[`client/scripts/kookit-harness/`](../scripts/kookit-harness)，隔离 App 环境验证单体：
 
-- `serve.mjs`：零依赖静态服务器（root=client/），映射 `/lib/pdfjs/` → `src/renderer/public/lib/pdfjs/`。
+- `serve.mjs`：零依赖静态服务器（root=[client/](..)），映射 `/lib/pdfjs/` → [`src/renderer/public/lib/pdfjs/`](../src/renderer/public/lib/pdfjs)。
 - `index.html`：无 CSP 测试页。先动态 import pdfjs 再 import vendor（顺序不可反）；
   `?auto=<路径>` 自动跑自检（章节列表/正文量/翻页快照断言）；`&probe=<js表达式>`
   在页面上下文执行诊断（可访问 `rendition`），结果以 `[TUREAD-TEST-PROBE]` 打印。
@@ -252,7 +252,7 @@ GeneralRender (GeneralRender.ts，事件基类)
   如《高级运动营养学》第 0 章只有一张图——innerText=0 不是 bug）② `next()` 后先 sleep(3000)
   再停稳检测 + 补 `record()`（坑 §5.10：隐藏窗口推迟 smooth scroll ~2s，停稳检测无法区分
   「未开始/已结束」）③ 位置快照（章节索引/count/percentage/scrollTop 任一变化）才算翻页生效。
-- **v0.1.8 健壮性修正（App 自检 `dev/selfCheck.ts`，2026-09-08）**：书库启动即渲染封面后，
+- **v0.1.8 健壮性修正（App 自检 `dev/selfCheck.ts`，）**：书库启动即渲染封面后，
   自检时序窗口变窄，暴露出下列假阴性/无效断言 ——
   ① `MobiRender`/AZW3 偶发晚于首帧才设 iframe 高度 → 加 `waitIframeSized()`（等高度落地，超时仍判可疑）；
   ② 书被"上次阅读位置"恢复到接近结尾处时 `next()` 本就无处可去 → 翻页断言**先 `goToChapter(0)` 再起跑**；
@@ -262,15 +262,15 @@ GeneralRender (GeneralRender.ts，事件基类)
   ⑤ **断言必须走真实用户路径**：「恢复上次阅读」要**点击侧边栏按钮** —— 按钮路径绕过
     `host.navigate`，直接调 `host.navigate('reader')` 的断言在真机失效时仍然"通过"。
 - **当前结果**：EPUB/MOBI/AZW3 全绿（App 无头自检四格式亦全绿，含 PDF）；
-  harness 侧 PDF canvas 未渲染待定位（低优先级，见 TODO）。
+  harness 侧 PDF canvas 未渲染待定位（低优先级，见 [TODO](../../TODO.md)）。
 
 ## 9. 升级指南
 
-1. `kookit/` 是 submodule（HEAD `6e18465`），**升级 = 子模块 pull 新 commit**
-   （子模块内禁止 commit/push，见其 CLAUDE.md）。
-2. 重打 vendor：`kookit/` 下 `npx rollup -c rollup.turead.config.mjs` → 覆盖
-   `client/src/vendor/kookit.esm.js`（`external: []` 全内联；外部全局依赖不因内联消失）。
-3. 改了导出/签名 → 同步 `client/src/vendor/kookit.esm.d.ts`（黑盒声明）。
+1. [`kookit/`](../../kookit) 是 submodule（HEAD `6e18465`），**升级 = 子模块 pull 新 commit**
+   （子模块内禁止 commit/push，见其上游 CLAUDE 规则）。
+2. 重打 vendor：[`kookit/`](../../kookit) 下 `npx rollup -c rollup.turead.config.mjs` → 覆盖
+   [`client/src/vendor/kookit.esm.js`](../src/vendor/kookit.esm.js)（`external: []` 全内联；外部全局依赖不因内联消失）。
+3. 改了导出/签名 → 同步 [`client/src/vendor/kookit.esm.d.ts`](../src/vendor/kookit.esm.d.ts)（黑盒声明）。
 4. 契约回归（每次升级必跑）：
    - harness 无头验证 4 格式 —— 确认"renderTo 后需导航才渲染"未变；
    - `#page-area` 硬编码未变（grep `getElementById("page-area")`）；

@@ -1,19 +1,19 @@
 # 笔记管理（notes）—— feature 参照
 
 > 本页 = 笔记域的**架构锚点与实现细节**；交互裁决（入口形态、不引入 kind、视图两态、
-> 用词纪律「移除/刪除」等）的权威在 `FEATURES.md` 笔记节；接口形状 = `contracts/ports.md`
-> 读模型 + clipboard；数据建模 = `DATA_MODEL.md` §3/§5 问题 6；视觉 = `style/components-notes.md`。
+> 用词纪律「移除/刪除」等）的权威在 [`FEATURES.md`](../FEATURES.md) 笔记节；接口形状 = [`contracts/ports.md`](../contracts/ports.md)
+> 读模型 + clipboard；数据建模 = [`DATA_MODEL.md`](../DATA_MODEL.md) §3/§5 问题 6；视觉 = [`style/components-notes.md`](../style/components-notes.md)。
 
 ## 1. 架构锚点
 
 | 层 | 归属 |
 |---|---|
-| Feature 组件 | `src/renderer/src/features/NotesFeature/index.tsx`（293 行）；域内组件 `NotesPanel`（阅读器内当书笔记页）/`NoteFlow`/`NoteCard`/`NoteComposer`/`NotesToolbar`/`ReadingStats`/`noteLayout`(+test) |
-| usecases | 无（纯查询域）——**激活时重读**保证新鲜（与阅读器不同屏，见 FEATURES §12.5） |
-| ports | `clipboard`（複製批註）、`store` 读模型（`listAllNotes`/`countAllNotes`/`readMinutesByDay`/`topReadEditions`） |
+| Feature 组件 | [`src/renderer/src/features/NotesFeature/index.tsx`](../../src/renderer/src/features/NotesFeature/index.tsx)（293 行）；域内组件 `NotesPanel`（阅读器内当书笔记页）/`NoteFlow`/`NoteCard`/`NoteComposer`/`NotesToolbar`/`ReadingStats`/`noteLayout`(+test) |
+| usecases | 无（纯查询域）——**激活时重读**保证新鲜（与阅读器不同屏，见 [FEATURES](../FEATURES.md) §12.5） |
+| [ports](../contracts/ports.md) | `clipboard`（複製批註）、`store` 读模型（`listAllNotes`/`countAllNotes`/`readMinutesByDay`/`topReadEditions`） |
 | adapters | `clipboard/ipcClipboardAdapter` |
 | domain | `core/domain/anchor.ts`（353 行：TextAnchor 归一/比较/排序——划线渲染与笔记列表共用，+301 行单测） |
-| 缝合件 | `chromeSearchBus`（笔记检索绑定注入）；`openReader(editionId, { revealNoteId })` 跳转通道（AppShell 持 `readerTarget`，递增 tick 防重复消费）；阅读时间数据由 reader 域 `readSessionRecorder` 写、本域 ReadingStats 读 |
+| 缝合件 | `chromeSearchBus`（笔记检索绑定注入）；`openReader(editionId, { revealNoteId })` 跳转通道（AppShell 持 `readerTarget`，递增 tick 防重复消费）；阅读时间数据由 [reader](reader.md) 域 `readSessionRecorder` 写、本域 ReadingStats 读 |
 
 ## 2. 实现细节
 
@@ -23,9 +23,9 @@
 也能落章级落点。文件缺失（映射库 `missing`）打开失败 → 进日志不静默。
 
 **窗口化**（近千条性能）：自实现装箱 + 按列二分；实测 1000 条时 DOM 只留 42 张卡、首屏 22ms、
-整片重渲染 21ms（实现期坑与 A/B 见 STYLE §5.10）。
+整片重渲染 21ms（实现期坑与 A/B 见 [STYLE](../STYLE.md) §5.10）。
 
-**组织模式（笔记区重构，用户 2026-11-07 定）**：视图**只留瀑布流**（網格退役——两种排列都没
+**组织模式（笔记区重构，用户 定）**：视图**只留瀑布流**（網格退役——两种排列都没
 组织起"笔记属于书"的关系）；排序**恒按最近更新倒序**（按书的组织归详情轴）；文字主次两档
 语义升级 = **主方 ≤8 行、副方 ≤2 行**（两边都有界），切换沿用视图切换的闪屏动画
 （`.view-switch` 负片三角搬家）；**鼠标侧键 = 底面同款的后退/前进**（与全局导航语义绑定）。
@@ -36,7 +36,7 @@
 
 **筛选实现口径**：筛选判据 = `body` 是否为空（不是 `kind`——两者实现里可互相矛盾，NoteFilter 契约
 注明）；排序默认 `updated` 倒序；计数显示筛选后条数；空态必须报出被隐藏的划线数。
-**作用域切换退役（用户 2026-11-07 定）**：按库分类不是笔记区的工作，库状态只在书库页；
+**作用域切换退役（用户 定）**：按库分类不是笔记区的工作，库状态只在书库页；
 笔记区列表恒全部笔记（查询不传 `libraryId`，原「當前庫 ⇄ 全部庫」按钮与 `NoteSettings.scope` 已删）。
 
 **閱讀统计段**：`readMinutesByDay`（跨书全库逐日）+ 今日/本週 + Top5（`topReadEditions` 投影倒序
