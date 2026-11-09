@@ -57,7 +57,7 @@ TuRead = **多人房间共读阅读器**：多个用户进入同一房间，共�
 | 挂载线（已退役） | 本体随批1.20 退役（目录改内嵌件）；历史几何口径（v1.9~1.13 镜像/让位）见 git 历史 | `FEATURES.md` §9；笔记：[卡片页与挂载线形态](../.agents/notes/implemented/product/2026-11-05-cardpage-and-rail.md) |
 | **右欄卡片页（批1.13–1.21，用户定）** | 两张卡并排于底板 + 纸钉死不动（位移补偿）+ 呼出制（「卡」按钮 / `` ` `` / p / c / 命令面板）+ 单槽位 + 默认收起；被否变体存档见笔记 | `STYLE.md` §5.8；`FEATURES.md` §9；笔记：[卡片页与挂载线形态](../.agents/notes/implemented/product/2026-11-05-cardpage-and-rail.md) |
 | **跟随当前位置 / 点高亮语义（v1.8/v1.9）** | 目录/笔记的当前条目随阅读位置**落在列表正中**（判据 = 纯函数 `readerFollow.ts`）；**单击正文高亮 = 看内容（左侧定位）**，改内容走右键菜单或抽屉「編輯」 | `STYLE.md` §5.8；`readerFollow.ts` |
-| **书内链接语义（Issue #2 修复批，用户定）** | **脚注/尾注/注释/交叉引用点击 = 跳转到目标**（同章锚点原地滚；跨章跳章定锚；外链系统浏览器）；渲染器不分注类——「全量支持」= 内部链接机制全量；边注无通道；MOBI `kindle:` 半支持；弹层形态为可接受备选（翻案钩子 = `epub:type="noteref"`） | `KOOKIT.md` §7；`kookitRenderAdapter.ts`；笔记：[脚注链接语义](../.agents/notes/implemented/product/2026-11-09-footnote-link-semantics.md) |
+| **书内链接语义（Issue #2 修复批，用户定）** | **脚注/尾注/注释/交叉引用点击 = 跳转到目标**（同章锚点原地滚；跨章跳章定锚；外链系统浏览器）；**统一术语 = 书内链接**（命名对象不命名行为；注类词降级为编排用词）；渲染器不分注类——「全量支持」= 链接机制全量；边注无通道；MOBI `kindle:` 半支持；弹层形态为可接受备选（翻案钩子 = `epub:type="noteref"`） | `KOOKIT.md` §7；`kookitRenderAdapter.ts`；笔记：[书内链接语义](../.agents/notes/implemented/product/2026-11-09-footnote-link-semantics.md) |
 | **批注输入栏（v1.8~v1.10）** | 底部居中、纯色带边框、**零文字**、宽 = 纸宽 × 0.9、**自增长 2→5 行**；**生命周期 = 绑在它的对象上**（选区型随选区消失；笔记型随笔记从库中消失） | `STYLE.md` §5.8；`NoteComposer.tsx` |
 | **沉浸全屏（v1.11）** | `F11` = **进入**全屏（幂等，不是切换）；退出全屏走 `Esc` 分流；**离开阅读器时若仍全屏 → 退出全屏并保持最大化**（`win:set-maximized`） | `STYLE.md` §5.8；`shared/ipc.ts` |
 | 键鼠意图层 | 键盘 = **意图**：`core/domain/input.ts` 纯函数绑定表（一键一意）+ `useKeyIntents`（ref 装载 + 常驻组件必须带 enabled 守卫） | `domain/input.ts`；`useKeyIntents.ts` |
