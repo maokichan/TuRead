@@ -22,7 +22,7 @@
 |---|---|---|
 | 排版优先（iA Writer 谱系） | "chrome 可以不存在"的哲学；用一套字体解决专注 | 无顶栏/无 logo/无菜单栏；文字按钮 |
 | 瑞士国际主义（栅格 + 层级） | 层级靠字号/字重/留白，而非颜色与装饰 | 灰阶 token + 单一 accent |
-| 中文排版规范（赫蹏 / jlreq） | 汉字与西文混排、标点、行距的**硬规则** |                                           （本基线的核心增量） |
+| 中文排版规范（赫蹏 / jlreq） | 汉字与西文混排、标点、行距的**硬规则** |[style/typography.md](style/typography.md)（本基线的核心增量） |
 
 > 现状：书库/阅读器/房间/设置的动作入口已统一为文字按钮（`.text-action`），
 > 边框只剩输入类与浮层两类例外（[style/components-shell.md](style/components-shell.md) §5.2）。
@@ -58,12 +58,12 @@
 
 | 原 § | 内容 | 子页 |
 |---|---|---|
-| §3 令牌（+ §5.6 深色专项） | 字体 / 字号白名单 / 字距行距留白圆角阴影动效 / 颜色 / 交互状态语言与层级档位 |                                    |
-| §4 中文排版 | 混排间距 / 标点禁则 / 行宽行距 / 段距与缩进 / 纵排预留 |                                            |
-| §5.1–5.5 / §5.7 外壳组件 | 文字动作与按压 / 边框底色例外清单 / 图标符号 / 已知偏差 / 负片 / 设置页 |                                                        |
-| §5.8 / §5.9 阅读器 | 沉浸态准则（纸与桌 / 卡片页 / 聊天 / 批注输入栏 / 目录内嵌） / 参数清单与预留 |                                                          |
-| §5.10 笔记管理 | 两态视图 / 列宽与装箱 / 文字层级 / 选中与右键 / 统计段 / 窗口化 |                                                        |
-| §8 验收 | 样张与机检判据 / 无头自检 / grep 断言 / 新组件检查表 |                                            |
+| §3 令牌（+ §5.6 深色专项） | 字体 / 字号白名单 / 字距行距留白圆角阴影动效 / 颜色 / 交互状态语言与层级档位 |[style/tokens.md](style/tokens.md)|
+| §4 中文排版 | 混排间距 / 标点禁则 / 行宽行距 / 段距与缩进 / 纵排预留 |[style/typography.md](style/typography.md)|
+| §5.1–5.5 / §5.7 外壳组件 | 文字动作与按压 / 边框底色例外清单 / 图标符号 / 已知偏差 / 负片 / 设置页 |[style/components-reader.md](style/components-reader.md)|
+| §5.8 / §5.9 阅读器 | 沉浸态准则（纸与桌 / 卡片页 / 聊天 / 批注输入栏 / 目录内嵌） / 参数清单与预留 |[style/components-shell.md](style/components-shell.md)|
+| §5.10 笔记管理 | 两态视图 / 列宽与装箱 / 文字层级 / 选中与右键 / 统计段 / 窗口化 |[style/components-reader.md](style/components-reader.md)|
+| §8 验收 | 样张与机检判据 / 无头自检 / grep 断言 / 新组件检查表 |[style/acceptance.md](style/acceptance.md)|
 
 > 令牌值的唯一来源 = [`client/src/renderer/src/styles.css`](../src/renderer/src/styles.css)（`:root` + 三套主题块）；
 > 语法守卫 = [`client/src/tests/styleGrammar.test.ts`](../src/tests/styleGrammar.test.ts)（圆角/动效/z 档位，进 `npm test`）。

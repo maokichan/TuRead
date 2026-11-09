@@ -3,7 +3,7 @@
 > 本页 = 文档域的**架构锚点**。**归属裁定（用户定）：文档 = 消费笔记所生产的内容，归筆记区管——
 > 不是独立功能组件，侧栏不设「文檔」**；由「筆」工具栏的「文檔」动作切入。
 > 产品定位与编辑器特性支持矩阵的权威 = 决策笔记
->                                                                                                                                              
+>[.agents/notes/implemented/arch/2026-11-06-notes-v3-data-model.md](../../../.agents/notes/implemented/arch/2026-11-06-notes-v3-data-model.md)
 > （三层模型之「文档层」）；数据形态 = 数据建模 §3.2（body = 原生 Markdown）；
 > IPC 围栏 = [`src/main/ipc.ts`](../../src/main/ipc.ts) vault 组。
 

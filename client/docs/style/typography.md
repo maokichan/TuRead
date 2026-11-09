@@ -1,9 +1,9 @@
 # §4 中文排版（基线核心增量）
 
 > 本页承载风格基线 §4。界面用中文排印，此前汉字与西文混排、标点、段距没有规则；
-> 本页把硬规则集中登记。规范依据：                                        （中文排版规范实现）、
->                                                                （日文组版要求，CJK 通用）、
->                                                                                   。
+> 本页把硬规则集中登记。规范依据：[赫蹏 heti](https://github.com/sivan/heti)（中文排版规范实现）、
+>[W3C jlreq](https://www.w3.org/TR/2012/NOTE-jlreq-20120403/ja/)（日文组版要求，CJK 通用）、
+>[Typotheque · CJK 組版](https://www.typotheque.com/articles/typesetting-cjk-text-jp)。
 
 ## §4.1 硬规则
 

@@ -14,14 +14,14 @@
 
 ## [client/docs](docs) 导航（读序按需）
 
-1.                                          —— **契约总纲**：领域类型、定位系统（§2.1）、锚点、[ports](docs/contracts/ports.md)、插件（§9）。
-2.                                            —— 数据建模（全局 SQLite 单库；schema 迁移规则）。
-3.                                                —— 六边形架构的 client 侧细化。
-4.                                    +                                                        ——
+1.[`docs/CONTRACTS.md`](docs/CONTRACTS.md)—— **契约总纲**：领域类型、定位系统（§2.1）、锚点、[ports](docs/contracts/ports.md)、插件（§9）。
+2.[`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)—— 数据建模（全局 SQLite 单库；schema 迁移规则）。
+3.[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)—— 六边形架构的 client 侧细化。
+4.[`docs/KOOKIT.md`](docs/KOOKIT.md)+[`docs/RENDER_INTERFACE.md`](docs/RENDER_INTERFACE.md)——
    渲染引擎逆向与接口（渲染链路改动**必读**）。
-5.                                        —— 交互裁决权威 + 索引（域参照页在 [`docs/features/`](docs/features)）。
-6.                                  —— **渲染层风格基线（渲染层开发先读）**。
-7.                                  —— 打包与发版（职能文档；不到打包环节不加载）。
+5.[`docs/CONTRACTS.md`](docs/CONTRACTS.md)—— 交互裁决权威 + 索引（域参照页在 [`docs/features/`](docs/features)）。
+6.[`docs/KOOKIT.md`](docs/KOOKIT.md)—— **渲染层风格基线（渲染层开发先读）**。
+7.[`docs/STYLE.md`](docs/STYLE.md)—— 打包与发版（职能文档；不到打包环节不加载）。
 
 ## 增量红线（根 `AGENTS.md` 之外）
 

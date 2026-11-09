@@ -4,9 +4,9 @@
 > （`:root` = 纯色·深，`[data-theme=light|sepia-light|sepia-dark]` 各一套；文件头 = z-index 登记表）。
 > 本页不复读代码可自证的现值（每个 `--dur/--z/--radius/--font/--ease`、颜色组的具体值），
 > 只留代码说不出的：语义、纪律、why、禁区。改值先改 `styles.css`，再回头核对本页的语义是否仍成立。
-> 同级子页：                               ·                                            ·
->                                              ·                                            ·
->                               。
+> 同级子页：[typography.md](typography.md)·[components-reader.md](components-reader.md)·
+>[components-shell.md](components-shell.md)·[components-reader.md](components-reader.md)·
+>[acceptance.md](acceptance.md)。
 
 ## §3.1 字体（全局统一）
 

@@ -1,6 +1,6 @@
 # 样式样张（style gallery）
 
-渲染层风格基线                                               的**可视化基准**：不启动 Electron，
+渲染层风格基线[`client/docs/STYLE.md`](../../docs/STYLE.md)的**可视化基准**：不启动 Electron，
 在浏览器里确认 token / 字号 / 中文排版 / 各组件状态的效果。
 
 ## 用法

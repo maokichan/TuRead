@@ -1,7 +1,7 @@
 # [client/plugins/](client/plugins) —— 插件开发工作区
 
-> 规范的权威 =                           （能力边界 / 开发标准 / 接口与宿主义务 / 生命周期，本目录自持）；
-> 接口形状 =                                                     ；视觉 =                                        §5.8。
+> 规范的权威 =[`PLUGINS.md`](PLUGINS.md)（能力边界 / 开发标准 / 接口与宿主义务 / 生命周期，本目录自持）；
+> 接口形状 =[`../src/shared/plugin.ts`](../src/shared/plugin.ts)；视觉 =[`../docs/STYLE.md`](../docs/STYLE.md)§5.8。
 > 本目录 = 工作区事实：插件源码住这里。**产品获取 = 手动安装**（官方插件经 GitHub Release 分发
 > zip、设置页「安裝插件…」导入——不随包、无自动补齐，用户 裁定）；**dev 豁免** =
 > 非打包启动时本目录被覆盖同步进 `<userData>/plugins/`（改完源码重启 dev 即生效，见 [PLUGINS.md](PLUGINS.md) §4）。

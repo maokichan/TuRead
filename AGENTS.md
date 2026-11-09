@@ -7,25 +7,25 @@
 ## 项目一句话
 
 **多人房间共读阅读器**：几个人进同一房间共读一本书，实时同步彼此的阅读位置与聊天。
-渲染/解析复用                                                 （AGPL-3.0，git submodule）；
+渲染/解析复用 [kookit](https://github.com/koodo-reader/kookit)（AGPL-3.0，git submodule）；
 同步服务器用 Go。当前 **client v0.2.8 / server v0.2.2**（本地阅读 + 房间同步端到端可用）。
 
 ## 阅读顺序（按需加载，不要一次全读）
 
-> **子树入口**：进入 [`docs/`](docs)、[`client/`](client) 或                        （仓库门控：守卫链 / 路径红线 /
+> **子树入口**：进入 [`docs/`](docs)、[`client/`](client) 或 [`ops/`](ops/AGENTS.md)（仓库门控：守卫链 / 路径红线 /
 > 跟踪声明）工作前，先读该子树自己的 `AGENTS.md`（只放该域的地图与增量红线，全局内容不重复）。
 
-1.                      —— 唯一待办清单
-2.                                          —— 产品方向（批次的先验；条款改动须用户明示）
-3.                                                        —— 契约（领域类型 / 定位系统 §2.1 / 锚点 / [ports](client/docs/contracts/ports.md) / 插件 §9）
-4.                                                          —— 数据建模（全局 SQLite 单库）
-5.                                                              —— client 六边形架构
-6.                                                  +                                                          —— 渲染引擎逆向与接口
-7.                                                      —— UI 功能组件设计（功能划分 + 交互语义）
-8.                                                —— **渲染层风格基线（渲染层开发先读）**
+1. [`TODO.md`](TODO.md) —— 唯一待办清单
+2. [`docs/DIRECTION.md`](docs/DIRECTION.md) —— 产品方向（批次的先验；条款改动须用户明示）
+3. [`client/docs/CONTRACTS.md`](client/docs/CONTRACTS.md) —— 契约（领域类型 / 定位系统 §2.1 / 锚点 / [ports](client/docs/contracts/ports.md) / 插件 §9）
+4. [`client/docs/DATA_MODEL.md`](client/docs/DATA_MODEL.md) —— 数据建模（全局 SQLite 单库）
+5. [`client/docs/ARCHITECTURE.md`](client/docs/ARCHITECTURE.md) —— client 六边形架构
+6. [`client/docs/KOOKIT.md`](client/docs/KOOKIT.md) + [`RENDER_INTERFACE.md`](client/docs/RENDER_INTERFACE.md) —— 渲染引擎逆向与接口
+7. [`client/docs/FEATURES.md`](client/docs/FEATURES.md) —— UI 功能组件设计（功能划分 + 交互语义）
+8. [`client/docs/STYLE.md`](client/docs/STYLE.md) —— **渲染层风格基线（渲染层开发先读）**
 9. `server/docs/{ARCHITECTURE,API,OPS}.md` —— server 架构 / 协议 / 运维
-10.                                      —— **测试与验证口径（职能文档）**：单测 / typecheck / 探针全集 / 沙箱事实
-11.                                                —— **打包与发版（职能文档）**：滚版本清单 / 配方 / 发行物缺件
+10. [`docs/TESTING.md`](docs/TESTING.md) —— **测试与验证口径（职能文档）**：单测 / typecheck / 探针全集 / 沙箱事实
+11. [`client/docs/BUILD.md`](client/docs/BUILD.md) —— **打包与发版（职能文档）**：滚版本清单 / 配方 / 发行物缺件
 
 ## 红线（违反 = 事故）
 
@@ -52,7 +52,7 @@ npm install
 npm run dev            # 开发模式（Electron + 热更新）
 ```
 
-### 验证工具链（口径与判据 =                                     ）
+### 验证工具链（口径与判据 = [`docs/TESTING.md`](docs/TESTING.md)）
 
 ```bash
 npm test && npm run typecheck:all  # 单测 + 四 tsconfig（preview 覆盖样张——改数据层/组件 props 后必跑）
@@ -72,10 +72,10 @@ node ops/scripts/docIndex.mjs check       # 跟踪声明与链接方向全量校
 
 探针全集（渲染自检 / `library` / note / `room` / paged-interact / pdfWidth / room-peer）的触发方式、
 判据与沙箱事实（⚠ `TUREAD_USER_DATA` 绝对路径隔离、受限沙箱必 EPERM 需放宽、dev 启动须脱沙箱
-否则损坏 GPU 路径）=                                     。样张机检 = `smoke.cjs`（判据见其 [README](README.md)）。
+否则损坏 GPU 路径）= [`docs/TESTING.md`](docs/TESTING.md)。样张机检 = `smoke.cjs`（判据见其 [README](README.md)）。
 
 ## 版本与提交
 
 - 两端版本独立滚动，tag 带端名前缀：`client-v0.2.x` / `server-v0.2.x`
-- **一次交付 = 一次提交**；版本滚动与 push 由用户定节奏；滚版本同步清单与配方 =                                               
+- **一次交付 = 一次提交**；版本滚动与 push 由用户定节奏；滚版本同步清单与配方 = [`client/docs/BUILD.md`](client/docs/BUILD.md)
 - ⚠ 未获指示的改动并入当前版本（"已提交但版本未滚"合法，此时不打 tag）

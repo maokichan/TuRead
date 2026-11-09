@@ -8,9 +8,9 @@
 
 | 脚本 | 拦什么 |
 |---|---|
-|                                    | 文末「跟踪：」声明的路径缺失 = 拦；被跟踪事实变了而声明文档没动 = 提醒不拦；引用向上（祖先）或出仓 = 拦 |
-|                                      | 绝对路径（三形态，只扫文档/配置扩展）与 [API](../server/docs/API.md) key（八类，扫全部文本源）= 拦；密钥命中不回显；`<占位符>` 豁免 |
-|                                    | Markdown 行数超上限 = 拦（入口类硬上限、其余 800；上限表见其头注，动笔前先登记） |
+|[`repoGuard`](scripts/repoGuard.mjs)| 文末「跟踪：」声明的路径缺失 = 拦；被跟踪事实变了而声明文档没动 = 提醒不拦；引用向上（祖先）或出仓 = 拦 |
+|[`docIndex`](scripts/docIndex.mjs)| 绝对路径（三形态，只扫文档/配置扩展）与 [API](../server/docs/API.md) key（八类，扫全部文本源）= 拦；密钥命中不回显；`<占位符>` 豁免 |
+|[`repoGuard`](scripts/repoGuard.mjs)| Markdown 行数超上限 = 拦（入口类硬上限、其余 800；上限表见其头注，动笔前先登记） |
 
 ## 门控链（pre-commit；clone 后一次性激活 `git config core.hooksPath .githooks`）
 

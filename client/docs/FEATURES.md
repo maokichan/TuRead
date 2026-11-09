@@ -1,7 +1,7 @@
 # UI 功能组件设计（Feature Components）—— 裁决权威与索引
 
 > **本文职责（feature-docs 机制，）**：承载**用户定案的交互语义**（裁决权威）与
-> 功能容器契约；各功能域的**架构锚点、实现细节、验证路径**在                         一页一域
+> 功能容器契约；各功能域的**架构锚点、实现细节、验证路径**在[`features/`](features)一页一域
 > （[library](features/library.md) / [reader](features/reader.md) / [notes](features/notes.md) / [room](features/room.md) / [settings](features/settings.md)）。冲突序：[CONTRACTS](CONTRACTS.md) > 本文 > [features/](features) 页 > 其余。
 > 视觉语汇一律以 **[`STYLE.md`](STYLE.md)** 为准；六边形/端口见 [`ARCHITECTURE.md`](ARCHITECTURE.md)；插件 = [`client/plugins/PLUGINS.md`](../plugins/PLUGINS.md)（插件侧子树自持）。
 > 状态：v0.1.6 落地实施（五 Feature 标准容器 + Tailwind v4 迁移完成）。
@@ -105,7 +105,7 @@ src/renderer/src/
 
 ## 8. 书库——交互裁决
 
-> 域参照（锚点/细节/验证）=                                             ；契约 [`CONTRACTS.md`](CONTRACTS.md)
+> 域参照（锚点/细节/验证）=[`features/library.md`](features/library.md)；契约 [`CONTRACTS.md`](CONTRACTS.md)
 > §4.4/§4.5；存储 = [`DATA_MODEL.md`](DATA_MODEL.md) §1/§2。
 
 - **两视图**：`列表` / `網格`（**瀑布流已并入网格**——缩略图我方生成统一 2:3）；网格不显示指纹，
@@ -127,7 +127,7 @@ src/renderer/src/
 
 ## 9. 阅读器——交互裁决
 
-> 域参照 =                                           ；视觉细则一律 [`STYLE.md`](STYLE.md) §5.8；
+> 域参照 =[`features/reader.md`](features/reader.md)；视觉细则一律 [`STYLE.md`](STYLE.md) §5.8；
 > 可调参数频率表 §5.9。**两条最容易做错的**：全屏的是"桌"不是"正文"；鼠标一动就浮出的栏同样是
 > 状态栏。
 
@@ -151,7 +151,7 @@ src/renderer/src/
 
 ## 10. 笔记管理——交互裁决
 
-> 域参照 =                                         ；契约 = [CONTRACTS](CONTRACTS.md) v0.4.1/v0.4.2；视觉 =
+> 域参照 =[`features/notes.md`](features/notes.md)；契约 = [CONTRACTS](CONTRACTS.md) v0.4.1/v0.4.2；视觉 =
 > [STYLE](STYLE.md) §5.10 立案。
 
 - **入口形态 = 左侧功能组件**（用户定；**不再考虑**其他形态）；「工具组件」不是新分类（§6.9）。
@@ -186,7 +186,7 @@ src/renderer/src/
 
 ## 12. 房间入口与副本分发——交互裁决
 
-> 域参照（补书链实现/三道闸门/状态机）=                                       ；契约 =
+> 域参照（补书链实现/三道闸门/状态机）=[`features/room.md`](features/room.md)；契约 =
 > [CONTRACTS](CONTRACTS.md) v0.4.7/§4.5/§5.1；实现主体 = `RoomFeature.joinAndResolveBook`。
 
 - **进房三路**（统一入口 `enterRoom`）：创建房间（需选中书；**建房即上传副本**，失败不挡进房）/

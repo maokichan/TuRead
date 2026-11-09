@@ -6,10 +6,10 @@
 
 ## 本目录文档（读序）
 
-1.                            —— **测试与验证口径（职能文档）**：单测/typecheck/探针/样张/蜂群/
+1. [`TESTING.md`](TESTING.md) —— **测试与验证口径（职能文档）**：单测/typecheck/探针/样张/蜂群/
    server 测试；不到验证环节不加载。
-2.                                —— 产品方向（批次的先验）。**条款改动须用户明示**。
-3.                                      —— 顶层架构（三端关系、数据流；刻意保持轻）。
+2. [`DIRECTION.md`](DIRECTION.md) —— 产品方向（批次的先验）。**条款改动须用户明示**。
+3. [`ARCHITECTURE.md`](ARCHITECTURE.md) —— 顶层架构（三端关系、数据流；刻意保持轻）。
 
 [`prototypes/`](prototypes) = 交互原型（**不进产品构建**；本地静态服务器打开，ESM 不走 file://）：
 `detail-orbit.html` = 聚焦舞台调参原型；`toc-final-home.html` = 内嵌目录 + 权重模型样张（批1.20）。

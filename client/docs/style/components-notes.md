@@ -117,7 +117,7 @@
 **结论**：**窗口化保留** —— 理由不是某个计时数字，而是"**DOM 节点与观察器数量不随规模增长**"
 （42 vs 1000，且每个卡片挂一个 `ResizeObserver`），以及有效计时下首屏 22 ms vs 519 ms。
 有效 A/B 的跑法与探针计时口径（隐藏窗口不出帧 → rAF 计时假高，探针需关后台节流 + 出帧 + 计时环境自检）
-见                                §8.0。
+见[acceptance.md](acceptance.md)§8.0。
 
 **实现（已落地）**：[`client/src/renderer/src/components/noteLayout.ts`](../../src/renderer/src/components/noteLayout.ts)（**纯函数、零 DOM、有单测**）负责
 装箱 + 按列二分；[`client/src/renderer/src/components/NoteFlow.tsx`](../../src/renderer/src/components/NoteFlow.tsx) 只渲染视口 ± overscan。

@@ -8,12 +8,12 @@
 
 | 文档 | 承载 | 不承载 |
 |---|---|---|
-| [`CONTRACTS.md`](CONTRACTS.md) | **契约总纲**：分层模型与依赖规则、定位系统语义权威（三级角色/零位置/时序约束）、锚点分层语义、待定/明确排除、子页索引 +                           四子页（[domain-types](contracts/domain-types.md) / [ports](contracts/ports.md) / [services-container](contracts/services-container.md) / plugin-contract——形状密集域，类型与接口形状指认代码路径） | 接口签名现值（= [`src/core/ports/`](../src/core/ports)、[`src/core/domain/types.ts`](../src/core/domain/types.ts)）；实现细节；UI 语义 |
+| [`CONTRACTS.md`](CONTRACTS.md) | **契约总纲**：分层模型与依赖规则、定位系统语义权威（三级角色/零位置/时序约束）、锚点分层语义、待定/明确排除、子页索引 +[`contracts/`](contracts)四子页（[domain-types](contracts/domain-types.md) / [ports](contracts/ports.md) / [services-container](contracts/services-container.md) / plugin-contract——形状密集域，类型与接口形状指认代码路径） | 接口签名现值（= [`src/core/ports/`](../src/core/ports)、[`src/core/domain/types.ts`](../src/core/domain/types.ts)）；实现细节；UI 语义 |
 | [`DATA_MODEL.md`](DATA_MODEL.md) | 数据建模：表清单与代码说不出的语义、schema 迁移规则、数据口径（DDL 权威 = `sqliteStore.ts` 的 SCHEMA_SQL） | 访问路径（归 [ARCHITECTURE](ARCHITECTURE.md)）；DDL 现值复读 |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | 六边形架构的 client 侧细化：分层、依赖方向、跨域缝合件 | 具体接口（归 [CONTRACTS](CONTRACTS.md)） |
 | [`KOOKIT.md`](KOOKIT.md) / [`RENDER_INTERFACE.md`](RENDER_INTERFACE.md) | 渲染引擎逆向事实与适配器接口 | 阅读交互语义（归 [FEATURES](FEATURES.md)） |
 | [`FEATURES.md`](FEATURES.md) | 功能组件的交互语义权威（用户定案都在这） | 接口形状（归 [CONTRACTS](CONTRACTS.md)） |
-| [`STYLE.md`](STYLE.md) | **渲染层视觉基线·主文件**：风格定性、空间语法词表（§1）、五条原则（§2）、子页索引、禁区（§6）、激进档（§7）+                   六子页（[tokens](style/tokens.md) / [typography](style/typography.md) / [components-shell](style/components-shell.md) / [components-reader](style/components-reader.md) / [components-notes](style/components-notes.md) / [acceptance](style/acceptance.md)——原 § 编号在子页内不变，token 现值唯一来源 = `styles.css`） | 功能行为；令牌现值复读 |
+| [`STYLE.md`](STYLE.md) | **渲染层视觉基线·主文件**：风格定性、空间语法词表（§1）、五条原则（§2）、子页索引、禁区（§6）、激进档（§7）+[`style/`](style)六子页（[tokens](style/tokens.md) / [typography](style/typography.md) / [components-shell](style/components-shell.md) / [components-reader](style/components-reader.md) / [components-notes](style/components-notes.md) / [acceptance](style/acceptance.md)——原 § 编号在子页内不变，token 现值唯一来源 = `styles.css`） | 功能行为；令牌现值复读 |
 | `features/*.md` | **功能域参照页**（一页一域，feature-docs 机制）：架构锚点表、实现细节、验证路径 | 交互裁决（归 [FEATURES](FEATURES.md)）；接口形状（归 [CONTRACTS](CONTRACTS.md)）；视觉（归 [STYLE](STYLE.md)） |
 | [`BUILD.md`](BUILD.md) | **职能文档**：打包/滚版本/发版口径（不到打包环节不加载） | 测试与冒烟（归 [docs/TESTING.md](../../docs/TESTING.md)）；打包红线一行（常驻根 AGENTS） |
 

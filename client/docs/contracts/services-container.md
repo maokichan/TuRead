@@ -1,7 +1,7 @@
 # 契约 · 应用服务（用例层）与服务装配
 
 > 形状权威 = `src/core/usecases/*.ts`；装配 = [`src/core/container.ts`](../../src/core/container.ts)（ServiceContainer 形状 1:1）。本页 = 编排语义与装配纪律（why、应然、边界）。
-> 事件机制与 TypedEmitter 见                     ；协议词汇 = [`src/core/domain/protocol.ts`](../../src/core/domain/protocol.ts)。
+> 事件机制与 TypedEmitter 见[ports.md](ports.md)；协议词汇 = [`src/core/domain/protocol.ts`](../../src/core/domain/protocol.ts)。
 
 ## IRoomSession —— 房间会话（同步业务逻辑本体）
 

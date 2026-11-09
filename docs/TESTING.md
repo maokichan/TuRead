@@ -46,12 +46,12 @@
 ## 样张与蜂群
 
 - **样式样张**：`npm run style`（:5199）+ 无头机检 `smoke.cjs`（判据与量法坑的**权威** =
-                                                                   ；[STYLE.md](../client/docs/STYLE.md) §8.0 是视觉验收口径）。
+[style-gallery README](../client/scripts/style-gallery/README.md)；[STYLE.md](../client/docs/STYLE.md) §8.0 是视觉验收口径）。
   ⚠ **探针的假数字/假绿比 FAIL 更危险**：`--scale` 自检计时环境；受控组件必须自持 state；
   模板字符串不写反引号（改完 `node --check`）。
 - **蜂群**：`npm run swarm`（纯 Node，退出码即结论）——A1 全员到齐 / A2 位置不含发送者 /
   A3 聊天回执含发送者 / A4 离房不残留 / A5 无意外错误；覆盖边界 = 同步逻辑/协议/传输。
-  判据权威 =                                                  （每房上限 20，别超）。
+  判据权威 =[swarm README](../client/scripts/swarm/README.md)（每房上限 20，别超）。
 
 ## server 侧
 
