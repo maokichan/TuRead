@@ -33,6 +33,7 @@ import { runPdfWidthProbe } from './dev/pdfWidthProbe'
 import { runPagedInteractProbe } from './dev/pagedInteractProbe'
 import { runLibraryProbe } from './dev/libraryProbe'
 import { runNoteProbe } from './dev/noteProbe'
+import { runLinkProbe } from './dev/linkProbe'
 import { runPdfNoteProbe } from './dev/pdfNoteProbe'
 import { runRoomProbe } from './dev/roomProbe'
 import { runRoomPeer } from './dev/roomPeer'
@@ -264,6 +265,10 @@ export default function AppShell(): React.JSX.Element {
     }
     if (window.turead.devProbe === 'note') {
       runNoteProbe(container, host)
+      return
+    }
+    if (window.turead.devProbe === 'link') {
+      runLinkProbe(container, host)
       return
     }
     if (window.turead.devProbe === 'pdf-note') {

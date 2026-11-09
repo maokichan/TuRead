@@ -52,6 +52,17 @@ export interface KookitRendition {
   goToPosition(bookLocationStr: string): Promise<void>
   goToChapterIndex(index: number): Promise<void>
   goToChapterDocIndex(index: number): Promise<void>
+  /**
+   * 反查（2026-11-09，Issue #2 修复；逆向自 `GeneralRender.resolveChapter`）：
+   * 链接 href → 目标章 `{index, href, label}`，`index` = **渲染节号**（flattenChapters 节点
+   * 自带 index，fallback 是 chapterDocList 序号），可直通 `goToChapterDocIndex`。
+   * 内部做 `#./` `/` `../` 前缀归一化后按**后缀包含**匹配；解析不到返回 undefined。
+   * ⚠ 桌面端 kookit 自己的链接处理是死代码（touchUtil 仅被从未调用的 addTouchEvent 引用，
+   *   见 KOOKIT.md §5 #15）——书内链接的点击拦截与跳转由本适配器承担。
+   */
+  resolveChapter(href: string): { index: number; href: string; label: string } | undefined
+  /** 滚动到**当前章文档内**的元素（锚点跳转的引擎入口；跨章先 goToChapterDocIndex 再调它） */
+  goToNode(node: Element): Promise<void>
   record(): Promise<void>
   removeContent(): void
   setStyle(css: string): void

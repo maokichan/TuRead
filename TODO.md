@@ -34,9 +34,13 @@
 
 - [ ] **（外部用户 bug，时效 = 这几天内，用户定——已晾三周）Issue #2「epub 注释跳转后白屏」**：
   v0.1.19 便携版报告（luotangyang，Win11 24H2）：点脚注 → **白屏**；再点目录跳转能恢复内容但**样式坏**。
-  材料 = issue 附件（《九故事》epub + 三截图）。第一步 = **v0.2.8 回放**（便携版现成，附件书导独立
-  userData 点脚注）；复现 → 修（方向：脚注跳转 = kookit 内部链接 → iframe 重载链路，「样式坏」像
-  重开后排版注入没跟上）；不复现 → issue 回评致谢 + 请升级 v0.2.8 复验后关。
+  **已定位 + 已修（2026-11-09，dev 探针绿）**：病根 = 沙箱 iframe 内无人处理链接点击（kookit 链接
+  路径是死代码，KOOKIT.md §5 #15），点击落浏览器默认导航 → 正文文档被销毁；修复 = 适配器
+  capture 拦截 + 自持跳转（`attachLinkWatch`/`activateLink`，KOOKIT.md §7；外链 `link-external`
+  → `useReaderLinks`）。「样式坏」= 打包版 file:// 错误页跨源拉不到 blob: 书内 CSS，同一病根的
+  伴生症状。回归探针 = `TUREAD_DEV_PROBE=link`（样书构造器 `client/test_docs/build-footnote-repro.mjs`）。
+  **剩**：① 打包版复验（便携版 exe + issue 附件《九故事》独立 userData 点脚注——附件 epub 在
+  issue 页，网络代理恢复后取）；② issue 回评请用户以新版复验后关。
 - [ ] **挂载线退役收尾（主体已落，批1.13~1.21；形态契约见 `STYLE.md` §5.8/§3.4）**：
   ① **真机手感复看**（四主题压印观感、半高起排与跟随居中的配合、显影半径 110px、
   「卡」按钮静息浓度是否可发现）；② 线族语汇收尾（右键菜单与批注输入栏属"动作区"不随线退场

@@ -73,6 +73,13 @@ export interface RenderServiceEvents {
    * **落库是 UI 的事**（同 selection-changed 的分工：适配器只管捕获与渲染，色板/建笔记归 UI）。
    */
   'geom-captured': (payload: { anchor: TextAnchor; kind: 'rect' | 'stroke' }) => void
+  /**
+   * 点了书内**外部链接**（Issue #2 修复，2026-11-09）——`href` 已核实为 http(s)/mailto。
+   * 打开与否是产品语义（系统浏览器），归 UI（`window.open` → 主进程 `shell.openExternal`）；
+   * 适配器只负责在书文档上拦下这次点击——不拦 = 浏览器默认行为把正文 iframe
+   * 导航走 = 正文文档被销毁（白屏，即 Issue #2）。
+   */
+  'link-external': (payload: { href: string }) => void
 }
 
 export interface IRenderService extends EventEmitter<RenderServiceEvents> {

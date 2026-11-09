@@ -43,6 +43,15 @@ export type ReadBookFile = (path: string) => Promise<ArrayBuffer>
  *  ≤ 这个量级不算真的需要滚动，滚动条宽度归零（见 refreshScrollAffordance）。 */
 const SCROLL_SLACK_PX = 320
 
+/** 锚点 id 的 %-编码兜底：EPUB 允许非 ASCII id——href 里是百分号编码，DOM id 是原文 */
+function tryDecodeId(id: string, lookup: (decoded: string) => Element | null): Element | null {
+  try {
+    return lookup(decodeURIComponent(id))
+  } catch {
+    return null
+  }
+}
+
 export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> implements IRenderService {
   private readFile: ReadBookFile
   private record: BookRecord | null = null
@@ -61,6 +70,10 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
   private renderedChapter: number | null = null
   /** 已挂选区监听的**书文档**集合（文字类一个；PDF = 已加载子页，随 rendered 对齐增减） */
   private selectionDocsBound = new Set<Document>()
+  /** 已挂链接点击监听的**书文档**（Issue #2；文字类一个，PDF 位图无 HTML 链接不挂） */
+  private linkDocsBound = new Set<Document>()
+  /** 链接点击的拖选守卫：mousedown 落点；click 与它相距 >5px = 拖选划词，不算点击（同 KOOKIT.md §5 #14 的笔记委托口径） */
+  private linkDown: { x: number; y: number } | null = null
   private scrollTimer: number | null = null
   /** 当前主题（open 时由 options.theme 写入；applyTheme 热更新；深色 → 注入正文 CSS） */
   private theme: ResolvedTheme | null = null
@@ -119,6 +132,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     rendition.on('rendered', (chapterDocIndex?: number) => {
       this.renderedChapter = this.resolveRenderedChapter(chapterDocIndex)
       this.attachSelectionWatch()
+      this.attachLinkWatch()
       // 几何捕获武装中 → 跟随全部已加载子页（新页加载后拖曳也有效）
       if (this.geom.isArmed()) this.geom.bindDocs(this.selectionDocs())
       this.emit('rendered', this.renderedChapter)
@@ -133,6 +147,7 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
     this.openToken++ // 作废仍在进行的 open
     this.clearScrollWatch()
     this.detachSelectionWatch()
+    this.detachLinkWatch()
     this.geom.disarm()
     this.noteChapters.clear()
     this.strokeNotesById.clear()
@@ -580,6 +595,100 @@ export class KookitRenderAdapter extends TypedEmitter<RenderServiceEvents> imple
       doc.removeEventListener('contextmenu', this.onContextMenu)
     }
     this.selectionDocsBound.clear()
+  }
+
+  /**
+   * 链接点击拦截（Issue #2，2026-11-09）。书内正文 iframe 带 `sandbox="allow-same-origin"`
+   * 且无人处理链接点击——kookit 的链接路径只接在触屏死代码里（KOOKIT.md §5 #15），点击
+   * 落到浏览器默认行为：iframe 被导航到「宿主页面相对路径解析出的 URL」→ 正文文档被销毁
+   * （白屏）。这里在书文档 capture 阶段拦下所有 `a[href]` 点击，内部链接走适配器跳转语义
+   * （`activateLink`），外部链接发 `link-external` 交 UI 开系统浏览器。
+   * 随 `rendered` 重挂（新文档须重新绑定）；PDF 位图无 HTML 链接，不挂。
+   */
+  private attachLinkWatch(): void {
+    if (this.record?.format === 'PDF') return
+    const doc = this.rendition?.getDocument()
+    if (!doc || this.linkDocsBound.has(doc)) return
+    this.linkDocsBound.add(doc)
+    doc.addEventListener('mousedown', this.onBookLinkDown, true)
+    doc.addEventListener('click', this.onBookLinkClick, true)
+  }
+
+  private detachLinkWatch(): void {
+    for (const doc of this.linkDocsBound) {
+      doc.removeEventListener('mousedown', this.onBookLinkDown, true)
+      doc.removeEventListener('click', this.onBookLinkClick, true)
+    }
+    this.linkDocsBound.clear()
+    this.linkDown = null
+  }
+
+  private readonly onBookLinkDown = (e: MouseEvent): void => {
+    this.linkDown = { x: e.clientX, y: e.clientY }
+  }
+
+  private readonly onBookLinkClick = (e: MouseEvent): void => {
+    const anchor = (e.target as Element | null)?.closest('[href]')
+    const href = anchor?.getAttribute('href') ?? ''
+    if (!anchor || !href) return
+    // 拖选守卫：mousedown 起点相距 >5px = 划词拖选扫过链接，不算点击
+    if (this.linkDown && Math.hypot(e.clientX - this.linkDown.x, e.clientY - this.linkDown.y) > 5) {
+      return
+    }
+    // 掐死默认导航（白屏根源）；放行冒泡同文档内无害。此后无论跳转成败都不再导航 iframe。
+    e.preventDefault()
+    e.stopPropagation()
+    void this.activateLink(href)
+  }
+
+  /**
+   * 书内链接语义（自持，不依赖 kookit 的 handleLinkJump——那是移动端弹层语义）：
+   * - `#id`（同章锚点）→ 当前文档找节点，`goToNode` 滚动；
+   * - `file#id` / `file`（跨章）→ `resolveChapter` 解析目标渲染节号，`goToChapterDocIndex`
+   *   跳章（kookit 导航 resolve 时本章 innerHTML 已写完，KOOKIT.md §2），再在**活文档**上
+   *   `getElementById` 定锚 `goToNode`；锚点缺失落在章首（诚实降级）。
+   * - `http(s)://` / `mailto:` → `link-external` 事件（开系统浏览器归 UI）。
+   * 解析不到 / 节点缺失一律原地不动（绝不把 iframe 导航走）。
+   */
+  private async activateLink(href: string): Promise<void> {
+    const rendition = this.rendition
+    if (!rendition) return
+    if (/^(https?:\/\/|mailto:)/i.test(href)) {
+      this.emit('link-external', { href })
+      return
+    }
+    try {
+      const hashAt = href.indexOf('#')
+      if (hashAt === -1) {
+        // 纯文件链接（目录式跳转）：整章跳
+        const chapter = rendition.resolveChapter(href)
+        if (chapter) await rendition.goToChapterDocIndex(chapter.index)
+        return
+      }
+      const id = hashAt === href.length - 1 ? '' : href.slice(hashAt + 1)
+      if (hashAt > 0) {
+        // 跨章链接：先跳目标章（同章已渲染则 kookit 直接返回原节，无重渲染开销）。
+        // ⚠ resolveChapter 不剥 # 片段（kookit 自己的调用点都先 split('#')[0]），必须传文件部分
+        const chapter = rendition.resolveChapter(href.slice(0, hashAt))
+        if (!chapter) return
+        if (chapter.index !== this.renderedChapter) {
+          await rendition.goToChapterDocIndex(chapter.index)
+        }
+      } else if (!id) {
+        return
+      }
+      const doc = rendition.getDocument()
+      if (!doc || !id) return
+      const node =
+        doc.getElementById(id) ??
+        (/%/.test(id)
+          ? tryDecodeId(id, (decoded) => doc.getElementById(decoded))
+          : null)
+      if (node) await rendition.goToNode(node)
+    } catch (err) {
+      // 跳转失败保持原地（正文文档完好），错误进渲染层日志便于书源问题定位
+      console.error('[render] 书内链接跳转失败:', href, err)
+    }
   }
 
   private readonly onSelectionGesture = (): void => {

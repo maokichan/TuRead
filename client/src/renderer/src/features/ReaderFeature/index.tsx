@@ -1,7 +1,8 @@
 /**
  * 功能组件：阅读器（ReaderFeature）—— 编排层。域逻辑住同目录钩子：
  *   useReaderParams（参数态与应用）· useReaderOpening（开书/关书与位置持久化）·
- *   useReaderNotes（笔记/划线全生命周期）· useRoomFollow（跟随三道闸门）·
+ *   useReaderNotes（笔记/划线全生命周期）· useReaderLinks（外链交系统浏览器）·
+ *   useRoomFollow（跟随三道闸门）·
  *   useReaderFullscreen（沉浸全屏）· readSessionRecorder（阅读时长）。
  * 打开/关闭受 readerBookId 驱动（状态继承：Library「打开阅读」或 RoomFeature 加入后 host.openReader 触发）。
  *
@@ -32,6 +33,7 @@ import { usePluginPanels } from '../../plugins/runtime'
 import { IPC } from '@shared/ipc'
 import { currentTheme, useReaderOpening } from './useReaderOpening'
 import { useReaderParams } from './useReaderParams'
+import { useReaderLinks } from './useReaderLinks'
 import { useReaderNotes } from './useReaderNotes'
 import { useRoomFollow } from './useRoomFollow'
 import { useReaderFullscreen } from './useReaderFullscreen'
@@ -69,6 +71,7 @@ export function ReaderFeature({
   const [menu, setMenu] = useState<RenderContextMenuRequest | null>(null)
 
   const { params, paramsRef, applyParams } = useReaderParams(container)
+  useReaderLinks(container)
   const { notes, notesRef, composer, setComposer, focusNote, selection, createMark, armGeom, saveAnnotation, jumpNote, editNote, removeNote } =
     useReaderNotes({ container, host, book, readerTarget, setMenu, setRightPanel, setControlsOpen })
   const { toc, opening, readerMode, setReaderMode, currentChapter } = useReaderOpening({

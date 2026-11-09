@@ -35,6 +35,7 @@
 | 渲染自检 | `TUREAD_DEV_BOOK=<书>` | 导入→打开→渲染→位置；`[TUREAD-TEST-OK/FAIL]` 驱动退出码 |
 | library | `TUREAD_DEV_PROBE=library`（需 `TUREAD_DEV_BOOK`） | 多库/書箱/收录/edition 复用读模型 |
 | note | `TUREAD_DEV_PROBE=note` | 选择→锚点→高亮→跳转→删除全链路 ①–⑥ |
+| link | `TUREAD_DEV_PROBE=link`（需 `TUREAD_DEV_BOOK` 指向**脚注样书**，构造器 `client/test_docs/build-footnote-repro.mjs`） | 书内链接三分支不导航 iframe：同文件锚点原地滚 / 跨文件脚注跳章定锚 / 外链发 `link-external`（Issue #2 白屏回归） |
 | pdf-note | `TUREAD_DEV_PROBE=pdf-note`（需 `TUREAD_DEV_BOOK` 指向 PDF） | PDF 笔记全链路：选区→context-menu anchor→kookit-pdf-rect 载荷→回显/删除；几何框選（合成拖曳→geom-captured→落库→回显） |
 | room | `TUREAD_DEV_PROBE=room` | **唯一要真 server**：token/建房/标定/聊天/历史 16 断言；负向断言留 `net:send` 报错日志是预期的 |
 | paged-interact / pdfWidth | `TUREAD_DEV_PROBE=…` | 事实行探针（无产品断言，看数字） |

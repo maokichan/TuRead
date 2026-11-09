@@ -106,6 +106,7 @@
 | `selection-changed` | `RenderSelection \| null` = `{ anchor: TextAnchor; rect: { x, y, width, height } } \| null` | 正文选区变化；适配器在书文档上监听 mouseup/keyup（选区事件跨不过 iframe 文档边界，宿主无法自行观测）；`rect` 为适配器换算好的**宿主视口**矩形；清空/取不到 → null | UI 摆放 / 收起色板 |
 | `context-menu` | `RenderContextMenuRequest` = `{ x, y, anchor: TextAnchor \| null, noteId? }`（宿主视口坐标） | 阅读区右键（书文档 `contextmenu`，由适配器换算坐标并判定命中）；`noteId` = 右键落在已有笔记高亮上时给出其 id | UI 弹右键菜单；新建高亮/批注与编辑既有笔记的**主入口** |
 | `note-clicked` | `{ noteId: string; x?: number; y?: number }`（x/y = 高亮元素在宿主视口的**下沿左端**：`r.left` / `r.bottom`；量不到 = 缺省，调用方退安全位） | 点击某条已渲染高亮（kookit `handleNoteClick` 回调，从 `event.target.dataset.key` 取笔记 id，KOOKIT.md §5 #14） | 批注面板就近弹出 |
+| `link-external` | `{ href: string }`（已核实 `http(s)://`/`mailto:`） | 点了书内**外部链接**（适配器在书文档 capture 拦截所有 `a[href]` 点击——不拦 = 浏览器默认导航把正文 iframe 带走 = 白屏，Issue #2）。内部链接（脚注/交叉引用）不经事件：适配器自持跳转语义，原地完成 | UI `window.open` → 主进程 `shell.openExternal`（`useReaderLinks`） |
 
 > 语义：`location-changed` 是同步的数据源。上层不得自行猜测位置，一律读事件/`getPosition()`；
 > 上报前用 `getOpenBook()` 校验事件属于哪本书。

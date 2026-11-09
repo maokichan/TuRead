@@ -169,6 +169,16 @@ GeneralRender (GeneralRender.ts，事件基类)
   `goToChapter(idx)` = 透传 `goToChapterDocIndex(idx)`（直接按渲染节跳转，不依赖 flatten 顺序）。
 - **宿主容器要求**（UI 侧）：带 `id="page-area"` + `overflow-y:auto` + 其内 iframe 无 `height:100%`
   （坑 §5.1/§5.8）；宿主页面 CSP 含 `blob:` + `worker-src`（坑 §5.3）。
+- **书内链接点击拦截（Issue #2，2026-11-09）**：正文 iframe（`sandbox="allow-same-origin"`，
+  无 src）里 kookit 不处理链接点击（§5 #15 死代码），点击落到浏览器默认行为——iframe 被导航到
+  「宿主页面相对路径解析出的 URL」，正文文档被销毁 = **白屏**（issue 用户报的「点脚注白屏」）。
+  适配器因此在书文档 capture 阶段拦下所有 `a[href]` 点击（`attachLinkWatch`，随 `rendered`
+  重挂；mousedown/click ≤5px 拖选守卫同 §5 #14 口径），自持跳转语义（`activateLink`）：
+  同章 `#锚点` → `goToNode`；跨章 `file#锚点` → `resolveChapter`（⚠ 内部**不剥 `#` 片段**，
+  必须传 `href.split('#')[0]`）→ `goToChapterDocIndex` → 活文档 `getElementById` → `goToNode`；
+  外链发 `link-external` 事件（RENDER_INTERFACE §4）。引擎新入黑盒声明：`resolveChapter`/
+  `goToNode`（`kookit.esm.d.ts`）。回归探针 = `TUREAD_DEV_PROBE=link`（TESTING.md）。
+  PDF 位图无 HTML 链接不挂；MOBI `kindle:` 链接不在语义内（点击原地不动，不再白屏）。
 - **滚动位置补录（v0.1.7）**：`renderTo` 在宿主容器上挂 `scroll` 监听，停稳 400ms 后补一次 `record()`
   并上报 `location-changed` —— 即坑 §5.10 的消费侧义务落到了适配器里（文字类手动滚动此前不留任何位置痕迹）。
 - **PDF**：pdfjs-dist@4.8.69 注入 + `/lib/pdfjs/` 静态资源（cmaps/standard_fonts/
