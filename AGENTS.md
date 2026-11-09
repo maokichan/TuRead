@@ -3,33 +3,29 @@
 > 本文件 = agent 的**强制注入上下文**（渐进式披露）：只放指针、红线与命令速查，
 > 细节一律指向权威文档、不在这里复读 —— 读什么、读多少，按下面的顺序按需加载。
 > 收编自原 `MAP.md`（导航地图，已移入 `trash/`）与 README 的开发者章节（收编记录随 git）。
-> **状态细节的唯一归属是 `docs/STATUS.md`**。
 
 ## 项目一句话
 
 **多人房间共读阅读器**：几个人进同一房间共读一本书，实时同步彼此的阅读位置与聊天。
 渲染/解析复用 [kookit](https://github.com/koodo-reader/kookit)（AGPL-3.0，git submodule）；
-同步服务器用 Go。当前 **client v0.2.8 / server v0.2.2**（本地阅读 + 房间同步端到端可用；
-未滚版本的批次与决策见 `docs/STATUS.md` §3/§4）。
+同步服务器用 Go。当前 **client v0.2.8 / server v0.2.2**（本地阅读 + 房间同步端到端可用）。
 
 ## 阅读顺序（按需加载，不要一次全读）
 
 > **子树入口**：进入 `docs/`、`client/` 或 [`ops/`](ops/AGENTS.md)（仓库门控：守卫链 / 路径红线 /
 > 跟踪声明）工作前，先读该子树自己的 `AGENTS.md`（只放该域的地图与增量红线，全局内容不重复）。
 
-1. [`docs/STATUS.md`](docs/STATUS.md) —— **状态与交接快照，先读这个**（§3 = 决策索引，一行一条）
-2. [`TODO.md`](TODO.md) —— 唯一待办清单
-3. [`docs/DIRECTION.md`](docs/DIRECTION.md) —— 产品方向（批次的先验；条款改动须用户明示）
-4. [`client/docs/CONTRACTS.md`](client/docs/CONTRACTS.md) —— 契约（领域类型 / 定位系统 §2.1 / 锚点 / ports / 插件 §9）
-5. [`client/docs/DATA_MODEL.md`](client/docs/DATA_MODEL.md) —— 数据建模（全局 SQLite 单库）
-6. [`client/docs/ARCHITECTURE.md`](client/docs/ARCHITECTURE.md) —— client 六边形架构
-7. [`client/docs/KOOKIT.md`](client/docs/KOOKIT.md) + [`RENDER_INTERFACE.md`](client/docs/RENDER_INTERFACE.md) —— 渲染引擎逆向与接口
-8. [`client/docs/FEATURES.md`](client/docs/FEATURES.md) —— UI 功能组件设计（功能划分 + 交互语义）
-9. [`client/docs/STYLE.md`](client/docs/STYLE.md) —— **渲染层风格基线（渲染层开发先读）**
-10. `server/docs/{ARCHITECTURE,API,OPS}.md` —— server 架构 / 协议 / 运维
-11. **网络配方**收编在 `docs/STATUS.md` §5（git 代理、GOPROXY、打包代理；原仓库外 NETWORK.md 已删）
-12. [`docs/TESTING.md`](docs/TESTING.md) —— **测试与验证口径（职能文档）**：单测 / typecheck / 探针全集 / 沙箱事实
-13. [`client/docs/BUILD.md`](client/docs/BUILD.md) —— **打包与发版（职能文档）**：滚版本清单 / 配方 / 发行物缺件
+1. [`TODO.md`](TODO.md) —— 唯一待办清单
+2. [`docs/DIRECTION.md`](docs/DIRECTION.md) —— 产品方向（批次的先验；条款改动须用户明示）
+3. [`client/docs/CONTRACTS.md`](client/docs/CONTRACTS.md) —— 契约（领域类型 / 定位系统 §2.1 / 锚点 / ports / 插件 §9）
+4. [`client/docs/DATA_MODEL.md`](client/docs/DATA_MODEL.md) —— 数据建模（全局 SQLite 单库）
+5. [`client/docs/ARCHITECTURE.md`](client/docs/ARCHITECTURE.md) —— client 六边形架构
+6. [`client/docs/KOOKIT.md`](client/docs/KOOKIT.md) + [`RENDER_INTERFACE.md`](client/docs/RENDER_INTERFACE.md) —— 渲染引擎逆向与接口
+7. [`client/docs/FEATURES.md`](client/docs/FEATURES.md) —— UI 功能组件设计（功能划分 + 交互语义）
+8. [`client/docs/STYLE.md`](client/docs/STYLE.md) —— **渲染层风格基线（渲染层开发先读）**
+9. `server/docs/{ARCHITECTURE,API,OPS}.md` —— server 架构 / 协议 / 运维
+10. [`docs/TESTING.md`](docs/TESTING.md) —— **测试与验证口径（职能文档）**：单测 / typecheck / 探针全集 / 沙箱事实
+11. [`client/docs/BUILD.md`](client/docs/BUILD.md) —— **打包与发版（职能文档）**：滚版本清单 / 配方 / 发行物缺件
 
 ## 红线（违反 = 事故）
 

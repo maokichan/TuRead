@@ -8,7 +8,7 @@
 > 没有书的成员进房自动下载入库、聊天、**跟随模式**（聊天格「跟隨」开关，成员翻页你跟到同一位置）。
 > 阅读器右欄卡片页的「聊天」只在**经房间进入的那本书**上出现。
 > **插件系统与 AI 共读已上线**：右欄卡片页多了「時鐘」與「問」（AI 共读助手，自带 key，
-> 引用原文可点跳回）。逐版本明细见 [`docs/STATUS.md`](docs/STATUS.md) §4；当前版本 **client v0.2.8 / server v0.2.2**。
+> 引用原文可点跳回）。当前版本 **client v0.2.8 / server v0.2.2**。
 
 ---
 
@@ -51,7 +51,7 @@
 cd client
 npm install
 npm run dev            # 开发模式（Electron + 热更新）
-npm run dist           # 打包免安装便携版 → client/release/（需代理，见 docs/STATUS.md §5）
+npm run dist           # 打包免安装便携版 → client/release/（需代理）
 ```
 
 - 数据都在本地：一个 SQLite 库 + 一个极小的 JSON 引导文件；封面是跟内容走的缩略图。
@@ -93,8 +93,7 @@ go build -o turead-server ./cmd/server
 **根目录 [`AGENTS.md`](AGENTS.md)** = agent 会话的强制注入上下文（渐进式披露）：
 文档阅读顺序、红线、验证工具链（`npm test` / `typecheck:all` / 样张机检 / 蜂群）、
 无头探针用法、版本与提交约定 —— 都在那里，本文不再复读。
-三句话版本：**状态与交接** → [`docs/STATUS.md`](docs/STATUS.md)；
-**待办（唯一一份）** → [`TODO.md`](TODO.md)；**渲染层开发先读** [`client/docs/STYLE.md`](client/docs/STYLE.md)。
+三句话版本：**待办（唯一一份）** → [`TODO.md`](TODO.md)；**渲染层开发先读** [`client/docs/STYLE.md`](client/docs/STYLE.md)。
 
 ---
 

@@ -4,11 +4,11 @@ Status: implemented
 
 ## Problem
 
-① 渐进披露只做进了「入口 → 子树」，没做进「职能」：打包知识散在 STATUS §2/§6/README/electron-builder
-语境四处，测试口径大面积住在 STATUS §6（约 70 行）且与根 AGENTS、client/AGENTS 近逐字三遍——
+① 渐进披露只做进了「入口 → 子树」，没做进「职能」：打包知识散在 README 与 electron-builder
+语境，测试口径与根 AGENTS、client/AGENTS 近逐字三遍——
 读交接的人被强制吞下全部测试口径。② 「引用即跟踪」（CP 原则：文档单向引用，引用即跟踪；被引
 文件一改，事实源被拉回处理）没有贯彻：docIndex 漂移检查只扫声明边，39 个入库 md 仅 10 个声明，
-CONTRACTS/FEATURES/STATUS 等全部裸奔。③ 入口层重复（R-AGENTS ↔ STATUS §6 ↔ README ↔
+CONTRACTS/FEATURES 等全部裸奔。③ 入口层重复（R-AGENTS ↔ README ↔
 client/AGENTS）在上一轮治理中未清。
 
 ## Decision
@@ -35,7 +35,7 @@ client/AGENTS）在上一轮治理中未清。
 
 ## Consequences
 
-换来的：STATUS §6 验证段退役（交接快照回归交接职能）；85 条链接边全量生效——feature 页对
+换来的：交接文档验证段退役（交接快照回归交接职能）；85 条链接边全量生效——feature 页对
 代码锚点的声明从此真正驱动漂移提醒；入口层重复线清除。付出的：文档链一处坏链即多一条提醒
 （非拦截，噪音可控）；职能文档自身成为新的对表义务面（改动打包/测试口径必须同步）；跨职能
 改动（如改 smoke 判据）要同步两处（TESTING 概要 + style-gallery/README 权威）。

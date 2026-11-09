@@ -5,7 +5,7 @@ Status: implemented
 ## Problem
 
 文档健康靠一次性人工大洗维持，机制不在持续供货；门控脚本（初版在根 `scripts/`，现 `ops/scripts/docGuard.mjs`）与业务/
-验证脚本（`client/scripts/`）边界含混；决策记录只有 STATUS §3 一行索引，被放弃的方案与理由
+验证脚本（`client/scripts/`）边界含混；被放弃的方案与理由
 无处落——换届 agent 无从防翻案。参照 Cross-Patch 项目的成套机制（其行数门控本就移植自
 本项目 docGuard），反向移植补齐。
 
@@ -16,7 +16,7 @@ Status: implemented
   docIndex（文末「跟踪：」声明；check 全量 / hook 拦截 + 漂移提醒）。
 - `.githooks/pre-commit` 三连：docIndex hook → repoGuard → docGuard（set -e，任一失败即中止）。
 - 新建 `.agents/notes/` 决策日志：三态生命周期、路径即元数据、Alternatives considered 强制；
-  类别闭集 = process / arch / product。STATUS §3 保持索引地位，有笔记的行在权威列附链接。
+  类别闭集 = process / arch / product。
 - `client/scripts/` 现有业务与验证脚本标记「不信任·待收编」，收编通道见其 README；逐个处理
   另行进行，不在本决策内。
 
@@ -27,8 +27,8 @@ Status: implemented
 - **Probe/回归族（ui-shot、smoke、swarm）一并迁入 ops/**：输在——它们依赖 client 的
   node_modules（Electron），搬进治理目录会让 ops 反向依赖业务安装；且「验证应用」与
   「守护仓库」职能不同（用户裁定：ops 只放门控三件套，业务脚本标记不信任待逐个处理）。
-- **不建独立 notes 目录、升级 STATUS §3 承担放弃项**：输在——三态生命周期与 Alternatives
-  强制需要目录结构与格式骨架承载；§3 是索引不是论证层，塞进 §3 破坏「一行一条」且造双重记账。
+- **不建独立 notes 目录、升级既有决策索引承担放弃项**：输在——三态生命周期与 Alternatives
+  强制需要目录结构与格式骨架承载；索引不是论证层，塞进索引破坏「一行一条」且造双重记账。
 - **AGENT-CONCURRENCY.md 迁入 docs/**：输在——它归属用户的符号锁长期项目线索，TuRead 只留
   实验结论；docs/AGENTS.md 的引用已移除，不再跟踪（用户裁定）。
 

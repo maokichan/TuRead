@@ -29,5 +29,5 @@
   域实现细节 → `features/` 对应页；视觉 → `STYLE.md`（红线/原则/禁区）+ `style/` 对应细则子页；
   数据 → `DATA_MODEL`。路径提及即 docIndex 跟踪边——代码变更会自动触发漂移提醒拉回对表。
 - **决策记录的归属**：用户定案的**结论**进对应文档正文；定案过程与被放弃项 =
-  `.agents/notes/`（notes 机制见其 README）；过程与讨论在 git 与 STATUS。
+  `.agents/notes/`（notes 机制见其 README）；过程与讨论在 git。
 - 新文档先来 `ops/scripts/docGuard.mjs` 上限表登记；删除的文档移入 `trash/`。

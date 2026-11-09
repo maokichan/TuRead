@@ -1,7 +1,7 @@
 # 产品方向（研读仪器）
 
 > 本文件记**产品级方向陈述**（用户定）：它们是后续批次的先验；条款改动 = 方向改动，须用户明示。
-> 现状与交接看 [`STATUS.md`](STATUS.md)，视觉基线看 [`../client/docs/STYLE.md`](../client/docs/STYLE.md)——
+> 视觉基线看 [`../client/docs/STYLE.md`](../client/docs/STYLE.md)——
 > 本文只立"往哪去"，不承载实施细节。
 
 ## 1. 强交互研读（模型驱动的阅读假设）

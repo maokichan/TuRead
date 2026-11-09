@@ -4,8 +4,8 @@ Status: implemented
 
 ## Problem
 
-生产环境完全没有日志：无 logger 模块、无文件写入；Windows 下 Electron 的 stdout 抓不到
-（STATUS §5 有案），打包产物崩溃/异常**无声消失**——主窗口没有 render-process-gone 处理、
+生产环境完全没有日志：无 logger 模块、无文件写入；Windows 下 Electron 的 stdout 抓不到，
+打包产物崩溃/异常**无声消失**——主窗口没有 render-process-gone 处理、
 主进程没有 uncaughtException 兜底。测试侧 15+ 种产物散落各处（`.probe-run*.log`、根/client
 `*.log`、`server/server*.log`、kookit npm 日志、smoke 报告落 %TEMP%），无任何清理机制。
 renderer 的 console-message 转发只存在于 dev 探针分支。
@@ -32,7 +32,7 @@ renderer 的 console-message 转发只存在于 dev 探针分支。
   能力本决策用 ~60 行纯函数自持，不值得为此破例。
 - **日志进 SQLite**：输在——诊断数据混进用户数据，膨胀库体积且崩溃时可能与业务库同死。
 - **维持只 console**：输在——打包产物不可诊断是现状最大缺口，stdout 在 Windows 抓不到是
-  既有事实（STATUS §5）；「测试日志统一标准」的原始诉求也无法由 console 满足。
+  既有事实；「测试日志统一标准」的原始诉求也无法由 console 满足。
 
 ## Consequences
 

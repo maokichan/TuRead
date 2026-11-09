@@ -234,7 +234,7 @@ export function runDevSelfCheck(container: ServiceContainer, host: FeatureHost):
          * ⚠ 内容量一律用 **textContent**（上文的 contentLen），不用 innerText：
          *   innerText 是"排版后可见文本"，依赖布局与时机 —— 同一本书、同一模式、同一章，
          *   两次运行实测给过 70 与 109 两个值（2026-09-11），拿它当"正文长度"会自己造出
-         *   假异常（2026-09-11 销案，见 `STYLE.md` §5.6 与 `docs/STATUS.md` v0.1.12：
+         *   假异常（2026-09-11 销案，见 `STYLE.md` §5.6：
          *   "深色正文长度偏低"就是这样来的 —— 浅色 70 / 深色 109，
          *   而 `bodyHtml` 两侧同为 704 = 内容其实一模一样）。
          *   innerText 仅作参考值随行输出。

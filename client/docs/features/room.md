@@ -3,7 +3,7 @@
 > 本页 = 房间域的**架构锚点与实现细节**；进房三路/补书链/跟随模式的交互语义权威在
 > `FEATURES.md` 房间节；接口形状 = `contracts/ports.md`（连接粒度 = 房间）+
 > `contracts/services-container.md`（joinRoom 编排）+ `server/docs/API.md`；服务器运维 =
-> `server/docs/OPS.md`；连接模型裁定见 STATUS §3。
+> `server/docs/OPS.md`。
 
 ## 1. 架构锚点
 

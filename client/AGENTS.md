@@ -1,7 +1,7 @@
 # client/ —— agent 子树入口
 
 > client = Electron 33（**Chromium 130**）+ React + Tailwind v4 + SQLite，六边形架构。
-> 全局红线、验证工具链、命令速查在仓库根 `AGENTS.md`（不在此复读）；状态先读 `docs/STATUS.md`。
+> 全局红线、验证工具链、命令速查在仓库根 `AGENTS.md`（不在此复读）。
 > 本文件只放 client 域的地图、增量红线与文档导航。
 
 ## 目录地图

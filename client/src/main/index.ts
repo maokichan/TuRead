@@ -228,7 +228,7 @@ function createWindow(): void {
 
 void app.whenReady().then(async () => {
   // 统一日志（决策笔记 2026-11-05-unified-logging）：先于一切业务装配。
-  // Windows 下 Electron 的 stdout 抓不到（STATUS §5），文件是生产可诊断的唯一通道。
+  // Windows 下 Electron 的 stdout 抓不到，文件是生产可诊断的唯一通道。
   initFileLog()
   process.on('unhandledRejection', (reason) => {
     fileLog({ t: Date.now(), lvl: 'error', scope: 'main', msg: '未处理的 Promise 拒绝', err: String(reason) })

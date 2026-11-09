@@ -15,7 +15,7 @@
 ## 打包配方（实测在案）
 
 - **代理**：electron-builder 下载二进制走本地代理 `127.0.0.1:7897`（没开会连不上，报
-  "Failed to connect … 127.0.0.1" 即此因；配方全文在 `STATUS.md` §5 网络配方）。
+  "Failed to connect … 127.0.0.1" 即此因）。
 - **electronDist 指向本地** `node_modules/electron/dist`——GitHub 直下会静默挂起（实测规避，
   配置在案）。
 - `npmRebuild: false` + better-sqlite3 `asarUnpack`：预编译 Electron ABI 直接用（better-sqlite3@12
@@ -27,18 +27,16 @@
 
 ## 滚版本（发版节奏：功能确定后即滚，不长期堆改动）
 
-滚版本时同步五处 + 打 tag：
+滚版本时同步四处 + 打 tag：
 
 1. `client/package.json` + `package-lock.json`（server 侧同理其 go.mod 语境）
-2. `docs/STATUS.md` §4 版本历史
-3. `README.md`（版本号与产物状态）
-4. annotated tag：**两端独立滚动，带端名前缀** `client-v0.2.x` / `server-v0.2.x`
-5. **GitHub Release（用户 2026-11-07 定：每版本都发）**：以该 tag 发 release，asset = 本机打包的
-   便携版 exe，说明 = STATUS §4 该版要点；**官方插件有版本变动时，同 release 附插件 zip**
-   （用户 2026-11-10 裁定：插件分发 = GitHub Release，手动安装）；API 走代理（节奏 = 随 push 由用户定）。
+2. `README.md`（版本号与产物状态）
+3. annotated tag：**两端独立滚动，带端名前缀** `client-v0.2.x` / `server-v0.2.x`
+4. **GitHub Release（用户定：每版本都发）**：以该 tag 发 release，asset = 本机打包的
+   便携版 exe，说明 = 该版 tag 消息要点；**官方插件有版本变动时，同 release 附插件 zip**
+   （用户裁定：插件分发 = GitHub Release，手动安装）；API 走代理（节奏 = 随 push 由用户定）。
 
-⚠ 未获指示的改动**并入当前版本**（「已提交但版本未滚」合法，此时不打 tag，STATUS §6 的
-「未滚版本的增量」段承载）；tag 与 push 由用户定节奏。**产物（便携版 exe）不进仓库**
+⚠ 未获指示的改动**并入当前版本**（「已提交但版本未滚」合法，此时不打 tag）；tag 与 push 由用户定节奏。**产物（便携版 exe）不进仓库**
 （对外列管于 GitHub Release asset）。
 
 ## 许可文件随发行物（已补）
