@@ -15,7 +15,7 @@
   store.db               ← 一切数据（§2）；路径由引导文件指向，可配置
                          ⚠ **不能叫 `turead.db`**（旧版默认库文件名）——同名会静默跳过建表，见 §2
   covers/<editionId>.jpg ← 封面缩略图（随库目录；携带 = 拷目录）
-  plugins/<id>/          ← 官方插件（运行时文件夹；契约 = CONTRACTS.md §9）
+  plugins/<id>/          ← 官方插件（运行时文件夹；契约 = client/plugins/PLUGINS.md）
   config.json            ← 引导文件（极小）：{ version, dbPath, 窗口状态 }
 ```
 

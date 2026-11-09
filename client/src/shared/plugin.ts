@@ -1,6 +1,6 @@
 /**
- * 插件 manifest 契约与校验（纯函数，零依赖）—— 契约 = `client/docs/CONTRACTS.md` §9。
- * 主进程（扫描运行时插件文件夹）与渲染层（展示）共用同一份判据；坏 manifest 一律拒绝并进日志，
+ * 插件 manifest 契约与校验（纯函数，零依赖）—— 契约 = `client/plugins/PLUGINS.md`。
+ * 主进程（扫描/安装运行时插件）与渲染层（展示）共用同一份判据；坏 manifest 一律拒绝并进日志，
  * **不静默**（缺失要可见）。
  */
 
@@ -9,7 +9,7 @@ export interface PluginManifest {
   id: string
   /** 展示名 */
   name: string
-  /** semver 形态字符串（v1 种子策略 = "缺则种"，版本比较后置） */
+  /** semver 形态字符串（安装管道按 comparePluginVersions 做防降级比较） */
   version: string
   /** 入口 ESM 相对路径（必须在插件目录内；禁止绝对路径与 `..`） */
   entry: string
@@ -103,4 +103,22 @@ export function validatePluginManifest(raw: unknown): PluginManifestResult {
     ...(str(description) ? { description: description.slice(0, 200) } : {})
   }
   return { ok: true, manifest }
+}
+
+/**
+ * 插件版本比较（semver 形态字符串的宽松数值序）：逐段数值比、段数不足按 0 补、非数字段按 0
+ * （manifest 校验只查非空不查 semver 合法，这里必须容错）。返回 -1/0/1 = a 先于/等于/后于 b。
+ * 安装管道的防降级判据（PLUGINS.md §4）——安全判据收纯函数，不散落在 handler 里。
+ */
+export function comparePluginVersions(a: string, b: string): -1 | 0 | 1 {
+  const pa = a.split('.').map((s) => Number.parseInt(s, 10) || 0)
+  const pb = b.split('.').map((s) => Number.parseInt(s, 10) || 0)
+  const len = Math.max(pa.length, pb.length)
+  for (let i = 0; i < len; i++) {
+    const x = pa[i] ?? 0
+    const y = pb[i] ?? 0
+    if (x < y) return -1
+    if (x > y) return 1
+  }
+  return 0
 }

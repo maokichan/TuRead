@@ -155,7 +155,7 @@ export function ReaderFeature({
   )
 
   /**
-   * 插件面板格（契约 = CONTRACTS §9）：插件运行时注册的右段格，
+   * 插件面板格（契约 = client/plugins/PLUGINS.md）：插件运行时注册的右段格，
    * 渲染权在宿主（ReaderRail 给外壳，插件拿内容区元素）。
    * ⚠ 指向失效守卫：插件被禁用/重载后 `rightPanel` 可能指向不存在的格 → 回落「參數」（不能空白）。
    */

@@ -12,8 +12,8 @@
  * - **布尔语汇 = 關｜開 文字选项**（app 自己 on/off 语汇的第一次定义；原生 checkbox 全灭）。
  * - **快捷键 = 只读清单**：直接渲染意图绑定表（`core/domain/input.ts` 的纯数据），
  *   空键位标「未設」——改键/捕获/冲突检测随配键体系批（先做交互模式目标形态对齐，见 TODO）。
- * - **插件 = 注册表**：每插件一行（名称 + 啟｜停 + 版本），**配置住使用处**
- *   （卡片页面板），设置页不收配置项——信息过载被"一行一生死"的渲染策略挡住；
+ * - **插件 = 注册表 + 获取动作**：组头「安裝插件…」（zip 导入，对话框收在主进程）；每插件
+ *   一行（名称 + 啟｜停 + 卸載 + 版本），**配置住使用处**（卡片页面板），设置页不收配置项——
  *   "插件声明 config schema、宿主两处渲染"（問 的 key 这类读书前配置）= 贡献点 v2，远期。
  * - 診斷日誌整节移除（logStore 管道保留给探针）。
  *
@@ -33,7 +33,7 @@ import {
 } from '@core/domain/theme'
 import type { FeatureProps } from '../types'
 import { applyDataThemeResolved } from '../../components/themeTransition'
-import { getPluginState, setPluginEnabled, subscribePlugins, uninstallPlugin } from '../../plugins/runtime'
+import { getPluginState, installPlugin, setPluginEnabled, subscribePlugins, uninstallPlugin } from '../../plugins/runtime'
 
 const TONES: { value: ThemeTone; label: string }[] = [
   { value: 'solid', label: '純色' },
@@ -111,8 +111,9 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
   const [themePref, setThemePref] = useState<ThemePreference>({ tone: 'solid', mode: 'system' })
   const [importRecursive, setImportRecursive] = useState(false)
   const [readerFullscreen, setReaderFullscreen] = useState(false)
-  // 插件（v1.13，契约 = CONTRACTS §9）：订阅插件运行时的"已安装清单"（含被禁用的）
+  // 插件（v1.13，契约 = client/plugins/PLUGINS.md）：订阅插件运行时的"已安装清单"（含被禁用的）
   const plugins = useSyncExternalStore(subscribePlugins, getPluginState)
+  const [pluginActionError, setPluginActionError] = useState<string | null>(null)
   const themePrefRef = useRef<ThemePreference>({ tone: 'solid', mode: 'system' })
 
   // 启动载入已持久化设置；跟随系统时监听系统深浅色切换
@@ -222,13 +223,30 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
       </Group>
 
       <Group title="插件">
+        {/* 安裝（生命周期，PLUGINS.md §4）：唯一获取管道 = zip 导入，对话框收在主进程；错误就地可见 */}
+        <div className="flex items-center gap-4">
+          <button
+            className="text-action"
+            onClick={() => {
+              void installPlugin(container).then((r) => {
+                if (r.error) setPluginActionError(r.error)
+                else if (!r.cancelled) setPluginActionError(null)
+              })
+            }}
+          >
+            安裝插件…
+          </button>
+          {pluginActionError ? (
+            <span className="text-[12.5px] text-[var(--muted)]">安裝失敗：{pluginActionError}</span>
+          ) : null}
+        </div>
         {plugins.installed.length === 0 ? (
           <p className="m-0 text-[13px] text-[var(--muted)]">
             {plugins.error
               ? `插件加載失敗：${plugins.error}`
               : plugins.status === 'loading'
                 ? '（正在載入插件…）'
-                : '（沒有已安裝的插件）'}
+                : '（尚未安裝插件——官方插件到 GitHub Release 下載 zip，用「安裝插件…」導入）'}
           </p>
         ) : (
           <div className="flex flex-col gap-3">
@@ -244,14 +262,12 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
                   value={p.enabled}
                   onPick={() => void setPluginEnabled(container, p.id, !p.enabled)}
                 />
-                {/* 卸載（PLUGINS.md §3）：无图标、无二次确认——启停可逆兜底风险（不想要可停用，
-                    不必卸）；种子件同样可卸（卸载后 opt-out 清单防「缺则种」复活） */}
+                {/* 卸載（PLUGINS.md §3）：无图标、无二次确认——启停可逆兜底（不想要可停用，不必卸） */}
                 <button className="text-action text-action--danger" onClick={() => void uninstallPlugin(container, p.id)}>
                   卸載
                 </button>
                 <span className="text-[12.5px] text-[var(--muted)]">
                   v{p.version}
-                  {p.seeded ? '（官方隨附）' : ''}
                   {p.error ? `（加載失敗：${p.error}）` : ''}
                 </span>
               </div>

@@ -106,12 +106,15 @@ export const IPC = {
   winSetMaximized: 'win:set-maximized',
   // 剪贴板写入（v0.4.2）：笔记管理的「複製批註」—— 走 preload 的**具名方法**，不用泛化 invoke
   clipboardWriteText: 'clipboard:write-text',
-  // ————— 插件（v1 官方专用；契约 = `client/docs/CONTRACTS.md` §9）—————
+  // ————— 插件（契约 = `client/plugins/PLUGINS.md`）—————
   // 渲染层**只发 id 不传路径**：main 扫描运行时插件文件夹，入口路径按它自己的扫描结果解析
   // （信任边界收在主进程，实现 = src/main/plugins.ts）
   pluginsList: 'plugins:list',
   pluginsReadEntry: 'plugins:read-entry',
-  // 卸载（生命周期，PLUGINS.md §3）：main 只删文件（官方种子件拒删 + 目录围栏）；settings
+  // 安装（生命周期，PLUGINS.md §4）：唯一产品获取管道 = 本地 zip 导入；对话框收在主进程，
+  // 渲染层零参数零路径（取消回 null，成功回安装后的清单项）
+  pluginsInstallZip: 'plugins:install-zip',
+  // 卸载（生命周期，PLUGINS.md §3）：main 只删文件（目录围栏）；settings
   // 数据清理由渲染层接手（store 无删键原语，写 null 清值——偏差如实记录在 PLUGINS.md §3）
   pluginsUninstall: 'plugins:uninstall',
   // 插件通用能力（契约 v1.1；非 AI 专属——联网插件都走这两件）：

@@ -265,14 +265,14 @@ void app.whenReady().then(async () => {
   const libraries = new LibraryManager(app.getPath('userData'))
   await libraries.init()
 
-  // 官方插件（v1，契约 = CONTRACTS §9）：先把首发插件种进运行时目录（缺则种），
-  // 再注册 plugins:* 通道。来源：dev = 仓库 client/plugins/；打包 = resources/plugins（extraResources）
-  const plugins = new PluginManager(join(app.getPath('userData'), 'plugins'), [
-    process.env['ELECTRON_RENDERER_URL']
-      ? join(app.getAppPath(), 'plugins')
-      : join(process.resourcesPath, 'plugins')
-  ], libraries.store)
-  await plugins.seed()
+  // 插件（契约 = client/plugins/PLUGINS.md）：获取形态 = 手动安装（用户 2026-11-10 裁定）——
+  // 无任何自动补齐，官方插件经 GitHub Release 分发 zip、设置页「安裝插件…」导入。
+  // dev 豁免（政策住装配点）：非打包时把工作区 client/plugins 覆盖同步进运行时目录
+  // （改完源码重启 dev 即生效）；打包路径物理触达不到 syncFrom。
+  const plugins = new PluginManager(join(app.getPath('userData'), 'plugins'), libraries.store)
+  if (!app.isPackaged) {
+    await plugins.syncFrom([join(app.getAppPath(), 'plugins')])
+  }
 
   registerIpc(net, libraries, plugins, (channel, payload) => {
     for (const win of BrowserWindow.getAllWindows()) {

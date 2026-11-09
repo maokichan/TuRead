@@ -9,7 +9,8 @@
 
 - **只出 64 位 Windows**，形态 = **免安装便携版**（NSIS 暂不出，配置块保留备用）。
 - 产物落 `client/release/`（gitignored，不进仓库）；仓库里最新已打包 = v0.2.8 便携版。
-- extraResources：官方插件随包进 `resources/plugins`（运行时「缺则种」的种子源）。
+- **插件不随包**（用户 2026-11-10 裁定：官方插件手动安装）：发行物内无 plugins；官方插件经
+  GitHub Release 分发 zip，用户在设置页「安裝插件…」导入（`PLUGINS.md` §4）。
 
 ## 打包配方（实测在案）
 
@@ -33,7 +34,8 @@
 3. `README.md`（版本号与产物状态）
 4. annotated tag：**两端独立滚动，带端名前缀** `client-v0.2.x` / `server-v0.2.x`
 5. **GitHub Release（用户 2026-11-07 定：每版本都发）**：以该 tag 发 release，asset = 本机打包的
-   便携版 exe，说明 = STATUS §4 该版要点；API 走代理（节奏 = 随 push 由用户定）。
+   便携版 exe，说明 = STATUS §4 该版要点；**官方插件有版本变动时，同 release 附插件 zip**
+   （用户 2026-11-10 裁定：插件分发 = GitHub Release，手动安装）；API 走代理（节奏 = 随 push 由用户定）。
 
 ⚠ 未获指示的改动**并入当前版本**（「已提交但版本未滚」合法，此时不打 tag，STATUS §6 的
 「未滚版本的增量」段承载）；tag 与 push 由用户定节奏。**产物（便携版 exe）不进仓库**

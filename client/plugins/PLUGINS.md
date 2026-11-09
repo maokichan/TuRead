@@ -4,7 +4,8 @@
 > 这里即可开工）。形状权威 = `src/shared/plugin.ts`（manifest / 校验判据 / 阅读上下文类型）；
 > 宿主实现 = `src/renderer/src/plugins/runtime.ts`（渲染层）+ `src/main/plugins.ts`（主进程）；
 > 通道白名单 = `src/shared/ipc.ts`。功能裁决 = `client/docs/FEATURES.md`（§5/§13）；视觉 =
-> `client/docs/STYLE.md` §5.8；数据落点 = `client/docs/DATA_MODEL.md` §1。信任模型 v1 = **只装官方插件**。
+> `client/docs/STYLE.md` §5.8；数据落点 = `client/docs/DATA_MODEL.md` §1。信任模型 v1 =
+> **官方独占，不防恶意只防误用**（第三方契约开放、自担风险——用户 2026-11-10 裁定，见 §1）。
 
 ## 1. 能力边界
 
@@ -32,18 +33,28 @@
 | **IPC 通道** | **未隔离**：插件代码与宿主同源，技术上可直调 `window.turead.invoke` 全部通道 | **弱——信任模型的前提是官方独占** |
 | 运行时隔离 | 无沙箱、无错误边界：mount 内抛错可击穿渲染窗口 | **弱（激活期 try/catch 不连坐，运行期不设防）** |
 
-**第三方开放的前置**：上表两处「弱」不补强（IPC 白名单 / 面板错误边界），第三方不得开放——
-这不是实现项，是信任模型的硬前提。插件代码经 Blob URL 动态 import → CSP `script-src` 放行
-`blob:`；联网走主进程代理，`connect-src` 不为此开口。
+**第三方立场（用户 2026-11-10 裁定）**：**契约开放**——第三方照本文与 `src/shared/plugin.ts`
+的形状做出的插件，走同一 zip 安装管道即可装，管道只认形状不认作者身份；「艺高人胆大给自己
+做插件我们当然支持」。上表两处「弱」（IPC 未隔离 / 无运行时隔离）随之**降级为已知边界**
+如实保留：信任模型官方独占 = 不防恶意只防误用，装第三方 = 授予其 api 面全部能力，自担风险。
+插件代码经 Blob URL 动态 import → CSP `script-src` 放行 `blob:`；联网走主进程代理，
+`connect-src` 不为此开口。
 
 ## 2. 开发标准
 
 - **一个插件 = 一个文件夹**：`client/plugins/<id>/`，`id` 与文件夹名一致（= 运行时目录名与
   设置键的命名空间，`/^[a-z0-9][a-z0-9-]*$/`）。
-- **manifest（`plugin.json`）**：`id` / `name` / `version`（semver 形态字符串；v1 种子策略 =
-  「缺则种」，版本比较后置）/ `entry`（插件目录内的相对 `.mjs`，禁绝对路径与 `..`）/ `description?`。
+- **manifest（`plugin.json`）**：`id` / `name` / `version`（semver 形态字符串；安装管道按
+  `comparePluginVersions` 做防降级比较）/ `entry`（插件目录内的相对 `.mjs`，禁绝对路径与 `..`）/
+  `description?`。
   校验 = `validatePluginManifest`（`src/shared/plugin.ts` 纯函数，单测 `src/tests/pluginManifest.test.ts`）：
   缺字段 / 坏 id / 越界 entry 一律拒绝并进日志，**不静默**；坏文件夹跳过不中断其余插件。
+- **打包与安装（zip，唯一产品获取管道）**：一插件一 zip；`plugin.json` 须在 zip 根（目录名 =
+  manifest.id）或唯一顶层文件夹内（文件夹名必须 = manifest.id）。用户在设置页「安裝插件…」导入
+  （对话框收在主进程，渲染层零路径）；主进程校验 manifest + zip 结构 + 路径围栏（禁 `..`/绝对
+  路径）、版本比较（同版本拒、低版本拒 = 防降级、高版本覆盖 = 升级）、原子落位。**更新检查不存在**
+  （用户裁定）——升级 = 下载新 zip 重新导入。官方插件 zip 随版本 GitHub Release 发布（BUILD.md
+  滚版本第 5 步）。
 - **入口导出 `activate(api)`**（缺 activate = 激活失败，可见不静默）；`mount` 返回清理函数；
   定时器与订阅必须挂 `ctx.signal` 自清（收起/卸载/禁用时 abort）。`ai` 插件是全部能力的参照实现。
 - **需要构建的插件**：无 import 的源码即入口；引依赖时 esbuild 打自包含 ESM，`entry` 指向
@@ -71,10 +82,10 @@
   目录对照[目录 label 可能是印刷页码等非真实位置] / 当前位置[章号 + 可见文本前 200 字]）——
   **请求发出前调用**；`jumpToQuote(exact, chapterIndex?)` = 溯源跳回（重锚成弱锚点 → 章级尽力，
   同笔记面板路径）。宿主实现 = ReaderFeature（快照）+ 适配器 `remeasureAnchor` / `resolveAnchor`。
-- **IPC 清单**（`src/shared/ipc.ts`）：`plugins:list`（种子后扫描 + 校验；每项带 `seeded`
-  官方种子件标记——设置页据此展示「官方隨附」，**不承载卸载豁免**）、`plugins:read-entry`、
-  `plugins:net-fetch`、`plugins:secret-{set,get,delete}`、`plugins:uninstall`（目录围栏后删运行时
-  目录；种子件卸载时记 opt-out 清单防「缺则种」复活；settings 清理由渲染层接手）。
+- **IPC 清单**（`src/shared/ipc.ts`）：`plugins:list`（扫描 + 校验）、`plugins:read-entry`、
+  `plugins:install-zip`（对话框收在主进程，渲染层零参数零路径；取消回 null）、
+  `plugins:net-fetch`、`plugins:secret-{set,get,delete}`、`plugins:uninstall`（目录围栏后删
+  运行时目录；settings 清理由渲染层接手）。
 - ⚠ **渲染层不传路径**：只发 id，入口路径由主进程按自己的扫描结果解析（信任边界收在主进程）。
 - **运行时目录** = `<userData>/plugins/<id>/`（与 store.db / covers 平级，随数据目录整体迁移）；
   **开发工作区** = `client/plugins/`（dev 启动时主进程把缺的插件种进运行时目录；打包经
@@ -82,19 +93,22 @@
 
 ## 4. 生命周期
 
-- **装载（现实现）**：seed（官方件「缺则种」进 `<userData>/plugins/`）→ 主进程扫描 + manifest
-  校验（坏件跳过不连坐）→ 渲染层按启用清单取入口源码 → Blob URL 动态 import → `activate` →
-  `registerPanel` 登记 → 右欄卡片页按注册序渲染。失败件在设置页标「加載失敗」，其余不受牵连。
+- **获取 = 手动安装（用户 2026-11-10 裁定，无任何自动补齐）**：官方插件经 GitHub Release 分发
+  zip（BUILD.md 滚版本第 5 步），用户在设置页「安裝插件…」导入（见 §2 打包与安装）。新装机
+  零插件；卸载后的重装 = 重新下载 zip 再导入。**dev 豁免**（政策住装配点 `main/index.ts`）：
+  `!app.isPackaged` 时把工作区 `client/plugins/` **覆盖同步**进运行时目录（`syncFrom`）——
+  改完源码重启 dev 即生效；单向覆盖不删多余；打包路径物理触达不到同步。
+- **装载（现实现）**：主进程扫描 + manifest 校验（坏件跳过不连坐）→ 渲染层按启用清单取入口
+  源码 → Blob URL 动态 import → `activate` → `registerPanel` 登记 → 右欄卡片页按注册序渲染。
+  失败件在设置页标「加載失敗」，其余不受牵连。
 - **启停（现实现）**：启用态落 settings 表 `plugins.enabled`（默认启用）；**切换任意插件 =
   全量重载**——运行时状态清零、启用件从头激活。硬约束（如实）：动态 import 的模块**无法逐出**，
   旧模块图驻留内存直到窗口重开；v1 接受此代价，插件体量保持克制。
 - **卸载（现实现）**：语义 = 文件 + 数据一并移除；禁用 ≠ 卸载。`plugins:uninstall({ id })`：
-  **种子件同样可卸**（2026-11-10 用户裁定：「官方件不可卸载」是从未被裁定的错误执行，种子
-  机制 = 开发期便利）——卸载时记 opt-out 清单（settings `plugin-seeder:opt-out`，主进程独占写），
-  之后的 seed() 不再补种 → 删 `<userData>/plugins/<id>/` → 渲染层清 `plugin:<id>`（写 null）→
-  重跑 loadPlugins。已知残留：`plugin-secret:<id>:*` 密文清不掉（store 无按前缀列举原语）——
-  干净清理待 store 补「按前缀删键」，登记 TODO。卸载是宿主权力，不经插件同意。
-  ⚠ 主动安装/恢复通道尚未存在（TODO 插件总纲②）——种子件卸载后「問」暂无重装路径，随生命周期批补齐。
+  目录围栏 → 删 `<userData>/plugins/<id>/` → 渲染层清 `plugin:<id>`（写 null）→ 重跑
+  loadPlugins。所有插件一视同仁可卸（无自动补齐，不存在「复活」问题）。已知残留：
+  `plugin-secret:<id>:*` 密文清不掉（store 无按前缀列举原语）——干净清理待 store 补
+  「按前缀删键」，登记 TODO。卸载是宿主权力，不经插件同意。
 - **版本兼容（开放问题，未定）**：manifest 版本只是形态字符串，无 compat 策略；「缺则种」
   不覆盖已装件，官方插件升级路径未定——开放前在 TODO 跟踪。
 

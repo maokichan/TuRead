@@ -13,7 +13,7 @@
  * - 动画 = 自右滑入 + 显影（.rail-card 的 @starting-style），收回更快，收完卸载；
  *   槽位宽度同节奏收放（styles.css .reader-card-slot 与 .reader-scrim 的单驱动 --slot-w）。
  *
- * ⚠ **右段开放插件面板格**（契约 = CONTRACTS §9）——
+ * ⚠ **右段开放插件面板格**（契约 = client/plugins/PLUGINS.md）——
  * 渲染权在宿主：插件只注册"一个格"（label + mount），几何/页签/开合/滚动外壳全部在这里给；
  * 页签序 = 參數 → 筆記 → 聊天（仅房间态）→ 插件格（按注册序）。
  * 「問」类 AI 格与「聊天」互斥（hideWhenInRoom），其他插件格不受影响。
@@ -45,7 +45,7 @@ export interface RailChatProps {
   onToggleFollow: () => void
 }
 
-/** 插件面板格（由插件运行时注册，经 ReaderFeature 传入；结构契约 = CONTRACTS §9.2 + v1.1） */export interface RailPluginPanel {
+/** 插件面板格（由插件运行时注册，经 ReaderFeature 传入；结构契约 = PLUGINS.md §3 + v1.1） */export interface RailPluginPanel {
   key: `plugin:${string}`
   label: string
   title?: string

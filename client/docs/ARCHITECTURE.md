@@ -107,7 +107,7 @@
 | `libraryNavBus` | `features/libraryNavBus.ts` | LibraryFeature 历史 ↔ ChromeControls 后退/前进 |
 | `readerCardBus` | `features/readerCardBus.ts` | ReaderFeature 卡片页族 ↔ AppShell 命令面板 |
 | `roomSession` 共享投影 | `features/roomSession.ts` | RoomFeature 会话视图 + ReaderFeature 聊天页同一份 |
-| 插件运行时 | `src/renderer/src/plugins/runtime.ts`（模块单例）+ `src/main/plugins.ts` | settings 启停 + reader 卡片页插槽 + main 种子/扫描（规范 = `client/plugins/PLUGINS.md`，插件侧子树自持） |
+| 插件运行时 | `src/renderer/src/plugins/runtime.ts`（模块单例）+ `src/main/plugins.ts` | settings 启停 + reader 卡片页插槽 + main 扫描/zip 安装/卸载（dev 同步政策住装配点；规范 = `client/plugins/PLUGINS.md`，插件侧子树自持） |
 | 离屏解析窗 | `src/renderer/src/parse/index.ts` | library 域元数据/封面提取的独立进程；与 reader 共享 kookitLoader |
 | `veil` / `Marquee` / `ContextMenu` / `ConfirmDialog` | `components/` | 多域共用的展示原语（距离遮罩/滚动题/右键/确认） |
 | `useKeyIntents` + `core/domain/input.ts` | `components/` / `core/domain/` | 全域键意图层（绑定表 = 唯一键义源） |

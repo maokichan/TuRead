@@ -1,11 +1,11 @@
 /**
- * 插件运行时（渲染层外壳模块）—— 契约 = `client/docs/CONTRACTS.md` §9，功能 = FEATURES §13。
+ * 插件运行时（渲染层外壳模块）—— 契约 = `client/plugins/PLUGINS.md`，功能 = FEATURES §13。
  *
  * 与 `roomSession` / `logStore` 同一先例：**模块级单例 + 订阅**（不进 ServiceContainer、
  * 不进 React Context）。职责只有三件：
- * ① 拉清单（`plugins:list`，主进程已种子 + 校验）→ 读启用状态（settings 表 `plugins` 键）；
+ * ① 拉清单（`plugins:list`，主进程扫描 + 校验）→ 读启用状态（settings 表 `plugins` 键）；
  * ② 逐个激活：`plugins:read-entry` 读回入口源码 → Blob URL 动态 import（CSP `script-src`
- *    因此放行 `blob:`；信任边界 = v1 只装官方插件）→ `activate(api)`；
+ *    因此放行 `blob:`；信任边界 = 官方独占、不防恶意只防误用）→ `activate(api)`；
  * ③ 持有面板注册表（阅读器右段渲染它）与"已安装清单"（设置页渲染它）。
  *
  * 渲染权在宿主：插件只拿到内容区元素（几何/页签/开合/滚动外壳都在 ReaderRail/宿主样式层）。
@@ -34,8 +34,6 @@ export interface InstalledPluginInfo {
   version: string
   description?: string
   enabled: boolean
-  /** 官方种子件（首发资源里存在同名文件夹）：卸载被拒，设置页不显示「卸載」 */
-  seeded?: boolean
   /** 该插件激活失败的原因（可见不静默） */
   error?: string
 }
@@ -76,7 +74,7 @@ export function usePluginPanels(): PluginPanel[] {
   return usePluginState().panels
 }
 
-/** 组装一个插件的宿主 API（CONTRACTS §9.2 + v1.1 通用能力）。panels 由本模块持有 */
+/** 组装一个插件的宿主 API（PLUGINS.md §3 + v1.1 通用能力）。panels 由本模块持有 */
 function makeApi(manifest: PluginManifest, container: ServiceContainer, panels: PluginPanel[]) {
   return {
     registerPanel(panel: {
@@ -143,12 +141,12 @@ function makeApi(manifest: PluginManifest, container: ServiceContainer, panels: 
   }
 }
 
-/** 加载（或禁用切换后重载）全部插件。AppShell 挂载时调一次；设置页切换时再调 */
+/** 加载（或禁用切换/安装后重载）全部插件。AppShell 挂载时调一次；设置页操作后再调 */
 export async function loadPlugins(container: ServiceContainer): Promise<void> {
   setState({ status: 'loading', panels: [], installed: [] })
-  let list: Array<PluginManifest & { dir: string; seeded: boolean }>
+  let list: Array<PluginManifest & { dir: string }>
   try {
-    list = (await window.turead.invoke(IPC.pluginsList)) as Array<PluginManifest & { dir: string; seeded: boolean }>
+    list = (await window.turead.invoke(IPC.pluginsList)) as Array<PluginManifest & { dir: string }>
   } catch (err) {
     const message = (err as Error).message
     pushLog(`插件清单读取失败：${message}`)
@@ -159,14 +157,13 @@ export async function loadPlugins(container: ServiceContainer): Promise<void> {
   const panels: PluginPanel[] = []
   const installed: InstalledPluginInfo[] = []
   for (const manifest of list) {
-    const enabled = cfg.enabled?.[manifest.id] !== false // 缺省启用（首发插件开箱即用）
+    const enabled = cfg.enabled?.[manifest.id] !== false // 缺省启用
     installed.push({
       id: manifest.id,
       name: manifest.name,
       version: manifest.version,
       description: manifest.description,
-      enabled,
-      seeded: manifest.seeded
+      enabled
     })
     if (!enabled) continue
     try {
@@ -205,16 +202,16 @@ export async function setPluginEnabled(
 }
 
 /**
- * 设置页卸载（PLUGINS.md §3）：文件删除在主进程（官方种子件拒删、目录围栏）；数据清理在这
- * ——启用清单摘除该件（卸载隐含禁用）、`plugin:<id>` 写 null 清值（store 无删键原语，键壳
- * 残留——如实偏差，与主进程 secretDelete 同一惯用法）；`plugin-secret:<id>:*` 清不掉（键名
- * 不可枚举，store 无按前缀列举原语），密文残留同见 PLUGINS.md §3。卸载即全量重载（同启停）。
+ * 设置页卸载（PLUGINS.md §3）：文件删除在主进程（目录围栏）；数据清理在这——启用清单摘除
+ * 该件（卸载隐含禁用）、`plugin:<id>` 写 null 清值（store 无删键原语，键壳残留——如实偏差，
+ * 与主进程 secretDelete 同一惯用法）；`plugin-secret:<id>:*` 清不掉（键名不可枚举，store
+ * 无按前缀列举原语），密文残留同见 PLUGINS.md §3。卸载即全量重载（同启停）。
  */
 export async function uninstallPlugin(container: ServiceContainer, id: string): Promise<void> {
   try {
     await window.turead.invoke(IPC.pluginsUninstall, { id })
   } catch (err) {
-    pushLog(`插件卸载失败：${(err as Error).message}`) // 可见不静默（种子件拒删等），不重载
+    pushLog(`插件卸载失败：${(err as Error).message}`) // 可见不静默，不重载
     return
   }
   const cfg = await container.store.getSetting<{ enabled?: Record<string, boolean> }>('plugins', {})
@@ -223,4 +220,26 @@ export async function uninstallPlugin(container: ServiceContainer, id: string): 
   await container.store.patchSetting('plugins', { enabled })
   await container.store.setSetting(`plugin:${id}`, null)
   await loadPlugins(container)
+}
+
+/**
+ * 设置页安装（生命周期，PLUGINS.md §4）：唯一产品获取管道 = 本地 zip 导入。对话框收在主进程
+ * （渲染层零参数零路径，同信任边界）。取消静默返回；成功全量重载（同启停口径）；
+ * 失败可见不静默（错误原样交调用方展示，不重载）。
+ */
+export async function installPlugin(container: ServiceContainer): Promise<{
+  cancelled?: boolean
+  error?: string
+}> {
+  let result: unknown
+  try {
+    result = await window.turead.invoke(IPC.pluginsInstallZip)
+  } catch (err) {
+    const message = (err as Error).message
+    pushLog(`插件安装失败：${message}`)
+    return { error: message }
+  }
+  if (result === null || result === undefined) return { cancelled: true }
+  await loadPlugins(container)
+  return {}
 }

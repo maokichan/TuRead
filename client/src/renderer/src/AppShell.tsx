@@ -290,7 +290,7 @@ export default function AppShell(): React.JSX.Element {
   // 消息/成员/连接状态（避免两处各持一份而分叉）。容器只有一个 → 挂载时绑一次。
   useEffect(() => bindRoomSession(container), [container])
 
-  // 官方插件运行时（v1.13，契约 = CONTRACTS §9）：启动加载一次（种子/扫描在主进程已完成）；
+  // 官方插件运行时（v1.13，契约 = client/plugins/PLUGINS.md）：启动加载一次（扫描在主进程已完成）；
   // 设置页切换启停时由 setPluginEnabled 内部重载
   useEffect(() => {
     void loadPlugins(container)

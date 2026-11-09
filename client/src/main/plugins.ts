@@ -1,23 +1,30 @@
 /**
- * 插件管理（主进程）：官方插件的**种子 / 扫描 / 入口读取 / 卸载**——契约 = `client/docs/CONTRACTS.md` §9。
+ * 插件管理（主进程）：扫描 / 入口读取 / zip 安装 / 卸载——契约 = `client/plugins/PLUGINS.md`。
  *
  * 信任边界收在这里：渲染层只发 id，入口路径由本管理器**按自己的扫描结果**解析，
- * 渲染层传什么都不被采信（见 readEntry）。manifest 校验走 `shared/plugin.ts`（与渲染层同判据）；
- * 坏 manifest / 坏文件夹进主进程日志并跳过，**不中断其余插件**。卸载同口径：只认扫描结果、
- * 目录围栏防越界。**种子件可卸载**（2026-11-10 用户裁定：种子 = 开发期便利，「官方件不可卸载」
- * 是从未被裁定的错误执行）——卸载种子件 = 删目录 + 记入 opt-out 清单，seed() 不再补种。
+ * 渲染层传什么都不被采信（见 readEntry）；zip 安装的文件对话框同样收在主进程，渲染层零参数
+ * 零路径。manifest 校验走 `shared/plugin.ts`（与渲染层同判据）；坏 manifest / 坏文件夹进
+ * 主进程日志并跳过，**不中断其余插件**。卸载同口径：只认扫描结果、目录围栏防越界。
+ * 获取形态（用户 2026-11-10 裁定）= **手动安装**：无任何自动补齐；官方插件经 GitHub Release
+ * 分发 zip、走本管道导入；dev 同步（syncFrom）是装配点的豁免政策（`!app.isPackaged`），
+ * 不在本类。
  */
 import { promises as fs } from 'node:fs'
 import type { Dirent } from 'node:fs'
-import { join, resolve, sep } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
+import { unzip } from 'fflate'
 import { safeStorage } from 'electron'
-import { assertFetchableUrl, assertSecretName, validatePluginManifest, type PluginManifest } from '@shared/plugin'
+import {
+  assertFetchableUrl,
+  assertSecretName,
+  comparePluginVersions,
+  validatePluginManifest,
+  type PluginManifest
+} from '@shared/plugin'
 
 export interface InstalledPlugin extends PluginManifest {
   /** 运行时插件目录的绝对路径（只在本进程内使用，不回传渲染层） */
   dir: string
-  /** 官方种子件（首发资源里存在同名文件夹）——元数据标记，设置页展示「官方隨附」用；**不影响可卸载性** */
-  seeded: boolean
 }
 
 export class PluginManager {
@@ -26,46 +33,12 @@ export class PluginManager {
   constructor(
     /** 运行时插件根目录（<userData>/plugins） */
     private readonly runtimeRoot: string,
-    /** 首发插件来源目录（dev = client/plugins；打包 = resources/plugins）：种子用 */
-    private readonly bundledDirs: string[],
     /** 全局 settings 表句柄（密钥保险库的落点；结构与 SqliteStore 的设置方法同形） */
     private readonly storeHandle: {
       getSetting<T>(key: string, fallback: T): Promise<T>
       setSetting(key: string, value: unknown): Promise<void>
     }
   ) {}
-
-  /** 种子（"缺则种"）：把首发资源里的插件补进运行时目录；已安装的原样保留（用户数据不被覆盖）。
-   *  **用户卸载过的种子件不再补种**（opt-out 清单）——否则「缺则种」会复活卸载结果。 */
-  async seed(): Promise<void> {
-    await fs.mkdir(this.runtimeRoot, { recursive: true })
-    const skip = await this.seedOptOut()
-    for (const bundled of this.bundledDirs) {
-      let entries: Dirent[]
-      try {
-        entries = await fs.readdir(bundled, { withFileTypes: true })
-      } catch {
-        continue // 没有首发插件目录（如 dev 还没建 client/plugins）= 正常态
-      }
-      for (const d of entries) {
-        if (!d.isDirectory()) continue
-        if (skip.has(d.name)) continue // 用户已卸载，尊重卸载意愿
-        const target = join(this.runtimeRoot, d.name)
-        try {
-          await fs.access(join(target, 'plugin.json'))
-          continue // 已安装
-        } catch {
-          /* 缺 → 种 */
-        }
-        try {
-          await fs.cp(join(bundled, d.name), target, { recursive: true })
-          console.log(`[plugins] 已种入插件：${d.name}`)
-        } catch (err) {
-          console.warn(`[plugins] 种子失败：${d.name}`, err)
-        }
-      }
-    }
-  }
 
   /** 扫描运行时目录：逐文件夹读 plugin.json 并校验；id 必须与文件夹名一致 */
   async list(): Promise<InstalledPlugin[]> {
@@ -76,7 +49,6 @@ export class PluginManager {
     } catch {
       return []
     }
-    const seeds = await this.seededIds()
     const out: InstalledPlugin[] = []
     for (const d of dirs) {
       if (!d.isDirectory()) continue
@@ -93,8 +65,7 @@ export class PluginManager {
         }
         const installed: InstalledPlugin = {
           ...res.manifest,
-          dir: join(this.runtimeRoot, d.name),
-          seeded: seeds.has(res.manifest.id)
+          dir: join(this.runtimeRoot, d.name)
         }
         this.byId.set(installed.id, installed)
         out.push(installed)
@@ -117,12 +88,133 @@ export class PluginManager {
     return fs.readFile(entryPath, 'utf8')
   }
 
+  /** zip 包读取上限（字节） */
+  private static readonly ZIP_MAX_BYTES = 50 * 1024 * 1024
+  /** zip 解压总量上限（字节；防 zip 炸弹） */
+  private static readonly ZIP_MAX_UNCOMPRESSED = 100 * 1024 * 1024
+
+  /**
+   * 安装（唯一产品获取管道，PLUGINS.md §4）：本地 zip → 双校验 → 原子落位 → 刷新清单。
+   * zip 形态（PLUGINS.md §2）：根直接含 `plugin.json`（目录名 = manifest.id），或**恰好一个**
+   * 顶层文件夹且其名 = manifest.id；其余形态（0/多顶层目录、无 manifest、路径穿越）一律拒绝。
+   * 版本比较（comparePluginVersions）：与已装同版本拒（重装先卸载）、已装更新拒（防降级）、
+   * 已装较旧 = 覆盖安装（= 升级路径）；已装 manifest 损坏按 0.0.0 处理（修复通道）。
+   * 原子落位 = 解压到 `<id>.incoming` 暂存目录 → 校验入口实物 → 换名；失败清暂存不留半截。
+   */
+  async installZip(zipPath: string): Promise<InstalledPlugin> {
+    const buf = await fs.readFile(zipPath)
+    if (buf.byteLength > PluginManager.ZIP_MAX_BYTES) {
+      throw new Error(`插件包超过 ${PluginManager.ZIP_MAX_BYTES / 1024 / 1024}MB 上限`)
+    }
+    const entries = await new Promise<Record<string, Uint8Array>>((resolvePromise, reject) => {
+      unzip(new Uint8Array(buf), (err, data) =>
+        err ? reject(new Error(`不是有效的 zip 包：${err.message}`)) : resolvePromise(data)
+      )
+    })
+    let total = 0
+    for (const [key, data] of Object.entries(entries)) {
+      if (key.startsWith('/') || key.includes('\\') || key.split('/').includes('..')) {
+        throw new Error(`zip 内出现非法路径：${key}`)
+      }
+      total += data.byteLength
+    }
+    if (total > PluginManager.ZIP_MAX_UNCOMPRESSED) {
+      throw new Error(`插件包解压后超过 ${PluginManager.ZIP_MAX_UNCOMPRESSED / 1024 / 1024}MB 上限`)
+    }
+    // 定位 manifest：根形态或唯一顶层文件夹形态（PLUGINS.md §2 的两种合法打包形态）
+    const topLevel = new Set<string>()
+    for (const key of Object.keys(entries)) {
+      if (key.includes('/')) topLevel.add(key.split('/')[0])
+    }
+    let prefix = ''
+    let topDir: string | null = null
+    if (entries['plugin.json']) {
+      // 根形态：目标目录名直接取 manifest.id
+    } else {
+      const withManifest = [...topLevel].filter((dir) => entries[`${dir}/plugin.json`])
+      if (withManifest.length !== 1) {
+        throw new Error('zip 形态不符：plugin.json 须在根，或在恰好一个顶层文件夹内')
+      }
+      topDir = withManifest[0]
+      prefix = `${topDir}/`
+    }
+    const res = validatePluginManifest(JSON.parse(new TextDecoder().decode(entries[`${prefix}plugin.json`])))
+    if (!res.ok) throw new Error(`插件 manifest 无效：${res.error}`)
+    const manifest = res.manifest
+    if (topDir !== null && topDir !== manifest.id) {
+      throw new Error(`zip 内顶层文件夹名（${topDir}）与 manifest.id（${manifest.id}）不一致`)
+    }
+    const target = resolve(this.runtimeRoot, manifest.id)
+    if (!target.startsWith(resolve(this.runtimeRoot) + sep)) {
+      throw new Error(`插件 ${manifest.id} 的目录越界`)
+    }
+    // 版本比较（防降级）；已装 manifest 损坏/缺失按 0.0.0 → 允许覆盖（修复通道）
+    let installedVersion = '0.0.0'
+    try {
+      const parsed = validatePluginManifest(JSON.parse(await fs.readFile(join(target, 'plugin.json'), 'utf8')))
+      if (parsed.ok) installedVersion = parsed.manifest.version
+    } catch {
+      /* 无已装或已装损坏 → 允许覆盖 */
+    }
+    const cmp = comparePluginVersions(installedVersion, manifest.version)
+    if (cmp === 0) throw new Error(`已安装同版本 ${manifest.version}（重装请先卸载）`)
+    if (cmp > 0) throw new Error(`已安装更新版本 v${installedVersion}，拒绝降级安装 v${manifest.version}`)
+    // 原子落位：暂存目录解压 → 入口实物校验 → 换名；中途失败清暂存
+    const temp = resolve(this.runtimeRoot, `${manifest.id}.incoming`)
+    try {
+      for (const [key, data] of Object.entries(entries)) {
+        if (!key.startsWith(prefix) || key === prefix) continue
+        const rel = key.slice(prefix.length)
+        if (rel === '' || rel.endsWith('/')) continue
+        const dest = resolve(temp, rel)
+        if (!dest.startsWith(resolve(temp) + sep)) throw new Error(`zip 内路径越界：${key}`)
+        await fs.mkdir(dirname(dest), { recursive: true })
+        await fs.writeFile(dest, data)
+      }
+      await fs.access(join(temp, manifest.entry))
+      await fs.rm(target, { recursive: true, force: true })
+      await fs.rename(temp, target)
+    } catch (err) {
+      await fs.rm(temp, { recursive: true, force: true }).catch(() => {})
+      throw err
+    }
+    console.log(`[plugins] 已安装插件：${manifest.id} v${manifest.version}`)
+    return (await this.list()).find((p) => p.id === manifest.id) as InstalledPlugin
+  }
+
+  /**
+   * 从来源目录**覆盖同步**插件进运行时目录。中性原语；政策（是否调用）住装配点——
+   * main/index.ts 仅在 `!app.isPackaged` 时以 client/plugins 为来源调用（dev 豁免，
+   * 用户 2026-11-10 裁定：产品 = 手动安装，打包路径物理触达不到本方法）。
+   * 覆盖（不只补缺）才能让「改完源码重启 dev 即生效」；单向覆盖、**不删**运行时目录里的
+   * 多余插件（临时装的测试件不受影响）；插件用户数据在 settings 表，覆盖代码不伤数据。
+   */
+  async syncFrom(sources: string[]): Promise<void> {
+    await fs.mkdir(this.runtimeRoot, { recursive: true })
+    for (const source of sources) {
+      let entries: Dirent[]
+      try {
+        entries = await fs.readdir(source, { withFileTypes: true })
+      } catch {
+        continue // 来源目录不存在（如还没建 client/plugins）= 正常态
+      }
+      for (const d of entries) {
+        if (!d.isDirectory()) continue
+        try {
+          await fs.cp(join(source, d.name), join(this.runtimeRoot, d.name), { recursive: true })
+          console.log(`[plugins] dev 同步插件：${d.name}`)
+        } catch (err) {
+          console.warn(`[plugins] dev 同步失败：${d.name}`, err)
+        }
+      }
+    }
+  }
+
   /**
    * 卸载（PLUGINS.md §3）：删 `<userData>/plugins/<id>/`。围栏判据——
    * ① id 过 manifest 同款格式（不含路径分隔符与点）；② 目录包含校验（纵深防御）；
-   * ③ 只认最近一次 list() 的扫描结果（同 readEntry 信任边界）。**种子件同样可卸**——
-   * 卸载时记入 opt-out 清单（`plugin-seeder:opt-out`），之后的 seed() 不再补种
-   * （2026-11-10 用户裁定：「官方件不可卸载」是错误执行；种子机制 = 开发期便利，不是卸载豁免）。
+   * ③ 只认最近一次 list() 的扫描结果（同 readEntry 信任边界）。
+   * 无自动补齐（获取形态 = 手动安装）→ 卸载即卸载，不存在「复活」问题。
    * settings 数据（`plugin:<id>` / 密钥）清理由渲染层接手——见 renderer runtime 的 uninstallPlugin。
    */
   async uninstall(id: unknown): Promise<void> {
@@ -134,44 +226,9 @@ export class PluginManager {
       throw new Error(`插件 ${id} 的目录越界`)
     }
     if (!this.byId.has(id)) throw new Error(`未知插件：${id}`)
-    if ((await this.seededIds()).has(id)) {
-      await this.recordSeedOptOut(id)
-    }
     await fs.rm(dir, { recursive: true, force: true })
     this.byId.delete(id)
     console.log(`[plugins] 已卸载插件：${id}`)
-  }
-
-  /** 官方种子件 id 集：首发资源里存在的文件夹名——卸载它们时记入 opt-out，防「缺则种」复活 */
-  private async seededIds(): Promise<Set<string>> {
-    const out = new Set<string>()
-    for (const bundled of this.bundledDirs) {
-      let entries: Dirent[]
-      try {
-        entries = await fs.readdir(bundled, { withFileTypes: true })
-      } catch {
-        continue // 没有首发插件目录（如 dev 还没建 client/plugins）= 正常态
-      }
-      for (const d of entries) {
-        if (d.isDirectory()) out.add(d.name)
-      }
-    }
-    return out
-  }
-
-  /** 种子件卸载意愿（settings 键，id 数组；读侧过滤非法项）——键由主进程独占写 */
-  private static readonly SEED_OPT_OUT_KEY = 'plugin-seeder:opt-out'
-
-  private async seedOptOut(): Promise<Set<string>> {
-    const raw = await this.storeHandle.getSetting<unknown>(PluginManager.SEED_OPT_OUT_KEY, [])
-    const list = Array.isArray(raw) ? raw : []
-    return new Set(list.filter((id): id is string => typeof id === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(id)))
-  }
-
-  private async recordSeedOptOut(id: string): Promise<void> {
-    const out = await this.seedOptOut()
-    if (out.has(id)) return
-    await this.storeHandle.setSetting(PluginManager.SEED_OPT_OUT_KEY, [...out, id])
   }
 
   // ————— 插件通用能力（契约 v1.1；非 AI 专属——联网插件都走这两件）—————

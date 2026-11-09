@@ -1,9 +1,9 @@
 /**
- * 插件 manifest 校验的单测（纯函数；契约 = client/docs/CONTRACTS.md §9.1）。
+ * 插件 manifest 校验的单测（纯函数；契约 = client/plugins/PLUGINS.md）。
  * 判据：字段齐、id 合法、entry 是目录内相对 .mjs；坏 manifest 一律拒绝（主进程据此跳过并进日志）。
  */
 import { describe, expect, it } from 'vitest'
-import { validatePluginManifest } from '@shared/plugin'
+import { comparePluginVersions, validatePluginManifest } from '@shared/plugin'
 
 const GOOD = {
   id: 'clock',
@@ -64,5 +64,15 @@ describe('validatePluginManifest', () => {
     const res = validatePluginManifest({ ...noDesc, extra: 'ignored' })
     expect(res.ok).toBe(true)
     if (res.ok) expect(res.manifest.description).toBeUndefined()
+  })
+
+  it('comparePluginVersions：宽松数值序（安装管道的防降级判据）', () => {
+    expect(comparePluginVersions('1.0.0', '1.0.0')).toBe(0)
+    expect(comparePluginVersions('1.0.0', '1.0.1')).toBe(-1)
+    expect(comparePluginVersions('0.2.0', '0.1.9')).toBe(1)
+    // 段数不足按 0 补；非数字段按 0（manifest 校验不查 semver 合法，这里必须容错）
+    expect(comparePluginVersions('1.0', '1.0.0')).toBe(0)
+    expect(comparePluginVersions('2.0', '1.9.9')).toBe(1)
+    expect(comparePluginVersions('1.a.0', '1.0.0')).toBe(0)
   })
 })
