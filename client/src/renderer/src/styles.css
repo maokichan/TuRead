@@ -1580,10 +1580,13 @@ textarea {
 }
 
 /* page 档（笔记区重构压扁：侧栏「筆」全宽页）：图 + 摘要并排一行（左）、Top 榜在右两栏；
-   无标题、内边距收紧——统计是列表的序言，不是独立章节。窄卡不经过。 */
+   无标题、内边距收紧——统计是列表的序言，不是独立章节。
+   ⚠ 两栏轨道用 auto-fit（每块 ≥420px）：窄页放不下两栏时自动堆叠回纵排——
+   曾用 minmax(300px, max-content)，窄容器把列压到 300px 而图固定 286px，
+   摘要（CJK min-content = 一字宽）被挤到约 0 宽 → 一字一行竖排（2026-11-10 用户报）。 */
 .reading-stats--page {
   display: grid;
-  grid-template-columns: minmax(300px, max-content) 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
   gap: 4px 36px;
   align-items: center;
   padding: 2px 0 10px;
@@ -1592,8 +1595,13 @@ textarea {
 .reading-stats--page .reading-stats__main {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap; /* 中间宽度带：摘要整行落到图下方，不逐字竖排 */
   align-items: center;
-  gap: 18px;
+  gap: 6px 18px;
+}
+
+.reading-stats--page .reading-stats__summary {
+  white-space: nowrap; /* 摘要行永不逐字换行；配合上行换行语义，窄页 = 摘要整行下坠而非竖排 */
 }
 
 .reading-stats--page .reading-stats__top {
