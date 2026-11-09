@@ -777,7 +777,7 @@ export function Gallery(): React.JSX.Element {
       <Panel
         title="阅读统计（ReadingStatsView）· 批1.24 寄生筆記卡片页尾部的「閱讀」段"
         path="components/ReadingStats.tsx"
-        note="贡献图 = 26 周 × 7 日列流,--accent 透明度 5 档(不引新色相),今天描边;Top 榜 = 时长投影倒序,长题 Marquee(目录同款);格子无点击(无按日下钻口径,v1 只读)。真实取数段 ReadingStatsSection 挂 NotesPanel 尾部(容器 prop);这里挂纯视图 + mock。page 变体窄容器 = 两栏自动堆叠(2026-11-10 修竖排:摘要 CJK min-content 一字宽被 300px 轨道挤成竖排,改 auto-fit 420px 轨道 + 摘要整行下坠)。"
+        note="贡献图 = 26 周 × 7 日列流,--accent 透明度 5 档(不引新色相),今天描边;Top 榜 = 时长投影倒序,长题 Marquee(目录同款);格子无点击(无按日下钻口径,v1 只读)。真实取数段 ReadingStatsSection 挂 NotesPanel 尾部(容器 prop);这里挂纯视图 + mock。page 变体窄容器 = 两栏自动堆叠(2026-11-10 修竖排:摘要 CJK min-content 一字宽被 300px 轨道挤成竖排,改 auto-fit 420px 轨道;摘要行居中置图下,不平行并排)。"
       >
         <ReadingStatsView
           days={MOCK_READ_DAYS}

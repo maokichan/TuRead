@@ -1539,11 +1539,6 @@ textarea {
   color: var(--muted);
 }
 
-.reading-stats__note {
-  font-size: 11px;
-  opacity: 0.8;
-}
-
 .reading-stats__top {
   margin-top: 10px;
   display: flex;
@@ -1596,7 +1591,7 @@ textarea {
 .reading-stats--page .reading-stats__main {
   display: flex;
   flex-direction: column; /* 摘要在贡献图下方（用户 2026-11-10 定：不平行并排）——同 card 变体纵排 */
-  align-items: flex-start;
+  align-items: center; /* 用户 2026-11-10 定：图与摘要行居中，不顶左上角 */
   gap: 8px;
 }
 

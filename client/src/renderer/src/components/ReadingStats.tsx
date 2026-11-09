@@ -93,7 +93,6 @@ export function ReadingStatsView({
           </div>
           <p className="reading-stats__summary">
             今日 {Math.round(todayMinutes)} 分鐘 · 本週 {Math.round(weekMinutes)} 分鐘
-            <span className="reading-stats__note">（逐日記錄自接入起）</span>
           </p>
           </div>
           {top.length > 0 && (
