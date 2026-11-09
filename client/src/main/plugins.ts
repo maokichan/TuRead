@@ -4,7 +4,8 @@
  * 信任边界收在这里：渲染层只发 id，入口路径由本管理器**按自己的扫描结果**解析，
  * 渲染层传什么都不被采信（见 readEntry）。manifest 校验走 `shared/plugin.ts`（与渲染层同判据）；
  * 坏 manifest / 坏文件夹进主进程日志并跳过，**不中断其余插件**。卸载同口径：只认扫描结果、
- * 目录围栏防越界、官方种子件拒删（删了会被「缺则种」复活——见 uninstall）。
+ * 目录围栏防越界。**种子件可卸载**（2026-11-10 用户裁定：种子 = 开发期便利，「官方件不可卸载」
+ * 是从未被裁定的错误执行）——卸载种子件 = 删目录 + 记入 opt-out 清单，seed() 不再补种。
  */
 import { promises as fs } from 'node:fs'
 import type { Dirent } from 'node:fs'
@@ -15,7 +16,7 @@ import { assertFetchableUrl, assertSecretName, validatePluginManifest, type Plug
 export interface InstalledPlugin extends PluginManifest {
   /** 运行时插件目录的绝对路径（只在本进程内使用，不回传渲染层） */
   dir: string
-  /** 官方种子件（首发资源里存在同名文件夹——卸载被拒，删了会在下次启动被「缺则种」复活） */
+  /** 官方种子件（首发资源里存在同名文件夹）——元数据标记，设置页展示「官方隨附」用；**不影响可卸载性** */
   seeded: boolean
 }
 
@@ -34,9 +35,11 @@ export class PluginManager {
     }
   ) {}
 
-  /** 种子（"缺则种"）：把首发资源里的插件补进运行时目录；已安装的原样保留（用户数据不被覆盖） */
+  /** 种子（"缺则种"）：把首发资源里的插件补进运行时目录；已安装的原样保留（用户数据不被覆盖）。
+   *  **用户卸载过的种子件不再补种**（opt-out 清单）——否则「缺则种」会复活卸载结果。 */
   async seed(): Promise<void> {
     await fs.mkdir(this.runtimeRoot, { recursive: true })
+    const skip = await this.seedOptOut()
     for (const bundled of this.bundledDirs) {
       let entries: Dirent[]
       try {
@@ -46,6 +49,7 @@ export class PluginManager {
       }
       for (const d of entries) {
         if (!d.isDirectory()) continue
+        if (skip.has(d.name)) continue // 用户已卸载，尊重卸载意愿
         const target = join(this.runtimeRoot, d.name)
         try {
           await fs.access(join(target, 'plugin.json'))
@@ -114,10 +118,11 @@ export class PluginManager {
   }
 
   /**
-   * 卸载（PLUGINS.md §3）：删 `<userData>/plugins/<id>/`。围栏与拒删判据——
+   * 卸载（PLUGINS.md §3）：删 `<userData>/plugins/<id>/`。围栏判据——
    * ① id 过 manifest 同款格式（不含路径分隔符与点）；② 目录包含校验（纵深防御）；
-   * ③ 只认最近一次 list() 的扫描结果（同 readEntry 信任边界）；④ **官方种子件拒删**——
-   * 「缺则种」会在下次启动把它重新种入，删了白删（将来如需可卸种子件，先给 seeder 加 opt-out）。
+   * ③ 只认最近一次 list() 的扫描结果（同 readEntry 信任边界）。**种子件同样可卸**——
+   * 卸载时记入 opt-out 清单（`plugin-seeder:opt-out`），之后的 seed() 不再补种
+   * （2026-11-10 用户裁定：「官方件不可卸载」是错误执行；种子机制 = 开发期便利，不是卸载豁免）。
    * settings 数据（`plugin:<id>` / 密钥）清理由渲染层接手——见 renderer runtime 的 uninstallPlugin。
    */
   async uninstall(id: unknown): Promise<void> {
@@ -130,14 +135,14 @@ export class PluginManager {
     }
     if (!this.byId.has(id)) throw new Error(`未知插件：${id}`)
     if ((await this.seededIds()).has(id)) {
-      throw new Error(`插件 ${id} 是官方种子件，不可卸载（删了会在下次启动被重新种入）`)
+      await this.recordSeedOptOut(id)
     }
     await fs.rm(dir, { recursive: true, force: true })
     this.byId.delete(id)
     console.log(`[plugins] 已卸载插件：${id}`)
   }
 
-  /** 官方种子件 id 集：首发资源里存在的文件夹名——这些件删了会被「缺则种」复活 */
+  /** 官方种子件 id 集：首发资源里存在的文件夹名——卸载它们时记入 opt-out，防「缺则种」复活 */
   private async seededIds(): Promise<Set<string>> {
     const out = new Set<string>()
     for (const bundled of this.bundledDirs) {
@@ -152,6 +157,21 @@ export class PluginManager {
       }
     }
     return out
+  }
+
+  /** 种子件卸载意愿（settings 键，id 数组；读侧过滤非法项）——键由主进程独占写 */
+  private static readonly SEED_OPT_OUT_KEY = 'plugin-seeder:opt-out'
+
+  private async seedOptOut(): Promise<Set<string>> {
+    const raw = await this.storeHandle.getSetting<unknown>(PluginManager.SEED_OPT_OUT_KEY, [])
+    const list = Array.isArray(raw) ? raw : []
+    return new Set(list.filter((id): id is string => typeof id === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(id)))
+  }
+
+  private async recordSeedOptOut(id: string): Promise<void> {
+    const out = await this.seedOptOut()
+    if (out.has(id)) return
+    await this.storeHandle.setSetting(PluginManager.SEED_OPT_OUT_KEY, [...out, id])
   }
 
   // ————— 插件通用能力（契约 v1.1；非 AI 专属——联网插件都走这两件）—————

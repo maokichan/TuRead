@@ -244,16 +244,14 @@ export function SettingsFeature({ container }: FeatureProps): React.JSX.Element 
                   value={p.enabled}
                   onPick={() => void setPluginEnabled(container, p.id, !p.enabled)}
                 />
-                {/* 卸載（PLUGINS.md §3）：无图标、无二次确认——官方件不可卸 + 启停可逆兜底风险；
-                    官方种子件删了会被「缺则种」复活，只给事实提示不给动作 */}
-                {p.seeded ? null : (
-                  <button className="text-action text-action--danger" onClick={() => void uninstallPlugin(container, p.id)}>
-                    卸載
-                  </button>
-                )}
+                {/* 卸載（PLUGINS.md §3）：无图标、无二次确认——启停可逆兜底风险（不想要可停用，
+                    不必卸）；种子件同样可卸（卸载后 opt-out 清单防「缺则种」复活） */}
+                <button className="text-action text-action--danger" onClick={() => void uninstallPlugin(container, p.id)}>
+                  卸載
+                </button>
                 <span className="text-[12.5px] text-[var(--muted)]">
                   v{p.version}
-                  {p.seeded ? '（官方隨附，不可卸載）' : ''}
+                  {p.seeded ? '（官方隨附）' : ''}
                   {p.error ? `（加載失敗：${p.error}）` : ''}
                 </span>
               </div>

@@ -1,6 +1,6 @@
 /**
- * 插件管理器（主进程）单测：种子（缺则种、已装不动）/ 扫描（坏 manifest 跳过不中断）/
- * 入口读取（只认扫描结果、越界在 manifest 校验阶段就被拒）/ 卸载（种子件拒删、目录围栏）。
+ * 插件管理器（主进程）单测：种子（缺则种、已装不动、opt-out 不复活）/ 扫描（坏 manifest 跳过不中断）/
+ * 入口读取（只认扫描结果、越界在 manifest 校验阶段就被拒）/ 卸载（种子件可卸 + opt-out、目录围栏）。
  * 契约 = client/docs/CONTRACTS.md §9；PluginManager 只依赖 node:fs + shared/plugin（纯逻辑可无书跑）。
  */
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
@@ -76,17 +76,29 @@ describe('PluginManager', () => {
     await expect(fresh.readEntry('clock')).rejects.toThrow('未知插件')
   })
 
-  it('uninstall：官方种子件拒删（删了会在下次启动被「缺则种」复活），目录原样保留', async () => {
+  it('uninstall：种子件可卸（2026-11-10 用户裁定）——记 opt-out，再 seed 不复活', async () => {
     const root = mkdtempSync(join(tmpdir(), 'turead-plugins-'))
     const bundled = join(root, 'bundled')
     makePlugin(join(bundled, 'clock'), 'clock')
     const runtime = join(root, 'runtime')
-    const mgr = new PluginManager(runtime, [bundled], fakeStore)
+    // 记忆版 settings 假件（opt-out 清单要能存取）
+    const kv = new Map<string, unknown>()
+    const memStore = {
+      getSetting: async <T,>(key: string, fallback: T): Promise<T> =>
+        kv.has(key) ? (kv.get(key) as T) : fallback,
+      setSetting: async (key: string, value: unknown): Promise<void> => {
+        kv.set(key, value)
+      }
+    }
+    const mgr = new PluginManager(runtime, [bundled], memStore)
     await mgr.seed()
     const list = await mgr.list()
-    expect(list[0]?.seeded).toBe(true) // 清单带种子标记（设置页据此只给事实提示）
-    await expect(mgr.uninstall('clock')).rejects.toThrow('官方种子件')
-    expect(existsSync(join(runtime, 'clock', 'plugin.json'))).toBe(true)
+    expect(list[0]?.seeded).toBe(true) // 种子标记 = 设置页「官方隨附」提示，不承载卸载豁免
+    await mgr.uninstall('clock')
+    expect(existsSync(join(runtime, 'clock'))).toBe(false)
+    expect((await mgr.list()).map((p) => p.id)).toEqual([])
+    await mgr.seed() // 「缺则种」尊重 opt-out：不再补种已卸载的种子件
+    expect(existsSync(join(runtime, 'clock'))).toBe(false)
   })
 
   it('uninstall：非种子件连目录一起移除，随后的 list 不再出现', async () => {

@@ -72,9 +72,9 @@
   **请求发出前调用**；`jumpToQuote(exact, chapterIndex?)` = 溯源跳回（重锚成弱锚点 → 章级尽力，
   同笔记面板路径）。宿主实现 = ReaderFeature（快照）+ 适配器 `remeasureAnchor` / `resolveAnchor`。
 - **IPC 清单**（`src/shared/ipc.ts`）：`plugins:list`（种子后扫描 + 校验；每项带 `seeded`
-  官方种子件标记——设置页据此区分「卸載」与「官方隨附，不可卸載」）、`plugins:read-entry`、
-  `plugins:net-fetch`、`plugins:secret-{set,get,delete}`、`plugins:uninstall`（拒删官方种子件 +
-  目录围栏后删运行时目录；settings 清理由渲染层接手）。
+  官方种子件标记——设置页据此展示「官方隨附」，**不承载卸载豁免**）、`plugins:read-entry`、
+  `plugins:net-fetch`、`plugins:secret-{set,get,delete}`、`plugins:uninstall`（目录围栏后删运行时
+  目录；种子件卸载时记 opt-out 清单防「缺则种」复活；settings 清理由渲染层接手）。
 - ⚠ **渲染层不传路径**：只发 id，入口路径由主进程按自己的扫描结果解析（信任边界收在主进程）。
 - **运行时目录** = `<userData>/plugins/<id>/`（与 store.db / covers 平级，随数据目录整体迁移）；
   **开发工作区** = `client/plugins/`（dev 启动时主进程把缺的插件种进运行时目录；打包经
@@ -89,10 +89,12 @@
   全量重载**——运行时状态清零、启用件从头激活。硬约束（如实）：动态 import 的模块**无法逐出**，
   旧模块图驻留内存直到窗口重开；v1 接受此代价，插件体量保持克制。
 - **卸载（现实现）**：语义 = 文件 + 数据一并移除；禁用 ≠ 卸载。`plugins:uninstall({ id })`：
-  **官方种子件拒删**（「缺则种」会复活，删了白删；将来如需可卸种子件，先给 seeder 加 opt-out）→
-  删 `<userData>/plugins/<id>/` → 渲染层清 `plugin:<id>`（写 null）→ 重跑 loadPlugins。
-  已知残留：`plugin-secret:<id>:*` 密文清不掉（store 无按前缀列举原语）——干净清理待 store
-  补「按前缀删键」，登记 TODO。卸载是宿主权力，不经插件同意。
+  **种子件同样可卸**（2026-11-10 用户裁定：「官方件不可卸载」是从未被裁定的错误执行，种子
+  机制 = 开发期便利）——卸载时记 opt-out 清单（settings `plugin-seeder:opt-out`，主进程独占写），
+  之后的 seed() 不再补种 → 删 `<userData>/plugins/<id>/` → 渲染层清 `plugin:<id>`（写 null）→
+  重跑 loadPlugins。已知残留：`plugin-secret:<id>:*` 密文清不掉（store 无按前缀列举原语）——
+  干净清理待 store 补「按前缀删键」，登记 TODO。卸载是宿主权力，不经插件同意。
+  ⚠ 主动安装/恢复通道尚未存在（TODO 插件总纲②）——种子件卸载后「問」暂无重装路径，随生命周期批补齐。
 - **版本兼容（开放问题，未定）**：manifest 版本只是形态字符串，无 compat 策略；「缺则种」
   不覆盖已装件，官方插件升级路径未定——开放前在 TODO 跟踪。
 
@@ -100,7 +102,7 @@
 
 | 数据 | 落点 | 卸载时 |
 |---|---|---|
-| 插件代码 | `<userData>/plugins/<id>/` | 删目录（官方种子件拒删） |
+| 插件代码 | `<userData>/plugins/<id>/` | 删目录（种子件同；opt-out 清单防复活） |
 | 私有键值 | settings 表 `plugin:<id>` 键 | 写 null 清值（键壳残留） |
 | 密钥 | settings 表 `plugin-secret:<id>:<name>`（safeStorage 密文） | **暂清不掉**（无按前缀删键原语，TODO） |
 | 对话历史等业务数据 | 插件自管，物理上在上述键内 | 随键清 |
