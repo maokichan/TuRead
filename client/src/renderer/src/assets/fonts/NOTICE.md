@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 字体名 | 源流明體 / GenRyuMin2（TW = 繁体中文切面） |
-| 文件 | `GenRyuMinTW-B.otf`（由系统 `GenRyuMin2-B.ttc` 的第 0 个 face 抽取，再子集化） |
+| 文件 | [`GenRyuMinTW-B.otf`](GenRyuMinTW-B.otf)（由系统 `GenRyuMin2-B.ttc` 的第 0 个 face 抽取，再子集化） |
 | 版本 | 2.100（`name` 表 nameID 5） |
 | 许可 | **SIL Open Font License 1.1**（全文随同目录                     ；原字体 nameID 13/14 声明在子集时被剥除，本文件代为记录来源） |
 | 用途 | 侧边栏功能符号（書/閱/房/設）+ 书库无封面时的「文字封面」 |
@@ -31,4 +31,4 @@ pyftsubset GenRyuMinTW-B.otf `
 > OFL 1.1 要求随字体分发许可全文：官方明文已存为同目录                     
 > （取自 <https://openfontlicense.org/documents/OFL.txt>，不手抄；文件头的占位写法即官方样例，
 > 字体自身的版本/来源声明以本文件为准）。打包经 electron-builder `extraResources`
-> 进发行物（`resources/OFL.txt`，见 [`client/electron-builder.yml`](../../../../../electron-builder.yml)）。来源/子集/复现步骤以本文件为准。
+> 进发行物（`resources/OFL.txt`，见打包配置）。来源/子集/复现步骤以本文件为准。

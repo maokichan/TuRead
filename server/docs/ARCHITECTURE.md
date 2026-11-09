@@ -1,11 +1,11 @@
 # server 架构（模块 / 通讯模型 / 数据模型）
 
 > 归属：**server 专属**。跨端共同内容（书籍标定 / 仓库布局）见 [`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)；
-> REST / WS 接口契约与转发规范见 [`API.md`](API.md)；配置与运维见 [`OPS.md`](OPS.md)；待办见根 TODO.md。
+> REST / WS 接口契约与转发规范见 [`API.md`](API.md)；配置与运维见 [`OPS.md`](OPS.md)；待办见唯一待办清单。
 
 ## 1. 服务端模块与数据模型（Go，v0.2.0）
 
-> [`server/`](..) 为**独立 Go module**（依赖全部内置，不依赖 client），可随时拆为独立仓库。
+> 本服务端为**独立 Go module**（依赖全部内置，不依赖 client），可随时拆为独立仓库。
 
 ```
 cmd/server           入口：装配 config / store / room / transport，监听端口
@@ -48,7 +48,7 @@ internal/transport   REST + WebSocket（信封收发 / 认证 / 管理）
 
 ## 3. 待定事项
 
-待办统一在根 TODO.md（server 一节：房主转让、用户系统剩余、部署形态、cmd/smoke、服务器地址部署细节）。已定案：空房间 TTL（v0.1.4）、房间发现（v0.1.4）、聊天室与持久化（v0.1.5）、服务端签发 token（v0.1.6）、房主删房（v0.2.0）。
+待办统一在唯一待办清单（server 一节：房主转让、用户系统剩余、部署形态、cmd/smoke、服务器地址部署细节）。已定案：空房间 TTL（v0.1.4）、房间发现（v0.1.4）、聊天室与持久化（v0.1.5）、服务端签发 token（v0.1.6）、房主删房（v0.2.0）。
 
 ## 4. 传输与运行基本功（ 已实现）
 

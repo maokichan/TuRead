@@ -1,7 +1,7 @@
 # [client/docs/](client/docs) —— 文档群维护规则（agent 子树入口）
 
-> 本目录文档群的**分工与维护规则**。读序（何时读哪个）在 [`client/AGENTS.md`](../AGENTS.md)；
-> 全局红线在仓库根 [`AGENTS.md`](../../AGENTS.md)。全部文档挂 [`ops/scripts/docGuard.mjs`](../../ops/scripts/docGuard.mjs) 行数门控
+> 本目录文档群的**分工与维护规则**。读序（何时读哪个）在上一级子树入口；
+> 全局红线在仓库根 `AGENTS.md`。全部文档挂 [`ops/scripts/docGuard.mjs`](../../ops/scripts/docGuard.mjs) 行数门控
 > （入口类 80 硬上限，其余统一 800）。
 
 ## 分工与裁决顺序

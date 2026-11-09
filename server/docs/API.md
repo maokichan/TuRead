@@ -11,7 +11,7 @@
 - **文件分发走内容寻址**：`<dataDir>/books/<hash>.<ext>`，文件名即指纹，同一电子版天然去重。
 - **edition.url（下载来源）**：`editions.url` 存"这本书可以从哪下"——外部平台（zlib / Anna's Archive 等）链接，或本机地址；可选，创建房间时由客户端提供。**本机下载地址不落库**：`local_copy = 1` 时下载即派生的 `GET /books/{editionID}/file`，绝对地址由客户端用其配置的 server 地址拼接。
 - **edition.local_copy（本机副本状态）**：`0` = 本机（server 内容寻址存储）无副本，`1` = 已存副本（`POST /books/{editionID}/file` 上传成功后 server 自动置 1）。与 `url` **正交**：外部源 + 本机有副本可同时成立，也可只有其一。
-- **配置**：TOML 配置文件（`turead.toml`，`TUREAD_CONFIG` 指定路径）+ 环境变量覆盖（`TUREAD_*`），见 [`OPS.md`](OPS.md)；策略类字段（access_token / admin_tokens / room_ttl / max_upload_mb）支持**热重载**。
+- **配置**：TOML 配置文件（路径由 `TUREAD_CONFIG` 指定）+ 环境变量覆盖（`TUREAD_*`），见 [`OPS.md`](OPS.md)；策略类字段（access_token / admin_tokens / room_ttl / max_upload_mb）支持**热重载**。
 
 ## 数据形状参考（Wire Shapes —— 语义钉子）
 

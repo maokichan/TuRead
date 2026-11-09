@@ -34,7 +34,7 @@ DOM→Markdown 往返有损。用户裁定 md 看齐 Obsidian：**实时渲染**
 ## Consequences
 
 - **许可证**：CM6 全家 = **MIT**，与 AGPL-3.0 兼容（vitest 先例同款论证）；随发行物
-  分发需保留声明 → 计入 [TODO](../../../../TODO.md)「第三方声明随发行物」清单。
+  分发需保留声明 → 计入 TODO「第三方声明随发行物」清单。
 - 体积：渲染 bundle 增加约 300–400KB（min+gzip 更小），便携版代价可接受。
 - 编辑语义继承 NoteComposer 约定（IME 友好——CM6 原生支持）；样式 token 化过
   styleGrammar 守卫；`@codemirror/view` 相关不进 vitest（无 DOM 环境），纯逻辑

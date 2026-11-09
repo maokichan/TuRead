@@ -6,7 +6,7 @@ Status: implemented
 
 右欄卡片页经批1.13→1.21 六轮形态演进，被否变体的理由散在决策行内与版本历史里——
 文档治理轮后这些"为什么不是那样"的记录需要一个防翻案载体。本笔记 = 该域
-形态演进的 Alternatives 存档；现行裁决的权威仍在 `FEATURES.md` §9 与 `STYLE.md` §5.8。
+形态演进的 Alternatives 存档；现行裁决的权威仍在 [`FEATURES.md`](../../../../client/docs/FEATURES.md) §9 与 [`STYLE.md`](../../../../client/docs/STYLE.md) §5.8。
 
 ## Decision（现行形态，用户逐轮定案）
 

@@ -13,19 +13,19 @@ Status: implemented
 ## Decision
 
 - 新建 [`client/plugins/PLUGINS.md`](../../../../client/plugins/PLUGINS.md)（2026-11-05 起插件侧子树自持，并入 contracts/plugin-contract 形状页）：§1 能力边界（拿到/拿不到/强制强度表，
-  弱项如实标注 + 「第三方开放的两项前置」硬前提）；§2 开发标准（收编 client/plugins/README
+  弱项如实标注 + 「第三方开放的两项前置」硬前提）；§2 开发标准（收编 [client/plugins/README](../../../../client/plugins/README.md)
   的布局与打包规则，消除双落点）；§3 生命周期——装载/启停记**现实现**，卸载记**方案
   （待实施）**：`plugins:uninstall({id})` → 拒删官方种子件 → 删运行时目录 → 删
   `plugin:<id>` 与 `plugin-secret:<id>:*` → 全量重载；§4 数据落点表（卸载清理清单依据）。
 - [CONTRACTS](../../../../client/docs/CONTRACTS.md) §9 只留接口形状，头部加分工指针；`api.log` 的陈旧描述（「进设置页日志块」）
   修正为统一日志管道现状。
-- client/plugins/README 收敛为工作区事实（现有插件清单），规范内容全部让渡 [PLUGINS.md](../../../../client/plugins/PLUGINS.md)（后随归属迁移驻 [client/plugins/](../../../../client/plugins)，并吸收 plugin-contract 形状页）。
+- [client/plugins/README](../../../../client/plugins/README.md) 收敛为工作区事实（现有插件清单），规范内容全部让渡 [PLUGINS.md](../../../../client/plugins/PLUGINS.md)（后随归属迁移驻 [client/plugins/](../../../../client/plugins)，并吸收 plugin-contract 形状页）。
 
 ## Alternatives considered
 
 - **留在 [CONTRACTS](../../../../client/docs/CONTRACTS.md) §9 扩写**：输在——[CONTRACTS](../../../../client/docs/CONTRACTS.md) 773 行已顶格，四空洞内容（边界表/生命周期/
   数据落点）进去即超限；契约文档的职责是形状，混入生命周期叙事破坏分工。
-- **散在 client/plugins/README**：输在——工作区 [README](../../README.md) 与契约文档是两层读者，规范需要
+- **散在 client/plugins/README**：输在——工作区 `README` 与契约文档是两层读者，规范需要
   权威单点位；[README](../../../../client/plugins/README.md) 承载规范会让「形状在 §9、边界在 [README](../../../../client/plugins/README.md)」三分。
 - **本轮连卸载 IPC 一起实现**：输在——用户明示「不着急做，只需要有文档」；且卸载依赖的
   seeder opt-out、设置页动作位都牵连 UI 批次，方案先行是对的。
@@ -34,4 +34,4 @@ Status: implemented
 
 换来的：插件规范有了权威单点位，四个空洞中三个有了答案（卸载方案/数据清理清单/边界强度
 如实）；「不防恶意只防误用」从隐性前提变为明文。付出的：卸载仍是纸面方案（实现时 §3 需
-随实现对勾）；版本兼容继续开放（已在 [PLUGINS](../../../../client/plugins/PLUGINS.md) §3 登记，[TODO](../../../../TODO.md) 跟踪）。
+随实现对勾）；版本兼容继续开放（已在 [PLUGINS](../../../../client/plugins/PLUGINS.md) §3 登记，TODO 跟踪）。

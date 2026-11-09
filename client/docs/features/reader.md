@@ -1,8 +1,8 @@
 # 阅读器（reader）—— feature 参照
 
 > 本页 = 阅读域的**架构锚点与实现细节**；交互裁决（阅读页零控件、全局禁选、卡片页形态、
-> 目录内嵌等）的权威在 [`FEATURES.md`](../FEATURES.md) 阅读器节；接口形状 = [`contracts/ports.md`](../contracts/ports.md)；
-> 视觉细则 = [`style/components-reader.md`](../style/components-reader.md)（一律以它为准）；kookit 逆向 = [`KOOKIT.md`](../KOOKIT.md)/[`RENDER_INTERFACE.md`](../RENDER_INTERFACE.md)。
+> 目录内嵌等）的权威在功能总纲阅读器节；接口形状 = [`contracts/ports.md`](../contracts/ports.md)；
+> 视觉细则 = [`style/components-reader.md`](../style/components-reader.md)（一律以它为准）；kookit 逆向 = 渲染引擎逆向/渲染接口。
 
 ## 1. 架构锚点
 
@@ -19,7 +19,7 @@
 
 **布局几何**：外层全屏「桌」（`--desk-bg`）+ 内层居中定宽「纸」（`--read-width` 档位 620/760/920，
 默认 760）；纸 1px `--page-edge` 边、`--page-pad-x` 内边距；宿主容器 `#page-area` 就是纸
-（kookit 硬契约，`clientWidth` 决定排版宽度，见 [KOOKIT.md](../KOOKIT.md) §5）；桌容器把滚轮转发给列（鼠标停两侧
+（kookit 硬契约，`clientWidth` 决定排版宽度，见渲染引擎逆向 §5）；桌容器把滚轮转发给列（鼠标停两侧
 留白也能滚）。滚动条 2px 静息几乎不可见；短章节（kookit 余量 +300px 内）整条隐藏。
 
 **iframe 事件桥**（`components/iframeBridge.ts`）：kookit 正文渲染在 iframe 独立 document，

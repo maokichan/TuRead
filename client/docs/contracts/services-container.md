@@ -20,10 +20,10 @@
 ## IBookService —— 书架 + 导入
 
 - **导入 = 两层写入**：① 按指纹 upsert edition（全局去重：同指纹复用既有行并更新 filePath）；② 往目标书库加 holding（落在库根层；入箱由 UI 后续 moveHolding）。「是否复用」由用例给出（`ImportResult.reused`），UI 不用快照反推。
-- ⚠ **映射库（`mode='mapped'`）不得调 importBook**——映射库的书只能靠扫描真实文件夹进来（[DATA_MODEL](../DATA_MODEL.md) D5/F4）；这条由调用方（UI）按库模式把关，用例层不替它判断。
+- ⚠ **映射库（`mode='mapped'`）不得调 importBook**——映射库的书只能靠扫描真实文件夹进来（数据建模 D5/F4）；这条由调用方（UI）按库模式把关，用例层不替它判断。
 - `remove` 只删收录：真实文件、笔记与阅读状态都不动（不变量③）。
 - `getLastRead`：优先最近阅读，无阅读记录回退最近入库（排序口径收敛在存储层的一条查询里）。
-- 编排对象 = `IBookIdentityService`（指纹+元数据）与 `ILibraryStore`（持久化）；OCR 提 ISBN 是**可插拔步骤**（候选 `IOcrService`，v1 未定，见根 [`TODO.md`](../../../TODO.md)）。
+- 编排对象 = `IBookIdentityService`（指纹+元数据）与 `ILibraryStore`（持久化）；OCR 提 ISBN 是**可插拔步骤**（候选 `IOcrService`，v1 未定，见唯一待办清单）。
 
 ## IImportQueue —— 批量导入编排
 

@@ -1,8 +1,8 @@
-# [docs/](docs) —— 项目级文档（agent 子树入口）
+# docs/ —— 项目级文档（agent 子树入口）
 
 > 本目录只放**跨端的项目级文档**：方向、状态、顶层架构。client 域细节在 [`client/docs/`](../client/docs)
 > （域入口 [`client/AGENTS.md`](../client/AGENTS.md)，文档群分工在 [`client/docs/AGENTS.md`](../client/docs/AGENTS.md)），server 域在 [`server/docs/`](../server/docs)。
-> 全局入口在仓库根 [`AGENTS.md`](../AGENTS.md)；本文件放本目录导航与**全项目的文档维护准则**。
+> 全局入口在仓库根 `AGENTS.md`；本文件放本目录导航与**全项目的文档维护准则**。
 
 ## 本目录文档（读序）
 
@@ -25,7 +25,7 @@
 
 **结构（渐进式披露）**
 
-- 入口文档只放指针、红线与命令速查；子树入口（[`docs/`](docs)、[`client/`](../client)、[`client/docs/`](../client/docs) 各一份
+- 入口文档只放指针、红线与命令速查；子树入口（`docs/`、[`client/`](../client)、[`client/docs/`](../client/docs) 各一份
   AGENTS.md）只放该域的地图与增量规则，全局内容不重复——读什么、读多少按需加载。
 - 新文档**必须**先到 [`ops/scripts/docGuard.mjs`](../ops/scripts/docGuard.mjs) 上限表登记级别，再动笔。
 
@@ -33,7 +33,12 @@
 
 - 提交门控链挂 pre-commit：链的构成、口径与激活细则归 [`ops/AGENTS.md`](../ops/AGENTS.md)（本文件不复读）。
   行数口径：入口/索引类硬上限（AGENTS 族 80~100 行），其余文档按 docGuard 头注的
-  guardrail 预算（入口类 + features 页登记档，其余默认 800）；体检 = `node ops/scripts/docGuard.mjs --report`。
+  guardrail 预算（入口类 + features 页登记档，其余默认 300）；体检 = `node [ops/scripts/docGuard.mjs](../ops/scripts/docGuard.mjs) --report`。
+- 引用纪律（机检，机制 = [`ops/scripts/docIndex.mjs`](../ops/scripts/docIndex.mjs)）：引用必须 `[]()` 链接
+  （反引号壳 / 裸路径 / 裸文档名皆违规；目录形态自由）；**向上引用无合法形态**——解析到祖先目录
+  （含仓库根）的目标一律删除或改写为不含路径的中文表述（渐进式披露：内容只向下流，竖直导航由
+  入口链承担）；死链与散文日期同被拦截（日期归 git 历史与笔记文件名，`.agents/notes/` 事件日志放行）。
+  终裁记录 = 笔记 [`2026-11-10-reference-law`](../.agents/notes/implemented/process/2026-11-10-reference-law.md)。
 
 **洗（超限或定期）**
 

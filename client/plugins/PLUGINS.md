@@ -110,9 +110,9 @@
   目录围栏 → 删 `<userData>/plugins/<id>/` → 渲染层清 `plugin:<id>`（写 null）→ 重跑
   loadPlugins。所有插件一视同仁可卸（无自动补齐，不存在「复活」问题）。已知残留：
   `plugin-secret:<id>:*` 密文清不掉（store 无按前缀列举原语）——干净清理待 store 补
-  「按前缀删键」，登记 [TODO](../../TODO.md)。卸载是宿主权力，不经插件同意。
+  「按前缀删键」，登记唯一待办清单。卸载是宿主权力，不经插件同意。
 - **版本兼容（开放问题，未定）**：manifest 版本只是形态字符串，无 compat 策略；「缺则种」
-  不覆盖已装件，官方插件升级路径未定——开放前在 [TODO](../../TODO.md) 跟踪。
+  不覆盖已装件，官方插件升级路径未定——开放前在待办跟踪。
 
 ## 5. 数据落点（卸载清理清单的依据）
 
@@ -120,5 +120,5 @@
 |---|---|---|
 | 插件代码 | `<userData>/plugins/<id>/` | 删目录（种子件同；opt-out 清单防复活） |
 | 私有键值 | [settings](../docs/features/settings.md) 表 `plugin:<id>` 键 | 写 null 清值（键壳残留） |
-| 密钥 | [settings](../docs/features/settings.md) 表 `plugin-secret:<id>:<name>`（safeStorage 密文） | **暂清不掉**（无按前缀删键原语，[TODO](../../TODO.md)） |
+| 密钥 | [settings](../docs/features/settings.md) 表 `plugin-secret:<id>:<name>`（safeStorage 密文） | **暂清不掉**（无按前缀删键原语，见待办） |
 | 对话历史等业务数据 | 插件自管，物理上在上述键内 | 随键清 |

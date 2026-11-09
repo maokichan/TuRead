@@ -42,5 +42,5 @@ Status: implemented
 
 换来的：各域有与架构同构的参照页，验证入口随页可查；[FEATURES](../../../../client/docs/FEATURES.md) 释放约 40% 体量；上限
 争论终结于分层。付出的：跨域改动要同步 feature 页与 [ARCHITECTURE](../../../../client/docs/ARCHITECTURE.md) 两处（跟踪声明会提醒）；
-doc-typecheck / type-equiv（dsh 的文档类型编译校验）未引入，登记 [TODO](../../../../TODO.md) 远期；feature 页与
+doc-typecheck / type-equiv（dsh 的文档类型编译校验）未引入，登记 TODO 远期；feature 页与
 代码的锚点漂移靠 docIndex 声明 + 人工对表，非机器强制。

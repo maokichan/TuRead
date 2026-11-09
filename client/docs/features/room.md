@@ -1,7 +1,7 @@
 # 房间（room）—— feature 参照
 
 > 本页 = 房间域的**架构锚点与实现细节**；进房三路/补书链/跟随模式的交互语义权威在
-> [`FEATURES.md`](../FEATURES.md) 房间节；接口形状 = [`contracts/ports.md`](../contracts/ports.md)（连接粒度 = 房间）+
+> 功能总纲房间节；接口形状 = [`contracts/ports.md`](../contracts/ports.md)（连接粒度 = 房间）+
 > [`contracts/services-container.md`](../contracts/services-container.md)（joinRoom 编排）+ [`server/docs/API.md`](../../../server/docs/API.md)；服务器运维 =
 > [`server/docs/OPS.md`](../../../server/docs/OPS.md)。
 
@@ -26,7 +26,7 @@
 打开，下载中 `joining` 禁用按钮 + 日志逐行进度；③ 两端皆无 → 留在房间，日志说明等房主补传；
 ④ 下载/入库失败降级为无书成员，不回滚加入。
 
-**位置同步与补书解耦**：打开的书与房间 edition 指纹一致即自动上报（[CONTRACTS](../CONTRACTS.md) v0.4.7 的 B-2 判据）
+**位置同步与补书解耦**：打开的书与房间 edition 指纹一致即自动上报（契约总纲 v0.4.7 的 B-2 判据）
 ——先进房后补书，补完打开，位置自然出现在其他成员房间。
 
 **跟随模式三道闸门**（实现 = ReaderFeature 的 `location-updated` 订阅）：① 开关打开（ref 读取，

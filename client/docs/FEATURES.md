@@ -182,7 +182,7 @@ src/renderer/src/
 - **命令集 v1**：前往五域（registry 枚举走 `host.navigate`）；退出閱讀器（仅阅读态；多标签时 =
   「關閉當前標籤」）；**呼出右欄卡片页**（清单由 ReaderFeature 经 `readerCardBus` 登记、随页族
   增减）；主題四取向（阅读中同步 `render.applyTheme`）。后续 = 视图切换/阅读器动作，随「配键
-  体系」一起做（[TODO](../../TODO.md)）。
+  体系」一起做（唯一待办清单）。
 
 ## 12. 房间入口与副本分发——交互裁决
 

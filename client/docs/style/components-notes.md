@@ -1,7 +1,7 @@
 # §5.10 笔记管理（跨书）视图
 
-> 本页承载 [`client/docs/STYLE.md`](../STYLE.md) §5.10。形态与契约 = [`client/docs/FEATURES.md`](../FEATURES.md) §12；
-> 数据口径 = [`client/docs/CONTRACTS.md`](../CONTRACTS.md) §4.4 读模型。本节只定**视觉语汇**。
+> 本页承载风格基线 §5.10。形态与契约 = 功能总纲 §12；
+> 数据口径 = 契约总纲 §4.4 读模型。本节只定**视觉语汇**。
 > 参考对象 = **书库**：笔记管理是书库的"同族视图"（状态栏结构、视图切换、
 > hover 口径、相对时间全部沿用），**不新造语汇**。
 
@@ -67,10 +67,10 @@
 - 选中 = 卡片外扩 **8px 内边距**的 **1px `--accent-ring`** 矩形（**直角，不加圆角** —— 矩形是选中标记，
   不是容器外观）。对齐书库网格的选中色（书库那处是 `border` + `ring` 双层，因为它本来就有 1px 边框）。
 - ⚠ **卡片常驻 8px 内边距**：否则选中加框会挤动文字、整片瀑布流重排（**视觉抖动**）。
-- ⚠ 这条落在 shell 页 §5.2 例外清单**之外**（"给纯文字块加框"）。按 [STYLE.md](../STYLE.md) §7 纪律：
+- ⚠ 这条落在 shell 页 §5.2 例外清单**之外**（"给纯文字块加框"）。按风格基线 §7 纪律：
   **单 commit 可回退**，实测若与 P1 冲突，回退到**元行套负片块**（`--negative-*`，面积小、不刺眼；
   新增负片用途先改 shell 页 §5.5）。
-- **单卡选中**（不做多选）。键盘（方向键移焦点 / Enter 跳转 / Delete 刪除）随**意图层**收编，见 [`TODO.md`](../../../TODO.md)。
+- **单卡选中**（不做多选）。键盘（方向键移焦点 / Enter 跳转 / Delete 刪除）随**意图层**收编，见唯一待办清单。
 
 **动作：卡片右键 = 挂载线菜单**
 
@@ -100,9 +100,9 @@
 - **空态（缺失要可见，不静默）**：一行静息淡度文字；且**当前筛选是「批註」时必须报出被隐藏的数量**：
   「還沒有任何筆記」／「沒有符合條件的筆記」／「批註 0 條 —— 有 37 條劃線未顯示」。
 
-**检索入口 = 底面全局搜索·笔记作用域**（搜索住底面顶条带；接线 = [`client/docs/FEATURES.md`](../FEATURES.md) §12.8）
+**检索入口 = 底面全局搜索·笔记作用域**（搜索住底面顶条带；接线 = 功能总纲 §12.8）
 
-- 关键词对 `excerpt` + `body` 做**子串**匹配（`NoteQuery.text`；v1 = `LIKE`，[`client/docs/DATA_MODEL.md`](../DATA_MODEL.md) §5 问题 6）。
+- 关键词对 `excerpt` + `body` 做**子串**匹配（`NoteQuery.text`；v1 = `LIKE`，数据建模 §5 问题 6）。
 - `Ctrl+F` 聚焦（全局输入框，[`client/src/renderer/src/features/chromeSearchBus.ts`](../../src/renderer/src/features/chromeSearchBus.ts)）、`Esc` 清空复用。
 
 **窗口化与"刷新"成本（已量化、已实现）**
@@ -132,5 +132,5 @@
 - **刷新粒度**：激活时重读 = 重新查询（亚毫秒）+ 只重渲视口；筛选/检索变化 = 只重查询、
   **不重建滚动容器**；切视图（網格 ⇄ 瀑布流）= 滚动归零（与书库 `resetKey` 同口径）。
 
-⚠ 回归防线：`client/scripts/style-gallery/smoke.cjs --scale=N`（可加 `--no-window` 做对照）读
+⚠ 回归防线：`[client/scripts/style-gallery/smoke.cjs](../../scripts/style-gallery/smoke.cjs) --scale=N`（可加 `--no-window` 做对照）读
 `window.__notesScale`；要求**卡片数与 `commitMs` 不随 N 线性增长**（N=1000 时约 40 张 / 几十毫秒）。

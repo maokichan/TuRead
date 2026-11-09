@@ -19,9 +19,9 @@ curl http://<服务器IP>:8080/healthz        # → {"status":"ok"}
 Ctrl+C   # 或 kill -TERM <pid>
 ```
 
-## 2. 配置文件（turead.toml）
+## 2. 配置文件（TOML）
 
-配置读取顺序：**环境变量 > 配置文件 > 默认值**。文件路径用环境变量 `TUREAD_CONFIG` 指定，默认 `./turead.toml`（=`../turead.toml`）。
+配置读取顺序：**环境变量 > 配置文件 > 默认值**。文件路径由环境变量 `TUREAD_CONFIG` 指定，未指定时取启动目录下的 TOML 配置文件。
 
 ```toml
 # ---- 启动类（改动必须重启进程才生效）----

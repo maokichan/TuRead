@@ -21,7 +21,7 @@ npm run typecheck:preview
 | `import { BookRow } from '@renderer/components/BookRow'` | 复制组件 JSX 到样张里 |
 | mock 数据 + `noop` 回调 | 复制业务逻辑 / 状态机 |
 
-理由：手写静态样张写起来最快，但**会与产品漂移**——一旦漂移，`STYLE.md` §8 的断言就失去意义。
+理由：手写静态样张写起来最快，但**会与产品漂移**——一旦漂移，[`STYLE.md`](../../docs/STYLE.md) §8 的断言就失去意义。
 本目录的代价是每个组件需要一份 mock props（`components/*` 是纯 props，成本很低）。
 
 ## 两道自检（**改数据层 / 组件 props 后必跑**）
@@ -29,7 +29,7 @@ npm run typecheck:preview
 > 起因（）：`npm run style` 曾**整页黑屏**很久没人发现 —— 黑屏不是"样式不对"，是**页面没了**：
 > v0.4.0 把 `BookRecord` 拆成 `EditionRecord` + `ReadingState`，样张没跟着走，
 > `LibraryToolbar` 的必填 prop `crumbs` 缺失 → 渲染期 `crumbs.map` 抛错 → React 卸掉整棵树，
-> 只剩 body 的 `--bg`（一片黑）。而样张是 `STYLE.md` §8.0 的"效果确认第一手段"，基线因此瞎了一半。
+> 只剩 body 的 `--bg`（一片黑）。而样张是 [`STYLE.md`](../../docs/STYLE.md) §8.0 的"效果确认第一手段"，基线因此瞎了一半。
 
 ```bash
 cd client
@@ -45,7 +45,7 @@ node_modules\electron\dist\electron.exe scripts\style-gallery\smoke.cjs [url]  #
 # → 判定与全部控制台输出落盘 logs/gallery-smoke.json（仓库根）；退出码 0 = OK
 ```
 
-`smoke.cjs` 用 Electron 真载入页面，量 DOM 事实（面板数 / 文字长度 / 挂载线实例数 / 打包字体可用）
+[`smoke.cjs`](smoke.cjs) 用 Electron 真载入页面，量 DOM 事实（面板数 / 文字长度 / 挂载线实例数 / 打包字体可用）
 并抓控制台，判据 = **有面板 + 有文字 + 无页面错误**（只放行 Electron 的开发期 CSP 警告）。
 ** 起另有三条几何机检**（几何/对比度类判据一律机检，不靠肉眼）：
 
@@ -77,6 +77,6 @@ node_modules\electron\dist\electron.exe scripts\style-gallery\smoke.cjs [url]  #
 1. **CJK 渐进增强依赖 Chromium 版本**：页面顶部会打印 `text-autospace` / `text-spacing-trim` 的支持状态。
    浏览器比 Electron（33 → Chromium 130）新时，样张可能显示应用里**尚未生效**的效果
    → 排版类最终判定必须在 Electron 内复核一次。
-2. **Tailwind 内容探测**：`root` 故意保持 [`client/`](../..)，否则 `src/renderer/src/**` 的类名不会被生成。
+2. **Tailwind 内容探测**：`root` 故意保持为 client 一侧子树根，否则 `src/renderer/src/**` 的类名不会被生成。
    若样张整页无样式，先查这一点。
 3. 样张**不参与产品构建**（`npm run build` 不引用本目录）。

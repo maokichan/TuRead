@@ -1,8 +1,8 @@
 # 设置（settings）—— feature 参照
 
 > 本页 = 设置域的**架构锚点与实现细节**；设置页格局裁决（无标题/无提示/去线、布尔 =「關｜開」
-> 文字选项等）的权威在 [`style/components-shell.md`](../style/components-shell.md) 与 [`FEATURES.md`](../FEATURES.md) 设置节；插件注册表
-> （一行一生死）语义 = [`FEATURES.md`](../FEATURES.md) 插件节 + [`client/plugins/PLUGINS.md`](../../plugins/PLUGINS.md) §3。
+> 文字选项等）的权威在 [`style/components-shell.md`](../style/components-shell.md) 与功能总纲设置节；插件注册表
+> （一行一生死）语义 = 功能总纲插件节 + [`client/plugins/PLUGINS.md`](../../plugins/PLUGINS.md) §3。
 
 ## 1. 架构锚点
 

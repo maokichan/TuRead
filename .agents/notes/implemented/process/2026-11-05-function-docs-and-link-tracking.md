@@ -4,12 +4,12 @@ Status: implemented
 
 ## Problem
 
-① 渐进披露只做进了「入口 → 子树」，没做进「职能」：打包知识散在 [README](../../README.md) 与 electron-builder
-语境，测试口径与根 [AGENTS](../../AGENTS.md)、client/AGENTS 近逐字三遍——
+① 渐进披露只做进了「入口 → 子树」，没做进「职能」：打包知识散在 README 与 electron-builder
+语境，测试口径与根 AGENTS、[client/AGENTS](../../../../client/AGENTS.md) 近逐字三遍——
 读交接的人被强制吞下全部测试口径。② 「引用即跟踪」（CP 原则：文档单向引用，引用即跟踪；被引
 文件一改，事实源被拉回处理）没有贯彻：docIndex 漂移检查只扫声明边，39 个入库 md 仅 10 个声明，
-CONTRACTS/FEATURES 等全部裸奔。③ 入口层重复（R-AGENTS ↔ [README](../../README.md) ↔
-client/AGENTS）在上一轮治理中未清。
+CONTRACTS/FEATURES 等全部裸奔。③ 入口层重复（R-AGENTS ↔ README ↔
+[client/AGENTS](../../../../client/AGENTS.md)）在上一轮治理中未清。
 
 ## Decision
 
@@ -20,9 +20,9 @@ client/AGENTS）在上一轮治理中未清。
   目录边按前缀命中；目标不存在的行文示例不入边）。`跟踪：` 声明保留为**加严层**（存在性/
   不入库/方向校验），漂移职责统一归链接边。
 - **单向引用语义**（用户补充确认）：禁止向上（祖先）、允许平级或子一级——职能文档的链接与
-  声明全按此设计；[BUILD.md](../../../../client/docs/BUILD.md) 的对象（electron-builder.yml 等）处于上级语境，一律反引号指称。
+  声明全按此设计；[BUILD.md](../../../../client/docs/BUILD.md) 的对象（[electron-builder.yml](../../../../client/electron-builder.yml) 等）处于上级语境，一律反引号指称。
 - 入口层去重按簇执行（依赖方向/kookit 禁令/许可证/版本清单/打包红线/沙箱/隔离/typecheck/smoke），
-  每簇定唯一权威：常驻指令在根 [AGENTS](../../AGENTS.md)（一行式合法层），职能口径在 TESTING/BUILD，其余指针化。
+  每簇定唯一权威：常驻指令在根 AGENTS（一行式合法层），职能口径在 TESTING/BUILD，其余指针化。
 
 ## Alternatives considered
 
@@ -30,7 +30,7 @@ client/AGENTS）在上一轮治理中未清。
   重复记账；引用本身就是跟踪意图，机器应当直接读它。
 - **反引号路径提及也入机器跟踪**（[CONTRACTS](../../../../client/docs/CONTRACTS.md) 里大量 `core/ports/…` 文字引用）：输在——噪音面
   不可控（示例/占位/泛指都会误命中）；文本引用靠职能文档声明制与人工对表补位。
-- **职能文档放 client/docs/BUILD + docs/TESTING 之外再立 COOKBOOK**：输在——TuRead 规模暂无
+- **职能文档放 [client/docs/BUILD](../../../../client/docs/BUILD.md) + [docs/TESTING](../../../../docs/TESTING.md) 之外再立 COOKBOOK**：输在——TuRead 规模暂无
   多步骤操作指南簇，先立两类，出现第三职能再扩（加层需理由，guardrail 口径）。
 
 ## Consequences

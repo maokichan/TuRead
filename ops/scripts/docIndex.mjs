@@ -1,20 +1,25 @@
 /**
- * docIndex —— 路径即跟踪（挂在 git pre-commit，见 .githooks/）
+ * docIndex —— 引用即链接（挂在 git pre-commit，见 .githooks/）
  *
- * ── 机制 ──
- * **有路径就算跟踪**（字面落法）：文档内任何路径形 token——md 链接目标、反引号路径、裸路径——
- * 都是对该文件/目录的跟踪边，无需任何显式语法。被引用文件进了暂存区而引用它的文档没动，
- * commit 时提醒漂移（目录边按前缀命中）。目标须实际存在（对「文档所在目录 → 各级祖先 →
- * 仓库根」依次解析，取首个存在者）；解析失败的 token 忽略，但以已知根段开头而解析失败的
- * 视为**疑似失效路径引用**，check 模式给 notice（不拦截）——文档与现实的脱钩从这里显形。
- * **引用方向纪律只管 md 链接**（导航语义：禁止向上祖先、允许平级或子一级）；路径提及是
- * 跟踪边不是导航，不做方向校验。机制不保证同步、不校验语义；它只让"该看一眼"无处遁形。
+ * ── 法律（用户 2026-11-10 结构治理批终裁）──
+ * ① **所有引用必须 []() 链接形态**：反引号壳、裸路径、裸文档名、裸词干都算引用——
+ *    解析到仓库实物（文件级）的一律必须写成链接；目录（含 gitignored 运行时路径）形态自由。
+ * ② **向上引用无合法形态**：解析目标在引用文档的祖先目录（含仓库根）的——链接、反引号、
+ *    裸词，任何形态都违规。唯一处置 = 删除该引用或改写为不含路径 token 的中文表述
+ *    （渐进式披露：内容只向下流，竖直导航由入口链承担）。
+ * ③ **死引用非法**：链接目标不存在 = 死链；以已知根段开头而解析失败 = 死引用。均拦截。
+ * ④ **解析不到仓库实物的不算引用**（EPUB/PDF 类散文词、模板串、非仓库路径）——合法，不管。
+ * ⑤ 方向纪律只约束引用的**方向合法性**（见②）；「平级/子一级/跨支」引用走①必须是链接。
+ * 解析次序：文档目录 → 各级祖先 → 仓库根 → client/ → server/，取首个存在者；
+ * 无扩展名补 .md/.mjs 一试；仍失败且形如文档名/词干的，走「全仓唯一文件名索引」，
+ * 唯一命中即解析成功、多命中报「重名需显式路径」。机制不保证同步、不校验语义；
+ * 它只让「该看一眼」无处遁形。漂移提醒保留：被引用文件进暂存区而引用文档没动 → 提醒。
  * 用法：`node ops/scripts/docIndex.mjs check`（全量体检）| `hook`（pre-commit 调用）。
  * 运行环境：零依赖 Node ESM（node >= 20）；路径一律 / 分隔（git ls-files 口径）。
  */
 
 import { execSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -35,6 +40,31 @@ const trackedMd = () =>
 const dirOf = (rel) => {
   const d = dirname(rel).split(sep).join('/')
   return d === '.' ? '' : d
+}
+
+/** 方向比较基准：目录目标取目录本身，文件目标取其所在目录 */
+const effectiveTargetDir = (rel) => {
+  try {
+    if (statSync(join(ROOT, rel)).isDirectory()) return rel
+  } catch {
+    // 不存在的路径按文件处理
+  }
+  return dirOf(rel)
+}
+
+const isAncestorDir = (effDir, docRel) => {
+  const d = dirOf(docRel)
+  if (effDir === d) return false // 平级
+  if (effDir === '') return d !== '' // 仓库根是所有非根目录的祖先
+  return d.startsWith(effDir + '/')
+}
+
+const isDirPath = (rel) => {
+  try {
+    return statSync(join(ROOT, rel)).isDirectory()
+  } catch {
+    return false
+  }
 }
 
 /** 路径形 token：含 `/` 或以 1–4 位扩展名结尾；剥尾部标点 */
@@ -60,13 +90,10 @@ const gitIgnored = (rel, dirForm = false) => {
   return result
 }
 
-/** 已知仓库根段：这些开头而解析失败的引用，大概率是文档与现实的脱钩 */
+/** 已知仓库根段：这些开头而解析失败的引用 = 死引用 */
 const KNOWN_ROOTS = ['client/', 'docs/', 'ops/', 'server/', '.agents/', 'scripts/']
 
-/**
- * 对 token 依次按「文档目录 → 各级祖先 → 仓库根 → client/ → server/」解析
- * （人写路径常缺 client/ 前缀，故补两个包根基准），取首个存在者；无扩展名再补 .md/.mjs 一试。
- */
+/** 直接路径层：文档目录 → 各级祖先 → 仓库根 → client/ → server/，无扩展名补 .md/.mjs 一试 */
 const resolveToken = (doc, raw) => {
   const tok = raw.replace(/\\/g, '/')
   if (/^[A-Za-z]:/.test(tok) || tok.startsWith('//')) return null
@@ -94,15 +121,26 @@ const resolveToken = (doc, raw) => {
   return null
 }
 
-/**
- * 全量扫描。返回 { errors, notices, edges: Map<文档, Set<路径>> }
- * edges = 路径即跟踪的边集（含 md 链接目标——超集，无需单列）。
- */
+/** 全量扫描。返回 { errors, edges }；edges = 跟踪边集（漂移提醒用） */
 const inspect = () => {
   const errors = []
-  const notices = []
   const edges = new Map()
   const docs = trackedMd()
+
+  // 全仓文件名索引：裸文档名/词干在直接路径层失败后的唯一命中解析层
+  const byName = new Map()
+  for (const p of docs) {
+    const base = p.split('/').pop().toLowerCase()
+    if (!byName.has(base)) byName.set(base, [])
+    byName.get(base).push(p)
+  }
+  const resolveByName = (doc, tok) => {
+    const key = (tok.toLowerCase().endsWith('.md') ? tok : tok + '.md').toLowerCase()
+    const hits = byName.get(key)
+    if (!hits || hits.length === 0) return null
+    if (hits.length > 1) return { ambiguous: hits }
+    return hits[0]
+  }
 
   for (const doc of docs) {
     let text
@@ -113,45 +151,89 @@ const inspect = () => {
     }
     const docSet = new Set()
     edges.set(doc, docSet)
-    // md 链接：越仓检查（方向纪律已退役——引用即链接后，子页向上指认父权威是合法引用形态；
-    // 渐进披露改由「入口→子树」读序与行数门控承担，不再靠链接方向）
-    for (const m of text.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) {
-      const target = m[1]
-      if (/^(https?:|mailto:|#)/.test(target)) continue
-      const rel = relative(ROOT, resolve(ROOT, dirOf(doc), target.split('#')[0])).split(sep).join('/')
-      if (rel.startsWith('..')) errors.push(`${doc}：引用越出仓库 —— ${target}`)
-    }
-    // 路径 token：引用即跟踪
-    for (const m of text.matchAll(TOKEN_RE)) {
-      const tok = stripEdgePunct(m[0])
-      if (!isPathLike(tok) || /^(https?:|mailto:)/i.test(tok) || tok.includes('://')) continue
-      if (tok.includes('*')) continue // glob 模式（如 server/*.log）不作为单一引用
-      if (text[m.index + m[0].length] === '<' || text[m.index + m[0].length] === '*') continue // 模板/glob 截断
-      if (tok.startsWith('kookit/')) continue // submodule 内部不在跟踪范围（红线：禁 commit/push）
-      const rel = resolveToken(doc, tok)
-      if (rel && rel.includes('/')) {
-        docSet.add(rel) // 单段路径（根层的 client/、AGENTS.md 等泛指）不作边——不可行动的漂移面
-      } else if (rel === null && KNOWN_ROOTS.some((r) => tok.startsWith(r))) {
-        if (gitIgnored(tok) || gitIgnored(tok, true)) continue // gitignored 运行时路径（如探针 userData）非失效
-        const key = `${doc}：疑似失效路径引用 —— ${tok}`
-        if (!notices.includes(key)) notices.push(key)
+    const lines = text.split('\n')
+    let fence = false
+    for (let li = 0; li < lines.length; li++) {
+      const raw = lines[li]
+      if (/^\s*(```|~~~)/.test(raw)) {
+        fence = !fence
+        continue
+      }
+      if (fence) continue
+      if (/^\s*跟踪[:：]/.test(raw)) continue
+      const at = `${doc}:${li + 1}`
+      // ① 链接：越仓 / 向上 / 死链 三查，然后掩掉（链接形态 = 合法形态，token 层不再看它）
+      const line = raw.replace(/\[[^\]]*\]\(([^)\s]+)(\s+"[^"]*")?\)/g, (m, target) => {
+        if (/^(https?:|mailto:|#)/.test(target)) return ' '.repeat(m.length)
+        const bare = target.split('#')[0]
+        const rel = relative(ROOT, resolve(ROOT, dirOf(doc), bare)).split(sep).join('/')
+        if (rel.startsWith('..')) errors.push(`${at}：引用越出仓库 —— ${target}`)
+        else if (isAncestorDir(effectiveTargetDir(rel), doc))
+          errors.push(`${at}：引用方向向上（祖先）—— ${target}（向上引用无合法形态：删除或改写为不含路径的中文表述）`)
+        else if (!existsSync(join(ROOT, rel))) {
+          if (!gitIgnored(rel) && !gitIgnored(rel, true)) errors.push(`${at}：死链 —— ${target}`)
+        } else docSet.add(rel)
+        return ' '.repeat(m.length)
+      })
+      // ② 反引号 span 与自由文本：同一条 token 法（链接已掩掉，剩下的可解析文件引用都是非法形态）
+      const parts = line.split(/(`[^`\n]+`)/)
+      for (let pi = 0; pi < parts.length; pi++) {
+        const seg = parts[pi]
+        for (const m of seg.matchAll(TOKEN_RE)) {
+          const tok = stripEdgePunct(m[0])
+          if (!isPathLike(tok) || /^(https?:|mailto:)/i.test(tok) || tok.includes('://')) continue
+          if (tok.includes('*') || /[{<]/.test(tok)) continue // glob/模板不作单一引用
+          const after = seg[m.index + m[0].length]
+          if (after === '*' || after === '<') continue // glob/模板截断（token 停在记号前）
+          if (tok.startsWith('kookit/')) continue // submodule 不在跟踪范围（红线）
+          let rel = resolveToken(doc, tok)
+          let ambiguous = null
+          if (!rel) {
+            const byIdx = resolveByName(doc, tok)
+            if (byIdx && byIdx.ambiguous) {
+              ambiguous = byIdx.ambiguous
+            } else if (byIdx) {
+              rel = byIdx
+            }
+          }
+          if (!rel) {
+            if (KNOWN_ROOTS.some((r) => tok.startsWith(r))) {
+              if (!gitIgnored(tok) && !gitIgnored(tok, true))
+                errors.push(`${at}：死引用 —— ${tok}（解析不到仓库实物）`)
+            }
+            continue
+          }
+          if (rel === doc) continue // 自引：本文提自己，任何形态合法
+          if (isAncestorDir(effectiveTargetDir(rel), doc)) {
+            errors.push(`${at}：向上引用无合法形态 —— ${tok} ⇒ ${rel}（删除或改写为不含路径的中文表述）`)
+            continue
+          }
+          docSet.add(rel)
+          if (!isDirPath(rel))
+            errors.push(`${at}：引用必须为 []() 链接 —— ${tok}（反引号/裸写形态已废，改为 [${tok}](${toRel(doc, rel)})）`)
+        }
       }
     }
   }
-  return { errors, notices, edges }
+  return { errors, edges }
+}
+
+/** 链接目标建议：文档目录相对路径 */
+const toRel = (doc, relResolved) => {
+  let rel = relative(dirname(join(ROOT, doc)), join(ROOT, relResolved)).split(sep).join('/')
+  return rel === '' ? relResolved : rel
 }
 
 const cmd = process.argv[2]
 
 if (cmd === 'check') {
-  const { errors, notices, edges } = inspect()
-  for (const n of notices) console.log(yellow(`△ ${n}`))
+  const { errors, edges } = inspect()
   if (errors.length > 0) {
     console.error(red('doc-index check：存在错误。\n'))
     for (const e of errors) console.error(`  ${e}`)
     process.exit(1)
   }
-  console.log(green(`doc-index check：${edges.size} 个文档的路径引用全部合规。`))
+  console.log(green(`doc-index check：${edges.size} 个文档的引用全部合规（引用即链接 / 无向上 / 无死链）。`))
   process.exit(0)
 }
 

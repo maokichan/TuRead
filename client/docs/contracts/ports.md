@@ -47,7 +47,7 @@
 
 ## ILibraryStore —— 持久化
 
-- 三层：**edition**（内容身份，全局唯一键 = 指纹）/ **holding**（收录）/ **library**（组织模式）；书箱树在库内。schema = [`DATA_MODEL.md`](../DATA_MODEL.md) §2。接口保持存储无关；真实实现 = 主进程 SqliteStore（[`src/main/store/sqliteStore.ts`](../../src/main/store/sqliteStore.ts)）。
+- 三层：**edition**（内容身份，全局唯一键 = 指纹）/ **holding**（收录）/ **library**（组织模式）；书箱树在库内。schema = 数据建模 §2。接口保持存储无关；真实实现 = 主进程 SqliteStore（[`src/main/store/sqliteStore.ts`](../../src/main/store/sqliteStore.ts)）。
 - `upsertEdition` 是**导入去重的唯一入口**（全局按指纹）；`removeEdition`（连带 `notes` / reading_state / reading_sessions）只在显式维护动作「清理未收录内容」里用——「移除书」走 `removeHolding`，**不是**这个。
 - `removeHolding` / `removeLibrary` **不得级联** `notes` / reading_state（用户资产；总纲不变量③）。`removeLibrary` 连带 containers/holdings，最后一个库不可移除。
 - **阅读时长写入纪律**：`updateReadingLocation` 只动 `lastReadAt` / `lastLocation`，**绝不动 `totalReadMs`**——时长唯一写入口 = `appendReadingSession`（事务内累加；整行覆盖会与累加路径竞态丢会话时长）。

@@ -1,8 +1,8 @@
 # 书库（library）—— feature 参照
 
 > 本页 = 书库域的**架构锚点与实现细节**；交互裁决（聚焦舞台形态、移除语义、面包屑规则等）
-> 的权威在 [`FEATURES.md`](../FEATURES.md) 书库节（裁决与本页是上下级，本文不复读裁决）；接口形状 =
-> [`contracts/ports.md`](../contracts/ports.md)；存储布局 = [`DATA_MODEL.md`](../DATA_MODEL.md) §1/§2；视觉 = [`STYLE.md`](../STYLE.md)。
+> 的权威在功能总纲书库节（裁决与本页是上下级，本文不复读裁决）；接口形状 =
+> [`contracts/ports.md`](../contracts/ports.md)；存储布局 = 数据建模 §1/§2；视觉 = 风格基线。
 
 ## 1. 架构锚点
 
@@ -13,7 +13,7 @@
 | [ports](../contracts/ports.md) | `picker`（选文件/目录/扫描/读文件）、`image`（缩略图）、`metadata`（离屏提取）；store 跨域共享 |
 | adapters | `picker/ipcPickerAdapter`、`image/thumbnail`、`render/offscreenMetadataExtractor`、`identity/fingerprint`（与 [room](room.md) 共享） |
 | domain | `core/domain/format.ts`（`extToFormat`）；`types.ts` 的 book/holding/container 段 |
-| 缝合件 | 选中 `selectedBookId` 是 Room 标定与 Reader 打开的单一真相（见 [`ARCHITECTURE.md`](../ARCHITECTURE.md) 缝合件表）；`coverCache.ts`/`format.ts` 住 [features/](client/docs/features) 根 |
+| 缝合件 | 选中 `selectedBookId` 是 Room 标定与 Reader 打开的单一真相（见架构文档缝合件表）；`coverCache.ts`/`format.ts` 住 [features/](client/docs/features) 根 |
 
 ## 2. 实现细节
 
@@ -33,7 +33,7 @@ Blob → objectURL（CSP 放行 `blob:`），模块级缓存。提取时机 = �
 
 **打包字体**：GenRyuMin2 TW Bold 切面子集化（BMP CJK + 拉丁 + 标点，去提示指令），18.8MB →
 10.95MB，Vite 资源管线（`assets/fonts/`），`@font-face` 在 `styles.css`；许可 SIL OFL 1.1
-（见 `assets/fonts/NOTICE.md`；许可全文随包是 [TODO](../../../TODO.md)）；Ext-A/B 极生僻字回退字栈下一个明体。
+（见 `assets/fonts/NOTICE.md`；许可全文随包是待办事项）；Ext-A/B 极生僻字回退字栈下一个明体。
 
 **视图切换动画**：`.view-switch-flash`（240ms，`--dur-flash`）三拍——区域变深色 → 浅色新文字浮出 →
 同时复原；闪屏中再点 = 重开一轮，状态切换不被动画挡住；四主题各自 `--flash-bg/--flash-text`。

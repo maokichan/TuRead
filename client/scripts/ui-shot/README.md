@@ -8,9 +8,9 @@
 
 | 脚本 | 作用 |
 |---|---|
-| `shot.ps1 -out <png>` | 全屏截屏（DPI-aware，物理像素） |
-| `printwin.ps1 -targetPid <pid> -out <png>` | **PrintWindow 直接抓窗口内容**（无视遮挡/跨屏坐标，首选） |
-| `click.ps1 -x <x> -y <y> [-double 0]` | 模拟鼠标点击（物理像素坐标；默认双击） |
+| `[shot.ps1](shot.ps1) -out <png>` | 全屏截屏（DPI-aware，物理像素） |
+| `[printwin.ps1](printwin.ps1) -targetPid <pid> -out <png>` | **PrintWindow 直接抓窗口内容**（无视遮挡/跨屏坐标，首选） |
+| `[click.ps1](click.ps1) -x <x> -y <y> [-double 0]` | 模拟鼠标点击（物理像素坐标；默认双击） |
 
 ## 用法（典型回路）
 
@@ -32,9 +32,9 @@ powershell -File scripts/ui-shot/printwin.ps1 -targetPid <PID> -out shot.png
 - `TUREAD_USER_DATA` **必须绝对路径**（相对 → 主进程 "Path must be absolute"，静默无窗）。
 - 后台/被遮挡的窗口可能不重绘（PrintWindow 抓到旧帧 + tooltip 黏帧）：最小化再还原（`ShowWindow 6 → 9`）强制重绘，或点一下窗口。
 - **中文路径经环境变量传入会被编码坑掉**（ENOENT）：`TUREAD_DEV_BOOK` 用 ASCII 文件名（`.probe-book.mobi` 之类）。
-- 坐标两套空间：PrintWindow 输出 = 逻辑像素（DPI 虚拟化）；`click.ps1`/`shot.ps1` = 物理像素（已 SetProcessDPIAware）。换算 ×DPI（本机 125% = ×1.25）。
+- 坐标两套空间：PrintWindow 输出 = 逻辑像素（DPI 虚拟化）；[`click.ps1`](click.ps1)/[`shot.ps1`](shot.ps1) = 物理像素（已 SetProcessDPIAware）。换算 ×DPI（本机 125% = ×1.25）。
 - 鼠标悬停会触发原生 tooltip 黏进截图——抓图前把光标挪开。
 - dev 自检（`TUREAD_DEV_BOOK`）跑完会自退；要留在界面：不带该变量重启同一 userData。
 - **PrintWindow 仍可能抓到陈旧帧**（ShowWindow 6→9 强刷都救不回，批1.22 实测）→
   **CDP compositor 截图是终审手段**：dev 加 `-- --remote-debugging-port=9223`，
-  `node -e` 走 `Page.captureScreenshot`（参照 `dom.mjs` 的连接方式；DOM 真相查询同路）。
+  `node -e` 走 `Page.captureScreenshot`（参照 [`dom.mjs`](dom.mjs) 的连接方式；DOM 真相查询同路）。

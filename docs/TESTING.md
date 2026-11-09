@@ -1,7 +1,7 @@
 # 测试与验证口径（TESTING）
 
 > **职能文档**：回归与验证的全部口径在此，不到验证环节不加载。专项细节不夺位——各专项
-> [README](../README.md) 是其领域权威（见下声明）；本页只做总口径、判据要点与指路。
+> `README` 是其领域权威（见下声明）；本页只做总口径、判据要点与指路。
 
 ## 环境事实（跑不起来的先看这里）
 
@@ -11,7 +11,7 @@
 - **`TUREAD_USER_DATA`**：探针/自检一律 `<工作区内独立目录的绝对路径>` 隔离（相对路径主进程
   拒载），**别碰真实书库**；`TUREAD_USER_DATA` 要落在工作区内。
 - **Electron ABI**：better-sqlite3 是 electron-v130 ABI，系统 Node `require` 会 `ERR_DLOPEN_FAILED`
-  → 碰原生模块的临时脚本用 `client/node_modules/electron/dist/electron.exe <脚本.cjs>` 跑；
+  → 碰原生模块的临时脚本用 `[client/node_modules/electron/dist/electron.exe](../client/node_modules/electron/dist/electron.exe) <脚本.cjs>` 跑；
   Windows 下 Electron 的 stdout 抓不到 → **结果写文件再读**（统一日志落地后，生产诊断走
   `<userData>/logs/app.jsonl`，见 `@shared/log`）；脚本末尾 `app.quit()` 的 FATAL 噪音不影响结论。
 - 换 Electron 大版本后 `npm run rebuild:sqlite`。
@@ -23,7 +23,7 @@
   RoomSession、插件三件、日志轮转。
 - **`npm run typecheck:all`** = 四个 tsconfig（node / web / test / **preview**）。
   ⚠ **preview 覆盖样式样张——改数据层或组件 props 后必跑**（「样张整页黑屏」就是漏跑它）；
-  ⚠ `tsconfig.test.json` 不设 `jsx` → 纯 `.ts` 不能 import `.tsx` 的类型（数据形状住纯模块里）。
+  ⚠ [`tsconfig.test.json`](../client/tsconfig.test.json) 不设 `jsx` → 纯 `.ts` 不能 import `.tsx` 的类型（数据形状住纯模块里）。
 - 渲染层视觉守卫：`styleGrammar.test.ts`（transition 走 `--dur-*`、z-index 档位、字号白名单），
   随 `npm test` 跑。
 
@@ -56,7 +56,7 @@
 ## server 侧
 
 `go test ./...`（白盒在源码旁）+ [`server/test/e2e/`](../server/test/e2e)（黑盒走 HTTP/WS）；e2e 洪泛
-`TestE2EFloodNoDrop` 本机既有不稳（非回归，登记 [TODO](../TODO.md)）。
+`TestE2EFloodNoDrop` 本机既有不稳（非回归，登记 TODO）。
 
 ## 发行版冒烟（打包之后才做）
 

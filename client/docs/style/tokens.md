@@ -1,6 +1,6 @@
 # §3 令牌（+ §5.6 深色专项）
 
-> 本页承载 [`client/docs/STYLE.md`](../STYLE.md) §3 与 §5.6。**token 值的唯一来源 = [`client/src/renderer/src/styles.css`](../../src/renderer/src/styles.css)**
+> 本页承载风格基线 §3 与 §5.6。**token 值的唯一来源 = [`client/src/renderer/src/styles.css`](../../src/renderer/src/styles.css)**
 > （`:root` = 纯色·深，`[data-theme=light|sepia-light|sepia-dark]` 各一套；文件头 = z-index 登记表）。
 > 本页不复读代码可自证的现值（每个 `--dur/--z/--radius/--font/--ease`、颜色组的具体值），
 > 只留代码说不出的：语义、纪律、why、禁区。改值先改 `styles.css`，再回头核对本页的语义是否仍成立。
@@ -68,7 +68,7 @@
   **新增取向 = 复制整套 token**，不允许局部覆盖。
 - **阅读页跟随模式**：`--page-bg/--page-text` 是正文页的纸色 —— **深色模式必须用该主题的深色纸**
   （用户定：夜间模式与深/浅选择挂钩，深色主题不留白纸）。
-  非 PDF 正文的深色渲染由 `IRenderService.applyTheme` 注入（[`client/docs/CONTRACTS.md`](../CONTRACTS.md) §4.1）；
+  非 PDF 正文的深色渲染由 `IRenderService.applyTheme` 注入（契约总纲 §4.1）；
   浅色不注入、保留书的外观。
 - **阅读页的"桌"与"纸的边"（四套主题各一组）**：`--desk-bg`（纸外背景）+ `--page-edge`（纸的 1px 边）。
   **内容与背景靠颜色区分**——桌比纸暗一档，纸再有边线；不用阴影/圆角。新增取向时这两项随整套 token 一起复制。
@@ -81,7 +81,7 @@
   `--inset-top` / `--inset-x`（卡片层 inset，`.card-region` 唯一消费方）、
   `--tag-flyout-max-w`（标签揭示胶囊宽度上限，shell 页 §5.2 ⑦）、
   `--toc-press-ink` / `--toc-press-hi` / `--toc-press-lo`（目录压印字与两道边缘阴影，四主题各给）、
-  `--scrim-blur`（聚焦舞台景深幕模糊半径，[FEATURES](../FEATURES.md) §10）、
+  `--scrim-blur`（聚焦舞台景深幕模糊半径，功能总纲 §10）、
   `--page-w`（纸宽的生效值，**唯一定义处**：`min(用户档位, 100vw − 侧边栏 − 2×inset − 2×(挂件 + 缝))`，
   全固定 token、锚定视口——**让位的是纸、不是线**；⚠ 算式必须含 `--sidebar-w`，
   挂件从侧边栏右缘起算，少算会压纸。[`client/src/renderer/src/AppShell.tsx`](../../src/renderer/src/AppShell.tsx) 的 `.reader-stage` 与
@@ -98,7 +98,7 @@
   （表达内容状态，**不做装饰**）——"读者标记内容"这一功能本身需要可区分的色。
   四套取向**各给一组具体值**（不派生：同一色在深纸与浅纸上不可通用）。
   - 值只在 `styles.css`（颜色唯一来源）；**库内只存语义名**（`Note.color` = 语义名，非 hex，
-    [`client/docs/CONTRACTS.md`](../CONTRACTS.md) §2 `NoteColor`）。
+    契约总纲 §2 `NoteColor`）。
   - ⚠ **约束（决定取值口径）**：kookit 对非 PDF 高亮统一渲染为 `rgba(<该值>, 0.8)` 并叠在正文上
     → **深色取向必须用低亮度高饱和**，否则浅色块压浅色字糊成一片。故：
     纯色·深 = 冷调压暗 / 羊皮纸·深 = 暖调压暗；浅色两套才用经典荧光笔色。
@@ -150,4 +150,4 @@
 
 **剩余做法**：① 全 token 对比度审计（四套取向 × 每个文字色，含 muted/状态色/负片）；
 ② 阅读页实测四套取向（EPUB + PDF 各一本）；③ 结论回写本页并把规则补进 §3.4。
-登记：[`TODO.md`](../../../TODO.md)「渲染层风格与验收」组。
+登记：唯一待办清单「渲染层风格与验收」组。

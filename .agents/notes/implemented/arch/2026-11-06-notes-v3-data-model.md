@@ -72,6 +72,6 @@ Status: implemented
 记号笔自绘 SVG 层）；body 原生 Markdown + 色样正交（4 样 × 4 色，`--mark-line-*` 描边族）；
 vault 真文件 = Obsidian 反链的物质基础；编辑器三态（源码 = 唯一真相，所见即所得是它的视图）。
 **付出的**：坐标换算依赖 kookit 内部（`chapterDocList`/`getPdfScale`，升级敏感面已入
-`KOOKIT.md` §9）；档案 vs 手改的一致性靠「生成物勿手改 + 整体覆盖」口径；文档层体量
+[`KOOKIT.md`](../../../../client/docs/KOOKIT.md) §9）；档案 vs 手改的一致性靠「生成物勿手改 + 整体覆盖」口径；文档层体量
 按矩阵收口（「不取代 Obsidian」是红线）。**待真机复看**：几何拖曳手感与落点精度、
 四样在 EPUB/PDF 的观感、Obsidian 反链实效——探针证不了交互手感。

@@ -41,6 +41,6 @@ Issue #2 修复（`attachLinkWatch`/`activateLink`，见 [`client/docs/KOOKIT.md
 
 - 所得：一次拦截覆盖全部注类编排；无新 UI 组件；往返闭环免费成立。
 - 代价：读长注释（尾注整节）时离开原文位置，靠回跳链接/跳转历史回去——
-  跳转历史（[TODO](../../../../TODO.md)「渲染与阅读器」组）的用户价值因此上升。
+  跳转历史（TODO「渲染与阅读器」组）的用户价值因此上升。
 - 边界债：MOBI `kindle:` 脚注半支持是无条目挂账的显式边界（本笔记为账）；真要支持
   需逆向 kookit 的 `resolveHref`（foliate MOBI 侧），按需立项。

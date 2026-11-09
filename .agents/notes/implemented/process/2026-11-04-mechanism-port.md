@@ -15,9 +15,9 @@ Status: implemented
   只扫文档/配置扩展、密钥八类扫全部文本源、排除 vendored 与 trash、`<占位符>` 豁免）与
   docIndex（文末「跟踪：」声明；check 全量 / hook 拦截 + 漂移提醒）。
 - [`.githooks/pre-commit`](../../../../.githooks/pre-commit) 三连：docIndex hook → repoGuard → docGuard（set -e，任一失败即中止）。
-- 新建 [`.agents/notes/`](../..) 决策日志：三态生命周期、路径即元数据、Alternatives considered 强制；
+- 新建 `.agents/notes/` 决策日志：三态生命周期、路径即元数据、Alternatives considered 强制；
   类别闭集 = process / arch / product。
-- [`client/scripts/`](../../../../client/scripts) 现有业务与验证脚本标记「不信任·待收编」，收编通道见其 [README](../../README.md)；逐个处理
+- [`client/scripts/`](../../../../client/scripts) 现有业务与验证脚本标记「不信任·待收编」，收编通道见其 `README`；逐个处理
   另行进行，不在本决策内。
 
 ## Alternatives considered

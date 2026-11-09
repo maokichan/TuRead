@@ -1,6 +1,6 @@
 # §8 验收
 
-> 本页承载 [`client/docs/STYLE.md`](../STYLE.md) §8。口径总纲 = [`docs/TESTING.md`](../../../docs/TESTING.md)；探针全集的触发方式与沙箱事实也在那里。
+> 本页承载风格基线 §8。口径总纲 = [`docs/TESTING.md`](../../../docs/TESTING.md)；探针全集的触发方式与沙箱事实也在那里。
 
 ## §8.0 效果确认（第一手段）
 
@@ -12,9 +12,9 @@
 > ⚠ **样张也会漂移，且失效方式是"整页黑屏"**：数据层/组件 props 换代而样张没跟着走时，
 > 渲染期抛错会卸掉整棵树 —— **不是"样式不对"，是"页面没了"**，而样张是第一手段，基线验收随之瞎掉。
 > **两道防线（改数据层 / 组件 props 后必跑）**：
-> ① `npm run typecheck:preview`（= `typecheck:all` 的后半）—— `tsconfig.preview.json` 覆盖样张，
+> ① `npm run typecheck:preview`（= `typecheck:all` 的后半）—— 样张代码也在该命令的 TS 检查范围内，
 > 漂移当场列出；
-> ② `node_modules\electron\dist\electron.exe client/scripts/style-gallery/smoke.cjs`（需先 `npm run style`）
+> ② `[node_modules\electron\dist\electron.exe](../../node_modules/electron/dist/electron.exe) [client/scripts/style-gallery/smoke.cjs](../../scripts/style-gallery/smoke.cjs)`（需先 `npm run style`）
 > —— 真载入页面、量 DOM 事实、抓控制台，判据 = 有面板 + 有文字 + **无页面错误**
 > （类型过了不等于能渲染）。细节见 [`client/scripts/style-gallery/README.md`](../../scripts/style-gallery/README.md)。
 
@@ -66,12 +66,12 @@
 - `恢复=ok` —— 走真实用户路径（点侧边栏「阅读」）后**正文确实回来**；判据按格式分（PDF 数子 iframe 的 canvas）。
 - 渲染主判据：`可滚动 > 0` 且翻页生效，内容量一律用 `textContent`（**不用 `innerText`**，[tokens](tokens.md) 页 §5.6）。
 
-**未实现**（待办见 [`TODO.md`](../../../TODO.md)）：
+**未实现**（待办见唯一待办清单）：
 
 - **无边框文字按钮存在性**：书库视图切换 / 導入按钮的 `borderColor` 为 `transparent`。
 - **字号白名单扫描**：遍历渲染树，`fontSize` 必须落在 [tokens](tokens.md) 页 §3.2 阶梯内（封面自适应除外）。
 
-## §8.2 grep 断言（CI/审查用；**尚未接入，待办见 [`TODO.md`](../../../TODO.md)**）
+## §8.2 grep 断言（CI/审查用；**尚未接入，待办见唯一待办清单**）
 
 - `#hex` 只出现在 `styles.css`；
 - `font-family` 只出现在 `styles.css`；

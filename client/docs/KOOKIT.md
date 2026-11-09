@@ -242,7 +242,7 @@ GeneralRender (GeneralRender.ts，事件基类)
 ## 8. 独立测试工具（kookit-harness）
 [`client/scripts/kookit-harness/`](../scripts/kookit-harness)，隔离 App 环境验证单体：
 
-- `serve.mjs`：零依赖静态服务器（root=[client/](..)），映射 `/lib/pdfjs/` → [`src/renderer/public/lib/pdfjs/`](../src/renderer/public/lib/pdfjs)。
+- `serve.mjs`：零依赖静态服务器（root=项目 client 一侧），映射 `/lib/pdfjs/` → [`src/renderer/public/lib/pdfjs/`](../src/renderer/public/lib/pdfjs)。
 - `index.html`：无 CSP 测试页。先动态 import pdfjs 再 import vendor（顺序不可反）；
   `?auto=<路径>` 自动跑自检（章节列表/正文量/翻页快照断言）；`&probe=<js表达式>`
   在页面上下文执行诊断（可访问 `rendition`），结果以 `[TUREAD-TEST-PROBE]` 打印。
@@ -262,7 +262,7 @@ GeneralRender (GeneralRender.ts，事件基类)
   ⑤ **断言必须走真实用户路径**：「恢复上次阅读」要**点击侧边栏按钮** —— 按钮路径绕过
     `host.navigate`，直接调 `host.navigate('reader')` 的断言在真机失效时仍然"通过"。
 - **当前结果**：EPUB/MOBI/AZW3 全绿（App 无头自检四格式亦全绿，含 PDF）；
-  harness 侧 PDF canvas 未渲染待定位（低优先级，见 [TODO](../../TODO.md)）。
+  harness 侧 PDF canvas 未渲染待定位（低优先级，见待办）。
 
 ## 9. 升级指南
 

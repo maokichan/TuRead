@@ -3,7 +3,7 @@
 > 插件开发**不是源程序侧**：插件运行在渲染层外壳的宿主 `API` 上（不进 ServiceContainer、
 > 不碰六边形内核），本子树自持全部规范与工作区事实——只开发插件的 agent 读到这里即可开工，
 > 无需进入 [client/docs](../docs) 的主程序文档群（除非任务触及宿主侧）。
-> 全局红线在仓库根 [`AGENTS.md`](../../AGENTS.md)；提交过门控链（pre-commit 三守卫自动跑）。
+> 全局红线在仓库根 `AGENTS.md`；提交过门控链（pre-commit 三守卫自动跑）。
 
 ## 本子树地图
 
@@ -24,7 +24,7 @@
 - **所有插件可卸载；获取 = 手动安装**（ 用户裁定：无任何自动补齐，官方件经
   GitHub Release 分发 zip 走设置页导入；dev 侧豁免 = 装配点 `!app.isPackaged` 时 `syncFrom`
   覆盖同步工作区）；禁用 ≠ 卸载；`mount` 必须返回清理函数并挂 `ctx.signal` 自清。
-- kookit 子模块红线（禁 commit/push）与本子树无关但全局生效（见根 [`AGENTS.md`](../../AGENTS.md)）。
+- kookit 子模块红线（禁 commit/push）与本子树无关但全局生效（见根 `AGENTS.md`）。
 
 ## 验证与发版
 

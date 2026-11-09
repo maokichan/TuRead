@@ -3,7 +3,7 @@
 > 本文只保留**跨端共同**的内容：书籍标定模型 + 仓库布局。各端专属架构见各自 docs：
 > client 分层/术语/平台/插件 → [`client/docs/ARCHITECTURE.md`](../client/docs/ARCHITECTURE.md)；client 契约 → [`client/docs/CONTRACTS.md`](../client/docs/CONTRACTS.md)；
 > server 模块/通讯模型 → [`server/docs/ARCHITECTURE.md`](../server/docs/ARCHITECTURE.md)；REST/WS 接口与转发规范 → [`server/docs/API.md`](../server/docs/API.md)；
-> 配置与运维 → [`server/docs/OPS.md`](../server/docs/OPS.md)；待办清单 → [`TODO.md`](../TODO.md)（根目录）。
+> 配置与运维 → [`server/docs/OPS.md`](../server/docs/OPS.md)；待办 → 唯一待办清单。
 
 ## 1. 书籍身份（Work / Edition 两层模型）
 
@@ -35,7 +35,7 @@
 
 ## 2. 仓库布局（决策，）
 
-**单仓库（monorepo）**：[`client/`](../client) / [`server/`](../server) / [`kookit/`](../kookit)（submodule）/ [`docs/`](docs) 同仓；[`server/`](../server) 为**独立 Go module**（依赖全部内置，不依赖 client），随时可零成本拆出独立仓库。
+**单仓库（monorepo）**：[`client/`](../client) / [`server/`](../server) / [`kookit/`](../kookit)（submodule）/ `docs/` 同仓；[`server/`](../server) 为**独立 Go module**（依赖全部内置，不依赖 client），随时可零成本拆出独立仓库。
 
 **暂不分仓库**，理由：
 - **契约先行需要跨端原子提交**：改协议 = 同一 commit 同时改 [`client/docs/CONTRACTS.md`](../client/docs/CONTRACTS.md) 与 [`server/docs/API.md`](../server/docs/API.md)，单仓库最顺；分仓后跨端改动 = 两仓库两次提交 + 版本对齐（tag 配对），对当前阶段是负担

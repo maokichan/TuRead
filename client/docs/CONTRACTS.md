@@ -68,9 +68,9 @@ UI（React 外壳）—— 只依赖 ServiceContainer（业务流走用例；简
 
 - [ ] 笔记 / 划线同步：**明确排除在 v1 假设之外**（Note 类型先立，同步后续加）
 - [ ] 光标在场（他人选中/阅读进度热区）：**明确排除在 v1 假设之外**
-- [ ] 账号体系（游客昵称 vs 注册）→ 影响 `RoomMember.id` 语义（根 [`TODO.md`](../../TODO.md)）
+- [ ] 账号体系（游客昵称 vs 注册）→ 影响 `RoomMember.id` 语义（唯一待办清单）
 - [ ] `IRenderService.search()` 返回形状（端口已留位）
-- [ ] OCR（ISBN 提取）是否进 v1、`IOcrService` 接口草案（根 [`TODO.md`](../../TODO.md)）
+- [ ] OCR（ISBN 提取）是否进 v1、`IOcrService` 接口草案（唯一待办清单）
 - [x] ~~同步协议消息集与传输细节~~ ——已定（server 定义：[`server/docs/API.md`](../../server/docs/API.md)；客户端适配已就位）
 
 ## 5. 冲突裁决与维护

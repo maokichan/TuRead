@@ -1,7 +1,7 @@
 # client 架构（分层 / 术语 / 平台 / 插件）
 
 > 归属：**client 专属**。跨端共同内容（书籍标定 / 仓库布局）见 [`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)；
-> 客户端接口契约（权威）见 [`CONTRACTS.md`](CONTRACTS.md)；待办见 [`../../TODO.md`](../../TODO.md)。
+> 客户端接口契约（权威）见 [`CONTRACTS.md`](CONTRACTS.md)；待办见唯一待办清单。
 > 状态：本文的**分层 / 术语 / 插件态度**为设计定案（不随版本滚动）；视觉语汇以 [`STYLE.md`](STYLE.md) 为准，
 > 代码落地与接口形状以 [`CONTRACTS.md`](CONTRACTS.md) 为准。
 
@@ -88,7 +88,7 @@
 - **v1 不引入插件运行时**（manifest / 加载器 / 热插拔 / 沙箱）。原因：使用量小、只做官方插件，动态加载的复杂度不值得。
 - **演进路径**：若将来需要第三方插件，[ports](contracts/ports.md) 模型可直接承接 —— 新增 plugin manifest + 动态加载 + IPC 通道，**端口定义不变**。
 - 结论：扩展能力一律以"编译期内置适配器"承载；契约（[`CONTRACTS.md`](CONTRACTS.md)）保持稳定。
-- 候选扩展服务：`IOcrService`（图片识别 → ISBN/封面文字；适配器可复用 OCR-buddy 的 PP-OCRv5 技术路线，MIT）——是否进 v1 见 [`TODO.md`](../../TODO.md)。
+- 候选扩展服务：`IOcrService`（图片识别 → ISBN/封面文字；适配器可复用 OCR-buddy 的 PP-OCRv5 技术路线，MIT）——是否进 v1 见唯一待办清单。
 
 ## 5. 跨域缝合件（不属于任何单一 feature 域的构件）
 

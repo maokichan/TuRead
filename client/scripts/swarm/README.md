@@ -6,7 +6,7 @@
 
 ## 它是什么
 
-- **roombot**（`roombot.ts` → esbuild 打包成 `roombot.cjs`）：一只机器人客户端。把**真实的核心层**
+- **roombot**（[`roombot.ts`](roombot.ts) → esbuild 打包成 [`roombot.cjs`](roombot.cjs)）：一只机器人客户端。把**真实的核心层**
   （`WsNetAdapter` 传输适配器 + `RoomSession` 同步用例 + `FingerprintService`）原样搬进纯 Node 进程，
   渲染端口换成脚本化假件（按节奏吐位置、`getOpenBook` 返回与房间 edition 同指纹的合成书）。
   无书进入（`fingerprint: null`）→ 用 join-ack 的 edition 造合成书 —— 不需要任何真实书文件。
@@ -26,9 +26,9 @@ npm run swarm -- --bots 8 --duration 12000
 | # | 断言 | 验的是什么 |
 |---|---|---|
 | A1 | 每只都进房且见过满员快照 | 进房链路 + presence 增长路径 |
-| A2 | 翻页手的位置广播到其余各 ≥3 次；翻页手**零回声** | "除发送者外"转发语义（[TODO](../../../TODO.md) 里"三人以上未验"那条的机制化） |
+| A2 | 翻页手的位置广播到其余各 ≥3 次；翻页手**零回声** | "除发送者外"转发语义（唯一待办清单里"三人以上未验"那条的机制化） |
 | A3 | 聊天其余每只都收到；聊天手收到自己的回执 | chat 广播 + server 权威回执语义 |
-| A4 | 退房者离开后其余快照减一且名单干净 | 离房广播 / 不残留（[TODO](../../../TODO.md) 多人补验①） |
+| A4 | 退房者离开后其余快照减一且名单干净 | 离房广播 / 不残留（唯一待办清单多人补验①） |
 | A5 | 无 SYS[error] / fatal | 任何意外失败都算蜂群失败 |
 
 ## 战果（机制自身的价值证明）

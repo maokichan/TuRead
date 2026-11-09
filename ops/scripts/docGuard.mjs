@@ -55,16 +55,37 @@ const tracked = execSync('git ls-files -- "*.md"', { encoding: 'utf8' })
   .map((p) => p.trim())
   .filter((p) => p.endsWith('.md') && p !== '' && !p.startsWith('trash/'))
 
-const linesOf = (p) => {
-  const text = readFileSync(p, 'utf8')
-  return text.split('\n').length - (text.endsWith('\n') ? 1 : 0) // = wc -l 口径
+/** 散文日期退役（用户 2026-11-10 结构治理批裁）：入库文档正文禁 yyyy-mm-dd——日期归 git
+ *  历史与笔记文件名；.agents/notes/** 是事件日志（路径即元数据），放行。围栏代码块不算正文。 */
+const proseDates = (rel, text) => {
+  if (rel.startsWith('.agents/notes/')) return []
+  const hits = []
+  let fence = false
+  text.split('\n').forEach((l, i) => {
+    if (/^\s*(```|~~~)/.test(l)) {
+      fence = !fence
+      return
+    }
+    if (fence) return
+    // 链接构造先掩掉：链接文字/目标里的日期是文件名（引用），不是散文叙事
+    const prose = l.replace(/\[[^\]]*\]\([^)\s]+\)/g, (m) => ' '.repeat(m.length))
+    if (/\b20\d{2}-\d{2}-\d{2}\b/.test(prose)) hits.push(i + 1)
+  })
+  return hits
 }
 
 const report = process.argv.includes('--report')
 const rows = tracked
   .map((p) => {
+    const text = readFileSync(p, 'utf8')
     const limit = DOC_LIMITS[p] ?? DEFAULT_LIMIT
-    return { p, lines: linesOf(p), limit, unregistered: !(p in DOC_LIMITS) }
+    return {
+      p,
+      lines: text.split('\n').length - (text.endsWith('\n') ? 1 : 0),
+      limit,
+      unregistered: !(p in DOC_LIMITS),
+      dates: proseDates(p, text)
+    }
   })
   .sort((a, b) => b.lines / b.limit - a.lines / a.limit)
 
@@ -93,10 +114,18 @@ if (report) {
 }
 
 const over = rows.filter((r) => r.lines > r.limit)
-if (over.length > 0) {
-  console.error(red('docGuard：以下文档超出行数上限，提交被挡。\n'))
+const datedRows = rows.filter((r) => r.dates.length > 0)
+if (over.length > 0 || datedRows.length > 0) {
+  console.error(red('docGuard：以下文档违规，提交被挡。\n'))
   for (const r of over) {
     console.error(`  ${r.p}  ${r.lines} 行 / 上限 ${r.limit} 行（超 ${r.lines - r.limit} 行）`)
+  }
+  for (const r of datedRows) {
+    const sample = r.dates.slice(0, 5).join(',')
+    console.error(
+      `  ${r.p}  散文日期戳 ${r.dates.length} 处（行 ${sample}${r.dates.length > 5 ? '…' : ''}）——` +
+        `日期归 git 历史与笔记文件名，正文不写日期（.agents/notes 事件日志放行）`
+    )
   }
   console.error(
     `\n修法（渐进式披露口径）：细节下沉到该在的小节或权威文档；过时段落退役进 git 历史。` +
