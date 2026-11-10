@@ -7,14 +7,12 @@
  * scroll = 卡内滚动 + 统一卡内衬（`p-5`，承接原 main 的内边距角色）：内容可能超出
  * 卡高的卡（设置页）用真值；自带内滚的卡（书库/笔记/房间）也给真值保持原排版；
  * 阅读卡给假值——它的几何（挂载线/纸边距）由自己全权管理，卡面零内衬。
- * flat = 去面板阴影（用户定：阅读双卡**直接压在底板上**，卡下不得有影线——悬浮影带
- * 会被读成「卡下面还有一层」）。只用于阅读双卡（FeatureCard + 兄弟槽位卡）。
+ * ⚠ 阅读层已不套卡面（用户定：整面桌直绘卡区、双卡压板——AppShell 阅读分支改挂普通
+ * 容器借 `.feature-card` 进出场编排；本组件只剩四张功能卡使用）。
  * 叠置遮罩（scrim）不住这里——"阅读卡 ⊃ 书库卡"的 `--overlay-dim` 包装在 AppShell 层分支上。
  */
 interface FeatureCardProps {
   scroll?: boolean
-  /** 去面板阴影（阅读双卡贴底板口径，见上） */
-  flat?: boolean
   /** 附加类（阅读卡的退场形态，styles.css `.feature-card--exit`） */
   className?: string
   /** 内联样式（进场锚点 = transform-origin，由 shell 换算成卡面百分比写入） */
@@ -22,15 +20,13 @@ interface FeatureCardProps {
   children: React.ReactNode
 }
 
-export function FeatureCard({ scroll, flat, className, style, children }: FeatureCardProps): React.JSX.Element {
+export function FeatureCard({ scroll, className, style, children }: FeatureCardProps): React.JSX.Element {
   return (
     <div
       style={style}
       className={`feature-card h-full w-full ${
         scroll ? 'overflow-y-auto overflow-x-hidden p-5' : 'overflow-hidden'
-      } rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--desk-bg)] ${
-        flat ? '' : 'shadow-[var(--shadow-panel)]'
-      } ${className ?? ''}`}
+      } rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--desk-bg)] shadow-[var(--shadow-panel)] ${className ?? ''}`}
     >
       {children}
     </div>

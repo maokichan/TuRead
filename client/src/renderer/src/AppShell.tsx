@@ -576,18 +576,18 @@ export default function AppShell(): React.JSX.Element {
                     display:none → 显示即重放关键帧；z:-1 = 垫在 scrim 底色之上、阅读卡之下。
                     换方法 = 删掉这一层与关键帧（styles.css .reader-dip），回到普通 crossfade。 */}
                 <div className="reader-dip" aria-hidden="true" />
-                <div className="h-full min-w-0 flex-1">
-                  {/* flat = 阅读双卡贴底板（无面板阴影，卡下不得有影线——用户定） */}
-                  <FeatureCard flat className={readerClosing ? 'feature-card--exit' : ''}>
-                    <C
-                      container={container}
-                      host={host}
-                      selectedBookId={selectedBookId}
-                      readerBookId={readerBookId}
-                      activeFeature={activeFeature}
-                      readerTarget={readerTarget}
-                    />
-                  </FeatureCard>
+                <div className={`h-full min-w-0 flex-1 feature-card ${readerClosing ? 'feature-card--exit' : ''}`}>
+                  {/* 阅读层不套卡面（用户定：整面桌直绘卡区、无边框无圆角，双卡直接压在桌/底板上，
+                      卡下不得有影线与框层）。feature-card 类只借进出场编排（自下浮起/退场下沉），
+                      FeatureCard 的卡面框（1px 边 + 圆角 + 沟内抬卡）不再存在。 */}
+                  <C
+                    container={container}
+                    host={host}
+                    selectedBookId={selectedBookId}
+                    readerBookId={readerBookId}
+                    activeFeature={activeFeature}
+                    readerTarget={readerTarget}
+                  />
                 </div>
                 {/* 卡片页槽位（兄弟卡的家）：常驻渲染（ReaderFeature 的 portal 目标要挂载后可查），
                     开合经 data-open 驱动宽度过渡；随本容器 hidden 而隐藏，状态天然继承 */}
