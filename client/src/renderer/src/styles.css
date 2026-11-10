@@ -1289,7 +1289,8 @@ textarea {
 
 /* ── 右欄卡片页（批1.13 立；批1.18 定稿 = 两条准绳同时成立）────────────────────
    ① **两张卡并排在底板上**（用户拍板形态）：scrim 容器 = flex 行，阅读卡（flex-1）与槽位
-   并排，中间一道沟露出底板；同顶同底、同卡面语法（桌色面 + --radius-panel + 1px 边 + 阴影）。
+   并排，中间一道沟露出底板；同顶同底、同卡面语法（桌色面 + --radius-panel + 1px 边；
+   **无阴影**——双卡直接压在底板上，卡下不得有影线，用户定）。
    ② **纸钉死不动**（用户准绳"没有直接影响到显示内容区的时候就不要改变显示内容区的宽度"）：
    --page-w 锚定视口（见 :root，纸宽与开合无关）；阅读卡收窄导致的 re-center 由
    `.reader-stage` 的**位移补偿**精确抵消 —— 批1.19 起**单驱动**：开合只过渡
@@ -1302,11 +1303,7 @@ textarea {
 .reader-card-slot {
   flex: none;
   width: var(--slot-w, 0px);
-  /* 收合动画的横向裁切（卡片锚右，从左缘被"吞"回去）——用 clip-path 不用 overflow:hidden：
-     overflow 会把卡片的 box-shadow 一起裁在槽位盒上，阴影在槽位的上下缘被硬切，
-     两卡之间的沟上下端就显出一道压在底板上的淡线（浅色桌面最明显，深色主题阴影本就不可见）。
-     inset 上下放开 24px 给阴影呼吸（shadow-panel 纵向最大 ~18px），横向照旧贴盒裁切。 */
-  clip-path: inset(-24px 0);
+  overflow: hidden; /* 收合时裁掉卡片（卡片锚右，从左缘被"吞"回去）——双卡无阴影，无影可裁 */
   display: flex;
   justify-content: flex-end;
 }
@@ -1328,7 +1325,8 @@ textarea {
   background: var(--desk-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
-  box-shadow: var(--shadow-panel);
+  /* 无面板阴影（用户定）：阅读双卡**直接压在底板上**，卡下不得有影线——
+     悬浮影带会被读成「卡下面还有一层」。1px 边承担边缘定义。 */
   opacity: 1;
   transform: translateX(0);
   transition:

@@ -577,7 +577,8 @@ export default function AppShell(): React.JSX.Element {
                     换方法 = 删掉这一层与关键帧（styles.css .reader-dip），回到普通 crossfade。 */}
                 <div className="reader-dip" aria-hidden="true" />
                 <div className="h-full min-w-0 flex-1">
-                  <FeatureCard className={readerClosing ? 'feature-card--exit' : ''}>
+                  {/* flat = 阅读双卡贴底板（无面板阴影，卡下不得有影线——用户定） */}
+                  <FeatureCard flat className={readerClosing ? 'feature-card--exit' : ''}>
                     <C
                       container={container}
                       host={host}
