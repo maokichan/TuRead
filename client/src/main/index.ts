@@ -18,6 +18,12 @@ if (process.env['TUREAD_USER_DATA']) {
   app.setPath('userData', process.env['TUREAD_USER_DATA'])
 }
 
+// dev-only：远程调试口（TUREAD_DEV_CDP=<端口>）—— ui-shot/cdp-shot 与几何排障走 CDP，
+// 产品与常规探针（不设本变量）不受影响。必须在 app ready 前追加。
+if (process.env['TUREAD_DEV_CDP']) {
+  app.commandLine.appendSwitch('remote-debugging-port', process.env['TUREAD_DEV_CDP'])
+}
+
 // —— 离屏解析窗口（封面/元数据提取专用，2026-09-12）——
 // 为什么：kookit getMetadata 全书解析（EPUB zip / PDF pdfjs）在主窗口渲染进程跑会把
 // UI 整个饿死（328 本书库实测启动挂死）。隐藏 BrowserWindow = **独立进程**、DOM 齐全
