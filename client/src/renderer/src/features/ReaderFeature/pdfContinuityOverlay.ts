@@ -43,43 +43,44 @@ export function mountContinuityOverlay(stage: HTMLElement, paper: HTMLElement): 
     const stageRect = stage.getBoundingClientRect()
     if (stageRect.width < 8 || stageRect.height < 8) return false
     const dpr = window.devicePixelRatio || 1
+    const scrollTop = stage.scrollTop
 
-    // 收集可见页 canvas：宿主 stage → kookit 外层 iframe → 每页子 iframe → 位图 canvas
-    // （排除 fabric 批注画布——那是交互层，烘焙口径同样跳过它）
+    // 收集整页位图：宿主 stage → kookit 外层 iframe → 每页子 iframe → 位图 canvas
+    // （排除 fabric 批注画布——那是交互层，烘焙口径同样跳过它）。
+    // ⚠ 必须取**整张位图**而不是视口裁剪区：观察器触发时新布局已生效，页在视口里可能是
+    // 截断态——位图本身完好（裁切只是 CSS 层面），截残片会把缺右边的页定格成永久缺角。
     const outerIframe = stage.querySelector('iframe')
     const outerDoc = outerIframe?.contentDocument
     if (!outerDoc) return false
-    const snapshots: HTMLCanvasElement[] = []
+    const snapshots: { canvas: HTMLCanvasElement; x: number; y: number; w: number; h: number }[] = []
     let oldContentWidth = 0 // 页面的旧渲染宽度（kookit 无 resize 监听 → canvas 内联宽仍是旧值）
-    const subIframes = outerDoc.querySelectorAll('iframe[id^="pdf-iframe-"]')
-    subIframes.forEach((sub) => {
+    outerDoc.querySelectorAll('iframe[id^="pdf-iframe-"]').forEach((sub) => {
       const subDoc = (sub as HTMLIFrameElement).contentDocument
       if (!subDoc) return
-      subDoc.querySelectorAll('canvas').forEach((c) => {
-        if ((c as HTMLCanvasElement).classList.contains('fabric')) return
+      subDoc.querySelectorAll('canvas:not(.fabric)').forEach((c) => {
         const source = c as HTMLCanvasElement
         if (source.width === 0 || source.height === 0) return
         const display = source.getBoundingClientRect()
+        if (display.width < 8) return
         oldContentWidth = Math.max(oldContentWidth, display.width)
-        // 与 stage 视口求交：只定格看得见的部分
-        const left = Math.max(display.left, stageRect.left)
-        const top = Math.max(display.top, stageRect.top)
-        const right = Math.min(display.right, stageRect.right)
-        const bottom = Math.min(display.bottom, stageRect.bottom)
-        if (right - left < 4 || bottom - top < 4) return
-        snapshots.push(makeSnapshot(source, display, left, top, right, bottom, dpr))
-        // 记录几何（dataset 供摆放：相对 stage 左上角的 CSS 像素位置与裁后尺寸）
-        const snap = snapshots[snapshots.length - 1]
-        snap.dataset.x = String(left - stageRect.left)
-        snap.dataset.y = String(top - stageRect.top)
-        snap.dataset.w = String(right - left)
-        snap.dataset.h = String(bottom - top)
+        // 旧布局坐标（宽度变化只动 CSS，位图与其文档坐标原样保留）：
+        // x = 相对 stage 内容原点（左上对齐）；y = 视口相对位置 + stage 滚动量
+        // （stage 滚的就是整份内容，加回滚动量即还原成滚动前的版面构图）
+        snapshots.push({
+          canvas: makeSnapshot(source, display, dpr),
+          x: display.left - stageRect.left,
+          y: display.top - stageRect.top + scrollTop,
+          w: display.width,
+          h: display.height
+        })
       })
     })
     if (snapshots.length === 0 || oldContentWidth < 8) return false
 
-    // 缩放贴合：旧内容按「新 stage 宽 / 旧渲染宽」绕 stage 顶中缩放——定格帧里的页面
-    // 恰好铺满新宽度并居中（视觉上 = 现在的画面被连续缩放到位）
+    // 缩放贴合：内容平面 = 旧渲染尺寸、**左上对齐 stage 原点**（内容本就是左上锚定），
+    // 按「新 stage 宽 / 旧渲染宽」从左上原点缩放——页面铺满新宽度，旧视口构图 1:1 保真。
+    // ⚠ 原点不许取顶中：左上锚定的内容绕中心缩放会被推出去（放大 = 滑出左缘消失，
+    // 缩小 = 挤向左上角）。
     const scale = stageRect.width / oldContentWidth
 
     // 置顶层：盖住 stage 区域，桌色打底（遮住底下错位的真实内容），指针穿透
@@ -87,12 +88,11 @@ export function mountContinuityOverlay(stage: HTMLElement, paper: HTMLElement): 
     overlay.className = OVERLAY_CLASS
     overlay.style.cssText =
       'position:absolute;inset:0;z-index:5;pointer-events:none;overflow:hidden;background:var(--desk-bg)'
-    // 内平面 = 快照时的 stage 尺寸，缩放原点取顶中（水平居中缩放，垂直自顶随动）
     const plane = document.createElement('div')
-    plane.style.cssText = `position:absolute;left:0;top:0;width:${stageRect.width}px;height:${stageRect.height}px;transform:scale(${scale});transform-origin:${stageRect.width / 2}px 0`
-    for (const snap of snapshots) {
-      snap.style.cssText = `position:absolute;left:${snap.dataset.x}px;top:${snap.dataset.y}px;width:${snap.dataset.w}px;height:${snap.dataset.h}px`
-      plane.appendChild(snap)
+    plane.style.cssText = `position:absolute;left:0;top:0;width:${oldContentWidth}px;height:${stageRect.height}px;transform:scale(${scale});transform-origin:0 0`
+    for (const s of snapshots) {
+      s.canvas.style.cssText = `position:absolute;left:${s.x}px;top:${s.y}px;width:${s.w}px;height:${s.h}px`
+      plane.appendChild(s.canvas)
     }
     overlay.appendChild(plane)
     paper.appendChild(overlay)
@@ -104,36 +104,15 @@ export function mountContinuityOverlay(stage: HTMLElement, paper: HTMLElement): 
   }
 }
 
-/** 单页快照：把源 canvas 的可见裁剪区按物理像素复制成一张新画布 */
-function makeSnapshot(
-  source: HTMLCanvasElement,
-  display: DOMRect,
-  clipLeft: number,
-  clipTop: number,
-  clipRight: number,
-  clipBottom: number,
-  dpr: number
-): HTMLCanvasElement {
-  const w = clipRight - clipLeft
-  const h = clipBottom - clipTop
+/** 单页快照：整张位图按其显示尺寸复制成一张新画布 */
+function makeSnapshot(source: HTMLCanvasElement, display: DOMRect, dpr: number): HTMLCanvasElement {
   const snap = document.createElement('canvas')
-  snap.width = Math.max(1, Math.round(w * dpr))
-  snap.height = Math.max(1, Math.round(h * dpr))
+  snap.width = Math.max(1, Math.round(display.width * dpr))
+  snap.height = Math.max(1, Math.round(display.height * dpr))
   const ctx = snap.getContext('2d')
   if (ctx) {
     ctx.scale(dpr, dpr)
-    const srcScale = source.width / Math.max(display.width, 1) // 位图 px / CSS px
-    ctx.drawImage(
-      source,
-      (clipLeft - display.left) * srcScale,
-      (clipTop - display.top) * srcScale,
-      w * srcScale,
-      h * srcScale,
-      0,
-      0,
-      w,
-      h
-    )
+    ctx.drawImage(source, 0, 0, source.width, source.height, 0, 0, display.width, display.height)
   }
   return snap
 }
