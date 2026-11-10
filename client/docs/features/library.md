@@ -33,7 +33,7 @@ Blob → objectURL（CSP 放行 `blob:`），模块级缓存。提取时机 = �
 
 **打包字体**：GenRyuMin2 TW Bold 切面子集化（BMP CJK + 拉丁 + 标点，去提示指令），18.8MB →
 10.95MB，Vite 资源管线（`assets/fonts/`），`@font-face` 在 `styles.css`；许可 SIL OFL 1.1
-（见 `assets/fonts/NOTICE.md`；许可全文随包是待办事项）；Ext-A/B 极生僻字回退字栈下一个明体。
+（见 `assets/fonts/NOTICE.md`；许可全文随包（extraResources，已补））；Ext-A/B 极生僻字回退字栈下一个明体。
 
 **视图切换动画**：`.view-switch-flash`（240ms，`--dur-flash`）三拍——区域变深色 → 浅色新文字浮出 →
 同时复原；闪屏中再点 = 重开一轮，状态切换不被动画挡住；四主题各自 `--flash-bg/--flash-text`。

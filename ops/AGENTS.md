@@ -10,7 +10,7 @@
 |---|---|
 | [`docIndex`](scripts/docIndex.mjs) | 文末「跟踪：」声明的路径缺失 = 拦；被跟踪事实变了而声明文档没动 = 提醒不拦；引用向上（祖先）或出仓 = 拦 |
 | [`repoGuard`](scripts/repoGuard.mjs) | 绝对路径（三形态，只扫文档/配置扩展）与 [API](../server/docs/API.md) key（八类，扫全部文本源）= 拦；密钥命中不回显；`<占位符>` 豁免 |
-| [`docGuard`](scripts/docGuard.mjs) | Markdown 行数超上限 = 拦（入口类硬上限、其余 800；上限表见其头注，动笔前先登记） |
+| [`docGuard`](scripts/docGuard.mjs) | Markdown 行数与行长双门禁 = 拦（行数：入口类硬上限、其余默认 300；行长：非表格叙述行 800 字符、500 软提示、表格行豁免；口径见其头注） |
 
 ## 门控链（pre-commit；clone 后一次性激活 `git config core.hooksPath .githooks`）
 

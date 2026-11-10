@@ -37,7 +37,7 @@
      ok/warn/err(+ -border)                —— 状态色（连接/成功/警告/错误）
      input-bg/log-bg/log-text              —— 输入框/诊断日志面板
      page-bg/page-text                     —— 阅读器宿主容器（正文页）
-     desk-bg/page-edge                     —— 阅读页的"桌"（正文列之外）与"纸的边"（style/components-reader.md）
+     desk-bg/page-edge                     —— 功能卡桌色面（阅读桌 = 底板本色，平压底板）与阅读"纸的边"（style/components-reader.md）
      scrollbar                             —— 滚动条滑块
 ------------------------------------------------------------------- */
 /* ------------------------------------------------------------------
@@ -481,7 +481,7 @@ textarea {
   position: relative;
   z-index: 2;
   /* 纸：内容与背景靠**颜色**区分（style/components-reader.md）—— 纸色填充 + 1px 纸边，
-     外面是 --desk-bg 的"桌"。不用圆角（不要"嵌入盒子"的观感） */
+     外面是底板本色的"桌"（阅读层平压底板）。不用圆角（不要"嵌入盒子"的观感） */
   background: var(--page-bg);
   border: 1px solid var(--page-edge);
   /* kookit scroll 模式的滚动发生在宿主元素上（iframe 被拉到正文高度，

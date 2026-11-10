@@ -144,7 +144,7 @@ function createWindow(): void {
   win.on('maximize', () => broadcastMaximized(true))
   win.on('unmaximize', () => broadcastMaximized(false))
 
-  // 全屏状态广播（沉浸全屏：标题栏退场、Esc 分流都要跟随真实状态，见 TitleBar/ReaderFeature）
+  // 全屏状态广播（沉浸全屏：标题栏退场、Esc 分流都要跟随真实状态，见 ChromeControls/ReaderFeature）
   const broadcastFullScreen = (is: boolean): void => {
     for (const w of BrowserWindow.getAllWindows()) {
       w.webContents.send(IPC.winFullScreenChanged, is)

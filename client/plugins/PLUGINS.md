@@ -56,7 +56,7 @@
   同版本拒（「重装请先卸载」）、低版本拒（防降级）、高版本覆盖 = 升级；③ 已装 manifest 损坏
   按 0.0.0 处理 → 允许覆盖（修复通道）；④ 原子落位（临时目录解压 → 入口实物校验 → 换名，
   失败清暂存）。**更新检查不存在**（用户裁定）——升级 = 下载新 zip 重新导入。官方插件 zip
-  随版本 GitHub Release 发布（[BUILD.md](../docs/BUILD.md) 滚版本第 5 步）。
+  随版本 GitHub Release 发布（[BUILD.md](../docs/BUILD.md) 滚版本第 4 步）。
 - **入口导出 `activate(api)`**（缺 activate = 激活失败，可见不静默）；`mount` 返回清理函数；
   定时器与订阅必须挂 `ctx.signal` 自清（收起/卸载/禁用时 abort）。`ai` 插件是全部能力的参照实现。
 - **需要构建的插件**：无 import 的源码即入口；引依赖时 esbuild 打自包含 ESM，`entry` 指向
@@ -96,7 +96,7 @@
 ## 4. 生命周期
 
 - **获取 = 手动安装（用户 裁定，无任何自动补齐）**：官方插件经 GitHub Release 分发
-  zip（[BUILD.md](../docs/BUILD.md) 滚版本第 5 步），用户在设置页「安裝插件…」导入（见 §2 打包与安装）。新装机
+  zip（[BUILD.md](../docs/BUILD.md) 滚版本第 4 步），用户在设置页「安裝插件…」导入（见 §2 打包与安装）。新装机
   零插件；卸载后的重装 = 重新下载 zip 再导入。**dev 豁免**（政策住装配点 `main/index.ts`）：
   `!app.isPackaged` 时把工作区 [`client/plugins/`](client/plugins) **覆盖同步**进运行时目录（`syncFrom`）——
   改完源码重启 dev 即生效；单向覆盖不删多余；打包路径物理触达不到同步。

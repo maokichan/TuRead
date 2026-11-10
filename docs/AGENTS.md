@@ -27,13 +27,13 @@
 
 - 入口文档只放指针、红线与命令速查；子树入口（`docs/`、[`client/`](../client)、[`client/docs/`](../client/docs) 各一份
   AGENTS.md）只放该域的地图与增量规则，全局内容不重复——读什么、读多少按需加载。
-- 新文档**必须**先到 [`ops/scripts/docGuard.mjs`](../ops/scripts/docGuard.mjs) 上限表登记级别，再动笔。
+- 新的**入口/索引类**文档先到 [`ops/scripts/docGuard.mjs`](../ops/scripts/docGuard.mjs) 上限表登记硬上限，再动笔（其余文档默认 300，无需登记）。
 
 **门控（可执行化）**
 
 - 提交门控链挂 pre-commit：链的构成、口径与激活细则归 [`ops/AGENTS.md`](../ops/AGENTS.md)（本文件不复读）。
-  行数口径：入口/索引类硬上限（AGENTS 族 80~100 行），其余文档按 docGuard 头注的
-  guardrail 预算（入口类 + features 页登记档，其余默认 300）；体检 = `node [ops/scripts/docGuard.mjs](../ops/scripts/docGuard.mjs) --report`。
+  行数口径：入口/索引类硬上限（AGENTS 族 80~100 行），其余默认 300；行长口径（非表格叙述行
+  800 字符硬限）见 docGuard 头注；体检 = `node [ops/scripts/docGuard.mjs](../ops/scripts/docGuard.mjs) --report`。
 - 引用纪律（机检，机制 = [`ops/scripts/docIndex.mjs`](../ops/scripts/docIndex.mjs)）：引用必须 `[]()` 链接
   （反引号壳 / 裸路径 / 裸文档名皆违规；目录形态自由）；**向上引用无合法形态**——解析到祖先目录
   （含仓库根）的目标一律删除或改写为不含路径的中文表述（渐进式披露：内容只向下流，竖直导航由

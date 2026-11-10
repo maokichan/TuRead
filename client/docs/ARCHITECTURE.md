@@ -56,7 +56,7 @@
 | `IRenderService` | kookit 包装：open/renderTo/翻页/goToPosition/位置事件/笔记 | kookit |
 | `INetService` | 传输：connect/send/on('message')；**不理解业务语义**，只搬运消息信封 | 主进程 WS + REST（`adapters/net/ipcNetAdapter` → `main/net/wsNetAdapter`） |
 | `IBookIdentityService` | 算指纹（部分哈希）/ 提取元数据 / 标定比对 | 自研（spark-md5，crypto） |
-| `ILibraryStore` | 本地书库持久化 | 主进程 JSON 文件（userData/library.json）；演进 → better-sqlite3 |
+| `ILibraryStore` | 本地书库持久化 | 主进程 SQLite（store.db，全局单库）+ JSON 引导文件（库注册表/窗口状态） |
 
 **应用服务层（用例）—— 业务逻辑，编排能力服务：**
 
@@ -82,13 +82,11 @@
 - **v1 只做 Desktop Shell**；core 接口为未来 Web/Android 壳预留，核心零改动。
 - **多端构建**："构建时 ban 不用的" = 平台入口 + tree-shaking + 构建配置（打包期排除目标平台无关代码）。
 
-## 4. 扩展与"官方插件"（决策记录）
+## 4. 扩展与"官方插件"（现状）
 
-- **现状**：服务端口（[ports](contracts/ports.md)）本身就是插件边界 —— 一个"官方插件" = **实现某个 port 的适配器模块，注册进 `ServiceContainer`**（例如 OCR、翻译、词典等未来能力）。
-- **v1 不引入插件运行时**（manifest / 加载器 / 热插拔 / 沙箱）。原因：使用量小、只做官方插件，动态加载的复杂度不值得。
-- **演进路径**：若将来需要第三方插件，[ports](contracts/ports.md) 模型可直接承接 —— 新增 plugin manifest + 动态加载 + IPC 通道，**端口定义不变**。
-- 结论：扩展能力一律以"编译期内置适配器"承载；契约（[`CONTRACTS.md`](CONTRACTS.md)）保持稳定。
-- 候选扩展服务：`IOcrService`（图片识别 → ISBN/封面文字；适配器可复用 OCR-buddy 的 PP-OCRv5 技术路线，MIT）——是否进 v1 见唯一待办清单。
+- **插件运行时已上线**（v0.2.x）：manifest 校验 + 渲染层动态 import + 右欄卡片页插件格（[src/renderer/src/plugins/runtime.ts](../src/renderer/src/plugins/runtime.ts) + [src/main/plugins.ts](../src/main/plugins.ts)）；获取 = 手动安装（GitHub Release zip 走设置页导入，无自动补齐），规范权威 = [`plugins/PLUGINS.md`](../plugins/PLUGINS.md)。
+- **服务端口（[ports](contracts/ports.md)）仍是能力接缝**：一个"官方能力" = 实现某个 port 的适配器模块，注册进 `ServiceContainer`（例如 OCR、翻译、词典等未来能力）；第三方 UI 扩展走插件面板格（契约 = 插件 `API`），不动六边形内核。
+- 候选扩展服务：`IOcrService`（图片识别 → ISBN/封面文字；适配器可复用 PP-OCRv5 技术路线，MIT）——见唯一待办清单。
 
 ## 5. 跨域缝合件（不属于任何单一 feature 域的构件）
 

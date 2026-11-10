@@ -8,7 +8,7 @@
 
 **多人房间共读阅读器**：几个人进同一房间共读一本书，实时同步彼此的阅读位置与聊天。
 渲染/解析复用 [kookit](https://github.com/koodo-reader/kookit)（AGPL-3.0，git submodule）；
-同步服务器用 Go。当前 **client v0.2.8 / server v0.2.2**（本地阅读 + 房间同步端到端可用）。
+同步服务器用 Go。当前 **client v0.2.9 / server v0.2.2**（本地阅读 + 房间同步端到端可用）。
 
 ## 阅读顺序（按需加载，不要一次全读）
 
@@ -63,7 +63,7 @@ npm run style / npm run swarm      # 样式样张（token 基线） / 蜂群同�
 
 ```bash
 git config core.hooksPath .githooks       # clone 后一次性激活（hooks 配置不随仓库传播）
-node ops/scripts/docGuard.mjs --report    # 文档体检：行数 / 上限 / 占用率
+node ops/scripts/docGuard.mjs --report    # 文档体检：行数 / 行长 / 上限 / 占用率
 node ops/scripts/repoGuard.mjs --report   # 卫生体检：绝对路径 / 密钥
 node ops/scripts/docIndex.mjs check       # 跟踪声明与链接方向全量校验
 ```
