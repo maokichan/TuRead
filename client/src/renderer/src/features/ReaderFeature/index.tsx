@@ -37,6 +37,7 @@ import { useReaderLinks } from './useReaderLinks'
 import { useReaderNotes } from './useReaderNotes'
 import { useRoomFollow } from './useRoomFollow'
 import { useReaderFullscreen } from './useReaderFullscreen'
+import { usePdfLayoutSync } from './usePdfLayoutSync'
 
 export function ReaderFeature({
   container,
@@ -74,7 +75,7 @@ export function ReaderFeature({
   useReaderLinks(container)
   const { notes, notesRef, composer, setComposer, focusNote, selection, createMark, armGeom, saveAnnotation, jumpNote, editNote, removeNote } =
     useReaderNotes({ container, host, book, readerTarget, setMenu, setRightPanel, setControlsOpen })
-  const { toc, opening, readerMode, setReaderMode, currentChapter } = useReaderOpening({
+  const { toc, opening, readerMode, setReaderMode, currentChapter, openedThemeRef } = useReaderOpening({
     container,
     host,
     readerBookId,
@@ -90,6 +91,19 @@ export function ReaderFeature({
     stageRef
   })
   const { fullscreen } = useReaderFullscreen({ container, activeFeature, readerBookId })
+
+  /** 触发原地重开（reopenTick bump 的唯一封装；PDF 环境同步与参数路径共用） */
+  const requestReopen = useCallback(() => setReopenTick((t) => t + 1), [])
+  // PDF 环境同步（用户定稿口径）：窗口 resize = 缩放续帧置顶 + 防抖原地重开；
+  // 切主题 = 同一重开通路（深色烘焙按开书主题执行，运行时注题对 PDF 不生效）。
+  // 两事件汇入同一防抖调度器串行合并，详见 usePdfLayoutSync 头注。
+  usePdfLayoutSync({
+    stageRef,
+    enabled: book?.format === 'PDF' && readerBookId !== null && activeFeature === 'reader',
+    opening,
+    openedThemeRef,
+    requestReopen
+  })
 
   /**
    * 房间会话共享态 —— 聊天室的**生命周期归属于房间**：
@@ -248,12 +262,21 @@ export function ReaderFeature({
   // enabled = 阅读态（阅读器激活且开着书）；换书/关标签由 editionId/enabled 变化经卸载路径 flush。
   useReadSessionRecorder(container, activeFeature === 'reader' && readerBookId !== null, readerBookId)
 
-  // 激活到阅读器时热更新主题（设置里改主题后返回阅读器不重开书也生效）
+  // 激活到阅读器时热更新主题（设置里改主题后返回阅读器不重开书也生效）。
+  // PDF 例外：注题对位图 no-op，深色烘焙按开书主题执行——烘焙主题与环境主题失配时
+  // 自动原地重开（补上「设置里切主题后返回阅读器」这条勾子：观察器只在激活时挂着）
   useEffect(() => {
     if (activeFeature !== 'reader') return
     if (!readerBookId) return
     void container.render.applyTheme(currentTheme())
-  }, [activeFeature, readerBookId, container])
+    if (
+      book?.format === 'PDF' &&
+      openedThemeRef.current != null &&
+      openedThemeRef.current !== currentTheme()
+    ) {
+      requestReopen()
+    }
+  }, [activeFeature, readerBookId, container, book, openedThemeRef, requestReopen])
 
   const pageTurn = useCallback(
     async (dir: 'next' | 'prev') => {

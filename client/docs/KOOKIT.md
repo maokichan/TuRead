@@ -212,7 +212,9 @@ GeneralRender (GeneralRender.ts，事件基类)
   `PdfRender.bakeDarkModePixels`：每页渲染完成时对主画布 `getImageData` → **逐像素复算原
   filter 的精确数学**（invert(1) → hue-rotate(180deg) 规范矩阵（含钳制）→ contrast(0.95)）
   → `putImageData`，开销变成每页一次，色彩与旧 filter 逐位一致。`#fabric` 批注画布不烘焙
-  （保持批注原色）。暗色随开书配置生效，改主题仍需重开（`applyTheme` 对 PDF 是运行时 no-op）。
+  （保持批注原色）。暗色随开书配置生效；运行时切主题对 PDF 的生效路径 = UI 层自动原地
+  重开（`applyTheme` 对 PDF 是运行时 no-op——重开由 ReaderFeature `usePdfLayoutSync`
+  防抖调度、与窗口 resize 串行合并，见 [features/reader.md](features/reader.md)「PDF 环境同步」）。
   扫描版 OCR 路径（`PdfTextRender`）独立渲染、无暗色处理，存量缺口另立项。
   **深底跳过（）**：烘焙前 `isSelfDarkCanvas` 把画布降采样到 64×64 探测——
   不透明覆盖率（alpha 加权）> 0.6 且不透明像素均亮度 < 0.35 判定为自带深色底，跳过烘焙

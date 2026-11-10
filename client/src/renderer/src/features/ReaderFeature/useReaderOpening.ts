@@ -58,6 +58,8 @@ export function useReaderOpening(params: {
   setReaderMode: Dispatch<SetStateAction<ReaderMode>>
   /** 当前阅读位置（章号）：目录/笔记列表据此把"当前条目"滚到正中 */
   currentChapter: number
+  /** 本次打开所用的主题快照（open 时刻指认；PDF 环境同步据此判烘焙失配） */
+  openedThemeRef: MutableRefObject<ResolvedTheme | null>
 } {
   const {
     container,
@@ -78,6 +80,11 @@ export function useReaderOpening(params: {
   const [opening, setOpening] = useState(false)
   const [readerMode, setReaderMode] = useState<ReaderMode>('scroll')
   const lastSavedAtRef = useRef(0)
+  /**
+   * 本次打开所用的主题（open 时刻快照）。PDF 的深色烘焙按它执行——环境主题一旦与它
+   * 不一致（切主题/换设置后返回阅读器），UI 层据此自动触发原地重开（usePdfLayoutSync）。
+   */
+  const openedThemeRef = useRef<ResolvedTheme | null>(null)
   /**
    * 当前阅读位置（章号，= `BookLocation.chapterDocIndex`）。只在**换了章**时 setState，
    * 滚动过程中的重复事件不重渲染。
@@ -131,6 +138,7 @@ export function useReaderOpening(params: {
       setBook(null)
       setToc([])
       setTocOpen(true)
+      openedThemeRef.current = null
       void container.render.close()
       return
     }
@@ -152,10 +160,12 @@ export function useReaderOpening(params: {
         // 纸宽按**本书格式**切换（PDF 专属档）——必须在 open/renderTo 之前：
         // kookit PDF 按渲染时刻的容器宽定 canvas 像素，晚切一帧这页就按旧宽度画了
         applyParams(paramsRef.current, latest.format === 'PDF')
+        const openedTheme = currentTheme()
+        openedThemeRef.current = openedTheme
         await container.render.open(latest, {
           readerMode: mode,
           animation: 'none',
-          theme: currentTheme(),
+          theme: openedTheme,
           ...(state?.lastLocation ? { lastLocation: state.lastLocation } : {})
         })
         // open 期间用户可能已换书/关书（代次守卫）：作废的流程不得再对 stage 执行
@@ -191,5 +201,5 @@ export function useReaderOpening(params: {
     }
   }, [readerBookId, reopenTick, container, host, flushLastLocation, applyParams, paramsRef, setBook, setTocOpen, setComposer, setMenu, setRightPanel, setChatDraft, stageRef])
 
-  return { toc, opening, readerMode, setReaderMode, currentChapter }
+  return { toc, opening, readerMode, setReaderMode, currentChapter, openedThemeRef }
 }

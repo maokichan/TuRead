@@ -8,7 +8,7 @@
 
 | 层 | 归属 |
 |---|---|
-| Feature 组件 | [`src/renderer/src/features/ReaderFeature/`](../../src/renderer/src/features/ReaderFeature)：`index.tsx`（554 行，编排 + 键鼠意图 + JSX）+ 五钩子 `useReaderParams`（参数态与应用）、`useReaderOpening`（开书/关书与位置持久化）、`useReaderNotes`（笔记/划线全生命周期）、`useRoomFollow`（跟随三道闸门）、`useReaderFullscreen`（沉浸全屏）+ `readSessionRecorder.ts`（阅读时间，数据面归 [notes](notes.md) 域 ReadingStats）；域内组件 `ReaderRail`/`ReaderControls`/`TocPanel`/`iframeBridge`/`readerFollow`(+test) |
+| Feature 组件 | [`src/renderer/src/features/ReaderFeature/`](../../src/renderer/src/features/ReaderFeature)：`index.tsx`（编排 + 键鼠意图 + JSX）+ 六钩子 `useReaderParams`（参数态与应用）、`useReaderOpening`（开书/关书与位置持久化）、`useReaderNotes`（笔记/划线全生命周期）、`useRoomFollow`（跟随三道闸门）、`useReaderFullscreen`（沉浸全屏）、`usePdfLayoutSync`（PDF 环境同步：resize/切主题 → 续帧重开）+ `pdfContinuityOverlay.ts`（缩放续帧置顶层）+ `readSessionRecorder.ts`（阅读时间，数据面归 [notes](notes.md) 域 ReadingStats）；域内组件 `ReaderRail`/`ReaderControls`/`TocPanel`/`iframeBridge`/`readerFollow`(+test) |
 | usecases | 无独立 usecase——`render` 端口即用例 |
 | [ports](../contracts/ports.md) | `render`（IRenderService：open/renderTo/翻页/goToChapter/goToPosition/applyTheme/applyTypography）；房间侧消费 render 的位置事件（解耦，互不 import） |
 | adapters | `render/kookitRenderAdapter`（699 行，有状态编排）+ 纯模块 `render/kookitAnchor.ts`（选区→锚点原语/按搜索重锚）、`render/kookitNote.ts`（Note→引擎载荷）、`render/readerCss.ts`（注入 CSS 拼装）；`render/kookitLoader`、`render/pdfjsSetup`、`render/charset`（TXT 编码） |
@@ -32,6 +32,14 @@
 
 **PDF 纸宽**：kookit PdfRender 渲染时刻定 canvas 像素、无重排入口 → 改纸宽 = 阅读器原地重开
 （同布局模式的 `reopenTick` 机制，位置自动恢复）。
+
+**PDF 环境同步**（`usePdfLayoutSync`，仅 PDF）：窗口 resize 与切主题对位图页面都不生效
+（前者按渲染时刻定像素、后者烘焙按开书主题）→ 两事件汇入同一 350ms 防抖调度器：先把当前
+可见画面快照置顶（`pdfContinuityOverlay`——定格旧帧、桌色打底、指针穿透；快照失败静默降级
+为裸重开），防抖到点走既有 `reopenTick` 原地重开（按新宽度/新主题重新填充），落定（`opening`
+真→假）撤层翻面。串行化 = 防抖合并 + 适配器 openToken 代次令牌，两事件撞车最后一次生效；
+置顶层存在期间滚动立即撤层；8s 失败保险强制撤层（防「重开书偶发空白」变假状态）。
+文字类不进本钩子（重排与注题均已工作）；设置里切主题后返回阅读器的失配由激活 effect 补判重开。
 
 **翻页绑定**：`←/→`、`Space`（分页）、`PgUp/PgDn` + 鼠标点击左右 1/4 区域（仅分页模式）+ 侧键
 （XButton1/2 = 上/下页，仅阅读态）。
