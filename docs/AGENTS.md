@@ -12,7 +12,7 @@
 3. [`ARCHITECTURE.md`](ARCHITECTURE.md) —— 顶层架构（三端关系、数据流；刻意保持轻）。
 
 [`prototypes/`](prototypes) = 交互原型（**不进产品构建**；本地静态服务器打开，ESM 不走 file://）：
-`detail-orbit.html` = 聚焦舞台调参原型；`toc-final-home.html` = 内嵌目录 + 权重模型样张（批1.20）。
+`toc-final-home.html` = 内嵌目录 + 权重模型样张（批1.20）。
 
 ## 文档维护准则（全项目；纪律源 = generate-swe skill + 门控与洗稿实践）
 

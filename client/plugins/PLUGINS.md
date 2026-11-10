@@ -90,8 +90,8 @@
   运行时目录；[settings](../docs/features/settings.md) 清理由渲染层接手）。
 - ⚠ **渲染层不传路径**：只发 id，入口路径由主进程按自己的扫描结果解析（信任边界收在主进程）。
 - **运行时目录** = `<userData>/plugins/<id>/`（与 store.db / covers 平级，随数据目录整体迁移）；
-  **开发工作区** = [`client/plugins/`](client/plugins)（dev 启动时主进程把缺的插件种进运行时目录；打包经
-  extraResources 进发行物 resources/plugins）。
+  **开发工作区** = [`client/plugins/`](client/plugins)（dev 豁免 = 装配点覆盖同步进运行时目录，见 §4；
+  打包**不带**插件——获取走手动安装）。
 
 ## 4. 生命周期
 
@@ -111,14 +111,14 @@
   loadPlugins。所有插件一视同仁可卸（无自动补齐，不存在「复活」问题）。已知残留：
   `plugin-secret:<id>:*` 密文清不掉（store 无按前缀列举原语）——干净清理待 store 补
   「按前缀删键」，登记唯一待办清单。卸载是宿主权力，不经插件同意。
-- **版本兼容（开放问题，未定）**：manifest 版本只是形态字符串，无 compat 策略；「缺则种」
-  不覆盖已装件，官方插件升级路径未定——开放前在待办跟踪。
+- **版本兼容（开放问题，未定）**：manifest 版本只是形态字符串，无 compat 策略；zip 导入有
+  版本比较防降级，官方插件的升级/覆盖策略未定——开放前在待办跟踪。
 
 ## 5. 数据落点（卸载清理清单的依据）
 
 | 数据 | 落点 | 卸载时 |
 |---|---|---|
-| 插件代码 | `<userData>/plugins/<id>/` | 删目录（种子件同；opt-out 清单防复活） |
+| 插件代码 | `<userData>/plugins/<id>/` | 删目录（无自动补齐，不存在「复活」问题） |
 | 私有键值 | [settings](../docs/features/settings.md) 表 `plugin:<id>` 键 | 写 null 清值（键壳残留） |
 | 密钥 | [settings](../docs/features/settings.md) 表 `plugin-secret:<id>:<name>`（safeStorage 密文） | **暂清不掉**（无按前缀删键原语，见待办） |
 | 对话历史等业务数据 | 插件自管，物理上在上述键内 | 随键清 |

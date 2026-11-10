@@ -11,8 +11,8 @@
   先读它，读完即可写插件；宿主实现细节在 [`src/renderer/src/plugins/runtime.ts`](../src/renderer/src/plugins/runtime.ts) +
   [`src/main/plugins.ts`](../src/main/plugins.ts)（只读参照，改动归源程序侧）。
 - [`README.md`](README.md) —— 工作区事实：现有插件清单（時鐘 = 首个验证件、問 = 全能力参照实现）。
-- `<id>/plugin.json` + 入口 ESM —— 一个插件一个文件夹；dev 启动时主进程把缺的插件自动种进
-  运行时目录（`<userData>/plugins/`，运行时目录不进仓库）。
+- `<id>/plugin.json` + 入口 ESM —— 一个插件一个文件夹；dev 启动时主进程把工作区**覆盖同步**进
+  运行时目录（`syncFrom` 豁免，政策住装配点 `main/index.ts`；`<userData>/plugins/`，运行时目录不进仓库）。
 
 ## 增量红线（插件域）
 
@@ -31,7 +31,7 @@
 - `npm test`（manifest/能力/PluginManager 单测随全仓跑；插件自身逻辑写成可测纯函数）。
 - 实机验证 = dev 启动后设置页「插件」注册表（一行一生死）+ 右欄卡片页页签；`api.log` 进
   内存 logStore（探针态经统一日志落盘）。
-- 打包随应用 `extraResources` 进发行物（配方 = [`client/docs/BUILD.md`](../docs/BUILD.md)）。
+- 打包**不随**插件（安装包零插件；分发 = GitHub Release zip 走设置页手动安装，配方与滚版本 = [`client/docs/BUILD.md`](../docs/BUILD.md)）。
 
 ## 宿主侧牵连时的读序（按需，不属于本子树日常）
 

@@ -60,9 +60,9 @@
 |---|---|---|
 | §3 令牌（+ §5.6 深色专项） | 字体 / 字号白名单 / 字距行距留白圆角阴影动效 / 颜色 / 交互状态语言与层级档位 |[style/tokens.md](style/tokens.md)|
 | §4 中文排版 | 混排间距 / 标点禁则 / 行宽行距 / 段距与缩进 / 纵排预留 |[style/typography.md](style/typography.md)|
-| §5.1–5.5 / §5.7 外壳组件 | 文字动作与按压 / 边框底色例外清单 / 图标符号 / 已知偏差 / 负片 / 设置页 |[style/components-reader.md](style/components-reader.md)|
-| §5.8 / §5.9 阅读器 | 沉浸态准则（纸与桌 / 卡片页 / 聊天 / 批注输入栏 / 目录内嵌） / 参数清单与预留 |[style/components-shell.md](style/components-shell.md)|
-| §5.10 笔记管理 | 两态视图 / 列宽与装箱 / 文字层级 / 选中与右键 / 统计段 / 窗口化 |[style/components-reader.md](style/components-reader.md)|
+| §5.1–5.5 / §5.7 外壳组件 | 文字动作与按压 / 边框底色例外清单 / 图标符号 / 已知偏差 / 负片 / 设置页 |[style/components-shell.md](style/components-shell.md)|
+| §5.8 / §5.9 阅读器 | 沉浸态准则（纸与桌 / 卡片页 / 聊天 / 批注输入栏 / 目录内嵌） / 参数清单与预留 |[style/components-reader.md](style/components-reader.md)|
+| §5.10 笔记管理 | 两态视图 / 列宽与装箱 / 文字层级 / 选中与右键 / 统计段 / 窗口化 |[style/components-notes.md](style/components-notes.md)|
 | §8 验收 | 样张与机检判据 / 无头自检 / grep 断言 / 新组件检查表 |[style/acceptance.md](style/acceptance.md)|
 
 > 令牌值的唯一来源 = [`client/src/renderer/src/styles.css`](../src/renderer/src/styles.css)（`:root` + 三套主题块）；
