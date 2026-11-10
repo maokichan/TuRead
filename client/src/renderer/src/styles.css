@@ -1302,7 +1302,11 @@ textarea {
 .reader-card-slot {
   flex: none;
   width: var(--slot-w, 0px);
-  overflow: hidden; /* 收合时裁掉卡片（卡片锚右，从左缘被"吞"回去） */
+  /* 收合动画的横向裁切（卡片锚右，从左缘被"吞"回去）——用 clip-path 不用 overflow:hidden：
+     overflow 会把卡片的 box-shadow 一起裁在槽位盒上，阴影在槽位的上下缘被硬切，
+     两卡之间的沟上下端就显出一道压在底板上的淡线（浅色桌面最明显，深色主题阴影本就不可见）。
+     inset 上下放开 24px 给阴影呼吸（shadow-panel 纵向最大 ~18px），横向照旧贴盒裁切。 */
+  clip-path: inset(-24px 0);
   display: flex;
   justify-content: flex-end;
 }
@@ -1377,7 +1381,8 @@ textarea {
 }
 
 .card-corner--oncard {
-  top: 36px; /* 页签行之下（用户定"大概稍微再靠下一些"） */
+  /* 与阅读侧收起态**同位**（同一操作不改变位置）：顶缘已无页签行（沉底），12px 严格对齐 */
+  top: 12px;
 }
 
 /* 内容平填卡片：四个内容家族（參數/筆記/聊天/插件格）原先各自绝对定位贴线，
@@ -1392,10 +1397,13 @@ textarea {
   z-index: auto;
 }
 
-/* 卡片顶部页签（复用 .rail-tabs）：不随内容滚动，贴卡片顶缘（圆角内的第一行） */
+/* 卡片底部页签（复用 .rail-tabs）：不随内容滚动，钉在卡片底缘（margin-top:auto 下沉，
+   富余空间全留给内容）；顶缘让给「卡」按钮——按钮双态同位（同一操作不改变位置）。 */
 .rail-card > .rail-tabs {
   flex: none;
-  padding-top: 2px;
+  margin-top: auto;
+  margin-bottom: 0;
+  padding: 6px 0;
 }
 
 /* 内嵌目录：**阅读卡内部左缘的内嵌件** —— 挂靠阅读器边缘、
