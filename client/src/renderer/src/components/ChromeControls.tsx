@@ -14,7 +14,8 @@
  *
  * 主题兼容：颜色全走 token（无 hex）；控制键 hover = --panel-2，关闭 hover = --err 负片。
  * 桥的使用：`window.turead` 在此直接使用是**文档化的例外**（窗口镶边属于 Shell，
- * 不是功能组件能力）。no-drag 由 styles.css `.chrome-base button/input` 全局给出。
+ * 不是功能组件能力）。本组件两段条带挂窗口拖拽身份（styles.css `.chrome-topbar`），
+ * 按钮/输入经 `.chrome-topbar button/input` 豁免 no-drag。
  */
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { IPC } from '@shared/ipc'
@@ -95,10 +96,11 @@ export function ChromeControls({
   return (
     <>
       {/* 左上：后退/前进（恒在，职能按域分流）+ 全局搜索框（批1.12 定位：**左簇固定**，
-          紧跟导航键）。原右邻的阅读标签条已退役迁入侧栏（TagRail）；右缘让位窗控（3 × w-11）；
-          空隙处是窗口拖拽区（.chrome-base 默认），按钮/输入经 `.chrome-base button/input` 豁免。 */}
+          紧跟导航键）。原右邻的阅读标签条已退役迁入侧栏（TagRail）；右缘让位窗控（3 × w-11）。
+          本条带 = 窗口拖拽区（chrome-topbar，逻辑顶条带独占拖拽身份——底板不拖、右键不弹
+          原生系统菜单，用户定）；按钮/输入 no-drag 豁免。 */}
       <div
-        className="absolute top-0 z-[var(--z-chrome)] flex items-stretch overflow-hidden"
+        className="chrome-topbar absolute top-0 z-[var(--z-chrome)] flex items-stretch overflow-hidden"
         style={{ left: 'var(--sidebar-w)', right: '132px', height: 'var(--inset-top)' }}
       >
         {navButton(
@@ -138,9 +140,9 @@ export function ChromeControls({
         </div>
       </div>
 
-      {/* 右上：窗口控制键 */}
+      {/* 右上：窗口控制键（同属逻辑顶条带，挂拖拽身份；按钮本身 no-drag） */}
       <div
-        className="absolute top-0 right-0 z-[var(--z-chrome)] flex items-stretch"
+        className="chrome-topbar absolute top-0 right-0 z-[var(--z-chrome)] flex items-stretch"
         style={{ height: 'var(--inset-top)' }}
       >
         {control(

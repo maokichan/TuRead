@@ -114,8 +114,9 @@ function createWindow(): void {
     height: 800,
     show: false,
     title: 'TuRead',
-    // 无边框（2026-09-12 用户定）：不用系统窗口控制键，自绘标题栏（TitleBar.tsx）——
-    // 拖拽/双击最大化由 -webkit-app-region 提供，右缘控制键经 win:* IPC 调本进程 API
+    // 无边框（2026-09-12 用户定）：不用系统窗口控制键，窗控自绘（今 ChromeControls 顶条带）——
+    // 窗口拖拽/双击最大化/右键系统菜单由逻辑顶条带的 -webkit-app-region 承担（styles.css
+    // .chrome-topbar；底板不是镶边，右键不弹系统菜单——用户定），控制键经 win:* IPC 调本进程 API
     frame: false,
     autoHideMenuBar: true,
     webPreferences: {

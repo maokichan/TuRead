@@ -1068,9 +1068,10 @@ textarea {
    **全屏的是"纸"不是"正文"**：外层全屏纸铺开（退场多余信息），正文只占居中定宽列。
    **阅读页上没有任何栏**（无顶栏/状态栏/功能键；浮动出来的栏同样是状态栏）。 */
 
-/* 全屏的"桌"：只有桌色，不承载滚动（滚动条因此只出现在正文列上，不会跑到屏幕边缘） */
+/* 全屏的"桌"：桌色 = 底板本色（用户定：阅读层平压底板，桌与底板同色不分层——
+   桌色深一档时浅色下整面读作影），不承载滚动（滚动条因此只出现在正文列上，不会跑到屏幕边缘） */
 .reader-paper {
-  background: var(--desk-bg);
+  background: var(--bg);
   overflow: hidden;
 }
 
@@ -1231,9 +1232,9 @@ textarea {
 .reader-controls__veil {
   position: absolute;
   inset: 0;
-  background: var(--desk-bg);
+  background: var(--bg); /* 遮罩色 = 卡面本色（卡面已改底板本色，遮罩随之） */
   opacity: var(--reader-veil, var(--toc-veil-rest, 0.74));
-  transition: opacity var(--dur-veil) ease-out;
+  transition: opacity var(--dur-veil) ease;
   pointer-events: none;
 }
 
@@ -1290,7 +1291,7 @@ textarea {
 /* ── 右欄卡片页（批1.13 立；批1.18 定稿 = 两条准绳同时成立）────────────────────
    ① **两张卡并排在底板上**（用户拍板形态）：scrim 容器 = flex 行，阅读卡（flex-1，
    FeatureCard 无阴影档）与槽位并排，中间一道沟露出底板；双卡**地位平等**、同卡面语法
-   （桌色面 + --radius-panel + 1px 边、无阴影——平压底板，卡下不得有影线，用户定）。
+   （卡面 = 底板本色 + --radius-panel + 1px 边、无阴影——平压底板，卡下不得有影线，用户定）。
    ② **纸钉死不动**（用户准绳"没有直接影响到显示内容区的时候就不要改变显示内容区的宽度"）：
    --page-w 锚定视口（见 :root，纸宽与开合无关）；阅读卡收窄导致的 re-center 由
    `.reader-stage` 的**位移补偿**精确抵消 —— 批1.19 起**单驱动**：开合只过渡
@@ -1322,11 +1323,10 @@ textarea {
   height: 100%;
   pointer-events: auto; /* 槽位穿透，卡片本体恢复拾取（批1.17） */
   overflow: hidden; /* 圆角裁内容：面板行的底色不得溢出卡片圆角 */
-  background: var(--desk-bg);
+  background: var(--bg); /* 卡面 = **底板本色**（用户定：双卡平压底板、与底板无色差才是压平；
+     桌色会比底板深一档、浅色下读作影）。1px 边承担边缘定义。 */
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
-  /* 无面板阴影（用户定）：阅读双卡**直接压在底板上**，卡下不得有影线——
-     悬浮影带会被读成「卡下面还有一层」。1px 边承担边缘定义。 */
   opacity: 1;
   transform: translateX(0);
   transition:
@@ -2285,15 +2285,16 @@ textarea {
   color: var(--text);
 }
 
-/* ── chrome 底面（批1.7，STYLE.md §1.1）────────────────────────────
-   背景整面 = 窗口拖拽区；底面上的交互件（图标栏按钮 / 窗控 / 后退前进）
-   与整个卡片区必须 no-drag，否则点不到、卡内拖不动。
-   这里只放无法用 Tailwind 表达的 app-region；双击底面最大化由 app-region 自带。 */
-.chrome-base {
+/* ── 窗口拖拽身份（STYLE.md §1.1；用户定：逻辑顶条带独占）──────────
+   "标题栏行为"（拖动移动 / 双击最大化 / 右键原生系统菜单）只属于**逻辑顶条带**
+   （窗控/后退/搜索住的那条）；底板在视觉上是连续一体的底面，逻辑上**不是窗口镶边**——
+   右键底板不得弹原生系统菜单。卡片区域同为内容区（no-drag）。
+   这里只放无法用 Tailwind 表达的 app-region。 */
+.chrome-topbar {
   -webkit-app-region: drag;
 }
-.chrome-base button,
-.chrome-base input {
+.chrome-topbar button,
+.chrome-topbar input {
   -webkit-app-region: no-drag;
 }
 .card-region {
