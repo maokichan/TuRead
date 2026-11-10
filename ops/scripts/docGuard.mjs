@@ -23,6 +23,12 @@
  * 其余文档（契约/设计/状态/待办/README）统一默认 300（用户 2026-11-05 定，guardrail 非削减目标）：
  * 超限 = 洗——按纪律结合程序事实（对照代码现状），去没必要的形容词与不必要的推演过程，
  * 只留判定、事实与接口形状。
+ *
+ * ── 行长口径（用户 2026-11-11 定，防 TagHit 式「一行三千字」）──
+ * 行数门禁与行长门禁并用：行数防「行多」，行长防「行巨」——只数行数时一行三千字的
+ * 几十行文档照样过闸。非表格叙述行硬上限 800 字符（拦）；500~800 进 --report 软提示
+ * （渐进收敛）。以 `|` 开头的表格行豁免——表格格子的长是结构密度（一格承载完整形态
+ * 规格），不是叙述堆积；围栏代码块不算。
  * 运行环境：零依赖 Node ESM（node >= 20）；路径一律 / 分隔（git ls-files 口径）。
  */
 
@@ -75,6 +81,26 @@ const proseDates = (rel, text) => {
 }
 
 const report = process.argv.includes('--report')
+
+/** 行长扫描：返回 { hard, soft } = 超硬限 / 落软提示区的行号（1 起）。 */
+const LINE_HARD_LIMIT = 800
+const LINE_SOFT_LIMIT = 500
+const longLines = (text) => {
+  const hard = []
+  const soft = []
+  let fence = false
+  text.split('\n').forEach((l, i) => {
+    if (/^\s*(```|~~~)/.test(l)) {
+      fence = !fence
+      return
+    }
+    if (fence || /^\s*\|/.test(l)) return
+    if (l.length > LINE_HARD_LIMIT) hard.push(i + 1)
+    else if (l.length > LINE_SOFT_LIMIT) soft.push(i + 1)
+  })
+  return { hard, soft }
+}
+
 const rows = tracked
   .map((p) => {
     const text = readFileSync(p, 'utf8')
@@ -84,7 +110,8 @@ const rows = tracked
       lines: text.split('\n').length - (text.endsWith('\n') ? 1 : 0),
       limit,
       unregistered: !(p in DOC_LIMITS),
-      dates: proseDates(p, text)
+      dates: proseDates(p, text),
+      long: longLines(text)
     }
   })
   .sort((a, b) => b.lines / b.limit - a.lines / a.limit)
@@ -107,6 +134,13 @@ if (report) {
       }`
     )
   }
+  const softRows = rows.filter((r) => r.long.soft.length > 0)
+  if (softRows.length > 0) {
+    console.log(`\n行长软提示（非表格行 ${LINE_SOFT_LIMIT}~${LINE_HARD_LIMIT} 字符，渐进收敛）：`)
+    for (const r of softRows) {
+      console.log(`  ${r.p}  ${r.long.soft.length} 行（行 ${r.long.soft.slice(0, 5).join(',')}${r.long.soft.length > 5 ? '…' : ''}）`)
+    }
+  }
   console.log(
     `\n${rows.length} 个文档。✓ 达标  △ ≥90%（只许降）  ✗ 超限。上限表与口径见本脚本头注。`
   )
@@ -115,7 +149,8 @@ if (report) {
 
 const over = rows.filter((r) => r.lines > r.limit)
 const datedRows = rows.filter((r) => r.dates.length > 0)
-if (over.length > 0 || datedRows.length > 0) {
+const longRows = rows.filter((r) => r.long.hard.length > 0)
+if (over.length > 0 || datedRows.length > 0 || longRows.length > 0) {
   console.error(red('docGuard：以下文档违规，提交被挡。\n'))
   for (const r of over) {
     console.error(`  ${r.p}  ${r.lines} 行 / 上限 ${r.limit} 行（超 ${r.lines - r.limit} 行）`)
@@ -127,9 +162,16 @@ if (over.length > 0 || datedRows.length > 0) {
         `日期归 git 历史与笔记文件名，正文不写日期（.agents/notes 事件日志放行）`
     )
   }
+  for (const r of longRows) {
+    const sample = r.long.hard.slice(0, 5).join(',')
+    console.error(
+      `  ${r.p}  行长超 ${LINE_HARD_LIMIT} 字符 ${r.long.hard.length} 处（行 ${sample}${r.long.hard.length > 5 ? '…' : ''}）——` +
+        `叙述行拆段或下沉；表格行（| 开头）豁免`
+    )
+  }
   console.error(
     `\n修法（渐进式披露口径）：细节下沉到该在的小节或权威文档；过时段落退役进 git 历史。` +
-      `上限表与口径见 ops/scripts/docGuard.mjs 头注。`
+      `上限表与行长口径见 ops/scripts/docGuard.mjs 头注。`
   )
   process.exit(1)
 }
