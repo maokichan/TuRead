@@ -245,7 +245,8 @@ export function ReaderRail({
             data-closing={rightCard.closing || undefined}
             aria-hidden={rightCard.closing || undefined}
           >
-            {/* 卡侧「卡」按钮：页签行之下、右上角，点击缩回 —— 与阅读侧同一颗 */}
+            {/* 卡侧「卡」按钮：卡片右上角，与阅读侧收起态**同位**（同一操作不改变位置——
+                页签行已沉底，顶缘不再把按钮往下顶）；点击缩回 */}
             <button
               className="card-corner card-corner--oncard"
               aria-label="收起卡片頁"
@@ -254,7 +255,6 @@ export function ReaderRail({
             >
               卡
             </button>
-            {rightTabs}
             {showChat && chat ? (
               <ChatPanel
                 messages={chat.messages}
@@ -279,6 +279,8 @@ export function ReaderRail({
             ) : (
               <ReaderControls params={params} onChange={onParamsChange} isPdf={isPdf} />
             )}
+            {/* 页签行钉在卡片底缘：顶缘让给「卡」按钮（双态同位，同一操作不改变位置） */}
+            {rightTabs}
           </div>,
           cardSlot
         )}
