@@ -140,6 +140,10 @@
   --toc-press-ink: color-mix(in srgb, var(--text) 10%, transparent);
   --toc-press-hi: rgba(255, 255, 255, 0.07);
   --toc-press-lo: rgba(0, 0, 0, 0.55);
+  /* 「卡」按钮（右上角召唤）静息墨色 = **专用档**，不与目录压印字共用——目录有邻近显影撑腰、
+     卡按钮只有 hover，静息必须浓一档才可发现（用户报实锤：无人能主动呼出右卡）。
+     按主题校准：浅 20% / 深 26% 起步，真机四主题定稿。 */
+  --card-corner-ink: color-mix(in srgb, var(--text) 26%, transparent);
   --toc-veil-rest: 0.74;
   /* 聚焦舞台（书库单击详情，FEATURES §10）：景深幕的模糊半径。光学失焦不压色——
      对焦靠 backdrop-filter，页面其余退为焦外散景。 */
@@ -295,6 +299,7 @@
   --toc-press-ink: color-mix(in srgb, var(--text) 14%, transparent);
   --toc-press-hi: rgba(255, 255, 255, 0.65);
   --toc-press-lo: rgba(0, 0, 0, 0.18);
+  --card-corner-ink: color-mix(in srgb, var(--text) 20%, transparent);
 }
 
 [data-theme='sepia-light'] {
@@ -345,6 +350,7 @@
   --toc-press-ink: color-mix(in srgb, var(--text) 14%, transparent);
   --toc-press-hi: rgba(255, 255, 255, 0.55);
   --toc-press-lo: rgba(74, 58, 34, 0.3);
+  --card-corner-ink: color-mix(in srgb, var(--text) 20%, transparent);
 }
 
 [data-theme='sepia-dark'] {
@@ -395,6 +401,7 @@
   --toc-press-ink: color-mix(in srgb, var(--text) 12%, transparent);
   --toc-press-hi: rgba(255, 255, 255, 0.06);
   --toc-press-lo: rgba(0, 0, 0, 0.6);
+  --card-corner-ink: color-mix(in srgb, var(--text) 26%, transparent);
 }
 
 * {
@@ -1341,7 +1348,9 @@ textarea {
 
 /* ── 「卡」按钮（批1.21 用户定）：卡片页呼出/缩回的**点击交互**，压印字与目录同一语汇 ──
    两位点：阅读界面右上角（卡收起时，ReaderRail 渲染）/ 卡片页右上角页签行之下
-   （卡展开时，比原「筆記」页签略靠下）。静息淡字 + 边缘阴影，hover/聚焦显影全强度。 */
+   （卡展开时，比原「筆記」页签略靠下）。静息淡字 + 边缘阴影，hover/聚焦显影全强度。
+   静息墨色 = 专用档 `--card-corner-ink`（比目录压印字浓一档：目录有邻近显影撑腰，
+   卡按钮只有 hover——浓度按主题校准可发现性，浅 20% / 深 26% 起步）。 */
 .card-corner {
   position: absolute;
   z-index: 16;
@@ -1354,7 +1363,7 @@ textarea {
   line-height: 1.4;
   padding: 2px 8px;
   cursor: pointer;
-  color: var(--toc-press-ink, color-mix(in srgb, var(--text) 12%, transparent));
+  color: var(--card-corner-ink, color-mix(in srgb, var(--text) 20%, transparent));
   text-shadow:
     0 1px 0 var(--toc-press-hi, rgba(255, 255, 255, 0.4)),
     0 -1px 1px var(--toc-press-lo, rgba(0, 0, 0, 0.35));
