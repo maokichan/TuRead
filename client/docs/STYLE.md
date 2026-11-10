@@ -35,7 +35,7 @@
 |---|---|
 | **chrome 底面**（base layer） | 窗口背景的连续一整面；导航图标与窗控是**住在它上面的内容**，不是"栏"。无分隔线、无栏间底色差，底面整面是窗口拖拽区。 |
 | **inset / gutter** | 卡片与底面、区域与区域之间**不可见的结构性留白**；区域划分靠它声明，不靠视觉边界。token 落点 = [tokens](style/tokens.md) 页 §3.4。 |
-| **卡片**（card / surface） | 浮在底面上的功能界面（书库/笔记/房间/设置四张）。统一卡面 = 桌色面 + `--radius-panel` + 1px 边 + `--shadow-panel`。**阅读层不套卡面**（用户定：整面桌直绘卡区、无边框无圆角，双卡压在桌上，卡下不得有影线）；阅读器的"纸"由阅读器自持。 |
+| **卡片**（card / surface） | 浮在底面上的功能界面（书库/阅读/笔记/房间/设置五张）。统一卡面 = 桌色面 + `--radius-panel` + 1px 边；**阅读双卡用无阴影档**（用户定：阅读卡与右欄卡片页地位平等、平压底板，卡下不得有影线），其余三卡加 `--shadow-panel`；阅读器的"纸"由阅读器自持。 |
 | **elevation** | 卡与卡的上下关系。卡片叠置目前只允许一层（阅读卡 ⊃ 书库卡）；菜单/弹窗/命令面板走 [tokens](style/tokens.md) 页 §3.5 的浮层档位，不算卡片层。 |
 | **scrim** | 叠置卡片下方压暗下层的遮罩（`--overlay-dim`），同时挡住下层交互。 |
 | **卡片本地工具** | 卡片只持自己的语境工具；**搜索不住卡内**（搜索回底面顶条带，全局生命周期、按激活域分流，[`client/src/renderer/src/features/chromeSearchBus.ts`](../src/renderer/src/features/chromeSearchBus.ts)）；全局键盘路径 = 命令面板。底面全局件 = 窗控、**后退/前进**（恒在——职能按域分流，书库域 = 层级历史，未接历史机构的域恒禁用）、**全局搜索框**（无绑定域 = 禁用 + 域占位）。**阅读标签条住侧栏**（[`client/src/renderer/src/components/TagRail.tsx`](../src/renderer/src/components/TagRail.tsx)，用户定：功能组件之下、分界线之下，窄格首字 + 悬停揭示全题，见 [style/components-shell.md](style/components-shell.md) §5.2 ⑦），不住顶栏。 |
