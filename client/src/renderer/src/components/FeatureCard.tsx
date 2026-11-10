@@ -7,7 +7,8 @@
  * scroll = 卡内滚动 + 统一卡内衬（`p-5`，承接原 main 的内边距角色）：内容可能超出
  * 卡高的卡（设置页）用真值；自带内滚的卡（书库/笔记/房间）也给真值保持原排版；
  * 阅读卡给假值——它的几何（挂载线/纸边距）由自己全权管理，卡面零内衬。
- * flat = 无阴影档（用户定：阅读双卡**平压在底板上**，卡下不得有影线；圆角与 1px 边保留，
+ * flat = 无阴影档（用户定：阅读双卡**平压在底板上**，卡下不得有影线；卡面 = **底板本色**
+ * （与底板无色差才是「压平」，桌色会比底板深一档、浅色下读作影），圆角与 1px 边保留，
  * 双卡地位平等）。只用于阅读卡（右欄兄弟卡同档，见 styles.css `.rail-card`）。
  * 叠置遮罩（scrim）不住这里——"阅读卡 ⊃ 书库卡"的 `--overlay-dim` 包装在 AppShell 层分支上。
  */
@@ -28,8 +29,10 @@ export function FeatureCard({ scroll, flat, className, style, children }: Featur
       style={style}
       className={`feature-card h-full w-full ${
         scroll ? 'overflow-y-auto overflow-x-hidden p-5' : 'overflow-hidden'
-      } rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--desk-bg)] ${
-        flat ? '' : 'shadow-[var(--shadow-panel)]'
+      } rounded-[var(--radius-panel)] border border-[var(--border)] ${
+        flat
+          ? 'bg-[var(--bg)]'
+          : 'bg-[var(--desk-bg)] shadow-[var(--shadow-panel)]'
       } ${className ?? ''}`}
     >
       {children}
